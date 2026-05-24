@@ -1,0 +1,32 @@
+# Local development: Postgres with pgvector + this AI service.
+# Useful for testing NestJS in isolation without needing the .NET BFF.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: skillbridge-ai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skillbridge
+      POSTGRES_PASSWORD: skillbridge
+      POSTGRES_DB: skillbridge
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skillbridge-ai-service
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    ports:
+      - '3002:3002'
+
+volumes:
+  postgres_data:

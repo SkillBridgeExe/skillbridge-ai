@@ -1,0 +1,55 @@
+# Compiled output
+/dist
+/node_modules
+/build
+/coverage
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - VSCode
+.history/*
+
+# Env files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local docs (per AGENTS.md convention, .md is local-only except README/AGENTS)
+# Uncomment if needed:
+# *.md
+# !README.md
+# !AGENTS.md
+
+# Temp
+tmp/
+temp/

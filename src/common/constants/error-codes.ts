@@ -1,0 +1,17 @@
+/**
+ * Standard error codes returned by this service.
+ * Matches the contract in docs/api-contract.md.
+ */
+export const ERROR_CODES = {
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  FORBIDDEN: 'FORBIDDEN',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  NOT_FOUND: 'NOT_FOUND',
+  AI_SERVICE_UNAVAILABLE: 'AI_SERVICE_UNAVAILABLE',
+  AI_ANALYSIS_FAILED: 'AI_ANALYSIS_FAILED',
+  PROMPT_TEMPLATE_NOT_FOUND: 'PROMPT_TEMPLATE_NOT_FOUND',
+  EMBEDDING_FAILED: 'EMBEDDING_FAILED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+} as const;
+
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
