@@ -2,18 +2,9 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { CorrelationId } from '../../common/decorators/correlation-id.decorator';
 import { InternalUser } from '../../common/decorators/internal-user.decorator';
 import { InterviewService } from './interview.service';
-import {
-  StartInterviewRequestDto,
-  StartInterviewResponseDto,
-} from './dto/start-interview.dto';
-import {
-  AnswerInterviewRequestDto,
-  AnswerInterviewResponseDto,
-} from './dto/answer-interview.dto';
-import {
-  EndInterviewRequestDto,
-  EndInterviewResponseDto,
-} from './dto/end-interview.dto';
+import { StartInterviewRequestDto, StartInterviewResponseDto } from './dto/start-interview.dto';
+import { AnswerInterviewRequestDto, AnswerInterviewResponseDto } from './dto/answer-interview.dto';
+import { EndInterviewRequestDto, EndInterviewResponseDto } from './dto/end-interview.dto';
 
 @Controller('internal/ai/interview')
 export class InterviewController {

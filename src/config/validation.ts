@@ -20,7 +20,9 @@ export const configValidationSchema = Joi.object({
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-small'),
 
   // Database
-  DATABASE_URL: Joi.string().uri({ scheme: ['postgresql', 'postgres'] }).required(),
+  DATABASE_URL: Joi.string()
+    .uri({ scheme: ['postgresql', 'postgres'] })
+    .required(),
 
   // Vector
   VECTOR_DIMENSION: Joi.number().integer().positive().default(768),

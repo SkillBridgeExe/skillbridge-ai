@@ -25,10 +25,10 @@ async function bootstrap() {
     }),
   );
 
-  // Global response shape: { success, data, message }
+  // Global response envelope (shared with .NET):
+  //   success: { success: true, message, data, errors: null }
+  //   error:   { success: false, message, data: null, errors, errorCode }
   app.useGlobalInterceptors(new CorrelationIdInterceptor(), new ResponseInterceptor());
-
-  // Global error shape: { success: false, error: { code, message, details } }
   app.useGlobalFilters(new AllExceptionsFilter());
 
   await app.listen(port);

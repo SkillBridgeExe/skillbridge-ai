@@ -2,14 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
-import {
-  StartInterviewRequestDto,
-  StartInterviewResponseDto,
-} from './dto/start-interview.dto';
-import {
-  AnswerInterviewRequestDto,
-  AnswerInterviewResponseDto,
-} from './dto/answer-interview.dto';
+import { StartInterviewRequestDto, StartInterviewResponseDto } from './dto/start-interview.dto';
+import { AnswerInterviewRequestDto, AnswerInterviewResponseDto } from './dto/answer-interview.dto';
 import {
   EndInterviewParsedResponse,
   EndInterviewRequestDto,

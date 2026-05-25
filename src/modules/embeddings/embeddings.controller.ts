@@ -1,10 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { CorrelationId } from '../../common/decorators/correlation-id.decorator';
 import { InternalUser } from '../../common/decorators/internal-user.decorator';
-import {
-  IndexDocumentRequestDto,
-  IndexDocumentResponseDto,
-} from './dto/index-document.dto';
+import { IndexDocumentRequestDto, IndexDocumentResponseDto } from './dto/index-document.dto';
 import { EmbeddingsService } from './embeddings.service';
 
 @Controller('internal/ai/embeddings')

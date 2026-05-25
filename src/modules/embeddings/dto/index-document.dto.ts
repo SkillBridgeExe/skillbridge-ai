@@ -1,11 +1,6 @@
 import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export type DocumentSourceType =
-  | 'CV'
-  | 'JOB_DESCRIPTION'
-  | 'COURSE'
-  | 'USER_PROFILE'
-  | 'INTERVIEW';
+export type DocumentSourceType = 'CV' | 'JOB_DESCRIPTION' | 'COURSE' | 'USER_PROFILE' | 'INTERVIEW';
 
 const SOURCE_TYPES: DocumentSourceType[] = [
   'CV',

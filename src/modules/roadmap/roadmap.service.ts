@@ -4,10 +4,7 @@ import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { RagService } from '../rag/rag.service';
 import { RoadmapGenerateRequestDto } from './dto/roadmap-request.dto';
-import {
-  RoadmapGenerateResponseDto,
-  RoadmapParsedResponse,
-} from './dto/roadmap-response.dto';
+import { RoadmapGenerateResponseDto, RoadmapParsedResponse } from './dto/roadmap-response.dto';
 
 @Injectable()
 export class RoadmapService {

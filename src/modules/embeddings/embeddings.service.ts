@@ -3,10 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PgVectorService } from '../../infrastructure/vector/pgvector.service';
 import { ChunkerService } from './chunker.service';
-import {
-  IndexDocumentRequestDto,
-  IndexDocumentResponseDto,
-} from './dto/index-document.dto';
+import { IndexDocumentRequestDto, IndexDocumentResponseDto } from './dto/index-document.dto';
 
 @Injectable()
 export class EmbeddingsService {
@@ -45,9 +42,7 @@ export class EmbeddingsService {
         const embedded = await this.llm.embed(chunk.content);
         await this.vector.upsertChunkEmbedding(uuidv4(), embedded.embedding);
       } catch (err) {
-        this.logger.warn(
-          `Embedding failed for chunk #${chunk.index}: ${(err as Error).message}`,
-        );
+        this.logger.warn(`Embedding failed for chunk #${chunk.index}: ${(err as Error).message}`);
       }
     }
 

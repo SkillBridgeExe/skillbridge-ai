@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { ResponseInterceptor } from '../src/common/interceptors/response.interceptor';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
@@ -9,9 +9,6 @@ describe('SkillBridge AI (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    process.env.INTERNAL_AUTH_SECRET = 'test-secret-at-least-16-chars';
-    process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
-
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -24,21 +21,37 @@ describe('SkillBridge AI (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
-  it('GET /health returns ok without auth', async () => {
+  it('GET /health returns ok without auth and matches shared envelope', async () => {
     const res = await request(app.getHttpServer()).get('/health').expect(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('ok');
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        success: true,
+        message: null,
+        errors: null,
+        data: expect.objectContaining({ status: 'ok' }),
+      }),
+    );
   });
 
-  it('POST /internal/ai/cv-review without X-Internal-Auth returns 401', async () => {
+  it('POST /internal/ai/cv-review without X-Internal-Auth returns 401 with shared error envelope', async () => {
     const res = await request(app.getHttpServer())
       .post('/internal/ai/cv-review')
       .send({})
       .expect(401);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error.code).toBe('UNAUTHORIZED');
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        success: false,
+        data: null,
+        errorCode: 'UNAUTHORIZED',
+      }),
+    );
+    expect(typeof res.body.message).toBe('string');
+    // errors is null for non-validation failures
+    expect(res.body.errors).toBeNull();
   });
 });

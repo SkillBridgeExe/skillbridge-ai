@@ -4,10 +4,7 @@ import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { RagService } from '../rag/rag.service';
 import { CvJdMatchRequestDto } from './dto/cv-jd-match-request.dto';
-import {
-  CvJdMatchParsedResponse,
-  CvJdMatchResponseDto,
-} from './dto/cv-jd-match-response.dto';
+import { CvJdMatchParsedResponse, CvJdMatchResponseDto } from './dto/cv-jd-match-response.dto';
 
 /**
  * Composite scoring:

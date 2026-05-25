@@ -31,7 +31,10 @@ export class LlmService {
       'gemini') as LlmProvider;
   }
 
-  async complete(messages: LlmMessage[], options: LlmCompleteOptions = {}): Promise<LlmCompleteResult> {
+  async complete(
+    messages: LlmMessage[],
+    options: LlmCompleteOptions = {},
+  ): Promise<LlmCompleteResult> {
     const provider = this.resolveProvider(options.provider);
     try {
       return await provider.complete(messages, options);

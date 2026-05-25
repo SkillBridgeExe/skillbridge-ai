@@ -93,7 +93,9 @@ export class TracingService {
 
   async logToolCall(input: LogToolCallInput): Promise<string> {
     const id = uuidv4();
-    this.logger.debug(`[stub] ai_tool_calls INSERT id=${id} tool=${input.toolName} status=${input.status}`);
+    this.logger.debug(
+      `[stub] ai_tool_calls INSERT id=${id} tool=${input.toolName} status=${input.status}`,
+    );
     // TODO: INSERT INTO ai_tool_calls (...) VALUES (...)
     return id;
   }

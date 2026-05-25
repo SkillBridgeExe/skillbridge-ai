@@ -9,7 +9,11 @@ import { Injectable } from '@nestjs/common';
  */
 @Injectable()
 export class TemplateRenderer {
-  render(template: string, vars: Record<string, unknown>, options: { strict?: boolean } = {}): string {
+  render(
+    template: string,
+    vars: Record<string, unknown>,
+    options: { strict?: boolean } = {},
+  ): string {
     return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) => {
       const value = this.lookup(vars, key);
       if (value === undefined) {

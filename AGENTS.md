@@ -47,8 +47,11 @@ Part 2 of that file covers every `/internal/ai/*` endpoint owned by this service
 
 - TypeScript strict mode is on. Do not turn it off.
 - All DTOs use `class-validator` decorators.
-- All responses go through `ResponseInterceptor` which wraps them in `{ success, data, message }`.
-- All errors go through `AllExceptionsFilter` which formats them as `{ success: false, error: { code, message, details } }`.
+- All responses use the shared envelope synced with .NET backend (`docs/api-response-standard.md` in `skillbridge-be`):
+  - Success (via `ResponseInterceptor`): `{ success: true, message: null, data, errors: null }`
+  - Error (via `AllExceptionsFilter`): `{ success: false, message, data: null, errors, errorCode }`
+  - `errors` is a field-keyed object (e.g. `{ email: ["..."] }`) for validation; `null` otherwise.
+  - `errorCode` is a NestJS-only field for client branching (proposed for .NET adoption — pending sync).
 - All endpoints under `/internal/ai/*` use `InternalAuthGuard` (registered globally — do not remove).
 - Correlation IDs flow via `X-Correlation-Id` header and are accessible via `@CorrelationId()` decorator.
 

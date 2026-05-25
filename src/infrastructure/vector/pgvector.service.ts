@@ -69,9 +69,7 @@ export class PgVectorService {
 
   private assertDimension(vec: number[]): void {
     if (vec.length !== this.dimension) {
-      throw new Error(
-        `Vector dimension mismatch: expected ${this.dimension}, got ${vec.length}`,
-      );
+      throw new Error(`Vector dimension mismatch: expected ${this.dimension}, got ${vec.length}`);
     }
   }
 }

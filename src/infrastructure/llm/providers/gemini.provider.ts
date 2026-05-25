@@ -46,7 +46,9 @@ export class GeminiProvider implements LlmProviderClient {
 
     const start = Date.now();
     const result = await model.generateContent({
-      systemInstruction: systemInstruction ? { role: 'system', parts: [{ text: systemInstruction }] } : undefined,
+      systemInstruction: systemInstruction
+        ? { role: 'system', parts: [{ text: systemInstruction }] }
+        : undefined,
       contents: nonSystem.map((m) => ({
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],

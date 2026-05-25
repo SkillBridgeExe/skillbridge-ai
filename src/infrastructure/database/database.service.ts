@@ -39,6 +39,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       idleTimeoutMillis: 30_000,
     });
 
+    // Skip eager connection check in test environments — e2e tests boot the
+    // app without a real Postgres and only exercise handler-level behavior.
+    // Production/dev still fails fast on bad DATABASE_URL.
+    if (this.config.get<string>('nodeEnv') === 'test' || process.env.NODE_ENV === 'test') {
+      this.logger.warn('NODE_ENV=test detected; skipping Postgres connection check.');
+      return;
+    }
+
     try {
       const client = await this.pool.connect();
       await client.query('SELECT 1');
