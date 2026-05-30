@@ -32,4 +32,21 @@ export const configValidationSchema = Joi.object({
   // Observability
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug', 'verbose').default('debug'),
   ENABLE_REQUEST_LOGGING: Joi.boolean().default(true),
+
+  // Auth (JWT + Google) — defaults are DEV ONLY; override in prod.
+  JWT_ACCESS_SECRET: Joi.string().min(16).default('dev-access-secret-change-me-please'),
+  JWT_ACCESS_TTL: Joi.number().integer().positive().default(3600),
+  JWT_REFRESH_SECRET: Joi.string().min(16).default('dev-refresh-secret-change-me-please'),
+  JWT_REFRESH_TTL: Joi.number().integer().positive().default(604800),
+  GOOGLE_CLIENT_ID: Joi.string().allow('').optional(),
+  CORS_ORIGINS: Joi.string().allow('').optional(),
+
+  // DB / TypeORM
+  DB_SSL: Joi.boolean().default(false),
+  TYPEORM_SYNCHRONIZE: Joi.boolean().default(false),
+  TYPEORM_LOGGING: Joi.boolean().default(false),
+
+  // Rate limiting (@nestjs/throttler)
+  THROTTLE_TTL: Joi.number().integer().positive().default(60),
+  THROTTLE_LIMIT: Joi.number().integer().positive().default(100),
 });

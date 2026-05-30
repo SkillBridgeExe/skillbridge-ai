@@ -5,6 +5,8 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -14,6 +16,15 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3002);
   const nodeEnv = config.get<string>('NODE_ENV', 'development');
+
+  // Security headers + CORS (NestJS is now public-facing — see ARCHITECTURE.md §6)
+  app.use(helmet());
+  app.use(cookieParser());
+  const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  app.enableCors({ origin: corsOrigins.length > 0 ? corsOrigins : true, credentials: true });
 
   // Global validation: strip unknown fields, fail on missing required fields
   app.useGlobalPipes(
