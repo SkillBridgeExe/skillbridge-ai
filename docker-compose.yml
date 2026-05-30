@@ -1,5 +1,5 @@
-# Local development: Postgres with pgvector + this AI service.
-# Useful for testing NestJS in isolation without needing the .NET BFF.
+# Local development: Postgres with pgvector + the NestJS backend.
+# Spins up a local DB + the service for end-to-end local dev.
 
 services:
   postgres:

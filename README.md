@@ -1,184 +1,92 @@
-# SkillBridge AI Service
+# SkillBridge Backend (NestJS)
 
-> Internal AI orchestrator for SkillBridge. NestJS service that handles LLM calls, RAG retrieval, prompt management, and MCP tool calling.
->
-> **This service is NOT exposed to the public internet.** It is called only by the .NET BFF (`skillbridge-be`).
+> The **single backend** for SkillBridge — public BFF **+** internal AI orchestration in one NestJS modular monolith.
+> ⚡ **2026-05-30:** pivoted from .NET → **NestJS-only**. Architecture detail: `ARCHITECTURE.md`. Agent rules: `AGENTS.md`.
 
 ## What this service does
 
-| Domain | Endpoints | Purpose |
-|--------|-----------|---------|
-| CV Review | `POST /internal/ai/cv-review` | AI quality review of a CV |
-| CV/JD Match | `POST /internal/ai/cv-jd-match` | Composite scoring (semantic + LLM + rule engine) |
-| Interview | `POST /internal/ai/interview/{start,answer,end}` | 4-phase mock interview with per-question + final scoring |
-| Roadmap | `POST /internal/ai/roadmap/generate` | RAG-based learning roadmap generation |
-| Embeddings | `POST /internal/ai/embeddings/index` | Index documents into pgvector |
-| RAG | `POST /internal/ai/rag/query` | Retrieval helper (internal) |
+- **Platform (public API `/api/*`):** auth, users/profiles, CVs (upload/CRUD), job-descriptions, billing/quota, history. Owns PostgreSQL + TypeORM migrations.
+- **AI (internal module):** LLM calls (Gemini/OpenAI), RAG over pgvector, versioned prompts, response parsing/validation, MCP/tool-call traceability.
 
-Full contract: see `../skillbridge-fe-official/docs/api-contract.md`
+| Domain | Public endpoint | Purpose |
+|--------|-----------------|---------|
+| Auth | `POST /api/auth/{register,login,refresh,logout,google}` · `GET /api/auth/me` | JWT + Google, refresh cookie |
+| CV | `POST /api/cvs` · `GET /api/cvs/:id` · `DELETE /api/cvs/:id` | upload + diagnosis |
+| Diagnosis | `POST /api/diagnosis/{cv-review,cv-jd-match}` · `GET /api/diagnosis/history` | AI scoring |
+| Interview | `POST /api/interview/{start,answer,end}` | mock interview |
+| Roadmap | `POST /api/roadmaps/generate` | learning roadmap |
+| Health | `GET /health` | liveness (no auth) |
 
-## Architecture position
+Internal AI lives under `/internal/ai/*` (or direct service calls), invoked **intra-process** by platform services — not exposed to FE.
+
+## Architecture
 
 ```txt
-React FE  ->  .NET Main Backend / BFF  ->  THIS SERVICE  ->  LLM / pgvector / MCP
-                                                |
-                                           Postgres (write-only on ai_* tables)
+React FE  ->  NestJS backend (THIS repo)  ->  PostgreSQL (+ pgvector) via TypeORM
+               [platform /api/*]  +  [internal AI module]  ->  Gemini (@google/genai) / OpenAI
+```
+FE calls `/api/*` only. The one FE→Google direct path is the Gemini Live WS (ephemeral token brokered here). Full design + 2-dev code split: see `ARCHITECTURE.md`.
+
+## Tech stack (verified 2026-05-30)
+
+Node 20+ · **NestJS 11** · TypeScript 5.6 strict · **TypeORM 0.3** (Postgres + pgvector) · **`@google/genai`** + **`openai` v6** · Passport + `@nestjs/jwt` · `@nestjs/throttler` + helmet · class-validator · Jest.
+
+## Code ownership (2 devs)
+
+| Area | Owner |
+|------|-------|
+| `src/platform/**` (auth, users, cvs, billing, gateway, entities, migrations) | **BE chính dev** |
+| `src/modules/**` (→ `ai/`), `src/infrastructure/llm`, `src/common` (AI helpers) | **AI dev** |
+| `src/database`, `src/config`, `app.module.ts`, `main.ts` | shared (platform dev leads) |
+
+## Getting started
+
+```powershell
+npm install
+Copy-Item .env.example .env
+# Fill: DATABASE_URL (Postgres set up by the platform dev), GEMINI_API_KEY,
+#       INTERNAL_AUTH_SECRET, JWT secrets (dev defaults exist).
+
+npm run dev          # = nest start --watch  ->  http://localhost:3002
+```
+- `npm run start` = run once (no watch) · `npm run start:prod` = run built `dist/`.
+- **Run without a DB** (smoke test): `$env:NODE_ENV="test"; node dist/main` → boots, skips DB/auth.
+- Health: `GET http://localhost:3002/health`.
+
+## Scripts
+
+```powershell
+npm run dev / start:dev          # watch (hot restart on save)
+npm run build / start:prod
+npm run lint / test / test:e2e
+npm run migration:generate -- src/database/migrations/<Name>   # then: npm run migration:run
 ```
 
-## Tech stack
+## Database
 
-- **Runtime:** Node 20+
-- **Framework:** NestJS 10 (modular monolith)
-- **Language:** TypeScript 5.6 (strict mode)
-- **LLM:** Google Gemini (primary) + OpenAI (fallback)
-- **Vector store:** pgvector (in the main Postgres)
-- **Validation:** class-validator + Joi
-- **Tests:** Jest + Supertest
+NestJS **owns** PostgreSQL via **TypeORM** (no more .NET split). Schema source of truth: `../skillbridge-fe-official/docs/database/skillbridge-mvp.dbml` (38 tables). `synchronize: false` outside personal dev — **migrations are authoritative** (like EF Migrations). Entities in `src/database/entities/`.
 
 ## Project structure
 
 ```txt
 src/
-├── main.ts                      # Bootstrap
-├── app.module.ts                # Root module
-│
-├── config/                      # Typed config + Joi validation
-│
-├── common/                      # Shared building blocks
-│   ├── guards/                  # InternalAuthGuard (X-Internal-Auth check)
-│   ├── interceptors/            # CorrelationId, Response shape
-│   ├── filters/                 # AllExceptionsFilter
-│   ├── decorators/              # @CorrelationId(), @InternalUser()
-│   ├── dto/                     # ApiResponseDto
-│   └── constants/               # Error codes, header names
-│
-├── infrastructure/              # Cross-cutting infra
-│   ├── database/                # Postgres client
-│   ├── vector/                  # pgvector wrapper
-│   └── llm/                     # LLM provider abstraction (Gemini/OpenAI)
-│
-└── modules/                     # Business features (one folder per feature)
-    ├── health/                  # GET /health
-    ├── prompts/                 # Prompt template loader + renderer
-    ├── tracing/                 # Writes ai_requests, ai_results, retrieval_logs, ai_tool_calls
-    ├── embeddings/              # POST /internal/ai/embeddings/index
-    ├── rag/                     # POST /internal/ai/rag/query
-    ├── cv-review/               # POST /internal/ai/cv-review
-    ├── cv-jd-match/             # POST /internal/ai/cv-jd-match
-    ├── interview/               # POST /internal/ai/interview/{start,answer,end}
-    └── roadmap/                 # POST /internal/ai/roadmap/generate
-
-prompts/                         # Prompt templates (markdown, version-controlled)
-├── cv_review_v1.md
-├── cv_jd_match_v1.md
-├── interview_technical_v1.md
-├── interview_screening_v1.md
-├── interview_scoring_v1.md
-└── roadmap_v1.md
-
-test/                            # E2E tests
+├── main.ts · app.module.ts
+├── config/                  # typed env + validation
+├── database/                # TypeORM data-source, entities/, migrations/
+├── shared|common/           # guards, interceptors, filters, decorators, dto
+├── infrastructure/          # llm (Gemini/OpenAI), vector (pgvector), storage (R2)
+├── platform/                # [BE dev] auth, users, cvs, job-descriptions, billing, gateway
+└── modules/  (→ ai/)        # [AI dev] cv-review, cv-jd-match, interview, roadmap,
+                             #          embeddings, rag, prompts, tracing
+prompts/                     # versioned prompt templates (<code>_v<n>.md)
+data/                        # pilot seed snapshots (skills, rubrics, course catalog)
 ```
-
-Every feature module follows the same shape:
-
-```txt
-modules/<feature>/
-├── <feature>.module.ts          # @Module() registration
-├── <feature>.controller.ts      # Route handlers
-├── <feature>.service.ts         # Business logic
-├── <feature>.parser.ts          # (optional) LLM JSON schema validation
-└── dto/                         # Request + response DTOs with class-validator
-```
-
-## Getting started
-
-### Prerequisites
-
-- Node 20+
-- npm 10+
-- Docker (optional, for local Postgres + pgvector)
-
-### Install + run
-
-```powershell
-npm install
-cp .env.example .env
-# Fill GEMINI_API_KEY (and OPENAI_API_KEY if using fallback)
-
-npm run start:dev
-```
-
-The service starts on `http://localhost:3002`.
-
-### Verify
-
-```powershell
-# Health check (no auth required)
-curl http://localhost:3002/health
-
-# Internal endpoint (requires X-Internal-Auth header)
-curl -X POST http://localhost:3002/internal/ai/cv-review `
-  -H "Content-Type: application/json" `
-  -H "X-Internal-Auth: change-me-to-a-strong-random-string" `
-  -H "X-Correlation-Id: 11111111-1111-1111-1111-111111111111" `
-  -H "X-User-Id: 22222222-2222-2222-2222-222222222222" `
-  -d '{ "cv_id": "uuid", "parsed_text": "...", "prompt_template_code": "cv_review_v1" }'
-```
-
-### Common scripts
-
-```powershell
-npm run start:dev      # Dev mode, hot reload
-npm run build          # Production build -> dist/
-npm run start:prod     # Run production build
-npm run lint           # ESLint + Prettier auto-fix
-npm run test           # Unit tests
-npm run test:e2e       # End-to-end tests
-```
-
-## Database access
-
-This service has **write access only** to the following tables (all in the same Postgres as .NET):
-
-- `ai_jobs`
-- `ai_requests`
-- `ai_results`
-- `documents`
-- `document_chunks`
-- `embedding_jobs`
-- `retrieval_logs`
-- `ai_tool_calls`
-
-All other tables (`users`, `cvs`, `interview_sessions`, etc.) are **read-only** from this service. Business writes go through .NET.
-
-## Internal auth
-
-All endpoints under `/internal/ai/*` require these headers from .NET:
-
-| Header | Purpose |
-|--------|---------|
-| `X-Internal-Auth` | Shared secret (env: `INTERNAL_AUTH_SECRET`) |
-| `X-Correlation-Id` | UUID v4, propagated from FE -> .NET -> here for tracing |
-| `X-User-Id` | UUID of the end user .NET is acting on behalf of |
-
-Health check (`GET /health`) is the only unauthenticated route.
-
-## Adding a new feature module
-
-1. Generate skeleton: copy `modules/health/` as a starting point
-2. Define DTOs in `<feature>/dto/` with `class-validator` decorators
-3. Wire LLM in service via `LlmService` from `infrastructure/llm/`
-4. Wire prompt template via `PromptsService` from `modules/prompts/`
-5. Write tracing via `TracingService` from `modules/tracing/`
-6. Register the module in `app.module.ts`
-7. Add E2E test in `test/`
-8. Update `prompts/` if a new prompt template is needed
-9. Update `../skillbridge-fe-official/docs/api-contract.md` Part 2
 
 ## Related repos
 
-- `skillbridge-fe-official` — React FE (calls .NET, never this service directly)
-- `skillbridge-be` — .NET Main Backend / BFF (the only caller of this service)
+- `../skillbridge-fe-official` — React FE (calls this backend) + canonical docs (DBML, api-contract, plans).
+- `../skillbridge-be` (.NET) — **deprecated by the 2026-05-30 pivot; not used.**
+- `../Exe-SkillBridge` — original full-stack prototype; UI/behavior reference only.
 
 ## License
 

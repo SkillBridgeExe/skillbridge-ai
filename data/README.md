@@ -9,25 +9,22 @@ These files are **copies** of the canonical seed data in the FE repo:
 - `skills-pilot.json` ← copy of `skillbridge-fe-official/docs/database/seed/skills-pilot.json`
 - `role-rubrics-pilot.json` ← copy of `skillbridge-fe-official/docs/database/seed/role-rubrics.json`
 
-When the canonical files change, this directory MUST be re-synced (manually for pilot, automated in production via .NET endpoint fetch).
+When the canonical files change, this directory MUST be re-synced (manually for pilot; in production, seed straight from these snapshots via a TypeORM migration/seeder).
 
 ## Production roadmap
 
-In production, this in-memory cache will be replaced by:
+After the 2026-05-30 NestJS pivot, **NestJS owns the canonical Postgres data via TypeORM** (no .NET fetch). In production:
 
 ```
-NestJS startup → fetch /internal/v1/skills/taxonomy from .NET → cache
-              → fetch /internal/v1/role-rubrics from .NET → cache
-              → refresh every 1h
+JSON snapshot (here) → TypeORM seeder/migration → skills / role_skill_requirements tables
+SkillTaxonomyService / RoleRubricService → load from DB (+ in-memory cache)
 ```
 
-The .NET service owns the canonical Postgres data; NestJS only caches.
-
-For pilot, we ship with the JSON snapshot in-repo so NestJS is self-contained and can be tested without depending on .NET being live.
+For pilot, we ship the JSON snapshot in-repo so NestJS is self-contained and can be tested without a live DB.
 
 ## Why local files for pilot?
 
-- **Self-contained tests** — `npm run test:e2e` doesn't need .NET running.
+- **Self-contained tests** — `npm run test:e2e` doesn't need a live DB.
 - **Deterministic** — same JSON on disk = same taxonomy = same results.
 - **Quick iteration** — change a skill weight in JSON, restart, see effect.
-- **Demo-able offline** — works in airplane/coffee shop without .NET service.
+- **Demo-able offline** — works in airplane/coffee shop without a live DB.
