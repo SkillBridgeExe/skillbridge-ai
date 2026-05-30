@@ -1,53 +1,99 @@
 ---
-system: You are an expert CV reviewer for Vietnamese tech students. Be specific, actionable, and concise. Always respond with valid JSON matching the schema below. Do not include markdown or commentary outside the JSON.
+system: You are a strict, consistent CV scoring assistant for Vietnamese tech students. Follow the rubric EXACTLY — do not invent your own weights or scoring scheme. Score each dimension independently using the criteria provided. Be deterministic — same CV should produce nearly identical scores across runs. Return ONLY valid JSON matching the output schema. No markdown, no commentary.
 title: CV Review v1
-description: CV-only quality review (no JD comparison). Returns overall + 4 breakdown + sections + parsed CV.
+description: Rubric-based CV scoring (4 dimensions × 20pt) + skill extraction. LLM scores content quality only; ATS readability is computed separately by AtsRuleCheckerService (rule-based, deterministic). Composite score = ats_rule_score × 0.4 + (llm_total/80) × 100 × 0.6.
 ---
 
-Review the following CV. Score each dimension 0-100 and list specific issues with hints.
+You are reviewing a candidate's CV. Use the rubric below to score 4 dimensions, then extract structured fields.
 
 ## CV content
 
 {{cv_text}}
 
-## Output schema (return ONLY this JSON)
+## Target role (for skills_relevance scoring)
+
+{{target_role}}
+
+## Rubric — Score each dimension 0-20 using the EXACT criteria
+
+### Dimension 1: Action Verbs & Quantified Impact (0-20)
+
+Evaluate every bullet point in Experience section. Look for strong action verbs AT THE START of bullets + measurable outcomes (numbers, %, $, time saved, etc.).
+
+- **18-20**: ≥80% of bullets start with strong verb (built, designed, led, optimized, implemented) AND have quantified impact (e.g. "reduced load time by 40%", "led team of 5", "saved 200 hours/month")
+- **13-17**: 50-80% of bullets have action verbs; some have metrics but many are descriptive
+- **7-12**: <50% have action verbs; mostly job duty descriptions ("responsible for...", "worked on...", "helped with...")
+- **0-6**: No action verbs or generic job description, no metrics anywhere
+
+### Dimension 2: Skills Relevance to "{{target_role}}" (0-20)
+
+Compare extracted skills against the implied skill requirements for the target role. Penalize irrelevant skills or missing critical ones.
+
+- **18-20**: All listed skills are highly relevant; covers all critical areas for this role
+- **13-17**: Most skills are relevant; 1-2 critical skills missing OR 1-2 irrelevant skills listed
+- **7-12**: ~50% of skills are relevant; several critical skills missing
+- **0-6**: Skills section is generic, irrelevant to target role, or missing entirely
+
+### Dimension 3: Experience Clarity (0-20)
+
+Evaluate WHAT was done, WHERE, WHEN, and the OUTCOME. Look for: company names, dates (consistent format), role titles, project context.
+
+- **18-20**: Every position has company + dates + role + 3-5 specific bullets explaining context AND outcome
+- **13-17**: Most positions have full context; 1-2 entries vague or undated
+- **7-12**: Multiple entries vague, missing dates, or unclear what was actually delivered
+- **0-6**: Experience section is bullet-point soup with no context, no companies, no dates
+
+### Dimension 4: Education, Certs & Continuous Learning (0-20)
+
+Evaluate education entries (degree, school, year) PLUS evidence of self-improvement (certs, courses, side projects, contributions).
+
+- **18-20**: Degree + recent learning (cert/course in last 12 months) + side project/contribution shown
+- **13-17**: Degree clearly listed; some evidence of learning OR projects
+- **7-12**: Degree only, no recent learning shown
+- **0-6**: Education section missing or unclear
+
+## Output schema — return EXACTLY this JSON shape
 
 ```json
 {
-  "overall_score": 0-100,
-  "breakdown": {
-    "structure": 0-100,
-    "ats": 0-100,
-    "skills": 0-100,
-    "experience": 0-100
+  "scores": {
+    "action_verbs": 0,
+    "skills_relevance": 0,
+    "experience": 0,
+    "education": 0
+  },
+  "llm_total": 0,
+  "rationale": {
+    "action_verbs": "1 sentence quoting specific evidence from CV",
+    "skills_relevance": "1 sentence referencing target role",
+    "experience": "1 sentence pointing to specific entry",
+    "education": "1 sentence"
   },
   "sections": [
     {
-      "name": "CV Format & Structure",
-      "score": 0-100,
+      "name": "Action Verbs & Impact",
+      "score": 0,
       "issues": [
-        { "severity": "info|warning|error", "text": "specific issue", "hint": "how to fix" }
+        { "severity": "info|warning|error", "text": "specific issue with quote from CV", "hint": "concrete fix" }
       ]
     },
-    { "name": "ATS Compatibility", "score": 0-100, "issues": [] },
-    { "name": "Content Quality", "score": 0-100, "issues": [] },
-    { "name": "Basic Information", "score": 0-100, "issues": [] }
+    { "name": "Skills Relevance", "score": 0, "issues": [] },
+    { "name": "Experience Clarity", "score": 0, "issues": [] },
+    { "name": "Education & Learning", "score": 0, "issues": [] }
   ],
-  "parsed_cv": {
+  "ats_extracted": {
     "name": "string or null",
     "email": "string or null",
     "phone": "string or null",
-    "skills": ["string", "..."]
+    "skills_raw": ["string", "..."]
   }
 }
 ```
 
-## Scoring guidance
+## Important rules
 
-- structure: layout, section headings, dates, ordering
-- ats: keyword density, font/format friendliness, no images-as-text
-- skills: relevance + specificity + depth signals
-- experience: clarity of impact, metrics, action verbs
-- overall_score = weighted average (structure 0.2 + ats 0.25 + skills 0.3 + experience 0.25)
-
-Issues should be specific and reference the actual CV content. Aim for 2-4 issues per section.
+- `llm_total` = sum of all 4 dimension scores (must equal scores.action_verbs + scores.skills_relevance + scores.experience + scores.education).
+- `skills_raw` is the LITERAL text of skills found in CV (e.g. "ReactJS", "Node.js", "Tiếng Anh giao tiếp"). DO NOT normalize — SkillNormalizerService will do that.
+- Every `rationale` and `issues[].text` MUST quote or paraphrase actual CV content. No generic advice.
+- 2-4 issues per section. Issues should be ACTIONABLE (give a concrete fix in `hint`).
+- If `target_role` is empty or `(none)`, score `skills_relevance` based on generic tech industry expectations.

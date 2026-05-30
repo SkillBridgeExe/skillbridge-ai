@@ -1,3 +1,6 @@
+import { AtsCheckResult } from '../ats-rule-checker.service';
+import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
+
 export interface CvReviewSectionIssue {
   severity: 'info' | 'warning' | 'error';
   text: string;
@@ -10,23 +13,52 @@ export interface CvReviewSection {
   issues: CvReviewSectionIssue[];
 }
 
-export interface CvReviewParsedCv {
+export interface CvReviewLlmDimensions {
+  /** 0-20 each, sum = llm_total ≤ 80 */
+  action_verbs: number;
+  skills_relevance: number;
+  experience: number;
+  education: number;
+}
+
+export interface CvReviewRationale {
+  action_verbs: string;
+  skills_relevance: string;
+  experience: string;
+  education: string;
+}
+
+export interface CvReviewExtracted {
   name: string | null;
   email: string | null;
   phone: string | null;
-  skills: string[];
+  /** Raw skill names AS EXTRACTED by LLM (not yet normalized to taxonomy) */
+  skills_raw: string[];
 }
 
 export interface CvReviewParsedResponse {
+  /** Detected CV language (ISO 639-1) — feedback is produced in this language. */
+  language: string;
+  /** Full structured CV (Stage 1 parse output). Feeds rewrite + Harvard render. */
+  document: CanonicalCvDocument;
+  /** Final composite score: ats_rule_score * 0.4 + (llm_total/80*100) * 0.6 */
   overall_score: number;
-  breakdown: {
-    structure: number;
-    ats: number;
-    skills: number;
-    experience: number;
-  };
+  /** Deterministic 0-100 from AtsRuleCheckerService (40% weight) */
+  ats_rule_score: number;
+  /** Full rule check breakdown for explainability */
+  ats_check: AtsCheckResult;
+  /** LLM-rubric scores (4 dim × 20pt = 80) */
+  llm_score_dimensions: CvReviewLlmDimensions;
+  llm_total: number; // 0-80
+  /** llm_total / 80 * 100 — for UI to display 0-100 scale */
+  llm_normalized: number;
+  rationale: CvReviewRationale;
+  /** Per-dimension issues with hints (UI shows this) */
   sections: CvReviewSection[];
-  parsed_cv: CvReviewParsedCv;
+  /** Contact + skills derived from `document` (kept for FE backward-compat). */
+  ats_extracted: CvReviewExtracted;
+  /** Backward-compat alias for ats_extracted. */
+  parsed_cv: CvReviewExtracted;
 }
 
 export interface CvReviewResponseDto {

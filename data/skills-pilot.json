@@ -1,0 +1,439 @@
+{
+  "$schema_note": "Seed data for the `skills` table (skillbridge-mvp.dbml). Each entry maps 1:1 to a row. Pilot taxonomy ~52 skills covering 5 target roles: Frontend / Backend / Fullstack / Data Analyst / Digital Marketer.",
+  "version": "pilot-v1",
+  "created_at": "2026-05-26",
+  "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase.",
+  "level_scale": {
+    "1": "BEGINNER — heard of, never used",
+    "2": "NOVICE — used in tutorials / class projects",
+    "3": "INTERMEDIATE — built features in 1-2 real projects",
+    "4": "ADVANCED — production experience, can debug edge cases",
+    "5": "EXPERT — can teach, design, architect at scale"
+  },
+  "skills": [
+    {
+      "canonical_name": "html",
+      "display_name": "HTML",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["html5", "hypertext markup", "Ngôn ngữ HTML"]
+    },
+    {
+      "canonical_name": "css",
+      "display_name": "CSS",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["css3", "cascading stylesheets", "tailwind css", "scss", "sass"]
+    },
+    {
+      "canonical_name": "javascript",
+      "display_name": "JavaScript",
+      "category": "programming_language",
+      "source": "ONET",
+      "source_external_id": "15-1252.00.javascript",
+      "aliases": ["js", "ecmascript", "es6", "es2015", "vanilla js", "Lập trình JavaScript"]
+    },
+    {
+      "canonical_name": "typescript",
+      "display_name": "TypeScript",
+      "category": "programming_language",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["ts", "typed javascript"]
+    },
+    {
+      "canonical_name": "react",
+      "display_name": "React",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["react.js", "reactjs", "react js", "Lập trình React"]
+    },
+    {
+      "canonical_name": "nextjs",
+      "display_name": "Next.js",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["next.js", "next js", "nextjs framework"]
+    },
+    {
+      "canonical_name": "responsive_design",
+      "display_name": "Responsive Design",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["mobile-first design", "media queries", "thiết kế responsive"]
+    },
+    {
+      "canonical_name": "accessibility_a11y",
+      "display_name": "Accessibility (a11y)",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["a11y", "web accessibility", "wcag", "aria"]
+    },
+    {
+      "canonical_name": "web_performance",
+      "display_name": "Web Performance",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["lighthouse", "core web vitals", "performance optimization", "tối ưu web"]
+    },
+    {
+      "canonical_name": "frontend_testing",
+      "display_name": "Frontend Testing",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["jest", "vitest", "react testing library", "cypress", "playwright"]
+    },
+    {
+      "canonical_name": "node_js",
+      "display_name": "Node.js",
+      "category": "backend_runtime",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["nodejs", "node", "node.js", "express.js", "nestjs"]
+    },
+    {
+      "canonical_name": "dotnet",
+      "display_name": ".NET",
+      "category": "backend_runtime",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [".net", "dot net", "asp.net", "asp.net core", "c#", "csharp"]
+    },
+    {
+      "canonical_name": "python",
+      "display_name": "Python",
+      "category": "programming_language",
+      "source": "ONET",
+      "source_external_id": "15-1252.00.python",
+      "aliases": ["py", "python3", "python language"]
+    },
+    {
+      "canonical_name": "java",
+      "display_name": "Java",
+      "category": "programming_language",
+      "source": "ONET",
+      "source_external_id": "15-1252.00.java",
+      "aliases": ["java se", "java ee", "spring boot", "jvm"]
+    },
+    {
+      "canonical_name": "rest_api",
+      "display_name": "REST API",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["restful api", "rest", "http api", "api design", "thiết kế api"]
+    },
+    {
+      "canonical_name": "graphql",
+      "display_name": "GraphQL",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["graph ql", "apollo graphql", "hasura"]
+    },
+    {
+      "canonical_name": "sql",
+      "display_name": "SQL",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "15-1252.00.sql",
+      "aliases": ["postgresql", "mysql", "sql server", "tsql", "mssql", "Ngôn ngữ SQL"]
+    },
+    {
+      "canonical_name": "nosql",
+      "display_name": "NoSQL Databases",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["mongodb", "redis", "cassandra", "dynamodb", "firestore"]
+    },
+    {
+      "canonical_name": "database_design",
+      "display_name": "Database Design",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["data modeling", "schema design", "erd", "normalization", "thiết kế database"]
+    },
+    {
+      "canonical_name": "authentication_authorization",
+      "display_name": "Authentication & Authorization",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["auth", "jwt", "oauth", "oauth2", "session auth", "rbac", "xác thực"]
+    },
+    {
+      "canonical_name": "caching",
+      "display_name": "Caching Strategies",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["redis cache", "cdn cache", "http cache", "memoization"]
+    },
+    {
+      "canonical_name": "git",
+      "display_name": "Git",
+      "category": "tool",
+      "source": "ONET",
+      "source_external_id": "15-1252.00.git",
+      "aliases": ["github", "gitlab", "bitbucket", "version control", "git flow"]
+    },
+    {
+      "canonical_name": "docker",
+      "display_name": "Docker",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["containerization", "docker compose", "dockerfile"]
+    },
+    {
+      "canonical_name": "ci_cd",
+      "display_name": "CI/CD",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["github actions", "gitlab ci", "jenkins", "continuous integration", "continuous deployment"]
+    },
+    {
+      "canonical_name": "linux",
+      "display_name": "Linux / Shell",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["bash", "shell scripting", "unix", "ubuntu", "command line"]
+    },
+    {
+      "canonical_name": "cloud_aws",
+      "display_name": "AWS",
+      "category": "cloud",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["amazon web services", "ec2", "s3", "lambda", "rds"]
+    },
+    {
+      "canonical_name": "system_design",
+      "display_name": "System Design",
+      "category": "architecture",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["architecture design", "distributed systems", "scalability", "thiết kế hệ thống"]
+    },
+    {
+      "canonical_name": "api_testing",
+      "display_name": "API Testing",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["postman", "insomnia", "swagger testing", "integration testing"]
+    },
+    {
+      "canonical_name": "agile_scrum",
+      "display_name": "Agile / Scrum",
+      "category": "process",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["scrum master", "sprint planning", "jira", "kanban", "agile methodology"]
+    },
+    {
+      "canonical_name": "excel",
+      "display_name": "Microsoft Excel",
+      "category": "data_tool",
+      "source": "ONET",
+      "source_external_id": "13-1161.00.excel",
+      "aliases": ["ms excel", "spreadsheet", "google sheets", "pivot tables", "vlookup"]
+    },
+    {
+      "canonical_name": "pandas",
+      "display_name": "Pandas (Python)",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["python pandas", "dataframe", "pandas library"]
+    },
+    {
+      "canonical_name": "numpy",
+      "display_name": "NumPy",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["python numpy", "numerical python"]
+    },
+    {
+      "canonical_name": "data_visualization",
+      "display_name": "Data Visualization",
+      "category": "data_skill",
+      "source": "ONET",
+      "source_external_id": "15-2051.00.dataviz",
+      "aliases": ["dataviz", "charting", "matplotlib", "seaborn", "trực quan hóa dữ liệu"]
+    },
+    {
+      "canonical_name": "tableau",
+      "display_name": "Tableau",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["tableau desktop", "tableau dashboard"]
+    },
+    {
+      "canonical_name": "power_bi",
+      "display_name": "Power BI",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["powerbi", "microsoft power bi", "dax"]
+    },
+    {
+      "canonical_name": "statistics",
+      "display_name": "Statistics",
+      "category": "data_skill",
+      "source": "ONET",
+      "source_external_id": "15-2051.00.statistics",
+      "aliases": ["statistical analysis", "regression", "hypothesis testing", "thống kê"]
+    },
+    {
+      "canonical_name": "etl",
+      "display_name": "ETL / Data Pipelines",
+      "category": "data_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["extract transform load", "data engineering", "airflow", "dbt"]
+    },
+    {
+      "canonical_name": "machine_learning",
+      "display_name": "Machine Learning",
+      "category": "data_skill",
+      "source": "ONET",
+      "source_external_id": "15-2051.00.ml",
+      "aliases": ["ml", "scikit-learn", "tensorflow", "pytorch", "học máy"]
+    },
+    {
+      "canonical_name": "seo",
+      "display_name": "Search Engine Optimization",
+      "category": "marketing",
+      "source": "ONET",
+      "source_external_id": "13-1161.00.seo",
+      "aliases": ["search engine optimization", "on-page seo", "off-page seo", "tối ưu công cụ tìm kiếm"]
+    },
+    {
+      "canonical_name": "google_analytics",
+      "display_name": "Google Analytics",
+      "category": "marketing_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["ga4", "google analytics 4", "ua", "universal analytics"]
+    },
+    {
+      "canonical_name": "google_ads",
+      "display_name": "Google Ads",
+      "category": "marketing_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["adwords", "google adwords", "ppc", "search ads"]
+    },
+    {
+      "canonical_name": "facebook_ads",
+      "display_name": "Facebook Ads",
+      "category": "marketing_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["meta ads", "fb ads", "instagram ads", "meta business"]
+    },
+    {
+      "canonical_name": "tiktok_ads",
+      "display_name": "TikTok Ads",
+      "category": "marketing_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["tiktok marketing", "tiktok business", "tiktok for business"]
+    },
+    {
+      "canonical_name": "content_marketing",
+      "display_name": "Content Marketing",
+      "category": "marketing",
+      "source": "ONET",
+      "source_external_id": "13-1161.00.content",
+      "aliases": ["content strategy", "blog writing", "social media content", "tiếp thị nội dung"]
+    },
+    {
+      "canonical_name": "copywriting",
+      "display_name": "Copywriting",
+      "category": "marketing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["ad copy", "sales copy", "content writing", "viết quảng cáo"]
+    },
+    {
+      "canonical_name": "email_marketing",
+      "display_name": "Email Marketing",
+      "category": "marketing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["email campaign", "mailchimp", "newsletter", "drip campaign"]
+    },
+    {
+      "canonical_name": "marketing_automation",
+      "display_name": "Marketing Automation",
+      "category": "marketing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["hubspot", "marketo", "automation workflow"]
+    },
+    {
+      "canonical_name": "communication",
+      "display_name": "Communication",
+      "category": "soft_skill",
+      "source": "ONET",
+      "source_external_id": "skill.4.A.4.a",
+      "aliases": ["verbal communication", "written communication", "presentation", "giao tiếp"]
+    },
+    {
+      "canonical_name": "problem_solving",
+      "display_name": "Problem Solving",
+      "category": "soft_skill",
+      "source": "ONET",
+      "source_external_id": "skill.2.B.2.a",
+      "aliases": ["analytical thinking", "troubleshooting", "debugging mindset", "giải quyết vấn đề"]
+    },
+    {
+      "canonical_name": "teamwork",
+      "display_name": "Teamwork & Collaboration",
+      "category": "soft_skill",
+      "source": "ONET",
+      "source_external_id": "skill.2.B.1.f",
+      "aliases": ["collaboration", "team player", "cross-functional", "làm việc nhóm"]
+    },
+    {
+      "canonical_name": "time_management",
+      "display_name": "Time Management",
+      "category": "soft_skill",
+      "source": "ONET",
+      "source_external_id": "skill.2.B.5.c",
+      "aliases": ["prioritization", "deadline management", "productivity", "quản lý thời gian"]
+    },
+    {
+      "canonical_name": "english_proficiency",
+      "display_name": "English Proficiency",
+      "category": "soft_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["english reading", "english writing", "ielts", "toeic", "tiếng anh"]
+    },
+    {
+      "canonical_name": "critical_thinking",
+      "display_name": "Critical Thinking",
+      "category": "soft_skill",
+      "source": "ONET",
+      "source_external_id": "skill.2.A.2.a",
+      "aliases": ["analytical reasoning", "logical thinking", "tư duy phản biện"]
+    }
+  ]
+}
