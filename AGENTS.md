@@ -1,112 +1,55 @@
-# SkillBridge AI Service — Agent Context
+# SkillBridge Backend (NestJS) — Agent Context
 
-> Read this before making changes. This file is the shared context for Codex, Claude, Antigravity, and other AI agents.
+> Read this before making changes. Shared context for Codex, Claude, Antigravity, and other AI agents.
+> ⚡ **2026-05-30 PIVOT:** this repo is now the **SINGLE backend** (NestJS-only). Full design in `ARCHITECTURE.md`.
 
 ## Service identity
 
-This is the **NestJS AI Orchestrator** for SkillBridge. It handles:
+`skillbridge-ai` is now the **single NestJS backend** for SkillBridge — a **modular monolith** ("Opt 2"):
 
-- LLM calls (Gemini primary, OpenAI fallback)
-- RAG retrieval over pgvector
-- Prompt template management (versioned)
-- Response parsing + schema validation
-- MCP / tool-calling traceability
+- **Platform (public BFF):** auth, users/profiles, cvs, job-descriptions, billing/quota, history. Owns PostgreSQL + TypeORM migrations.
+- **AI module (internal bounded context):** LLM calls, RAG over pgvector, versioned prompts, response parsing/validation, MCP/tool-call traceability.
 
-It is **internal only** — called by the .NET BFF, never directly by the React FE.
+> ⛔ The old **.NET BFF is dropped**. This repo absorbs its responsibilities. Any old text saying "internal only / called by .NET / FE never calls this" is **obsolete**.
 
 ## Architecture position
 
 ```txt
-React FE  ->  .NET BFF  ->  THIS SERVICE  ->  LLM / pgvector / MCP
-                              |
-                         writes ai_* + documents tables in Postgres
+React FE (skillbridge-fe-official)
+   -> NestJS backend (THIS repo)   [Platform /api/*]  +  [internal AI module]
+        -> PostgreSQL (+ pgvector) via TypeORM
+        -> LLM: Gemini (@google/genai) / OpenAI
 ```
+
+FE calls `/api/*`. The AI module is invoked intra-process by platform services (or via guarded `/internal/ai/*`). Gemini Live WS is the only FE→Google direct path (ephemeral token brokered here).
+
+## Stack (verified 2026-05-30 — see ARCHITECTURE.md §5)
+
+NestJS **11** · TypeORM **0.3** (Postgres + pgvector) · **`@google/genai`** (⚠️ replaces dead `@google/generative-ai`) · `openai` **v6** · Passport + `@nestjs/jwt` · `@nestjs/throttler` · class-validator · `@nestjs/config` · eslint **9**.
+
+## Code split (2 devs) — see ARCHITECTURE.md §2
+
+- **`src/platform/**` — Dev B (ex-.NET):** auth, users, cvs, job-descriptions, billing, public gateway, entities + migrations.
+- **`src/ai/**` — Dev A (FE + AI):** cv-review, cv-jd-match, interview, roadmap, skills, embeddings, rag, prompts, tracing.
+- **`src/shared`, `src/infrastructure`, `src/config`, `src/database`:** edit-sparingly, coordinate between devs.
 
 ## Hard rules
 
-- This service has **no public routes** (except `/health`). Every `/internal/ai/*` endpoint requires `X-Internal-Auth`.
-- Do not expose this service to the public internet. Cloud Run service must be internal/VPC-only.
-- The FE **never** calls this service directly. Live Voice (Gemini Live WS) is the only edge case, and even then the token is brokered by .NET.
-- Database write access is limited to: `ai_jobs`, `ai_requests`, `ai_results`, `documents`, `document_chunks`, `embedding_jobs`, `retrieval_logs`, `ai_tool_calls`. All other tables are read-only.
-- Business outputs (e.g. `cv_matches`, `interview_sessions.overall_score`) are written by .NET based on data returned by this service.
-- Every LLM call must be logged in `ai_requests` (tokens, latency, cost, model).
-- Every retrieval must be logged in `retrieval_logs`.
-- Every tool call must be logged in `ai_tool_calls`.
+- **Public-facing now:** global `ValidationPipe` (`whitelist`), `@nestjs/throttler` rate-limit, `helmet`, strict CORS (FE origin only). `JwtAuthGuard` default; `@Public()` for login/register/health.
+- **TypeORM is the DB authority:** `synchronize: false` outside personal dev; **migrations are the source of truth** (like EF Migrations). No raw SQL except vetted pgvector similarity queries.
+- **Schema source of truth:** `../skillbridge-fe-official/docs/database/skillbridge-mvp.dbml` (38 tables). Don't invent tables/columns.
+- **AI traceability (keep, first-class):** every LLM call → `ai_requests` via `TracingService`; every retrieval → `retrieval_logs`; every tool call → `ai_tool_calls`. Don't bypass.
+- **LLM abstraction:** use `LlmService` from `infrastructure/llm`. Do NOT import `@google/genai` / `openai` directly in feature modules.
+- **Prompts:** load via `PromptsService` from `prompts/<code>_v<n>.md`. Don't hard-code.
+- **PII:** CV text is personal data → redact from logs/traces; soft + hard delete; consent on upload.
+- **Heavy AI runs async** via `ai_jobs` (FE polls) — don't block request threads.
 
-## API contract
+## Conventions
 
-The single source of truth for the public/internal API contract is:
-
-```txt
-../skillbridge-fe-official/docs/api-contract.md
-```
-
-Part 2 of that file covers every `/internal/ai/*` endpoint owned by this service. Update both this code and that file when contracts change.
-
-## Project conventions
-
-- TypeScript strict mode is on. Do not turn it off.
-- All DTOs use `class-validator` decorators.
-- All responses use the shared envelope synced with .NET backend (`docs/api-response-standard.md` in `skillbridge-be`):
-  - Success (via `ResponseInterceptor`): `{ success: true, message: null, data, errors: null }`
-  - Error (via `AllExceptionsFilter`): `{ success: false, message, data: null, errors, errorCode }`
-  - `errors` is a field-keyed object (e.g. `{ email: ["..."] }`) for validation; `null` otherwise.
-  - `errorCode` is a NestJS-only field for client branching (proposed for .NET adoption — pending sync).
-- All endpoints under `/internal/ai/*` use `InternalAuthGuard` (registered globally — do not remove).
-- Correlation IDs flow via `X-Correlation-Id` header and are accessible via `@CorrelationId()` decorator.
-
-## Module structure
-
-```txt
-src/
-├── config/           # Typed env + Joi validation. ONE source of truth for env access.
-├── common/           # Guards, interceptors, filters, decorators, DTOs, constants
-├── infrastructure/   # database, vector, llm — cross-cutting infra
-└── modules/          # Business features (each in its own folder, identical shape)
-```
-
-Every feature module follows this shape (no exceptions):
-
-```txt
-modules/<feature>/
-├── <feature>.module.ts
-├── <feature>.controller.ts     # Thin: route + DTO validation only
-├── <feature>.service.ts        # Business logic
-├── <feature>.parser.ts         # (optional) LLM output schema validation
-└── dto/                        # Request + response DTOs
-```
-
-## Prompt management
-
-- Prompts live in `prompts/` as markdown files
-- Naming: `<code>_v<version>.md` (e.g. `cv_review_v1.md`)
-- Loaded at startup by `PromptsService`
-- Rendered with `{{placeholders}}` -> `template-renderer.ts`
-- Bumping a version creates a new file; the DB `ai_prompt_templates` row tracks which is active
-
-## LLM provider abstraction
-
-Use `LlmService` from `infrastructure/llm/`. Do not import `@google/generative-ai` or `openai` directly in feature modules.
-
-`LlmService.complete()` returns `{ rawResponse, parsedJson, tokenUsage, modelCode, latencyMs }` for every call. The service handles:
-
-- Provider selection (Gemini vs OpenAI)
-- Retry on transient errors
-- JSON mode where supported
-- Token + latency tracking
-- Errors wrapped as `AI_ANALYSIS_FAILED` or `AI_SERVICE_UNAVAILABLE`
-
-## Tracing — first-class
-
-Every LLM call **must** create an `ai_requests` row. Every retrieval **must** create a `retrieval_logs` row. Use `TracingService`:
-
-```ts
-const requestId = await tracing.startAiRequest({ userId, jobId, modelId, ... });
-// ... call LLM ...
-await tracing.completeAiRequest(requestId, { tokens, latency, response });
-```
-
-Do not bypass this. The AI/RAG/MCP demo evidence depends on it.
+- TypeScript strict mode ON. DTOs use `class-validator`.
+- Response envelope (`ResponseInterceptor` / `AllExceptionsFilter`): `{ success, message, data, errors, errorCode? }`. `errors` field-keyed for validation; `errorCode` for client branching.
+- Correlation ID via `X-Correlation-Id` header + `@CorrelationId()` decorator.
+- Layering + folder layout: **see `ARCHITECTURE.md`** (pragmatic clean architecture: controller → service → domain ← infrastructure via ports).
 
 ## Verify before "done"
 
@@ -114,17 +57,15 @@ Do not bypass this. The AI/RAG/MCP demo evidence depends on it.
 npm run lint
 npm run test
 npm run build
+npm run typeorm migration:run   # once TypeORM is wired
 ```
 
-## Things to avoid
+## Migration status (R0)
 
-- Do not write to `users`, `cvs`, `interview_sessions`, or other business tables. That is .NET's job.
-- Do not call LLM providers directly from controllers. Always go through `LlmService`.
-- Do not hard-code prompts. Always load from `PromptsService`.
-- Do not add public routes. If you think you need one, talk to the user first.
-- Do not skip `TracingService` calls. Every LLM call must leave a trail.
+Repo is being re-set-up to the enterprise blueprint (`ARCHITECTURE.md` §7). The committed `package.json` is still the **OLD** stack (NestJS 10, dead Google SDK, no TypeORM) → follow the §7 checklist. Build stays **RED** until R0 migration lands; do it step-by-step, build green before each next step.
 
 ## Related repos
 
-- `../skillbridge-fe-official` — React FE
-- `../skillbridge-be` — .NET BFF (only caller of this service)
+- `../skillbridge-fe-official` — React FE (calls this backend) + canonical docs (DBML, `api-contract.md`, plans).
+- `../skillbridge-be` (.NET) — **deprecated by the 2026-05-30 pivot; not used.**
+- `../Exe-SkillBridge` — original full-stack prototype; UI/behavior reference only.
