@@ -53,3 +53,7 @@ Thumbs.db
 # Temp
 tmp/
 temp/
+
+*.md
+    
+*.dbml

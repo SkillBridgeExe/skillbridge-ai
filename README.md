@@ -1,7 +1,7 @@
 # SkillBridge Backend (NestJS)
 
 > The **single backend** for SkillBridge — public BFF **+** internal AI orchestration in one NestJS modular monolith.
-> ⚡ **2026-05-30:** pivoted from .NET → **NestJS-only**. Architecture detail: `ARCHITECTURE.md`. Agent rules: `AGENTS.md`.
+> ⚡ **2026-05-30:** pivoted from .NET → **NestJS-only**. Architecture detail: `docs/ARCHITECTURE.md`. Agent rules: `AGENTS.md`.
 
 ## What this service does
 
@@ -25,7 +25,7 @@ Internal AI lives under `/internal/ai/*` (or direct service calls), invoked **in
 React FE  ->  NestJS backend (THIS repo)  ->  PostgreSQL (+ pgvector) via TypeORM
                [platform /api/*]  +  [internal AI module]  ->  Gemini (@google/genai) / OpenAI
 ```
-FE calls `/api/*` only. The one FE→Google direct path is the Gemini Live WS (ephemeral token brokered here). Full design + 2-dev code split: see `ARCHITECTURE.md`.
+FE calls `/api/*` only. The one FE→Google direct path is the Gemini Live WS (ephemeral token brokered here). Full design + 2-dev code split: see `docs/ARCHITECTURE.md`.
 
 ## Tech stack (verified 2026-05-30)
 

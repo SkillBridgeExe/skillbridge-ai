@@ -1,7 +1,7 @@
 # SkillBridge Backend (NestJS) — Agent Context
 
 > Read this before making changes. Shared context for Codex, Claude, Antigravity, and other AI agents.
-> ⚡ **2026-05-30 PIVOT:** this repo is now the **SINGLE backend** (NestJS-only). Full design in `ARCHITECTURE.md`.
+> ⚡ **2026-05-30 PIVOT:** this repo is now the **SINGLE backend** (NestJS-only). Full design in `docs/ARCHITECTURE.md`.
 
 ## Service identity
 
@@ -49,7 +49,7 @@ NestJS **11** · TypeORM **0.3** (Postgres + pgvector) · **`@google/genai`** (�
 - TypeScript strict mode ON. DTOs use `class-validator`.
 - Response envelope (`ResponseInterceptor` / `AllExceptionsFilter`): `{ success, message, data, errors, errorCode? }`. `errors` field-keyed for validation; `errorCode` for client branching.
 - Correlation ID via `X-Correlation-Id` header + `@CorrelationId()` decorator.
-- Layering + folder layout: **see `ARCHITECTURE.md`** (pragmatic clean architecture: controller → service → domain ← infrastructure via ports).
+- Layering + folder layout: **see `docs/ARCHITECTURE.md`** (pragmatic clean architecture: controller → service → domain ← infrastructure via ports).
 
 ## Verify before "done"
 
@@ -62,7 +62,7 @@ npm run typeorm migration:run   # once TypeORM is wired
 
 ## Migration status (R0)
 
-Repo is being re-set-up to the enterprise blueprint (`ARCHITECTURE.md` §7). The committed `package.json` is still the **OLD** stack (NestJS 10, dead Google SDK, no TypeORM) → follow the §7 checklist. Build stays **RED** until R0 migration lands; do it step-by-step, build green before each next step.
+R0 (stack migration) is **DONE + committed on `main`**: NestJS 11 · `@google/genai` · `openai` v6 · TypeORM 0.3 + entities · auth · public posture. `npm run build` / `test:e2e` / `lint` green; app boots (`:3002`). **Next:** `platform/cvs` (upload/extract/persist), wire real Gemini, seed 8 IT rubrics, run `migration:run` against the team DB. Detail: `docs/ARCHITECTURE.md` §7.
 
 ## Related repos
 
