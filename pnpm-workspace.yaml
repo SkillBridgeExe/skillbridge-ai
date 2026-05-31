@@ -1,0 +1,7 @@
+# pnpm 11 settings. Cho phép build script của các package native/trusted
+# (mặc định pnpm 10+ chặn postinstall/build để bảo mật).
+allowBuilds:
+  '@google/genai': true
+  '@nestjs/core': true
+  bcrypt: true
+  protobufjs: true

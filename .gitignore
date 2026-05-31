@@ -55,5 +55,8 @@ tmp/
 temp/
 
 *.md
+# prompts/*.md = template runtime (PromptsService load lúc chạy) — PHẢI giữ trong git
+!prompts/
+!prompts/*.md
     
 *.dbml

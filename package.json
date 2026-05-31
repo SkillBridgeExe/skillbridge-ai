@@ -20,9 +20,9 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
-    "migration:generate": "npm run typeorm -- migration:generate",
-    "migration:run": "npm run typeorm -- migration:run",
-    "migration:revert": "npm run typeorm -- migration:revert",
+    "migration:generate": "pnpm run typeorm -- migration:generate",
+    "migration:run": "pnpm run typeorm -- migration:run",
+    "migration:revert": "pnpm run typeorm -- migration:revert",
     "dev": "nest start --watch"
   },
   "dependencies": {
@@ -99,5 +99,6 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     }
-  }
+  },
+  "packageManager": "pnpm@11.3.0"
 }
