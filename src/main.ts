@@ -49,7 +49,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   await setupOpenApi(app, config);
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   const logger = new Logger('Bootstrap');
   logger.log(`SkillBridge AI Service listening on port ${port} (${nodeEnv})`);

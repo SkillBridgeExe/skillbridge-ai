@@ -7,6 +7,7 @@ import * as Joi from 'joi';
 export const configValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
   PORT: Joi.number().port().default(3002),
+  BACKEND_PUBLIC_URL: Joi.string().uri().optional(),
   FRONTEND_BASE_URL: Joi.string().uri().default('http://localhost:8080'),
 
   INTERNAL_AUTH_SECRET: Joi.string().min(16).required(),

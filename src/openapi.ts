@@ -10,12 +10,16 @@ export async function setupOpenApi(app: INestApplication, config: ConfigService)
   const docsPath = trimSlashes(config.get<string>('API_DOCS_PATH') ?? 'reference');
   const jsonPath = trimSlashes(config.get<string>('OPENAPI_JSON_PATH') ?? 'openapi.json');
   const port = config.get<number>('PORT') ?? 3002;
+  const publicBaseUrl =
+    config.get<string>('BACKEND_PUBLIC_URL') ??
+    config.get<string>('RENDER_EXTERNAL_URL') ??
+    `http://localhost:${port}`;
 
   const openApiConfig = new DocumentBuilder()
     .setTitle('SkillBridge Backend API')
     .setDescription('Public platform API and guarded internal AI endpoints for SkillBridge.')
     .setVersion('0.1.0')
-    .addServer(`http://localhost:${port}`, 'Local')
+    .addServer(publicBaseUrl.replace(/\/$/, ''), 'Current')
     .addBearerAuth()
     .build();
 
