@@ -3,5 +3,6 @@
 allowBuilds:
   '@google/genai': true
   '@nestjs/core': true
+  '@scarf/scarf': false
   bcrypt: true
   protobufjs: true

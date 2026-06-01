@@ -1,0 +1,77 @@
+services:
+  - type: web
+    name: skillbridge-ai
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      - key: DB_SSL
+        value: 'true'
+      - key: TYPEORM_SYNCHRONIZE
+        value: 'false'
+      - key: TYPEORM_LOGGING
+        value: 'false'
+      - key: API_DOCS_ENABLED
+        value: 'true'
+      - key: API_DOCS_PATH
+        value: reference
+      - key: OPENAPI_JSON_PATH
+        value: openapi.json
+      - key: LOG_LEVEL
+        value: info
+      - key: ENABLE_REQUEST_LOGGING
+        value: 'true'
+      - key: THROTTLE_TTL
+        value: '60'
+      - key: THROTTLE_LIMIT
+        value: '100'
+      - key: VECTOR_DIMENSION
+        value: '768'
+      - key: VECTOR_TABLE
+        value: document_chunks
+      - key: VECTOR_COLUMN
+        value: embedding
+      - key: LLM_PROVIDER_DEFAULT
+        value: gemini
+      - key: GEMINI_MODEL_DEFAULT
+        value: gemini-2.0-flash
+      - key: GEMINI_MODEL_EMBEDDING
+        value: text-embedding-004
+      - key: OPENAI_MODEL_DEFAULT
+        value: gpt-4o-mini
+      - key: OPENAI_MODEL_EMBEDDING
+        value: text-embedding-3-small
+      - key: EMAIL_VERIFY_TOKEN_TTL_SECONDS
+        value: '86400'
+      - key: JWT_ACCESS_TTL
+        value: '3600'
+      - key: JWT_REFRESH_TTL
+        value: '604800'
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: INTERNAL_AUTH_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
