@@ -3,20 +3,22 @@ services:
     name: skillbridge-ai
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
     startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: '22'
       - key: DB_SSL
-        value: "true"
+        value: 'true'
       - key: TYPEORM_SYNCHRONIZE
-        value: "false"
+        value: 'false'
       - key: TYPEORM_LOGGING
-        value: "false"
+        value: 'false'
       - key: API_DOCS_ENABLED
-        value: "true"
+        value: 'true'
       - key: API_DOCS_PATH
         value: reference
       - key: OPENAPI_JSON_PATH
@@ -24,13 +26,13 @@ services:
       - key: LOG_LEVEL
         value: info
       - key: ENABLE_REQUEST_LOGGING
-        value: "true"
+        value: 'true'
       - key: THROTTLE_TTL
-        value: "60"
+        value: '60'
       - key: THROTTLE_LIMIT
-        value: "100"
+        value: '100'
       - key: VECTOR_DIMENSION
-        value: "768"
+        value: '768'
       - key: VECTOR_TABLE
         value: document_chunks
       - key: VECTOR_COLUMN
@@ -46,12 +48,11 @@ services:
       - key: OPENAI_MODEL_EMBEDDING
         value: text-embedding-3-small
       - key: EMAIL_VERIFY_TOKEN_TTL_SECONDS
-        value: "86400"
+        value: '86400'
       - key: JWT_ACCESS_TTL
-        value: "3600"
+        value: '3600'
       - key: JWT_REFRESH_TTL
-        value: "604800"
-
+        value: '604800'
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
