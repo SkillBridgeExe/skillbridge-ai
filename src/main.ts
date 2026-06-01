@@ -17,9 +17,14 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3002);
   const nodeEnv = config.get<string>('NODE_ENV', 'development');
+  const apiDocsEnabled = config.get<boolean>('API_DOCS_ENABLED') ?? true;
 
   // Security headers + CORS (NestJS is now public-facing — see ARCHITECTURE.md §6)
-  app.use(helmet({ contentSecurityPolicy: nodeEnv === 'production' ? undefined : false }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: nodeEnv === 'production' && !apiDocsEnabled ? undefined : false,
+    }),
+  );
   app.use(cookieParser());
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
     .split(',')
