@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { renderVerificationEmailTemplate } from './templates/verification-email.template';
 
 @Injectable()
 export class EmailService {
@@ -22,17 +23,14 @@ export class EmailService {
   }
 
   async sendVerifyEmail(to: string, verifyUrl: string): Promise<void> {
+    const template = renderVerificationEmailTemplate({ verifyUrl });
+
     const { error } = await this.resend.emails.send({
       from: this.fromEmail,
       to,
-      subject: 'Verify your SkillBridge email',
-      html: `
-        <p>Welcome to SkillBridge.</p>
-        <p>Please verify your email address to activate your account.</p>
-        <p><a href="${verifyUrl}">Verify email</a></p>
-        <p>If you did not create this account, you can ignore this email.</p>
-      `,
-      text: `Verify your SkillBridge email: ${verifyUrl}`,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
     });
 
     if (error) {
