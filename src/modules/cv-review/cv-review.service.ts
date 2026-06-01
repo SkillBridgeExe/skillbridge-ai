@@ -52,8 +52,14 @@ export class CvReviewService {
     // ─── Step 2: LLM rubric scoring ─────────────────────────────────────────
     const template = this.prompts.get(input.prompt_template_code);
     const userPrompt = this.prompts.render(input.prompt_template_code, {
+      // Gap fix (deterministic-first): feed the STRUCTURED document as the primary CV
+      // representation so the rubric scores from pre-extracted fields (lower variance),
+      // plus the detected language so feedback matches the CV's language.
+      // Raw text is kept only as a secondary reference.
+      cv: JSON.stringify(document, null, 2),
       cv_text: input.parsed_text,
       target_role: input.target_role ?? '(none)',
+      language: document.language,
     });
 
     const aiRequestId = await this.tracing.startAiRequest({

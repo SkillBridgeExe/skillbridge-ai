@@ -6,7 +6,17 @@ description: Rubric-based CV scoring (4 dimensions × 20pt) + skill extraction. 
 
 You are reviewing a candidate's CV. Use the rubric below to score 4 dimensions, then extract structured fields.
 
-## CV content
+## CV language
+
+`{{language}}` — write EVERY `rationale` and `issues[].text` / `hint` in THIS language (ISO 639-1: `vi` = natural Vietnamese, `en` = English). The numeric scores themselves are language-independent.
+
+## CV — structured (score FROM this; already extracted by the parser, Stage 1)
+
+```json
+{{cv}}
+```
+
+## CV — original text (reference only; consult to catch anything the structure missed)
 
 {{cv_text}}
 
