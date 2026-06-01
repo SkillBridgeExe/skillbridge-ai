@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { CorrelationIdInterceptor } from './common/interceptors/correlation-id.interceptor';
+import { setupOpenApi } from './openapi';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
@@ -16,9 +17,14 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3002);
   const nodeEnv = config.get<string>('NODE_ENV', 'development');
+  const apiDocsEnabled = config.get<boolean>('API_DOCS_ENABLED') ?? true;
 
   // Security headers + CORS (NestJS is now public-facing — see ARCHITECTURE.md §6)
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: nodeEnv === 'production' && !apiDocsEnabled ? undefined : false,
+    }),
+  );
   app.use(cookieParser());
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
     .split(',')
@@ -41,6 +47,7 @@ async function bootstrap() {
   //   error:   { success: false, message, data: null, errors, errorCode }
   app.useGlobalInterceptors(new CorrelationIdInterceptor(), new ResponseInterceptor());
   app.useGlobalFilters(new AllExceptionsFilter());
+  await setupOpenApi(app, config);
 
   await app.listen(port);
 
