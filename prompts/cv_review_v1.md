@@ -24,6 +24,12 @@ You are reviewing a candidate's CV. Use the rubric below to score 4 dimensions, 
 
 {{target_role}}
 
+## How to score — reason from evidence, THEN assign
+
+For EACH dimension, in order: (1) gather the concrete evidence from the structured CV above (quote specific bullets / skills / entries), (2) match that evidence to the band criteria below, (3) assign the 0-20 score, (4) put the one-sentence evidence-based justification into `rationale`. Never assign a score before identifying the evidence. Same CV → same scores.
+
+**Calibration anchor (Action Verbs):** `"Led redesign of checkout, cutting load time 40% for 50k users"` → strong verb (`Led`) + quantified impact (`40%`, `50k`) → band **18-20**. `"Responsible for the website"` → no action verb, no metric → band **0-6**.
+
 ## Rubric — Score each dimension 0-20 using the EXACT criteria
 
 ### Dimension 1: Action Verbs & Quantified Impact (0-20)
