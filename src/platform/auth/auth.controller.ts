@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -6,10 +7,11 @@ import { Public } from './decorators/public.decorator';
 import { CurrentUser, JwtUser } from './decorators/current-user.decorator';
 import { GoogleLoginDto, LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ResendVerificationEmailDto, VerifyEmailDto } from './dto/verify-email.dto';
 
 const REFRESH_COOKIE = 'skillbridge_refresh_token';
 
-/** Public auth surface (`/api/auth/*`). Mirrors docs/api-contract.md §1.1. */
+@ApiTags('Auth')
 @Controller('api/auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -18,6 +20,18 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
+  }
+
+  @Public()
+  @Post('verify-email')
+  verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.auth.verifyEmail(dto.token);
+  }
+
+  @Public()
+  @Post('resend-verification-email')
+  resendVerificationEmail(@Body() dto: ResendVerificationEmailDto) {
+    return this.auth.resendVerificationEmail(dto.email);
   }
 
   @Public()
@@ -52,9 +66,9 @@ export class AuthController {
     return { loggedOut: true };
   }
 
-  // @Public() skips the global InternalAuthGuard; AuthGuard('jwt') enforces the user JWT.
   @Public()
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('me')
   me(@CurrentUser() user: JwtUser) {
     return this.auth.me(user.userId);

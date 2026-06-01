@@ -8,6 +8,8 @@ import { AccountEntity } from '../../database/entities/account.entity';
 import { SessionEntity } from '../../database/entities/session.entity';
 import { RoleEntity } from '../../database/entities/role.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
+import { VerificationEntity } from '../../database/entities/verification.entity';
+import { EmailModule } from '../../infrastructure/email/email.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -24,7 +26,9 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       SessionEntity,
       RoleEntity,
       UserRoleEntity,
+      VerificationEntity,
     ]),
+    EmailModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

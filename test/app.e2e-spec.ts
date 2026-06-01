@@ -4,6 +4,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { ResponseInterceptor } from '../src/common/interceptors/response.interceptor';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
+import { setupOpenApi } from '../src/openapi';
+import { ConfigService } from '@nestjs/config';
 
 describe('SkillBridge AI (e2e)', () => {
   let app: INestApplication;
@@ -17,6 +19,7 @@ describe('SkillBridge AI (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalInterceptors(new ResponseInterceptor());
     app.useGlobalFilters(new AllExceptionsFilter());
+    await setupOpenApi(app, app.get(ConfigService));
     await app.init();
   });
 
@@ -53,5 +56,22 @@ describe('SkillBridge AI (e2e)', () => {
     expect(typeof res.body.message).toBe('string');
     // errors is null for non-validation failures
     expect(res.body.errors).toBeNull();
+  });
+
+  it('GET /openapi.json exposes the OpenAPI document for frontend tooling', async () => {
+    const res = await request(app.getHttpServer()).get('/openapi.json').expect(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        openapi: expect.any(String),
+        paths: expect.objectContaining({
+          '/health': expect.any(Object),
+        }),
+      }),
+    );
+  });
+
+  it('GET /reference serves Scalar API Reference', async () => {
+    const res = await request(app.getHttpServer()).get('/reference').expect(200);
+    expect(res.text).toContain('Scalar');
   });
 });

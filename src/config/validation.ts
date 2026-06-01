@@ -7,8 +7,27 @@ import * as Joi from 'joi';
 export const configValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
   PORT: Joi.number().port().default(3002),
+  FRONTEND_BASE_URL: Joi.string().uri().default('http://localhost:8080'),
 
   INTERNAL_AUTH_SECRET: Joi.string().min(16).required(),
+
+  // API docs
+  API_DOCS_ENABLED: Joi.boolean().default(true),
+  API_DOCS_PATH: Joi.string().default('reference'),
+  OPENAPI_JSON_PATH: Joi.string().default('openapi.json'),
+
+  // Email
+  RESEND_API_KEY: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+  RESEND_FROM_EMAIL: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+  EMAIL_VERIFY_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(86400),
 
   // LLM
   LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('gemini'),

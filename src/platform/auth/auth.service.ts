@@ -2,7 +2,7 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { OAuth2Client } from 'google-auth-library';
@@ -11,6 +11,9 @@ import { AccountEntity } from '../../database/entities/account.entity';
 import { SessionEntity } from '../../database/entities/session.entity';
 import { RoleEntity, RoleCode } from '../../database/entities/role.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
+import { VerificationEntity } from '../../database/entities/verification.entity';
+import { ERROR_CODES } from '../../common/constants/error-codes';
+import { EmailService } from '../../infrastructure/email/email.service';
 import { RegisterDto } from './dto/register.dto';
 
 /**
@@ -28,8 +31,11 @@ export class AuthService {
     @InjectRepository(SessionEntity) private readonly sessions: Repository<SessionEntity>,
     @InjectRepository(RoleEntity) private readonly roles: Repository<RoleEntity>,
     @InjectRepository(UserRoleEntity) private readonly userRoles: Repository<UserRoleEntity>,
+    @InjectRepository(VerificationEntity)
+    private readonly verifications: Repository<VerificationEntity>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {
     this.google = new OAuth2Client(this.config.get<string>('GOOGLE_CLIENT_ID'));
   }
@@ -37,7 +43,10 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const emailNormalized = dto.email.trim().toLowerCase();
     if (await this.users.findOne({ where: { emailNormalized } })) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException({
+        errorCode: ERROR_CODES.EMAIL_ALREADY_EXISTS,
+        message: 'Email already registered',
+      });
     }
     const user = await this.users.save(
       this.users.create({
@@ -58,19 +67,67 @@ export class AuthService {
       }),
     );
     await this.assignRole(user.id, 'USER');
-    // TODO: send verification email (Resend). Login stays blocked until verified.
+    const token = await this.createVerificationToken(user.id);
+    await this.email.sendVerifyEmail(user.email, this.buildVerifyUrl(token));
     return { user: this.publicUser(user, ['USER']), accessToken: null };
+  }
+
+  async verifyEmail(token: string) {
+    const verification = await this.verifications.findOne({
+      where: { purpose: 'EMAIL_VERIFY', valueHash: this.hash(token) },
+    });
+
+    if (!verification || verification.usedAt || verification.expiresAt.getTime() < Date.now()) {
+      if (verification) {
+        verification.attemptCount += 1;
+        await this.verifications.save(verification);
+      }
+      throw new UnauthorizedException({
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+        message: 'Verification token invalid or expired',
+      });
+    }
+
+    const user = await this.users.findOne({ where: { id: verification.userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException({
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+        message: 'Verification token invalid or expired',
+      });
+    }
+
+    user.isEmailVerified = true;
+    verification.usedAt = new Date();
+    await this.users.save(user);
+    await this.verifications.save(verification);
+    return { verified: true };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const emailNormalized = email.trim().toLowerCase();
+    const user = await this.users.findOne({ where: { emailNormalized } });
+    if (user?.isActive && !user.isEmailVerified) {
+      const token = await this.createVerificationToken(user.id);
+      await this.email.sendVerifyEmail(user.email, this.buildVerifyUrl(token));
+    }
+    return { accepted: true };
   }
 
   async login(email: string, password: string) {
     const emailNormalized = email.trim().toLowerCase();
     const user = await this.users.findOne({ where: { emailNormalized } });
-    if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
+    if (!user || !user.isActive) throw this.invalidCredentials();
     const account = await this.accounts.findOne({
       where: { userId: user.id, provider: 'CREDENTIALS' },
     });
     if (!account?.passwordHash || !(await bcrypt.compare(password, account.passwordHash))) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw this.invalidCredentials();
+    }
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException({
+        errorCode: ERROR_CODES.EMAIL_NOT_VERIFIED,
+        message: 'Please verify your email before logging in',
+      });
     }
     return this.issue(user, await this.roleCodes(user.id));
   }
@@ -104,6 +161,22 @@ export class AuthService {
         }),
       );
       await this.assignRole(user.id, 'USER');
+    } else if (!user.isEmailVerified) {
+      user.isEmailVerified = true;
+      user = await this.users.save(user);
+    }
+
+    const existingGoogleAccount = await this.accounts.findOne({
+      where: { userId: user.id, provider: 'GOOGLE' },
+    });
+    if (!existingGoogleAccount) {
+      await this.accounts.save(
+        this.accounts.create({
+          userId: user.id,
+          provider: 'GOOGLE',
+          providerAccountId: payload.sub,
+        }),
+      );
     }
     return this.issue(user, await this.roleCodes(user.id));
   }
@@ -172,6 +245,39 @@ export class AuthService {
 
   private hash(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async createVerificationToken(userId: string): Promise<string> {
+    await this.verifications.update(
+      { userId, purpose: 'EMAIL_VERIFY', usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+
+    const ttlSeconds = this.config.get<number>('EMAIL_VERIFY_TOKEN_TTL_SECONDS') ?? 86400;
+    const token = randomBytes(32).toString('hex');
+    await this.verifications.save(
+      this.verifications.create({
+        userId,
+        purpose: 'EMAIL_VERIFY',
+        valueHash: this.hash(token),
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+        usedAt: null,
+        attemptCount: 0,
+      }),
+    );
+    return token;
+  }
+
+  private buildVerifyUrl(token: string): string {
+    const baseUrl = this.config.get<string>('FRONTEND_BASE_URL') ?? 'http://localhost:8080';
+    return `${baseUrl.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
+  }
+
+  private invalidCredentials(): UnauthorizedException {
+    return new UnauthorizedException({
+      errorCode: ERROR_CODES.INVALID_CREDENTIALS,
+      message: 'Invalid credentials',
+    });
   }
 
   private publicUser(user: UserEntity, roles: string[]) {

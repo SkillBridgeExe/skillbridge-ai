@@ -5,8 +5,21 @@
 export default () => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3002', 10),
+  frontendBaseUrl: process.env.FRONTEND_BASE_URL ?? 'http://localhost:8080',
 
   internalAuthSecret: process.env.INTERNAL_AUTH_SECRET ?? '',
+
+  apiDocs: {
+    enabled: process.env.API_DOCS_ENABLED !== 'false',
+    path: process.env.API_DOCS_PATH ?? 'reference',
+    openapiJsonPath: process.env.OPENAPI_JSON_PATH ?? 'openapi.json',
+  },
+
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    resendFromEmail: process.env.RESEND_FROM_EMAIL ?? '',
+    verifyTokenTtlSeconds: parseInt(process.env.EMAIL_VERIFY_TOKEN_TTL_SECONDS ?? '86400', 10),
+  },
 
   llm: {
     providerDefault: process.env.LLM_PROVIDER_DEFAULT ?? 'gemini',
