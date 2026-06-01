@@ -3,8 +3,8 @@ services:
     name: skillbridge-ai
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
-    startCommand: npm run start:prod
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build && pnpm prune --prod
+    startCommand: pnpm run start:prod
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

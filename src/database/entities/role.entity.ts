@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type RoleCode = 'USER' | 'ADMIN' | 'MENTOR' | 'BUSINESS' | 'RECRUITER';
+export type RoleCode = 'USER' | 'ADMIN' | 'MENTOR' | 'BUSINESS';
 
 /** Maps `roles`. */
 @Entity('roles')

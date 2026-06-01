@@ -12,7 +12,6 @@ const ROLE_SEEDS: Array<{ code: RoleCode; name: string }> = [
   { code: 'ADMIN', name: 'Admin' },
   { code: 'MENTOR', name: 'Mentor' },
   { code: 'BUSINESS', name: 'Business' },
-  { code: 'RECRUITER', name: 'Recruiter' },
 ];
 
 export interface SeedOptions {

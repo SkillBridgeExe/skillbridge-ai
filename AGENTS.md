@@ -53,11 +53,14 @@ NestJS **11** · TypeORM **0.3** (Postgres + pgvector) · **`@google/genai`** (�
 
 ## Verify before "done"
 
+Note: this repository uses pnpm. Run `pnpm install` to install dependencies and use `pnpm run <script>` to execute scripts.
+
 ```powershell
-npm run lint
-npm run test
-npm run build
-npm run typeorm migration:run   # once TypeORM is wired
+pnpm install
+pnpm run lint
+pnpm run test
+pnpm run build
+pnpm exec typeorm migration:run   # once TypeORM is wired
 ```
 
 ## Migration status (R0)
