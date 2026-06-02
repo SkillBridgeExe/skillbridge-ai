@@ -10,6 +10,6 @@ import { AtsRuleCheckerService } from './ats-rule-checker.service';
   // CvParserService is also exported so the upcoming cv-builder module (no-CV
   // intake) can reuse the same structured-parse + coerce logic.
   providers: [CvReviewService, CvReviewParser, CvParserService, AtsRuleCheckerService],
-  exports: [CvParserService],
+  exports: [CvReviewService, CvParserService],
 })
 export class CvReviewModule {}
