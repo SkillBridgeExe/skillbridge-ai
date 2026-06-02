@@ -109,6 +109,10 @@ export class GeminiProvider implements LlmProviderClient {
           temperature: options.temperature ?? 0.2,
           maxOutputTokens: options.maxOutputTokens ?? 2048,
           responseMimeType: options.jsonMode ? 'application/json' : 'text/plain',
+          // #21: constrain output shape at the model level when a schema is supplied.
+          ...(options.jsonMode && options.responseSchema
+            ? { responseJsonSchema: options.responseSchema }
+            : {}),
           // Disable "thinking": our calls are deterministic extraction/scoring (temp ~0.1),
           // they don't benefit from it, and on 2.5+ models thinking tokens otherwise consume
           // maxOutputTokens and truncate the JSON (finishReason=MAX_TOKENS).

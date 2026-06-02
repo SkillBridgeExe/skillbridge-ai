@@ -20,6 +20,14 @@ export interface LlmCompleteOptions {
   temperature?: number;
   /** Max output tokens; default 2048. */
   maxOutputTokens?: number;
+  /**
+   * Optional JSON Schema constraining model output (model-level structured output).
+   * Gemini → `responseJsonSchema`; OpenAI → `response_format: json_schema` (strict).
+   * Requires `jsonMode`. The post-hoc parser still validates regardless (defense in depth).
+   * NOTE: not yet enabled by cv-review — needs a live Gemini run to confirm the provider
+   * accepts the schema before relying on it.
+   */
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface LlmCompleteResult {

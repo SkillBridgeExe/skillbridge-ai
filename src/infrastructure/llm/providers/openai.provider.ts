@@ -38,7 +38,20 @@ export class OpenAiProvider implements LlmProviderClient {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: options.temperature ?? 0.2,
       max_tokens: options.maxOutputTokens ?? 2048,
-      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      ...(options.jsonMode
+        ? {
+            response_format: options.responseSchema
+              ? {
+                  type: 'json_schema' as const,
+                  json_schema: {
+                    name: 'structured_output',
+                    schema: options.responseSchema,
+                    strict: true,
+                  },
+                }
+              : { type: 'json_object' as const },
+          }
+        : {}),
     });
     const latencyMs = Date.now() - start;
 
