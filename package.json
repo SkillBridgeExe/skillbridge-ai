@@ -24,6 +24,7 @@
     "migration:run": "pnpm run typeorm -- migration:run",
     "migration:revert": "pnpm run typeorm -- migration:revert",
     "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
+    "calibrate": "ts-node -r tsconfig-paths/register src/calibration/calibrate.ts",
     "dev": "nest start --watch"
   },
   "dependencies": {

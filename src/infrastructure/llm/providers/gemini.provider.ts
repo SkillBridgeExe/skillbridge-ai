@@ -39,6 +39,52 @@ export class GeminiProvider implements LlmProviderClient {
     return this.client;
   }
 
+  /**
+   * Retry transient Gemini errors (429 RESOURCE_EXHAUSTED, 500 INTERNAL,
+   * 503 UNAVAILABLE) with exponential backoff: 1s → 2s → 4s, up to 3 attempts.
+   * Non-transient errors (400 bad model/request, 401/403 auth) throw immediately.
+   */
+  private async withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    const MAX_ATTEMPTS = 5;
+    const TRANSIENT = new Set([429, 500, 503]);
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        const code = this.statusCode(err);
+        if (code === undefined || !TRANSIENT.has(code) || attempt === MAX_ATTEMPTS) throw err;
+        // Honor the server-suggested retry delay (429 RetryInfo); else exponential backoff. Cap 60s.
+        const backoff = 1000 * 2 ** (attempt - 1);
+        const delayMs = Math.min(Math.max(this.retryDelayMs(err) ?? backoff, backoff), 60_000);
+        this.logger.warn(
+          `${label}: transient ${code}, retry ${attempt}/${MAX_ATTEMPTS - 1} in ${Math.round(delayMs / 1000)}s`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+    throw lastErr;
+  }
+
+  /** Best-effort HTTP status from a @google/genai ApiError (status/code field or JSON in message). */
+  private statusCode(err: unknown): number | undefined {
+    const e = err as { status?: number; code?: number; message?: string };
+    if (typeof e?.status === 'number') return e.status;
+    if (typeof e?.code === 'number') return e.code;
+    const m = (e?.message ?? '').match(/"code"\s*:\s*(\d+)/);
+    return m ? Number(m[1]) : undefined;
+  }
+
+  /** Server-suggested retry delay in ms (429 RetryInfo: "retryDelay":"40s" or "retry in 40s"). */
+  private retryDelayMs(err: unknown): number | undefined {
+    const msg = (err as { message?: string })?.message ?? '';
+    const m =
+      msg.match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/) ??
+      msg.match(/retry in (\d+(?:\.\d+)?)\s*s/i);
+    return m ? Math.ceil(Number(m[1])) * 1000 : undefined;
+  }
+
   async complete(messages: LlmMessage[], options: LlmCompleteOptions): Promise<LlmCompleteResult> {
     const modelCode = options.model ?? this.config.get<string>('llm.gemini.modelDefault') ?? '';
 
@@ -55,16 +101,22 @@ export class GeminiProvider implements LlmProviderClient {
       }));
 
     const start = Date.now();
-    const response = await this.getClient().models.generateContent({
-      model: modelCode,
-      contents,
-      config: {
-        temperature: options.temperature ?? 0.2,
-        maxOutputTokens: options.maxOutputTokens ?? 2048,
-        responseMimeType: options.jsonMode ? 'application/json' : 'text/plain',
-        ...(systemInstruction ? { systemInstruction } : {}),
-      },
-    });
+    const response = await this.withRetry('gemini.complete', () =>
+      this.getClient().models.generateContent({
+        model: modelCode,
+        contents,
+        config: {
+          temperature: options.temperature ?? 0.2,
+          maxOutputTokens: options.maxOutputTokens ?? 2048,
+          responseMimeType: options.jsonMode ? 'application/json' : 'text/plain',
+          // Disable "thinking": our calls are deterministic extraction/scoring (temp ~0.1),
+          // they don't benefit from it, and on 2.5+ models thinking tokens otherwise consume
+          // maxOutputTokens and truncate the JSON (finishReason=MAX_TOKENS).
+          thinkingConfig: { thinkingBudget: 0 },
+          ...(systemInstruction ? { systemInstruction } : {}),
+        },
+      }),
+    );
     const latencyMs = Date.now() - start;
 
     const text = response.text ?? '';
@@ -75,7 +127,10 @@ export class GeminiProvider implements LlmProviderClient {
       try {
         parsedJson = JSON.parse(text);
       } catch (err) {
-        this.logger.warn(`Failed to parse JSON output: ${(err as Error).message}`);
+        // Note: do NOT log the raw text — it derives from CV content (PII). finishReason is enough to diagnose.
+        this.logger.warn(
+          `Failed to parse JSON output (${(err as Error).message}); model=${modelCode}, finishReason=${response.candidates?.[0]?.finishReason}`,
+        );
       }
     }
 
@@ -98,10 +153,12 @@ export class GeminiProvider implements LlmProviderClient {
     const modelCode = options.model ?? this.config.get<string>('llm.gemini.modelEmbedding') ?? '';
 
     const start = Date.now();
-    const response = await this.getClient().models.embedContent({
-      model: modelCode,
-      contents: text,
-    });
+    const response = await this.withRetry('gemini.embed', () =>
+      this.getClient().models.embedContent({
+        model: modelCode,
+        contents: text,
+      }),
+    );
     const latencyMs = Date.now() - start;
 
     const embedding = response.embeddings?.[0]?.values ?? [];
