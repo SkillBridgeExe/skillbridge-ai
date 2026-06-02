@@ -1,0 +1,85 @@
+{
+  "$note": "Labeled evaluation set for the CV scorer. Expected scores are BANDS [min,max] per dimension (0-20), not exact points — validate on within-band agreement, NOT point precision. Bands + criteria are grounded in docs/cv-scoring-methodology.md (Fresno State 4-level model; Columbia/MIT/Harvard criteria). Anchor CVs are seeded from verbatim weak/strong examples in those sources. Run via `pnpm eval:accuracy` (needs Gemini quota). This is an expert-criteria-grounded proxy, NOT human-rater ground truth.",
+  "version": "eval-v1",
+  "created_at": "2026-06-02",
+  "bands": {
+    "exemplary": [18, 20],
+    "accomplished": [13, 17],
+    "developing": [7, 12],
+    "beginning": [0, 6]
+  },
+  "cvs": [
+    {
+      "id": "eval-fe-exemplary",
+      "target_role": "frontend_developer",
+      "rationale": "Strong action verbs + quantified impact on most bullets; dated experience with scope; FE skills cover the rubric (HTML/CSS/JS/TS/React); degree + recent cert + side project.",
+      "expected": {
+        "action_verbs": [17, 20],
+        "skills_relevance": [15, 20],
+        "experience": [15, 20],
+        "education": [13, 20]
+      },
+      "parsed_text": "NGUYEN VAN A\nFrontend Developer — Ho Chi Minh City\nemail: a.nguyen@example.com | github.com/anguyen\n\nEXPERIENCE\nFrontend Intern, TechCorp (06/2023 - 12/2023)\n- Led redesign of the checkout flow in React + TypeScript, cutting page load time 40% for ~50,000 monthly users\n- Built a reusable component library (20+ components) adopted by 3 product teams, reducing UI bug reports by 30%\n- Implemented responsive, accessible (WCAG AA) layouts across 12 pages, raising Lighthouse accessibility from 72 to 96\n\nPROJECTS\n- ShopFast (personal): built a Next.js storefront with Tailwind + Jest tests (85% coverage), deployed on Vercel\n\nSKILLS\nReact, TypeScript, JavaScript, HTML, CSS, Tailwind, Redux, Jest, Git, responsive design, accessibility\n\nEDUCATION\nB.Sc. Software Engineering, FPT University (2021 - 2025), GPA 3.6/4.0\nCertificate: Meta Front-End Developer (2024)"
+    },
+    {
+      "id": "eval-fe-beginning",
+      "target_role": "frontend_developer",
+      "rationale": "Verbatim weak anchor: generic duty statements ('Responsible for…'), first-person paragraph, no dates, no metrics, sparse generic skills. Should land Beginning on action_verbs + experience.",
+      "expected": {
+        "action_verbs": [0, 6],
+        "skills_relevance": [4, 12],
+        "experience": [0, 7],
+        "education": [0, 11]
+      },
+      "parsed_text": "Tran B\nI am a student looking for a frontend job.\n\nEXPERIENCE\nI was responsible for the website. I worked on some tasks and helped the team with various things. I am familiar with making web pages and I did my best to finish the work given to me.\n\nSKILLS\nHTML, computers, Microsoft Word, teamwork\n\nEDUCATION\nStudying IT at a university."
+    },
+    {
+      "id": "eval-be-developing",
+      "target_role": "backend_developer",
+      "rationale": "Some action verbs but few metrics; partial dates; backend skills present (Node, SQL, REST) but missing several REQUIRED depth areas (auth, caching, system design). Mid bands.",
+      "expected": {
+        "action_verbs": [7, 14],
+        "skills_relevance": [7, 15],
+        "experience": [8, 15],
+        "education": [8, 16]
+      },
+      "parsed_text": "LE C\nBackend Developer\nemail: le.c@example.com\n\nEXPERIENCE\nBackend Developer, StartupX (2023)\n- Developed REST APIs in Node.js for the mobile app\n- Worked on the database schema and wrote SQL queries\n- Fixed bugs and helped deploy the service\n\nSKILLS\nNode.js, Express, SQL, PostgreSQL, REST API, Git\n\nEDUCATION\nB.Sc. Information Technology, HCMUS (2020 - 2024)"
+    },
+    {
+      "id": "eval-da-accomplished",
+      "target_role": "data_analyst",
+      "rationale": "Good verbs with some quantified impact; clear dated experience with scope; DA skills cover much of the rubric (SQL/Python/Pandas/Tableau/statistics). Accomplished range.",
+      "expected": {
+        "action_verbs": [13, 18],
+        "skills_relevance": [14, 20],
+        "experience": [13, 18],
+        "education": [10, 18]
+      },
+      "parsed_text": "PHAM D\nData Analyst — Da Nang\nemail: pham.d@example.com\n\nEXPERIENCE\nData Analyst Intern, RetailCo (05/2023 - 11/2023)\n- Analyzed 2M+ sales records in SQL + Python (Pandas) to identify 3 churn drivers, informing a campaign that lifted retention 12%\n- Built 4 Tableau dashboards used weekly by the sales team to track KPIs\n- Automated a manual Excel report with a Python script, saving ~6 hours/week\n\nSKILLS\nSQL, Python, Pandas, NumPy, Tableau, Power BI, Excel, statistics, data visualization\n\nEDUCATION\nB.Sc. Data Science, Danang University of Science and Technology (2020 - 2024)"
+    },
+    {
+      "id": "eval-qa-mixed",
+      "target_role": "qa_tester",
+      "rationale": "Clear, well-structured dated experience with strong verbs, but skills only partially match QA rubric (manual testing + Jira present; missing test automation / database testing); education modest. Mixed: high experience/action_verbs, lower skills_relevance.",
+      "expected": {
+        "action_verbs": [12, 18],
+        "skills_relevance": [6, 13],
+        "experience": [13, 19],
+        "education": [7, 15]
+      },
+      "parsed_text": "HOANG E\nQA Tester\nemail: hoang.e@example.com | Ho Chi Minh City\n\nEXPERIENCE\nQA Intern, SoftHouse (07/2023 - 01/2024)\n- Designed and executed 200+ manual test cases for a fintech web app, finding 45 defects pre-release\n- Tracked and triaged issues in Jira, coordinating daily with 4 developers to verify fixes\n- Authored regression test checklists adopted as the team standard\n\nSKILLS\nManual testing, test case design, Jira, bug tracking, regression testing\n\nEDUCATION\nCollege diploma in Information Technology (2021 - 2024)"
+    },
+    {
+      "id": "eval-mobile-developing",
+      "target_role": "mobile_developer",
+      "rationale": "Partial across the board: a couple of action verbs, one weak metric, undated entries, mobile skills present but thin (Flutter only, missing native + testing); short education. Developing.",
+      "expected": {
+        "action_verbs": [7, 14],
+        "skills_relevance": [7, 14],
+        "experience": [6, 13],
+        "education": [7, 15]
+      },
+      "parsed_text": "VO F\nMobile Developer\nemail: vo.f@example.com\n\nEXPERIENCE\nMobile Developer (freelance)\n- Built a Flutter app for a local shop with around 500 downloads\n- Added a notifications feature and fixed crashes\n- Responsible for publishing the app to the store\n\nSKILLS\nFlutter, Dart, Firebase, Git\n\nEDUCATION\nB.Sc. Software Engineering, FPT University (2021 - 2025)"
+    }
+  ]
+}
