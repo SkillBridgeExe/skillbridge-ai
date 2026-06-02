@@ -25,8 +25,8 @@ export default () => ({
     providerDefault: process.env.LLM_PROVIDER_DEFAULT ?? 'gemini',
     gemini: {
       apiKey: process.env.GEMINI_API_KEY ?? '',
-      modelDefault: process.env.GEMINI_MODEL_DEFAULT ?? 'gemini-2.0-flash',
-      modelEmbedding: process.env.GEMINI_MODEL_EMBEDDING ?? 'text-embedding-004',
+      modelDefault: process.env.GEMINI_MODEL_DEFAULT ?? 'gemini-2.5-flash',
+      modelEmbedding: process.env.GEMINI_MODEL_EMBEDDING ?? 'gemini-embedding-001',
     },
     openai: {
       apiKey: process.env.OPENAI_API_KEY ?? '',
