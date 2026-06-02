@@ -19,8 +19,11 @@ import * as path from 'path';
 import type { CvReviewRequestDto } from '../modules/cv-review/dto/cv-review-request.dto';
 import { CvRunResult, summarizeCv, overallVerdict } from './calibration-stats';
 
-// MUST run before AppModule is imported — it reads NODE_ENV at module-eval time.
-if (!process.env.NODE_ENV) process.env.NODE_ENV = 'test';
+// MUST run before AppModule is imported — AppModule reads NODE_ENV at module-eval time.
+// FORCE test mode (override any NODE_ENV from .env, e.g. development): the calibration
+// harness is DB-less and only measures scoring stability, so it must skip TypeORM +
+// platform modules and use the stub TracingService (no real ai_requests insert).
+process.env.NODE_ENV = 'test';
 
 const REPS = Number(process.env.CALIBRATION_REPS ?? 5);
 // Free-tier Gemini ≈ 5 req/min; each review = 2 LLM calls. Set CALIBRATION_DELAY_MS
