@@ -44,6 +44,28 @@ export const configValidationSchema = Joi.object({
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
 
+  // Cloudflare R2 private CV storage
+  R2_ACCOUNT_ID: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+  R2_BUCKET: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+  R2_ACCESS_KEY_ID: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+  R2_SECRET_ACCESS_KEY: Joi.string().when('NODE_ENV', {
+    is: 'test',
+    then: Joi.string().allow('').optional(),
+    otherwise: Joi.string().min(1).required(),
+  }),
+
   // Vector
   VECTOR_DIMENSION: Joi.number().integer().positive().default(768),
   VECTOR_TABLE: Joi.string().default('document_chunks'),

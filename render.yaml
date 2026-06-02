@@ -3,8 +3,8 @@ services:
     name: skillbridge-ai
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
-    startCommand: npm run start:prod
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm run build && pnpm prune --prod
+    startCommand: pnpm run start:prod
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -47,6 +47,8 @@ services:
         value: gpt-4o-mini
       - key: OPENAI_MODEL_EMBEDDING
         value: text-embedding-3-small
+      - key: R2_BUCKET
+        value: bucket-exe-dev
       - key: EMAIL_VERIFY_TOKEN_TTL_SECONDS
         value: '86400'
       - key: JWT_ACCESS_TTL
@@ -74,4 +76,10 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
         sync: false

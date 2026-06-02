@@ -1,5 +1,6 @@
 import { AccountEntity } from './entities/account.entity';
 import { RoleEntity } from './entities/role.entity';
+import { SkillEntity } from './entities/skill.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRoleEntity } from './entities/user-role.entity';
 import { seedDatabase } from './seed';
@@ -18,12 +19,14 @@ describe('seedDatabase', () => {
     const users = createRepositoryMock();
     const accounts = createRepositoryMock();
     const userRoles = createRepositoryMock();
+    const skills = createRepositoryMock();
     const dataSource = {
       getRepository: jest.fn((entity) => {
         if (entity === RoleEntity) return roles;
         if (entity === UserEntity) return users;
         if (entity === AccountEntity) return accounts;
         if (entity === UserRoleEntity) return userRoles;
+        if (entity === SkillEntity) return skills;
         throw new Error('Unexpected repository');
       }),
     };
@@ -59,16 +62,19 @@ describe('seedDatabase', () => {
     const users = createRepositoryMock();
     const accounts = createRepositoryMock();
     const userRoles = createRepositoryMock();
+    const skills = createRepositoryMock();
     roles.findOne.mockResolvedValue({ id: 'role-1', code: 'USER', name: 'User' });
     users.findOne.mockResolvedValue({ id: 'user-1', emailNormalized: 'existing@example.com' });
     accounts.findOne.mockResolvedValue({ id: 'account-1' });
     userRoles.findOne.mockResolvedValue({ id: 'user-role-1' });
+    skills.findOne.mockResolvedValue({ id: 'skill-1', canonicalName: 'react' });
     const dataSource = {
       getRepository: jest.fn((entity) => {
         if (entity === RoleEntity) return roles;
         if (entity === UserEntity) return users;
         if (entity === AccountEntity) return accounts;
         if (entity === UserRoleEntity) return userRoles;
+        if (entity === SkillEntity) return skills;
         throw new Error('Unexpected repository');
       }),
     };
@@ -85,5 +91,6 @@ describe('seedDatabase', () => {
     expect(users.save).not.toHaveBeenCalled();
     expect(accounts.save).not.toHaveBeenCalled();
     expect(userRoles.save).not.toHaveBeenCalled();
+    expect(skills.save).not.toHaveBeenCalled();
   });
 });

@@ -66,10 +66,10 @@ export class AuthService {
         passwordHash: await bcrypt.hash(dto.password, 10),
       }),
     );
-    await this.assignRole(user.id, 'USER');
+    await this.assignRole(user.id, dto.role);
     const token = await this.createVerificationToken(user.id);
     await this.email.sendVerifyEmail(user.email, this.buildVerifyUrl(token));
-    return { user: this.publicUser(user, ['USER']), accessToken: null };
+    return { user: this.publicUser(user, [dto.role]), accessToken: null };
   }
 
   async verifyEmail(token: string) {
