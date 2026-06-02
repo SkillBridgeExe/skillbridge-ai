@@ -70,6 +70,7 @@ describe('CvReviewService', () => {
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
     };
+    const roleRubric = { getRubric: jest.fn().mockReturnValue(null) };
 
     const service = new CvReviewService(
       llm as never,
@@ -78,8 +79,9 @@ describe('CvReviewService', () => {
       parser as never,
       atsChecker as never,
       cvParser as never,
+      roleRubric as never,
     );
-    return { service, cvParser, atsChecker, prompts, llm, parser, tracing };
+    return { service, cvParser, atsChecker, prompts, llm, parser, tracing, roleRubric };
   }
 
   const input = {
