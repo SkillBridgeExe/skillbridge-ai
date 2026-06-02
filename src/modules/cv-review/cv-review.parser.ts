@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import {
   CvReviewExtracted,
@@ -29,6 +29,8 @@ export interface CvReviewLlmRawOutput {
  */
 @Injectable()
 export class CvReviewParser {
+  private readonly logger = new Logger(CvReviewParser.name);
+
   parse(raw: unknown): CvReviewLlmRawOutput {
     if (!raw || typeof raw !== 'object') {
       this.fail('LLM output was not an object');
@@ -53,8 +55,11 @@ export class CvReviewParser {
       typeof obj.llm_total === 'number' &&
       Math.abs((obj.llm_total as number) - computedTotal) > 2
     ) {
-      // Tolerate ±2 drift (LLM rounding), but log if larger.
-      // We don't throw — we just use our own computed value.
+      // We always use our own computed total, but a large gap is worth surfacing —
+      // it can signal the model ignoring the rubric or tampering via the CV text.
+      this.logger.warn(
+        `llm_total drift: model reported ${obj.llm_total as number}, computed ${computedTotal} from per-dimension scores`,
+      );
     }
 
     const rationale = this.obj(obj.rationale, 'rationale');
@@ -70,7 +75,7 @@ export class CvReviewParser {
       const sObj = this.obj(s, `sections[${idx}]`);
       return {
         name: this.str(sObj.name, `sections[${idx}].name`),
-        score: this.num(sObj.score, `sections[${idx}].score`),
+        score: this.clamp(this.num(sObj.score, `sections[${idx}].score`), 0, 100),
         issues: Array.isArray(sObj.issues)
           ? (sObj.issues as Array<Record<string, unknown>>).map((iss, i) => ({
               severity: this.severity(iss.severity, `sections[${idx}].issues[${i}].severity`),
@@ -105,6 +110,11 @@ export class CvReviewParser {
       this.fail(`Expected number at ${name}, got ${typeof v}`);
     }
     return v as number;
+  }
+
+  /** Clamp a model-provided numeric score into [min, max] (the LLM may emit out-of-range values). */
+  private clamp(n: number, min: number, max: number): number {
+    return Math.min(Math.max(n, min), max);
   }
 
   /** Score that must be 0-20 (clamped if slightly off). */

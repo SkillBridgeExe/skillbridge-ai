@@ -121,15 +121,32 @@ export class GeminiProvider implements LlmProviderClient {
 
     const text = response.text ?? '';
     const usage = response.usageMetadata;
+    const finishReason = String(response.candidates?.[0]?.finishReason ?? '');
+    const blockReason = response.promptFeedback?.blockReason;
+
+    // A blocked prompt / empty candidate set is a hard failure, not an empty completion.
+    if (!response.candidates || response.candidates.length === 0) {
+      throw new Error(
+        `Gemini returned no candidates${blockReason ? ` (blockReason=${blockReason})` : ''}; model=${modelCode}`,
+      );
+    }
 
     let parsedJson: unknown | undefined;
     if (options.jsonMode) {
+      // Truncation (MAX_TOKENS) or a safety/recitation stop yields invalid/partial JSON.
+      // Surface it as an error so callers fail loudly instead of scoring an empty document.
+      if (finishReason && finishReason !== 'STOP') {
+        throw new Error(
+          `Gemini JSON output not usable (finishReason=${finishReason}); model=${modelCode}. ` +
+            `If MAX_TOKENS, raise maxOutputTokens.`,
+        );
+      }
       try {
         parsedJson = JSON.parse(text);
       } catch (err) {
         // Note: do NOT log the raw text — it derives from CV content (PII). finishReason is enough to diagnose.
-        this.logger.warn(
-          `Failed to parse JSON output (${(err as Error).message}); model=${modelCode}, finishReason=${response.candidates?.[0]?.finishReason}`,
+        throw new Error(
+          `Gemini JSON parse failed (${(err as Error).message}); model=${modelCode}, finishReason=${finishReason}`,
         );
       }
     }
