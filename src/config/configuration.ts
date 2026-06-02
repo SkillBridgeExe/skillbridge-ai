@@ -39,6 +39,13 @@ export default () => ({
     url: process.env.DATABASE_URL ?? '',
   },
 
+  r2: {
+    accountId: process.env.R2_ACCOUNT_ID ?? '',
+    bucket: process.env.R2_BUCKET ?? '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+  },
+
   vector: {
     dimension: parseInt(process.env.VECTOR_DIMENSION ?? '768', 10),
     table: process.env.VECTOR_TABLE ?? 'document_chunks',

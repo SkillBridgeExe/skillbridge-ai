@@ -48,7 +48,7 @@ Thumbs.db
 # Uncomment if needed:
 # *.md
 # !README.md
-# !AGENTS.md
+!AGENTS.md
 
 # Temp
 tmp/

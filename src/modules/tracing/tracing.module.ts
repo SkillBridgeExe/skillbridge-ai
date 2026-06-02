@@ -1,5 +1,13 @@
 import { Global, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiRequestEntity } from '../../database/entities/ai-request.entity';
+import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { TracingService } from './tracing.service';
+
+const TRACING_IMPORTS =
+  process.env.NODE_ENV === 'test'
+    ? []
+    : [TypeOrmModule.forFeature([AiRequestEntity, AiResultEntity])];
 
 /**
  * Writes traceability records to the DB:
@@ -13,6 +21,7 @@ import { TracingService } from './tracing.service';
  */
 @Global()
 @Module({
+  imports: TRACING_IMPORTS,
   providers: [TracingService],
   exports: [TracingService],
 })

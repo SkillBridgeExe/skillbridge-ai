@@ -1,6 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService } from '../../infrastructure/database/database.service';
+import { AiRequestEntity } from '../../database/entities/ai-request.entity';
+import { AiResultEntity } from '../../database/entities/ai-result.entity';
 
 export interface StartAiRequestInput {
   userId: string;
@@ -53,41 +56,87 @@ export interface LogToolCallInput {
 
 /**
  * Writes to ai_requests / ai_results / retrieval_logs / ai_tool_calls.
- *
- * Stub: real implementation uses DatabaseService once .NET runs the migration.
- * For now, we log to console and return generated UUIDs so feature code can be wired.
  */
 @Injectable()
 export class TracingService {
   private readonly logger = new Logger(TracingService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Optional()
+    @InjectRepository(AiRequestEntity)
+    private readonly aiRequests?: Repository<AiRequestEntity>,
+    @Optional()
+    @InjectRepository(AiResultEntity)
+    private readonly aiResults?: Repository<AiResultEntity>,
+  ) {}
 
   async startAiRequest(input: StartAiRequestInput): Promise<string> {
-    const id = uuidv4();
-    this.logger.debug(`[stub] ai_requests INSERT id=${id} type=${input.requestType}`);
-    // TODO: INSERT INTO ai_requests (...) VALUES (...)
-    return id;
+    if (!this.aiRequests) return this.stubAiRequest(input);
+
+    const request = await this.aiRequests.save(
+      this.aiRequests.create({
+        userId: input.userId,
+        aiJobId: input.aiJobId ?? null,
+        modelId: null,
+        promptTemplateId: null,
+        requestType: input.requestType,
+        requestPayload: {
+          model_code: input.modelCode,
+          prompt_template_code: input.promptTemplateCode ?? null,
+          prompt_template_version: input.promptTemplateVersion ?? null,
+          payload: input.requestPayload,
+        },
+        status: 'PENDING',
+      }),
+    );
+    return request.id;
   }
 
   async completeAiRequest(aiRequestId: string, input: CompleteAiRequestInput): Promise<void> {
-    this.logger.debug(
-      `[stub] ai_requests UPDATE id=${aiRequestId} status=${input.status} tokens=${input.totalTokens} latency=${input.latencyMs}ms`,
-    );
-    // TODO: UPDATE ai_requests SET ... WHERE id = $1
+    if (!this.aiRequests) {
+      this.logger.debug(
+        `[stub] ai_requests UPDATE id=${aiRequestId} status=${input.status} tokens=${input.totalTokens} latency=${input.latencyMs}ms`,
+      );
+      return;
+    }
+
+    await this.aiRequests.update(aiRequestId, {
+      promptTokens: input.promptTokens,
+      completionTokens: input.completionTokens,
+      totalTokens: input.totalTokens,
+      estimatedCost: input.estimatedCost === undefined ? null : input.estimatedCost.toFixed(6),
+      latencyMs: input.latencyMs,
+      status: input.status,
+      errorMessage: input.errorMessage ?? null,
+    });
   }
 
   async saveAiResult(input: SaveAiResultInput): Promise<string> {
-    const id = uuidv4();
-    this.logger.debug(`[stub] ai_results INSERT id=${id} type=${input.resultType}`);
-    // TODO: INSERT INTO ai_results (...) VALUES (...)
-    return id;
+    if (!this.aiResults) {
+      const id = uuidv4();
+      this.logger.debug(`[stub] ai_results INSERT id=${id} type=${input.resultType}`);
+      return id;
+    }
+
+    const result = await this.aiResults.save(
+      this.aiResults.create({
+        aiRequestId: input.aiRequestId,
+        userId: input.userId ?? null,
+        resultType: input.resultType,
+        rawResponse: input.rawResponse,
+        parsedResponse: input.parsedResponse,
+        totalScore: input.totalScore === undefined ? null : input.totalScore.toFixed(2),
+        confidenceScore:
+          input.confidenceScore === undefined ? null : input.confidenceScore.toFixed(2),
+        tokenUsage: input.tokenUsage ?? null,
+      }),
+    );
+    return result.id;
   }
 
   async logRetrieval(input: LogRetrievalInput): Promise<string> {
     const id = uuidv4();
     this.logger.debug(`[stub] retrieval_logs INSERT id=${id} topK=${input.topK}`);
-    // TODO: INSERT INTO retrieval_logs (...) VALUES (...)
     return id;
   }
 
@@ -96,7 +145,12 @@ export class TracingService {
     this.logger.debug(
       `[stub] ai_tool_calls INSERT id=${id} tool=${input.toolName} status=${input.status}`,
     );
-    // TODO: INSERT INTO ai_tool_calls (...) VALUES (...)
+    return id;
+  }
+
+  private stubAiRequest(input: StartAiRequestInput): string {
+    const id = uuidv4();
+    this.logger.debug(`[stub] ai_requests INSERT id=${id} type=${input.requestType}`);
     return id;
   }
 }
