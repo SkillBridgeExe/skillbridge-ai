@@ -110,6 +110,43 @@ const STRONG_VERBS_EN = new Set([
   'used',
   'applied',
   'performed',
+  // Common IT-resume verbs that were missing (under-scored real CVs, e.g. "Set up…", "Fixed…").
+  'set',
+  'added',
+  'add',
+  'fixed',
+  'fix',
+  'trained',
+  'train',
+  'tracked',
+  'track',
+  'monitored',
+  'monitor',
+  'published',
+  'publish',
+  'executed',
+  'execute',
+  'identified',
+  'identify',
+  'collaborated',
+  'collaborate',
+  'owned',
+  'validated',
+  'validate',
+  'prototyped',
+  'prototype',
+  'containerized',
+  'orchestrated',
+  'provisioned',
+  'instrumented',
+  'benchmarked',
+  'profiled',
+  'reviewed',
+  'documented',
+  'enabled',
+  'introduced',
+  'standardized',
+  'consolidated',
 ]);
 // VI strong verbs — checked against the first 1-2 trimmed words.
 const STRONG_VERBS_VI = new Set([
@@ -164,6 +201,17 @@ const STRONG_VERBS_VI = new Set([
   'huấn luyện',
   'triển khai',
   'phát hành',
+  // Common VI IT-resume verbs that were missing.
+  'sửa',
+  'sửa lỗi',
+  'thêm',
+  'theo dõi',
+  'kiểm soát',
+  'cài đặt',
+  'đóng gói',
+  'điều phối',
+  'xác thực',
+  'review',
 ]);
 // Weak/passive duty openers — disqualify a bullet from "verb-first" even if grammatically a verb.
 const WEAK_OPENERS_EN = [
@@ -220,7 +268,7 @@ const FILLER_VI = [
 ];
 // First-person markers. Bare standalone "i" is intentionally excluded — it false-fires on
 // roman numerals / list markers ("Phase I", "Part I"); we keep the unambiguous forms.
-const FIRST_PERSON = [
+const FIRST_PERSON_EN = [
   /\bme\b/,
   /\bmy\b/,
   /\bi'm\b/,
@@ -228,12 +276,10 @@ const FIRST_PERSON = [
   /\bi have\b/,
   /\bi was\b/,
   /\bmyself\b/,
-  /\btôi\b/,
-  /\bem\b/,
-  /\bmình\b/,
-  /của tôi/,
-  /của em/,
 ];
+// VI markers are applied ONLY to vi-language CVs — bare "em" / "mình" false-fire on English
+// ("em" is a CSS unit / "em-dash"), so gating them on language avoids a wrong note on EN CVs.
+const FIRST_PERSON_VI = [/\btôi\b/, /\bem\b/, /\bmình\b/, /của tôi/, /của em/];
 
 // Quantified impact: %, $, "by N", "Nx", "N+", or a number followed by a meaningful unit
 // (EN + VI). Decimals supported (99.9%, 1.5x).
@@ -244,9 +290,13 @@ const QUANT = new RegExp(
     'by\\s+\\d', // by 30
     '\\d+(?:[.,]\\d+)?\\s?x\\b', // 3x / 1.5x
     '\\d+\\+', // 20+
-    '\\b\\d[\\d.,]*\\s*(?:users?|people|persons?|hours?|days?|weeks?|months?|years?|projects?|members?|teams?|customers?|downloads?|requests?|pages?|lines?|commits?|tests?|bugs?|prs?|endpoints?|apis?|features?|tickets?|releases?|screens?|records?|queries|stars?|points?|seconds?|secs?|ms|gb|mb|kb|tb|k|m|million|billion|nghìn|triệu|tỷ|giờ|ngày|tuần|tháng|năm|người|dự án|thành viên|khách hàng|lượt|dòng|bài|lỗi|tính năng|bản ghi|truy vấn|màn hình|điểm|phút|giây|đồng)\\b',
+    // Trailing boundary is a Unicode-aware lookahead (NOT \b — JS \b is ASCII-only and would
+    // reject VI units ending in a diacritic, e.g. "200 giờ" / "1 tỷ", systematically
+    // under-scoring Vietnamese CVs). It still blocks prefix false-matches like "5 marketing"
+    // (the bare "m"/"k" units), because the next char there is a letter.
+    '\\b\\d[\\d.,]*\\s*(?:users?|people|persons?|hours?|days?|weeks?|months?|years?|projects?|members?|teams?|customers?|downloads?|requests?|pages?|lines?|commits?|tests?|bugs?|prs?|endpoints?|apis?|features?|tickets?|releases?|screens?|records?|queries|stars?|points?|seconds?|secs?|ms|gb|mb|kb|tb|k|m|million|billion|nghìn|triệu|tỷ|giờ|ngày|tuần|tháng|năm|người|dự án|thành viên|khách hàng|lượt|dòng|bài|lỗi|tính năng|bản ghi|truy vấn|màn hình|điểm|phút|giây|đồng)(?=[^\\p{L}\\d]|$)',
   ].join('|'),
-  'i',
+  'iu',
 );
 // Bare numbers (2-6 digits, not a year) only count as impact when the bullet ALSO shows an
 // impact cue — this prevents phone numbers, IDs, room/postal numbers from inflating the score.
@@ -282,13 +332,17 @@ export class BulletAnalyzerService {
     let firstPerson = 0;
     let filler = 0;
 
+    // VI first-person markers only on vi CVs (avoid "em" false-firing on EN — CSS unit/em-dash).
+    const fpMarkers =
+      document.language === 'vi' ? [...FIRST_PERSON_EN, ...FIRST_PERSON_VI] : FIRST_PERSON_EN;
+
     for (const raw of bullets) {
       const b = raw.trim();
       const lower = b.toLowerCase();
       if (this.isWeakOpener(lower)) weak += 1;
       else if (this.isVerbFirst(lower)) verbFirst += 1;
       if (this.isQuantified(b)) quantified += 1;
-      if (FIRST_PERSON.some((re) => re.test(lower))) firstPerson += 1;
+      if (fpMarkers.some((re) => re.test(lower))) firstPerson += 1;
       filler += this.countFiller(lower);
     }
 
@@ -319,9 +373,14 @@ export class BulletAnalyzerService {
     return out.filter((b) => typeof b === 'string' && b.trim().length > 0);
   }
 
-  /** First k words, each trimmed of leading/trailing punctuation ("Designed," → "designed"). */
+  /**
+   * First k words, each trimmed of leading/trailing punctuation ("Designed," → "designed").
+   * A leading enumerator/list marker ("1.", "(2)", "a)") is stripped first so it does not
+   * masquerade as word 1 and hide an otherwise verb-first bullet ("1. Led…").
+   */
   private firstWords(lower: string, k: number): string {
-    return lower
+    const cleaned = lower.replace(/^\s*(?:\(?\d{1,3}[.)\]]|[a-zđ][.)\]])\s+/u, '');
+    return cleaned
       .split(/\s+/)
       .map((w) => w.replace(/^[^\p{L}\d]+|[^\p{L}\d]+$/gu, ''))
       .filter((w) => w.length > 0)
@@ -339,7 +398,14 @@ export class BulletAnalyzerService {
   private isVerbFirst(lower: string): boolean {
     const w1 = this.firstWords(lower, 1);
     const w2 = this.firstWords(lower, 2);
-    return STRONG_VERBS_EN.has(w1) || STRONG_VERBS_VI.has(w1) || STRONG_VERBS_VI.has(w2);
+    const w3 = this.firstWords(lower, 3);
+    // EN verbs are single words (w1); VI verbs are 1-3 words ("tối ưu", "tái cấu trúc").
+    return (
+      STRONG_VERBS_EN.has(w1) ||
+      STRONG_VERBS_VI.has(w1) ||
+      STRONG_VERBS_VI.has(w2) ||
+      STRONG_VERBS_VI.has(w3)
+    );
   }
 
   private isQuantified(text: string): boolean {

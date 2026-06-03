@@ -154,4 +154,58 @@ describe('BulletAnalyzerService', () => {
     expect(strong.weakOpenerRatio).toBe(0);
     expect(strong.verbFirstRatio).toBe(1);
   });
+
+  // ─── review fixes (N1 v3 — from the 4-lens adversarial review) ───────────
+
+  it('recognizes common IT verbs that were missing ("Set up", "Fixed", "Trained", "Tracked")', () => {
+    // Mirrors the eval-devops regression: "Set up" must count, "Worked on"/"Helped" stay weak.
+    const devops = svc.analyze(
+      docWith([
+        'Set up Docker containers for the backend services',
+        'Worked on the CI pipeline with GitHub Actions',
+        'Helped monitor servers and fixed deployment issues',
+      ]),
+    );
+    expect(devops.verbFirstRatio).toBeCloseTo(1 / 3, 2);
+    expect(devops.actionVerbsScore).toBeGreaterThanOrEqual(7);
+    expect(devops.band).not.toBe('beginning');
+
+    for (const v of [
+      'Fixed the auth bug',
+      'Trained a classifier',
+      'Tracked issues in Jira',
+      'Added a feature',
+    ]) {
+      expect(svc.analyze(docWith([v])).verbFirstRatio).toBe(1);
+    }
+  });
+
+  it('detects a verb-first bullet even behind a numbered/lettered list marker', () => {
+    const a = svc.analyze(
+      docWith([
+        '1. Led the redesign, cutting latency 40%',
+        '(2) Designed the schema',
+        'a) Built the API',
+      ]),
+    );
+    expect(a.verbFirstRatio).toBe(1);
+  });
+
+  it('counts Vietnamese units ending in a diacritic as quantified ("giờ", "tỷ")', () => {
+    expect(
+      svc.analyze(docWith(['Tối ưu quy trình, tiết kiệm 200 giờ mỗi quý'], 'vi')).quantifiedRatio,
+    ).toBe(1);
+    expect(svc.analyze(docWith(['Tạo doanh thu 1 tỷ cho công ty'], 'vi')).quantifiedRatio).toBe(1);
+  });
+
+  it('still rejects a bare unit prefix of a longer word ("5 marketing" is NOT quantified)', () => {
+    expect(svc.analyze(docWith(['Owned 5 marketing campaigns for the team'])).quantifiedRatio).toBe(
+      0,
+    );
+  });
+
+  it('does NOT flag English "em" (CSS unit) as first-person on an EN CV', () => {
+    const a = svc.analyze(docWith(['Designed a system using REM and EM units across the app']));
+    expect(a.firstPersonRatio).toBe(0);
+  });
 });
