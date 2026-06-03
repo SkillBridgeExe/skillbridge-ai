@@ -1,4 +1,12 @@
-import { mean, stddev, summarizeCv, overallVerdict } from './calibration-stats';
+import {
+  mean,
+  stddev,
+  summarizeCv,
+  overallVerdict,
+  mae,
+  spearman,
+  pearson,
+} from './calibration-stats';
 
 describe('calibration-stats', () => {
   it('mean averages', () => {
@@ -42,5 +50,29 @@ describe('calibration-stats', () => {
     const v = overallVerdict(stats);
     expect(v.pass).toBe(false);
     expect(v.failed).toContain('b');
+  });
+
+  it('mae computes mean absolute error', () => {
+    expect(mae([10, 20, 30], [12, 18, 33])).toBeCloseTo(2.33, 2);
+    expect(mae([5, 5], [5, 5])).toBe(0);
+    expect(mae([], [])).toBe(0);
+  });
+
+  it('spearman is 1 for perfectly monotonic, -1 for reversed', () => {
+    expect(spearman([1, 2, 3, 4], [10, 20, 30, 40])).toBe(1);
+    expect(spearman([1, 2, 3, 4], [40, 30, 20, 10])).toBe(-1);
+  });
+
+  it('spearman tolerates ties', () => {
+    expect(spearman([1, 1, 2, 3], [5, 5, 6, 7])).toBe(1);
+  });
+
+  it('spearman/pearson are 0 with <2 points or zero variance', () => {
+    expect(spearman([1], [1])).toBe(0);
+    expect(pearson([5, 5, 5], [1, 2, 3])).toBe(0);
+  });
+
+  it('mae throws on length mismatch (paired arrays)', () => {
+    expect(() => mae([1, 2], [1])).toThrow(/mismatch/);
   });
 });

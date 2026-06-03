@@ -59,7 +59,69 @@ export function summarizeCv(run: CvRunResult, threshold = 5): CvStats {
 }
 
 export function overallVerdict(stats: CvStats[], threshold = 5): CalibrationVerdict {
-  const failed = stats.filter((s) => s.stddev >= threshold).map((s) => s.id);
+  // Use summarizeCv's own pass flag (computed on the RAW stddev) as the single source of
+  // truth, so the verdict can't disagree with per-CV pass at the rounding boundary.
+  const failed = stats.filter((s) => !s.pass).map((s) => s.id);
   const maxStddev = stats.reduce((mx, s) => Math.max(mx, s.stddev), 0);
   return { pass: failed.length === 0, failed, maxStddev: round2(maxStddev), threshold };
+}
+
+// ─── Accuracy metrics (calibration spine: AI score vs expected) ───────────────
+
+/** Mean absolute error between paired predicted/expected arrays. */
+export function mae(predicted: number[], expected: number[]): number {
+  if (predicted.length !== expected.length) {
+    throw new Error(`mae: array length mismatch (${predicted.length} vs ${expected.length})`);
+  }
+  const n = predicted.length;
+  if (n === 0) return 0;
+  let s = 0;
+  for (let i = 0; i < n; i++) s += Math.abs(predicted[i] - expected[i]);
+  return round2(s / n);
+}
+
+/** Average 1-based ranks; tied values share the mean rank. */
+function ranks(xs: number[]): number[] {
+  const idx = xs.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+  const r = new Array<number>(xs.length).fill(0);
+  let k = 0;
+  while (k < idx.length) {
+    let j = k;
+    while (j + 1 < idx.length && idx[j + 1].v === idx[k].v) j++;
+    const avgRank = (k + j) / 2 + 1; // mean 1-based rank across the tie group
+    for (let t = k; t <= j; t++) r[idx[t].i] = avgRank;
+    k = j + 1;
+  }
+  return r;
+}
+
+/** Pearson correlation in [-1,1]; returns 0 when undefined (zero variance / <2 points). */
+export function pearson(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  if (n < 2) return 0;
+  const ma = mean(a.slice(0, n));
+  const mb = mean(b.slice(0, n));
+  let num = 0;
+  let da = 0;
+  let db = 0;
+  for (let i = 0; i < n; i++) {
+    const xa = a[i] - ma;
+    const xb = b[i] - mb;
+    num += xa * xb;
+    da += xa * xa;
+    db += xb * xb;
+  }
+  if (da === 0 || db === 0) return 0;
+  return round2(num / Math.sqrt(da * db));
+}
+
+/**
+ * Spearman rank correlation — Pearson on ranks (tolerates ties). Measures whether the
+ * scorer can ORDER CVs correctly (the key property for roadmap prioritization), not just
+ * land in a band. Range [-1,1].
+ */
+export function spearman(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  if (n < 2) return 0;
+  return pearson(ranks(a.slice(0, n)), ranks(b.slice(0, n)));
 }
