@@ -6,7 +6,7 @@ import {
   mae,
   spearman,
   pearson,
-} from './calibration-stats';
+} from '../../src/calibration/calibration-stats';
 
 describe('calibration-stats', () => {
   it('mean averages', () => {

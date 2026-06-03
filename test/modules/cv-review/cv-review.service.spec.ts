@@ -1,4 +1,4 @@
-import { CvReviewService } from './cv-review.service';
+import { CvReviewService } from '../../../src/modules/cv-review/cv-review.service';
 
 /**
  * Focused unit spec for the R1 gap fix + composite math.

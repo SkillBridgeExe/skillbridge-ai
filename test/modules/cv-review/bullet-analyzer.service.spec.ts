@@ -1,5 +1,5 @@
-import { BulletAnalyzerService } from './bullet-analyzer.service';
-import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
+import { BulletAnalyzerService } from '../../../src/modules/cv-review/bullet-analyzer.service';
+import { CanonicalCvDocument, emptyCanonicalCv } from '../../../src/common/types/canonical-cv';
 
 /**
  * Deterministic Dimension-1 scorer — anchor-based unit tests (no LLM, no quota).
