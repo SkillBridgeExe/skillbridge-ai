@@ -1,5 +1,6 @@
 import { AtsCheckResult } from '../ats-rule-checker.service';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
+import { BulletAnalysis } from '../bullet-analyzer.service';
 
 export interface CvReviewSectionIssue {
   severity: 'info' | 'warning' | 'error';
@@ -59,6 +60,14 @@ export interface CvReviewParsedResponse {
   ats_extracted: CvReviewExtracted;
   /** Backward-compat alias for ats_extracted. */
   parsed_cv: CvReviewExtracted;
+  /**
+   * Raw deterministic signals behind the action_verbs dimension (verb-first / quantified /
+   * passive ratios + 0-20 score + band + notes). Surfaced for explainability and as
+   * trustworthy non-LLM labels for the calibration spine.
+   */
+  action_verbs_analysis: BulletAnalysis;
+  /** Which versioned weight set produced `overall_score` (e.g. "scoring-weights-v1"). */
+  scoring_weights_version: string;
 }
 
 export interface CvReviewResponseDto {

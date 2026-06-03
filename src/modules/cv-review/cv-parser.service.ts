@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
+import { ERROR_CODES } from '../../common/constants/error-codes';
 import { PromptsService } from '../prompts/prompts.service';
 import {
   CanonicalCvDocument,
@@ -61,6 +62,14 @@ export class CvParserService {
       { jsonMode: true, temperature: 0.1, maxOutputTokens: 3000 },
     );
 
+    if (llmResult.parsedJson === undefined) {
+      // The model produced no parseable JSON (malformed / truncated / safety-blocked).
+      // Fail loudly instead of coercing to an empty document and scoring a good CV as bad.
+      throw new BadGatewayException({
+        code: ERROR_CODES.AI_ANALYSIS_FAILED,
+        message: 'CV parse failed: model returned no parseable JSON',
+      });
+    }
     const document = this.coerce(llmResult.parsedJson);
 
     return {

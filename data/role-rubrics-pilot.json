@@ -94,23 +94,84 @@
       ]
     },
 
-    "digital_marketer": {
-      "display_name_vi": "Chuyên viên Marketing Số",
-      "display_name_en": "Digital Marketer",
-      "description": "Drives growth through SEO, paid ads, content marketing, and analytics-driven optimization.",
+    "mobile_developer": {
+      "display_name_vi": "Lập trình viên Mobile",
+      "display_name_en": "Mobile Developer",
+      "description": "Builds native (Swift/iOS, Kotlin/Android) and cross-platform (Flutter, React Native) mobile apps, integrating REST APIs and backend services such as Firebase.",
       "skills": [
-        { "skill_canonical_name": "seo",                    "required_level": 3, "importance": "REQUIRED",     "weight": 0.15 },
-        { "skill_canonical_name": "content_marketing",      "required_level": 4, "importance": "REQUIRED",     "weight": 0.13 },
-        { "skill_canonical_name": "google_analytics",       "required_level": 3, "importance": "REQUIRED",     "weight": 0.12 },
-        { "skill_canonical_name": "google_ads",             "required_level": 3, "importance": "PREFERRED",    "weight": 0.10 },
-        { "skill_canonical_name": "facebook_ads",           "required_level": 3, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "tiktok_ads",             "required_level": 2, "importance": "PREFERRED",    "weight": 0.07 },
-        { "skill_canonical_name": "copywriting",            "required_level": 3, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "email_marketing",        "required_level": 2, "importance": "PREFERRED",    "weight": 0.07 },
-        { "skill_canonical_name": "marketing_automation",   "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.05 },
-        { "skill_canonical_name": "excel",                  "required_level": 3, "importance": "PREFERRED",    "weight": 0.05 },
-        { "skill_canonical_name": "communication",          "required_level": 4, "importance": "REQUIRED",     "weight": 0.04 },
-        { "skill_canonical_name": "english_proficiency",    "required_level": 3, "importance": "REQUIRED",     "weight": 0.02 }
+        { "skill_canonical_name": "swift", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "kotlin", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "flutter", "required_level": 3, "importance": "PREFERRED", "weight": 0.11 },
+        { "skill_canonical_name": "react_native", "required_level": 3, "importance": "PREFERRED", "weight": 0.11 },
+        { "skill_canonical_name": "rest_api", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "firebase", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "mobile_testing", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "REQUIRED", "weight": 0.07 },
+        { "skill_canonical_name": "authentication_authorization", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.04 },
+        { "skill_canonical_name": "bug_tracking_jira", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.03 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 },
+        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+      ]
+    },
+
+    "devops_engineer": {
+      "display_name_vi": "Kỹ sư DevOps",
+      "display_name_en": "DevOps Engineer",
+      "description": "Builds and operates automated infrastructure and CI/CD pipelines using Docker, Kubernetes, Terraform/IaC and cloud platforms; ensures reliability via monitoring and logging.",
+      "skills": [
+        { "skill_canonical_name": "docker", "required_level": 4, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "kubernetes", "required_level": 4, "importance": "REQUIRED", "weight": 0.11 },
+        { "skill_canonical_name": "ci_cd", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "cloud_aws", "required_level": 3, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "infrastructure_as_code", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "linux", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "monitoring_logging", "required_level": 3, "importance": "PREFERRED", "weight": 0.09 },
+        { "skill_canonical_name": "python", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "networking", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "system_design", "required_level": 3, "importance": "NICE_TO_HAVE", "weight": 0.04 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.03 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+      ]
+    },
+
+    "qa_tester": {
+      "display_name_vi": "Chuyên viên Kiểm thử Phần mềm",
+      "display_name_en": "QA Engineer / Tester",
+      "description": "Ensures software quality through manual and automated testing, API and database testing, test case design and defect tracking.",
+      "skills": [
+        { "skill_canonical_name": "manual_testing", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "test_automation", "required_level": 3, "importance": "REQUIRED", "weight": 0.15 },
+        { "skill_canonical_name": "bug_tracking_jira", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "api_testing", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "database_testing", "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
+        { "skill_canonical_name": "sql", "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.08 },
+        { "skill_canonical_name": "agile_scrum", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.05 },
+        { "skill_canonical_name": "git", "required_level": 2, "importance": "PREFERRED", "weight": 0.03 },
+        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "PREFERRED", "weight": 0.01 }
+      ]
+    },
+
+    "ai_ml_engineer": {
+      "display_name_vi": "Kỹ sư AI/ML",
+      "display_name_en": "AI/ML Engineer",
+      "description": "Designs, trains and ships machine learning models using Python, PyTorch and TensorFlow, with strong statistics and data preprocessing.",
+      "skills": [
+        { "skill_canonical_name": "python", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "pytorch_tensorflow", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "machine_learning", "required_level": 4, "importance": "REQUIRED", "weight": 0.13 },
+        { "skill_canonical_name": "statistics", "required_level": 4, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "sql", "required_level": 3, "importance": "REQUIRED", "weight": 0.10 },
+        { "skill_canonical_name": "pandas", "required_level": 3, "importance": "PREFERRED", "weight": 0.09 },
+        { "skill_canonical_name": "data_preprocessing", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.06 },
+        { "skill_canonical_name": "docker", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "PREFERRED", "weight": 0.02 },
+        { "skill_canonical_name": "critical_thinking", "required_level": 3, "importance": "NICE_TO_HAVE", "weight": 0.01 }
       ]
     }
   }

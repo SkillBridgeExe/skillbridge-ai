@@ -23,6 +23,8 @@ export interface CompleteAiRequestInput {
   latencyMs: number;
   status: 'SUCCESS' | 'FAILED';
   errorMessage?: string;
+  /** Resolved model code, backfilled into request_payload.model_code on completion. */
+  modelCode?: string;
 }
 
 export interface SaveAiResultInput {
@@ -95,7 +97,7 @@ export class TracingService {
   async completeAiRequest(aiRequestId: string, input: CompleteAiRequestInput): Promise<void> {
     if (!this.aiRequests) {
       this.logger.debug(
-        `[stub] ai_requests UPDATE id=${aiRequestId} status=${input.status} tokens=${input.totalTokens} latency=${input.latencyMs}ms`,
+        `[stub] ai_requests UPDATE id=${aiRequestId} status=${input.status} model=${input.modelCode ?? '?'} tokens=${input.totalTokens} latency=${input.latencyMs}ms`,
       );
       return;
     }
@@ -109,6 +111,15 @@ export class TracingService {
       status: input.status,
       errorMessage: input.errorMessage ?? null,
     });
+
+    // startAiRequest runs before the model is known (model_code stored as ''), so backfill
+    // the resolved model into request_payload now.
+    if (input.modelCode) {
+      await this.aiRequests.manager.query(
+        `UPDATE ai_requests SET request_payload = jsonb_set(coalesce(request_payload, '{}'::jsonb), '{model_code}', to_jsonb($1::text), true) WHERE id = $2`,
+        [input.modelCode, aiRequestId],
+      );
+    }
   }
 
   async saveAiResult(input: SaveAiResultInput): Promise<string> {

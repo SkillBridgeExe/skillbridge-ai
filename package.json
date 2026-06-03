@@ -24,6 +24,8 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
+    "calibrate": "ts-node -r tsconfig-paths/register src/calibration/calibrate.ts",
+    "eval:accuracy": "ts-node -r tsconfig-paths/register src/calibration/eval-accuracy.ts",
     "dev": "nest start --watch"
   },
   "dependencies": {
@@ -97,18 +99,18 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/src/$1"
     }
   },
   "packageManager": "pnpm@11.3.0"

@@ -316,78 +316,6 @@
       "aliases": ["ml", "scikit-learn", "tensorflow", "pytorch", "học máy"]
     },
     {
-      "canonical_name": "seo",
-      "display_name": "Search Engine Optimization",
-      "category": "marketing",
-      "source": "ONET",
-      "source_external_id": "13-1161.00.seo",
-      "aliases": ["search engine optimization", "on-page seo", "off-page seo", "tối ưu công cụ tìm kiếm"]
-    },
-    {
-      "canonical_name": "google_analytics",
-      "display_name": "Google Analytics",
-      "category": "marketing_tool",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["ga4", "google analytics 4", "ua", "universal analytics"]
-    },
-    {
-      "canonical_name": "google_ads",
-      "display_name": "Google Ads",
-      "category": "marketing_tool",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["adwords", "google adwords", "ppc", "search ads"]
-    },
-    {
-      "canonical_name": "facebook_ads",
-      "display_name": "Facebook Ads",
-      "category": "marketing_tool",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["meta ads", "fb ads", "instagram ads", "meta business"]
-    },
-    {
-      "canonical_name": "tiktok_ads",
-      "display_name": "TikTok Ads",
-      "category": "marketing_tool",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["tiktok marketing", "tiktok business", "tiktok for business"]
-    },
-    {
-      "canonical_name": "content_marketing",
-      "display_name": "Content Marketing",
-      "category": "marketing",
-      "source": "ONET",
-      "source_external_id": "13-1161.00.content",
-      "aliases": ["content strategy", "blog writing", "social media content", "tiếp thị nội dung"]
-    },
-    {
-      "canonical_name": "copywriting",
-      "display_name": "Copywriting",
-      "category": "marketing",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["ad copy", "sales copy", "content writing", "viết quảng cáo"]
-    },
-    {
-      "canonical_name": "email_marketing",
-      "display_name": "Email Marketing",
-      "category": "marketing",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["email campaign", "mailchimp", "newsletter", "drip campaign"]
-    },
-    {
-      "canonical_name": "marketing_automation",
-      "display_name": "Marketing Automation",
-      "category": "marketing",
-      "source": "CUSTOM",
-      "source_external_id": null,
-      "aliases": ["hubspot", "marketo", "automation workflow"]
-    },
-    {
       "canonical_name": "communication",
       "display_name": "Communication",
       "category": "soft_skill",
@@ -434,6 +362,134 @@
       "source": "ONET",
       "source_external_id": "skill.2.A.2.a",
       "aliases": ["analytical reasoning", "logical thinking", "tư duy phản biện"]
+    },
+    {
+      "canonical_name": "swift",
+      "display_name": "Swift",
+      "category": "mobile_language",
+      "source": "ONET",
+      "source_external_id": "15-1252.00",
+      "aliases": ["swift lang", "swiftui", "ios swift", "Lập trình Swift"]
+    },
+    {
+      "canonical_name": "kotlin",
+      "display_name": "Kotlin",
+      "category": "mobile_language",
+      "source": "ONET",
+      "source_external_id": "15-1252.00",
+      "aliases": ["kotlin lang", "android kotlin", "jetpack compose"]
+    },
+    {
+      "canonical_name": "flutter",
+      "display_name": "Flutter",
+      "category": "mobile_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["flutter sdk", "dart flutter", "flutter framework"]
+    },
+    {
+      "canonical_name": "react_native",
+      "display_name": "React Native",
+      "category": "mobile_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["react-native", "rn", "expo"]
+    },
+    {
+      "canonical_name": "firebase",
+      "display_name": "Firebase",
+      "category": "backend_service",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["firestore", "firebase auth", "firebase cloud messaging", "fcm", "realtime database"]
+    },
+    {
+      "canonical_name": "mobile_testing",
+      "display_name": "Mobile Testing",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["espresso", "xctest", "appium", "detox", "ui testing mobile"]
+    },
+    {
+      "canonical_name": "bug_tracking_jira",
+      "display_name": "Bug Tracking and Jira",
+      "category": "tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["jira", "bug tracking", "issue tracking", "defect management", "test management"]
+    },
+    {
+      "canonical_name": "kubernetes",
+      "display_name": "Kubernetes",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["k8s", "kubectl", "helm", "container orchestration", "eks", "gke", "aks"]
+    },
+    {
+      "canonical_name": "infrastructure_as_code",
+      "display_name": "Infrastructure as Code",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["iac", "terraform", "ansible", "pulumi", "cloudformation"]
+    },
+    {
+      "canonical_name": "monitoring_logging",
+      "display_name": "Monitoring and Logging",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["prometheus", "grafana", "elk", "elk stack", "datadog", "observability", "log aggregation"]
+    },
+    {
+      "canonical_name": "networking",
+      "display_name": "Networking",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "15-1244.00",
+      "aliases": ["tcp/ip", "dns", "load balancing", "vpc", "firewall", "reverse proxy", "nginx"]
+    },
+    {
+      "canonical_name": "manual_testing",
+      "display_name": "Manual Testing",
+      "category": "testing",
+      "source": "ONET",
+      "source_external_id": "15-1253.00",
+      "aliases": ["test case design", "functional testing", "regression testing", "smoke testing", "user acceptance testing", "uat"]
+    },
+    {
+      "canonical_name": "test_automation",
+      "display_name": "Test Automation",
+      "category": "testing",
+      "source": "SFIA",
+      "source_external_id": null,
+      "aliases": ["automation framework", "selenium", "cypress", "test script", "automated testing", "e2e testing"]
+    },
+    {
+      "canonical_name": "database_testing",
+      "display_name": "Database Testing",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["test data management", "database validation", "query testing", "data integrity"]
+    },
+    {
+      "canonical_name": "pytorch_tensorflow",
+      "display_name": "PyTorch and TensorFlow",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["pytorch", "tensorflow", "tf", "deep learning frameworks", "deep learning libs"]
+    },
+    {
+      "canonical_name": "data_preprocessing",
+      "display_name": "Data Preprocessing and Feature Engineering",
+      "category": "data_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": ["data cleaning", "feature engineering", "data wrangling", "feature extraction", "data preparation"]
     }
   ]
 }

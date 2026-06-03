@@ -107,10 +107,9 @@ async function seedSkills(skills: Repository<SkillEntity>): Promise<void> {
       aliases: seed.aliases ?? [],
     };
 
-    if (existing) {
-      await skills.save({ ...existing, ...payload });
-      continue;
-    }
+    // Idempotent re-seed: leave existing skills untouched (consistent with the role/user
+    // seeders and seed.spec). Taxonomy changes are applied via an explicit update, not re-seed.
+    if (existing) continue;
     await skills.save(skills.create(payload));
   }
 }

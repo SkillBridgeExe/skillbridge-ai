@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 export class CvReviewRequestDto {
   @IsUUID()
@@ -24,6 +24,10 @@ export class CvReviewRequestDto {
    */
   @IsOptional()
   @IsString()
+  @MaxLength(120)
+  // Anti-injection: this value is interpolated into the rubric SCORING INSTRUCTIONS, so
+  // forbid newlines / braces that could break out of the data context.
+  @Matches(/^[^\n\r{}]*$/, { message: 'target_role contains invalid characters' })
   target_role?: string;
 
   /**

@@ -24,21 +24,50 @@ export class OpenAiProvider implements LlmProviderClient {
       if (!apiKey) {
         throw new Error('OPENAI_API_KEY is not set');
       }
-      this.client = new OpenAI({ apiKey });
+      // The OpenAI SDK auto-retries transient failures (429 rate-limit + 5xx) with exponential
+      // backoff and honors the Retry-After header; bump maxRetries so a long eval/batch run is
+      // not killed by a single blip. timeout caps a hung request.
+      this.client = new OpenAI({ apiKey, maxRetries: 5, timeout: 60_000 });
     }
     return this.client;
   }
 
+  /**
+   * GPT-5 family + o-series are REASONING models: per the OpenAI docs they REJECT `temperature`
+   * (and top_p/penalties) and require `max_completion_tokens` instead of `max_tokens`. Sending the
+   * old params returns a 400. Non-reasoning models (gpt-4o, gpt-4o-mini) keep the classic params.
+   */
+  private isReasoningModel(model: string): boolean {
+    return /^(gpt-5|o\d)/i.test(model);
+  }
+
   async complete(messages: LlmMessage[], options: LlmCompleteOptions): Promise<LlmCompleteResult> {
     const modelCode = options.model ?? this.config.get<string>('llm.openai.modelDefault') ?? '';
+    const reasoning = this.isReasoningModel(modelCode);
 
     const start = Date.now();
     const response = await this.getClient().chat.completions.create({
       model: modelCode,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: options.temperature ?? 0.2,
-      max_tokens: options.maxOutputTokens ?? 2048,
-      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+      // Reasoning models: no temperature (only default supported); cap via max_completion_tokens
+      // with headroom for the hidden reasoning tokens + the visible JSON. Classic models: as before.
+      ...(reasoning
+        ? { max_completion_tokens: Math.max(options.maxOutputTokens ?? 8192, 8192) }
+        : { temperature: options.temperature ?? 0.2, max_tokens: options.maxOutputTokens ?? 2048 }),
+      ...(options.jsonMode
+        ? {
+            response_format: options.responseSchema
+              ? {
+                  type: 'json_schema' as const,
+                  json_schema: {
+                    name: 'structured_output',
+                    schema: options.responseSchema,
+                    strict: true,
+                  },
+                }
+              : { type: 'json_object' as const },
+          }
+        : {}),
     });
     const latencyMs = Date.now() - start;
 

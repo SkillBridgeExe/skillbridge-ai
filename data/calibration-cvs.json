@@ -1,0 +1,25 @@
+{
+  "$note": "Synthetic IT CVs for the calibration harness (pnpm calibrate). Add real CVs (e.g. Kaggle tech resumes / team CVs) to reach ~20-30 for a meaningful stddev measurement. Each entry: id, target_role (must match a role_code in role-rubrics-pilot.json), parsed_text (raw CV text as the extractor would receive).",
+  "cvs": [
+    {
+      "id": "cal-fe-strong",
+      "target_role": "frontend_developer",
+      "parsed_text": "Nguyen Van A — Frontend Developer\nEmail: a@example.com | Phone: 0901234567 | Ho Chi Minh City\n\nSUMMARY\nFrontend developer with 2 years building React/TypeScript web applications.\n\nEXPERIENCE\nFrontend Developer, FPT Software (2022–2024)\n- Built a customer portal in React + TypeScript serving 50k users; reduced initial load time 40% via code-splitting and lazy loading.\n- Led migration from CRA to Vite, cutting build time 60%.\n- Implemented responsive, accessible UI (WCAG AA) with Tailwind CSS.\n\nSKILLS\nReact, TypeScript, JavaScript, HTML, CSS, Tailwind, Git, Jest, responsive design\n\nEDUCATION\nBSc Software Engineering, FPT University, 2022. GPA 3.5/4.0\n\nPROJECTS\nE-commerce SPA (React, Redux) — github.com/a/shop"
+    },
+    {
+      "id": "cal-be-weak",
+      "target_role": "backend_developer",
+      "parsed_text": "Tran Thi B — Backend Developer\nb@example.com\n\nEXPERIENCE\nBackend Developer, ABC Tech (2023–present)\n- Responsible for the REST APIs of the company website.\n- Worked on the database.\n- Helped with bug fixes.\n\nSKILLS\nNode.js, SQL, MongoDB, REST\n\nEDUCATION\nBachelor of Information Technology, HCMUT, 2023"
+    },
+    {
+      "id": "cal-da-mid",
+      "target_role": "data_analyst",
+      "parsed_text": "Le Van C — Data Analyst\nc@example.com | 0912000111\n\nSUMMARY\nData analyst skilled in SQL, Excel and Python.\n\nEXPERIENCE\nData Analyst, Tiki (2022–2024)\n- Built 15+ Power BI dashboards tracking GMV and conversion.\n- Automated weekly reporting in Python (pandas), saving 8 hours/week.\n- Ran A/B test analysis that lifted checkout conversion 12%.\n\nSKILLS\nSQL, Excel, Python, pandas, Power BI, Tableau, statistics, data visualization\n\nEDUCATION\nBSc Economics, University of Economics HCMC, 2022"
+    },
+    {
+      "id": "cal-mobile-mid",
+      "target_role": "mobile_developer",
+      "parsed_text": "Pham D — Mobile Developer\nd@example.com\n\nEXPERIENCE\nAndroid Developer, VNG (2022–2024)\n- Developed a social feature in Kotlin (Jetpack Compose, MVVM) for an app with 1M+ monthly active users.\n- Integrated REST APIs and Firebase Cloud Messaging.\n- Reduced crash rate 30% via improved state management.\n\nSKILLS\nKotlin, Android, Jetpack Compose, Swift (basic), REST API, Firebase, Git\n\nEDUCATION\nBSc Computer Science, University of Information Technology, 2022"
+    }
+  ]
+}
