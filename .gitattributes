@@ -1,0 +1,14 @@
+# Normalize all text files to LF in the repo AND on checkout, so Windows core.autocrlf
+# does not rewrite line endings to CRLF and fight Prettier (endOfLine: "lf") + ESLint.
+# This removes the recurring "Delete ␍ (prettier/prettier)" false errors in the IDE.
+* text=auto eol=lf
+
+# Binary files — never touch line endings.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
