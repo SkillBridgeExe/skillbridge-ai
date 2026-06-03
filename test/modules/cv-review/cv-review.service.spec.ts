@@ -71,6 +71,21 @@ describe('CvReviewService', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
     };
     const roleRubric = { getRubric: jest.fn().mockReturnValue(null) };
+    // Deterministic Dim-1: default analyzer returns the SAME score the LLM stub emits (15),
+    // so the composite math below stays focused on the weighting, not the routing.
+    const bulletAnalyzer = {
+      analyze: jest.fn().mockReturnValue({
+        bulletCount: 3,
+        verbFirstRatio: 1,
+        quantifiedRatio: 1,
+        weakOpenerRatio: 0,
+        firstPersonRatio: 0,
+        fillerCount: 0,
+        actionVerbsScore: 15,
+        band: 'accomplished',
+        notes: [],
+      }),
+    };
 
     const service = new CvReviewService(
       llm as never,
@@ -80,8 +95,19 @@ describe('CvReviewService', () => {
       atsChecker as never,
       cvParser as never,
       roleRubric as never,
+      bulletAnalyzer as never,
     );
-    return { service, cvParser, atsChecker, prompts, llm, parser, tracing, roleRubric };
+    return {
+      service,
+      cvParser,
+      atsChecker,
+      prompts,
+      llm,
+      parser,
+      tracing,
+      roleRubric,
+      bulletAnalyzer,
+    };
   }
 
   const input = {
@@ -117,5 +143,68 @@ describe('CvReviewService', () => {
     const { service } = build();
     const res = await service.review('u1', input);
     expect(res.parsed_response.language).toBe('vi');
+  });
+
+  it('Routed-Evidence: deterministic Dim-1 OVERRIDES the LLM action_verbs + recomputes llm_total', async () => {
+    const { service, bulletAnalyzer } = build();
+    // Analyzer disagrees with the LLM stub (which scored action_verbs=15): it says 8.
+    bulletAnalyzer.analyze.mockReturnValue({
+      bulletCount: 4,
+      verbFirstRatio: 0.5,
+      quantifiedRatio: 0.25,
+      weakOpenerRatio: 0.5,
+      firstPersonRatio: 0,
+      fillerCount: 0,
+      actionVerbsScore: 8,
+      band: 'developing',
+      notes: ['Many bullets do not start with a strong action verb.'],
+    });
+    const res = await service.review('u1', input);
+    const dims = res.parsed_response.llm_score_dimensions;
+    // action_verbs comes from the analyzer, not the LLM (15 → 8).
+    expect(dims.action_verbs).toBe(8);
+    // llm_total recomputed = 8 + 15 + 15 + 15 = 53.
+    expect(res.parsed_response.llm_total).toBe(53);
+    expect(res.parsed_response.llm_normalized).toBe(Math.round((53 / 80) * 100));
+    // The deterministic signals + the analyzer's rationale are surfaced.
+    expect(res.parsed_response.action_verbs_analysis.actionVerbsScore).toBe(8);
+    expect(res.parsed_response.rationale.action_verbs).toMatch(/deterministic analysis/);
+    expect(res.parsed_response.scoring_weights_version).toBe('scoring-weights-v1');
+  });
+
+  it('appends an authoritative Dim-1 section when the LLM section label does not match', async () => {
+    const { service, parser } = build();
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: {},
+      // VI-localized label that misses isDim1Section /action|verb|impact/i
+      sections: [{ name: 'Động từ hành động', score: 90, issues: [] }],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    const sections = res.parsed_response.sections;
+    // analyzer default score 15 → section score round(15/20*100)=75, prepended + authoritative
+    expect(sections[0].name).toBe('Action Verbs & Impact');
+    expect(sections[0].score).toBe(75);
+    // the LLM's localized section is preserved (not dropped)
+    expect(sections.some((s) => s.name === 'Động từ hành động')).toBe(true);
+  });
+
+  it('rewrites the matching Dim-1 section in place — replaces stale LLM content, no duplicate', async () => {
+    const { service, parser } = build();
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: {},
+      sections: [
+        { name: 'Action Verbs & Impact', score: 90, issues: [{ severity: 'info', text: 'stale' }] },
+      ],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    const dim1 = res.parsed_response.sections.filter((s) => /action/i.test(s.name));
+    expect(dim1).toHaveLength(1); // not duplicated
+    expect(dim1[0].score).toBe(75); // stale 90 replaced by the deterministic value
   });
 });

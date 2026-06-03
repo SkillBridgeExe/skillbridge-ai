@@ -3,30 +3,41 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { CvReviewRequestDto } from './dto/cv-review-request.dto';
-import { CvReviewParsedResponse, CvReviewResponseDto } from './dto/cv-review-response.dto';
-import { CvReviewParser } from './cv-review.parser';
+import {
+  CvReviewParsedResponse,
+  CvReviewResponseDto,
+  CvReviewSectionIssue,
+} from './dto/cv-review-response.dto';
+import { CvReviewLlmRawOutput, CvReviewParser } from './cv-review.parser';
 import { AtsRuleCheckerService } from './ats-rule-checker.service';
 import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
+import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
+import scoringWeights from './scoring-weights-v1.json';
 
 /**
  * Hybrid CV review:
  *   - 40% — AtsRuleCheckerService (deterministic rule checks, no LLM)
- *   - 60% — LLM-based rubric scoring (4 dimensions × 20pt = 80, normalized to 0-100)
+ *   - 60% — rubric scoring (4 dimensions × 20pt = 80, normalized to 0-100)
  *
  * Composite: overall_score = ats_rule_score × 0.4 + (llm_total / 80 × 100) × 0.6
+ * (weights are externalized + versioned in `scoring-weights-v1.json`).
  *
- * The 40% deterministic floor ensures the score doesn't drift wildly between LLM runs.
- * The 60% LLM portion uses strict rubric prompt (`cv_review_v1.md`) with temperature 0.1
- * and 4 independent dimensions, which keeps variance < 5 points across re-runs.
+ * Routed-Evidence Scoring (docs/cv-scoring-architecture.md): each dimension is scored by the
+ * BEST scorer for it. Dimension 1 (Action Verbs & Quantified Impact) is a MECHANICAL fact —
+ * counting verb-first / quantified / passive bullets — so it is scored DETERMINISTICALLY by
+ * BulletAnalyzerService and OVERRIDES the LLM's estimate. This makes Dim-1 fully reproducible
+ * (stddev = 0), injection-resistant (a CV cannot talk the analyzer into a high score), and
+ * explainable (raw signals are surfaced). The holistic dimensions (Experience, Education) stay
+ * with the LLM (temperature 0.1) which keeps their variance < 5 points across re-runs.
  */
 @Injectable()
 export class CvReviewService {
   private readonly logger = new Logger(CvReviewService.name);
 
-  /** Weights for composite score. MUST sum to 1.0. */
-  private readonly RULE_WEIGHT = 0.4;
-  private readonly LLM_WEIGHT = 0.6;
+  /** Composite weights — externalized + versioned. Validated to sum to 1.0 at construction. */
+  private readonly RULE_WEIGHT = scoringWeights.rule_weight;
+  private readonly LLM_WEIGHT = scoringWeights.llm_weight;
 
   constructor(
     private readonly llm: LlmService,
@@ -36,7 +47,15 @@ export class CvReviewService {
     private readonly atsChecker: AtsRuleCheckerService,
     private readonly cvParser: CvParserService,
     private readonly roleRubric: RoleRubricService,
-  ) {}
+    private readonly bulletAnalyzer: BulletAnalyzerService,
+  ) {
+    const sum = this.RULE_WEIGHT + this.LLM_WEIGHT;
+    if (Math.abs(sum - 1) > 1e-9) {
+      throw new Error(
+        `Invalid ${scoringWeights.version}: rule_weight + llm_weight must sum to 1.0 (got ${sum}).`,
+      );
+    }
+  }
 
   async review(userId: string, input: CvReviewRequestDto): Promise<CvReviewResponseDto> {
     const startedAt = Date.now();
@@ -100,11 +119,17 @@ export class CvReviewService {
       // response must FAIL the request, not leave a SUCCESS row with no result.
       const llmParsed = this.parser.parse(llmResult.parsedJson);
 
-      // ─── Step 4: composite scoring (round ONCE on the unrounded LLM value) ──
-      const llm_normalized = Math.round((llmParsed.llm_total / 80) * 100);
+      // ─── Routed-Evidence: Dimension-1 is scored deterministically ───────────
+      // Replace the LLM's action_verbs estimate (+ its rationale & section feedback) with the
+      // analyzer's reproducible, injection-resistant result computed from the STRUCTURED document.
+      const bulletAnalysis = this.bulletAnalyzer.analyze(document);
+      const routed = this.routeDimension1(llmParsed, bulletAnalysis);
+
+      // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
+      const llm_normalized = Math.round((routed.llm_total / 80) * 100);
       const overall_score = Math.round(
         atsCheck.ats_rule_score * this.RULE_WEIGHT +
-          (llmParsed.llm_total / 80) * 100 * this.LLM_WEIGHT,
+          (routed.llm_total / 80) * 100 * this.LLM_WEIGHT,
       );
       const confidence_score = this.computeConfidence(
         atsCheck.summary.failed,
@@ -120,13 +145,17 @@ export class CvReviewService {
         overall_score,
         ats_rule_score: atsCheck.ats_rule_score,
         ats_check: atsCheck,
-        llm_score_dimensions: llmParsed.scores,
-        llm_total: llmParsed.llm_total,
+        llm_score_dimensions: routed.scores,
+        llm_total: routed.llm_total,
         llm_normalized,
-        rationale: llmParsed.rationale,
-        sections: llmParsed.sections,
-        ats_extracted: llmParsed.ats_extracted,
-        parsed_cv: llmParsed.ats_extracted, // alias for backward compat
+        rationale: routed.rationale,
+        sections: routed.sections,
+        ats_extracted: routed.ats_extracted,
+        parsed_cv: routed.ats_extracted, // alias for backward compat
+        // Explainability + calibration: the raw deterministic Dim-1 signals (trustworthy,
+        // non-LLM labels). scoring_weights_version pins which weight set produced overall_score.
+        action_verbs_analysis: bulletAnalysis,
+        scoring_weights_version: scoringWeights.version,
       };
 
       await this.tracing.completeAiRequest(aiRequestId, {
@@ -191,6 +220,74 @@ export class CvReviewService {
     const failRate = failedCount / totalRules;
     // 0 fails → 0.95, all fails → 0.55, linear in between
     return Math.round((0.95 - failRate * 0.4) * 100) / 100;
+  }
+
+  /**
+   * Routed-Evidence: overlay the deterministic Dimension-1 result onto the LLM output —
+   * replace its action_verbs score, recompute llm_total, and regenerate Dim-1 rationale +
+   * section feedback from the analyzer's signals so the UI never shows a contradictory
+   * LLM number. All other dimensions are left untouched.
+   */
+  private routeDimension1(
+    llmParsed: CvReviewLlmRawOutput,
+    analysis: BulletAnalysis,
+  ): CvReviewLlmRawOutput {
+    const scores = { ...llmParsed.scores, action_verbs: analysis.actionVerbsScore };
+    const llm_total =
+      scores.action_verbs + scores.skills_relevance + scores.experience + scores.education;
+    const rationale = { ...llmParsed.rationale, action_verbs: this.dim1Rationale(analysis) };
+
+    // Make the Dim-1 section authoritative: rewrite the FIRST matching section (so a broad
+    // label match can't duplicate it onto a sibling), and if NONE matches — e.g. the LLM
+    // localized the label to Vietnamese — prepend a fresh one, so a stale LLM action-verbs
+    // section can never contradict the deterministic score.
+    const dim1Section = {
+      name: 'Action Verbs & Impact',
+      score: Math.round((analysis.actionVerbsScore / 20) * 100),
+      issues: this.dim1Issues(analysis),
+    };
+    let replaced = false;
+    const sections = llmParsed.sections.map((s) => {
+      if (!replaced && this.isDim1Section(s.name)) {
+        replaced = true;
+        return { ...dim1Section, name: s.name };
+      }
+      return s;
+    });
+    if (!replaced) sections.unshift(dim1Section);
+
+    return { ...llmParsed, scores, llm_total, rationale, sections };
+  }
+
+  /** Match the Action-Verbs section regardless of the exact label the prompt used. */
+  private isDim1Section(name: string): boolean {
+    return /action|verb|impact/i.test(name);
+  }
+
+  /** Evidence-based, deterministic one-liner for the Dim-1 rationale. */
+  private dim1Rationale(a: BulletAnalysis): string {
+    if (a.bulletCount === 0) {
+      return 'No experience/project/activity bullets were found to evaluate (deterministic analysis).';
+    }
+    return (
+      `${Math.round(a.verbFirstRatio * 100)}% of ${a.bulletCount} bullets open with a strong action verb ` +
+      `and ${Math.round(a.quantifiedRatio * 100)}% are quantified (deterministic analysis).`
+    );
+  }
+
+  /** Turn the analyzer's notes into actionable section issues (or a single info note if clean). */
+  private dim1Issues(a: BulletAnalysis): CvReviewSectionIssue[] {
+    if (a.notes.length === 0) {
+      return [
+        {
+          severity: 'info',
+          text: 'Bullets are action-oriented and quantified.',
+        },
+      ];
+    }
+    const severity: CvReviewSectionIssue['severity'] =
+      a.actionVerbsScore >= 13 ? 'info' : 'warning';
+    return a.notes.map((text) => ({ severity, text }));
   }
 
   /** #7: render the authoritative required-skill list for the target role (if seeded). */

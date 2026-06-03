@@ -1,0 +1,9 @@
+{
+  "version": "scoring-weights-v1",
+  "description": "Composite CV-review weights. overall_score = ats_rule_score * rule_weight + (llm_total / 80 * 100) * llm_weight. rule_weight + llm_weight MUST sum to 1.0. Externalized so weights are versioned + tunable without touching scoring code.",
+  "rule_weight": 0.4,
+  "llm_weight": 0.6,
+  "routed_dimensions": {
+    "action_verbs": "deterministic:BulletAnalyzerService"
+  }
+}
