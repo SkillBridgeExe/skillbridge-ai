@@ -40,6 +40,7 @@ const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 4000);
 const ACCEPT_RATE = Number(process.env.EVAL_ACCEPT_RATE ?? 0.8); // ≥80% within-band to PASS
 const SPEARMAN_MIN = Number(process.env.EVAL_SPEARMAN_MIN ?? 0.6); // ranking sanity floor
 const PROMPT_CODE = 'cv_review_v1';
+const LIMIT = Number(process.env.EVAL_LIMIT ?? 0); // >0 = only first N CVs (fits free-tier 20/day cap)
 
 const bandMid = ([lo, hi]: [number, number]): number => (lo + hi) / 2;
 const inBand = (x: number, [lo, hi]: [number, number]): boolean => x >= lo && x <= hi;
@@ -48,7 +49,8 @@ const pct = (a: number, b: number): string => (b === 0 ? '—' : `${Math.round((
 
 async function main(): Promise<void> {
   const file = path.join(process.cwd(), 'data', 'eval-cvs.json');
-  const { cvs } = JSON.parse(fs.readFileSync(file, 'utf-8')) as { cvs: EvalCv[] };
+  const { cvs: allCvs } = JSON.parse(fs.readFileSync(file, 'utf-8')) as { cvs: EvalCv[] };
+  const cvs = LIMIT > 0 ? allCvs.slice(0, LIMIT) : allCvs;
 
   const { NestFactory } = await import('@nestjs/core');
   const { AppModule } = await import('../app.module');
