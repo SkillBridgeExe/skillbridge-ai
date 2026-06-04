@@ -29,7 +29,9 @@
     "eval:mentions": "ts-node -r tsconfig-paths/register src/calibration/eval-mentions.ts",
     "eval:match": "ts-node -r tsconfig-paths/register src/calibration/eval-match.ts",
     "taxonomy:validate": "ts-node -r tsconfig-paths/register src/tools/validate-taxonomy.ts",
-    "dev": "nest start --watch"
+    "dev": "nest start --watch",
+    "eval:semantic": "ts-node -r tsconfig-paths/register src/calibration/eval-semantic.ts",
+    "embeddings:backfill": "ts-node -r tsconfig-paths/register src/tools/backfill-skill-embeddings.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",

@@ -58,5 +58,8 @@ temp/
 # prompts/*.md = template runtime (PromptsService load lúc chạy) — PHẢI giữ trong git
 !prompts/
 !prompts/*.md
+
+# Local embedding-vector cache (eval-semantic re-runs = $0; megabytes of floats, never commit)
+data/.cache/
     
 *.dbml
