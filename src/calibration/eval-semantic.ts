@@ -60,7 +60,15 @@ interface SweepPoint {
 
 const STRICT = process.env.EVAL_SEMANTIC_STRICT === '1';
 const PRECISION_BAR = 0.9;
-const RECALL_BAR = 0.6;
+const RECALL_BAR = Number(process.env.EVAL_SEMANTIC_RECALL ?? 0.6);
+/**
+ * NOISE-MARGIN RULE (protocol amendment 2026-06-05): the chosen accept must clear the CLOSEST
+ * measured negative by ≥ this margin. Re-embedding the same text drifts cosine by ±0.003
+ * (measured: smoke-test vs eval matrix, three phrases) — a threshold 0.0006 above a negative
+ * "passes the bars" while being one noise sample away from a false accept in production.
+ * 0.02 ≈ 6× the measured drift.
+ */
+const NEG_MARGIN = Number(process.env.EVAL_SEMANTIC_NEG_MARGIN ?? 0.02);
 
 const CACHE_DIR = path.join(process.cwd(), 'data', '.cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'eval-semantic-vectors.json');
@@ -207,16 +215,25 @@ async function main(): Promise<void> {
     );
   }
 
-  // Pick: smallest t with P≥0.90 overall AND per-language; among those max recall; tie → lower t.
+  // Pick (protocol + 2026-06-05 margin amendment):
+  //   qualify: P≥bar overall AND per-language, AND accept clears the closest measured
+  //   negative by ≥ NEG_MARGIN (a bars-pass 0.0006 above a negative is one noise sample
+  //   away from a production false-accept — rejected).
+  //   among qualifying: max recall → max precision → lowest t.
+  const closestNegative = Math.max(
+    ...scored.filter((r) => r.kind === 'semantic_negative').map((r) => r.top1Sim),
+  );
   const qualifying = curve.filter(
     (c) =>
       c.overall.precision >= PRECISION_BAR &&
       c.en.precision >= PRECISION_BAR &&
-      c.vi.precision >= PRECISION_BAR,
+      c.vi.precision >= PRECISION_BAR &&
+      c.overall.t - closestNegative >= NEG_MARGIN,
   );
   if (qualifying.length === 0) {
     console.log(
-      `\nNO threshold in [0.60, 0.90] reaches precision ≥${PRECISION_BAR} overall + per-language.` +
+      `\nNO threshold in [0.60, 0.90] reaches precision ≥${PRECISION_BAR} overall + per-language` +
+        ` with ≥${NEG_MARGIN} margin above the closest negative (${closestNegative.toFixed(4)}).` +
         '\n→ DO NOT ship auto-accept: run the tier in needs_review-only mode and revisit after taxonomy expansion.',
     );
     process.exit(STRICT ? 1 : 0);
@@ -225,7 +242,11 @@ async function main(): Promise<void> {
   for (const c of qualifying) {
     if (
       c.overall.recall > chosen.overall.recall ||
-      (c.overall.recall === chosen.overall.recall && c.overall.t < chosen.overall.t)
+      (c.overall.recall === chosen.overall.recall &&
+        c.overall.precision > chosen.overall.precision) ||
+      (c.overall.recall === chosen.overall.recall &&
+        c.overall.precision === chosen.overall.precision &&
+        c.overall.t < chosen.overall.t)
     ) {
       chosen = c;
     }
@@ -234,6 +255,9 @@ async function main(): Promise<void> {
   const accept = chosen.overall.t;
   const reviewLow = accept - 0.08;
   console.log(`\nCHOSEN accept threshold: ${accept.toFixed(2)}`);
+  console.log(
+    `  margin above closest negative (${closestNegative.toFixed(4)}): ${(accept - closestNegative).toFixed(4)} (rule: ≥${NEG_MARGIN})`,
+  );
   console.log(
     `  needs_review band: [${reviewLow.toFixed(2)}, ${accept.toFixed(2)}) · none below ${reviewLow.toFixed(2)}`,
   );
@@ -266,6 +290,11 @@ async function main(): Promise<void> {
       'zero negatives auto-accepted',
       chosen.overall.negAccepted === 0,
       String(chosen.overall.negAccepted),
+    ],
+    [
+      `negative margin ≥ ${NEG_MARGIN}`,
+      accept - closestNegative >= NEG_MARGIN,
+      (accept - closestNegative).toFixed(4),
     ],
   ];
   console.log('\nPASS BARS @ chosen t:');

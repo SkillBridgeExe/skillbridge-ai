@@ -123,6 +123,18 @@ async function main(): Promise<void> {
       inserted += res.rowCount ?? 0;
     }
 
+    // INVARIANT: the resolution cache is only valid against the matrix it was computed on.
+    // New vectors can change any phrase's top-1/similarity, so a grown matrix invalidates
+    // skill_resolutions for the tuple (cheap: each phrase re-resolves once, ~$0.0000004).
+    if (inserted > 0) {
+      const purged = await pool.query(
+        `DELETE FROM public.skill_resolutions
+          WHERE model = $1 AND dimensions = $2 AND embedding_version = $3`,
+        [model, dimensions, embeddingVersion],
+      );
+      console.log(`Matrix grew → purged ${purged.rowCount ?? 0} cached resolutions for the tuple.`);
+    }
+
     const estCost = (totalTokens / 1_000_000) * 0.13;
     console.log(
       `Done: inserted ${inserted}/${todo.length} rows · ${totalTokens} tokens · est $${estCost.toFixed(4)}`,
