@@ -6,7 +6,6 @@ export class CvConsentAuditEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Index()
   @Column('uuid', { name: 'user_id' })
   userId!: string;
 
@@ -23,6 +22,7 @@ export class CvConsentAuditEntity {
   @Column({ type: 'timestamptz', name: 'accepted_at' })
   acceptedAt!: Date;
 
+  @Index()
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
 }

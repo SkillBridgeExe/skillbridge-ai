@@ -1,6 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { getMetadataArgsStorage } from 'typeorm';
+import { CvConsentAuditEntity } from '../../../src/database/entities/cv-consent-audit.entity';
+import { IS_PUBLIC_KEY } from '../../../src/platform/auth/decorators/public.decorator';
 import { CvsController } from '../../../src/platform/cvs/cvs.controller';
 import { DiagnosisController } from '../../../src/platform/cvs/diagnosis.controller';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
@@ -72,5 +75,21 @@ describe('CV OpenAPI docs', () => {
         }),
       }),
     );
+  });
+
+  it('does not mark CV endpoints as public', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvsController)).toBeUndefined();
+  });
+
+  it('keeps consent audit indexes aligned with migration intent', () => {
+    const indices = getMetadataArgsStorage().indices.filter(
+      (index) => index.target === CvConsentAuditEntity,
+    );
+    const hasColumns = (columns: string[]) =>
+      indices.some((index) => JSON.stringify(index.columns) === JSON.stringify(columns));
+
+    expect(hasColumns(['userId', 'cvId'])).toBe(true);
+    expect(hasColumns(['createdAt'])).toBe(true);
+    expect(hasColumns(['userId'])).toBe(false);
   });
 });
