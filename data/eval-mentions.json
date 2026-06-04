@@ -610,11 +610,8 @@
         "data_structures_algorithms"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today fuzzy risk @d2 → guard + new canonical data_structures_algorithms."
+      "requires": [],
+      "note": "Today fuzzy risk @d2 → guard + new canonical data_structures_algorithms. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "AI",
@@ -803,11 +800,8 @@
         "golang"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='go121'=none. Strip version -> 'go'/'golang', no canonical -> propose new 'golang'."
+      "requires": [],
+      "note": "normalizeKey='go121'=none. Strip version -> 'go'/'golang', no canonical -> propose new 'golang'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Spring Boot 3",
@@ -836,10 +830,8 @@
         "css"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='tailwind3'=none. Strip version -> 'tailwind css' which is an existing alias of css."
+      "requires": [],
+      "note": "normalizeKey='tailwind3'=none. Strip version -> 'tailwind css' which is an existing alias of css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Postgres 16",
@@ -899,11 +891,8 @@
         "redux"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='react+redux'=none. Split on '+' -> 'react' (exact) + 'redux' (no canonical -> propose new 'redux')."
+      "requires": [],
+      "note": "normalizeKey='react+redux'=none. Split on '+' -> 'react' (exact) + 'redux' (no canonical -> propose new 'redux'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "HTML/CSS",
@@ -913,10 +902,8 @@
         "css"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey collapses slash -> 'htmlcss'=none. Split on '/' -> 'html' + 'css', both exact hits."
+      "requires": [],
+      "note": "normalizeKey collapses slash -> 'htmlcss'=none. Split on '/' -> 'html' + 'css', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Node.js và Express",
@@ -925,10 +912,8 @@
         "node_js"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='nodejsvàexpress'=none. Split on 'và' -> 'node.js'(alias node_js) + 'express'/'express.js'(alias node_js); both resolve to node_js."
+      "requires": [],
+      "note": "normalizeKey='nodejsvàexpress'=none. Split on 'và' -> 'node.js'(alias node_js) + 'express'/'express.js'(alias node_js); both resolve to node_js. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Docker & Kubernetes",
@@ -938,10 +923,8 @@
         "kubernetes"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='docker&kubernetes'=none. Split on '&' -> 'docker' (exact) + 'kubernetes' (exact)."
+      "requires": [],
+      "note": "normalizeKey='docker&kubernetes'=none. Split on '&' -> 'docker' (exact) + 'kubernetes' (exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Swift/Kotlin",
@@ -951,10 +934,8 @@
         "kotlin"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='swiftkotlin'=none. Split on '/' -> 'swift' + 'kotlin', both exact hits."
+      "requires": [],
+      "note": "normalizeKey='swiftkotlin'=none. Split on '/' -> 'swift' + 'kotlin', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "SQL Server, MySQL",
@@ -963,10 +944,8 @@
         "sql"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='sqlserver,mysql'=none. Split on ',' -> 'sql server' + 'mysql', both existing aliases of sql."
+      "requires": [],
+      "note": "normalizeKey='sqlserver,mysql'=none. Split on ',' -> 'sql server' + 'mysql', both existing aliases of sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Vue và Vuex",
@@ -976,11 +955,8 @@
         "vuex"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='vuevàvuex'=none. Split on 'và' -> 'vue' + 'vuex'; neither has a canonical -> propose new 'vue' and 'vuex'."
+      "requires": [],
+      "note": "normalizeKey='vuevàvuex'=none. Split on 'và' -> 'vue' + 'vuex'; neither has a canonical -> propose new 'vue' and 'vuex'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Java và Spring",
@@ -989,10 +965,8 @@
         "java"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='javavàspring'=none. Split on 'và' -> 'java' (exact) + 'spring'/'spring boot' (alias of java); both -> java."
+      "requires": [],
+      "note": "normalizeKey='javavàspring'=none. Split on 'và' -> 'java' (exact) + 'spring'/'spring boot' (alias of java); both -> java. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "React, TypeScript",
@@ -1002,10 +976,8 @@
         "typescript"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='react,typescript'=none (comma not stripped). Split on ',' -> 'react' + 'typescript', both exact."
+      "requires": [],
+      "note": "normalizeKey='react,typescript'=none (comma not stripped). Split on ',' -> 'react' + 'typescript', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Python và Pandas",
@@ -1015,10 +987,8 @@
         "pandas"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='pythonvàpandas' WRONGLY fuzzy2->pandas today (drops python). Split on 'và' -> 'python' + 'pandas', both exact."
+      "requires": [],
+      "note": "normalizeKey='pythonvàpandas' WRONGLY fuzzy2->pandas today (drops python). Split on 'và' -> 'python' + 'pandas', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "HTML, CSS, JavaScript",
@@ -1029,10 +999,8 @@
         "javascript"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='html,css,javascript'=none. Split on ',' -> three components, all exact hits."
+      "requires": [],
+      "note": "normalizeKey='html,css,javascript'=none. Split on ',' -> three components, all exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "REST/GraphQL",
@@ -1042,10 +1010,8 @@
         "graphql"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='restgraphql'=none. Split on '/' -> 'rest'(alias rest_api) + 'graphql'(exact)."
+      "requires": [],
+      "note": "normalizeKey='restgraphql'=none. Split on '/' -> 'rest'(alias rest_api) + 'graphql'(exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Jest và Cypress",
@@ -1054,10 +1020,8 @@
         "frontend_testing"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='jestvàcypress'=none. Split on 'và' -> 'jest' + 'cypress'; both aliases resolve to frontend_testing (cypress -> frontend_testing by first-writer-wins)."
+      "requires": [],
+      "note": "normalizeKey='jestvàcypress'=none. Split on 'và' -> 'jest' + 'cypress'; both aliases resolve to frontend_testing (cypress -> frontend_testing by first-writer-wins). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "NumPy và Pandas",
@@ -1067,10 +1031,8 @@
         "pandas"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='numpyvàpandas'=none. Split on 'và' -> 'numpy' + 'pandas', both exact hits."
+      "requires": [],
+      "note": "normalizeKey='numpyvàpandas'=none. Split on 'và' -> 'numpy' + 'pandas', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Docker và CI/CD",
@@ -1093,10 +1055,8 @@
         "infrastructure_as_code"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey='aws&terraform'=none. Split on '&' -> 'aws' (alias cloud_aws) + 'terraform' (alias infrastructure_as_code)."
+      "requires": [],
+      "note": "normalizeKey='aws&terraform'=none. Split on '&' -> 'aws' (alias cloud_aws) + 'terraform' (alias infrastructure_as_code). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "TCP/IP",
@@ -1287,11 +1247,8 @@
         "javascript"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "NONE today. Generic 'web programming' is a compound implying web fundamentals stack. Needs stage-0 to map this VI phrase to the HTML/CSS/JS bundle, or per-component aliasing. Most CVs mean front-end web fundamentals."
+      "requires": [],
+      "note": "NONE today. Generic 'web programming' is a compound implying web fundamentals stack. Needs stage-0 to map this VI phrase to the HTML/CSS/JS bundle, or per-component aliasing. Most CVs mean front-end web fundamentals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Cơ sở dữ liệu",
@@ -1505,11 +1462,8 @@
         "react_native"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "NONE today. 'Mobile programming' is a generic umbrella spanning all mobile canonicals (swift/kotlin/flutter/react_native). No single target; needs stage-0 to expand to the mobile bundle or a new 'mobile_development' canonical."
+      "requires": [],
+      "note": "NONE today. 'Mobile programming' is a generic umbrella spanning all mobile canonicals (swift/kotlin/flutter/react_native). No single target; needs stage-0 to expand to the mobile bundle or a new 'mobile_development' canonical. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Phát triển ứng dụng web",
@@ -1520,11 +1474,8 @@
         "javascript"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "NONE today. 'Web application development' -> web fundamentals bundle html/css/javascript. Same treatment as 'lập trình web'."
+      "requires": [],
+      "note": "NONE today. 'Web application development' -> web fundamentals bundle html/css/javascript. Same treatment as 'lập trình web'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Viết tài liệu kỹ thuật",
@@ -1623,11 +1574,8 @@
         "sql"
       ],
       "category": "abbrev",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "DANGER: today abbreviation 'CSDL' fuzzy-matches css (d=2)! Wrong. CSDL = 'cơ sở dữ liệu' (database). Needs stage-0 abbreviation expansion CSDL -> cơ sở dữ liệu, target sql. Current cascade resolves INCORRECTLY to css."
+      "requires": [],
+      "note": "DANGER: today abbreviation 'CSDL' fuzzy-matches css (d=2)! Wrong. CSDL = 'cơ sở dữ liệu' (database). Needs stage-0 abbreviation expansion CSDL -> cơ sở dữ liệu, target sql. Current cascade resolves INCORRECTLY to css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "ATTT",
@@ -1796,10 +1744,8 @@
         "kubernetes"
       ],
       "category": "abbrev",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "'k8s cluster'->'k8scluster' misses index and fuzzy (too far). Needs stage-0 to drop the 'cluster' qualifier so 'k8s'->kubernetes resolves."
+      "requires": [],
+      "note": "'k8s cluster'->'k8scluster' misses index and fuzzy (too far). Needs stage-0 to drop the 'cluster' qualifier so 'k8s'->kubernetes resolves. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Next.js 14",
@@ -1848,10 +1794,8 @@
         "node_js"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "Combined 'nodejs&express' is NONE. Split on '&' yields 'node.js' and 'express', both already aliases of node_js. Needs stage-0 compound split."
+      "requires": [],
+      "note": "Combined 'nodejs&express' is NONE. Split on '&' yields 'node.js' and 'express', both already aliases of node_js. Needs stage-0 compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "React + TypeScript",
@@ -1861,10 +1805,8 @@
         "typescript"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "'react+typescript' NONE. Split on '+' -> react and typescript (both existing). Needs compound split."
+      "requires": [],
+      "note": "'react+typescript' NONE. Split on '+' -> react and typescript (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Docker và Kubernetes",
@@ -1874,10 +1816,8 @@
         "kubernetes"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "'dockervàkubernetes' NONE. Split on Vietnamese 'và' -> docker + kubernetes (both existing). Needs compound split."
+      "requires": [],
+      "note": "'dockervàkubernetes' NONE. Split on Vietnamese 'và' -> docker + kubernetes (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Python và SQL",
@@ -1887,10 +1827,8 @@
         "sql"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "'pythonvàsql' NONE. Split on 'và' -> python + sql. Needs compound split."
+      "requires": [],
+      "note": "'pythonvàsql' NONE. Split on 'và' -> python + sql. Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Thiết kế cơ sở dữ liệu",
@@ -2247,10 +2185,8 @@
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "Single letter too ambiguous (rn@d1→react_native FALSE today). Min-length guard → NONE. No r canonical for MVP."
+      "requires": [],
+      "note": "Single letter too ambiguous (rn@d1→react_native FALSE today). Min-length guard → NONE. No r canonical for MVP. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Google Cloud Platform",
@@ -2307,10 +2243,8 @@
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "Deploy platform, not an MVP skill. Today FALSE: vercel→'excel'@d2 → the fuzzy guard must kill this."
+      "requires": [],
+      "note": "Deploy platform, not an MVP skill. Today FALSE: vercel→'excel'@d2 → the fuzzy guard must kill this. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Dart",
@@ -2570,10 +2504,8 @@
         "node_js"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "reactvànodejs -> NONE today. Split on 'và' into 'react' + 'node.js'. Compound -> both canonicals."
+      "requires": [],
+      "note": "reactvànodejs -> NONE today. Split on 'và' into 'react' + 'node.js'. Compound -> both canonicals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Java và Spring Boot",
@@ -2582,10 +2514,8 @@
         "java"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "Split on 'và': 'java' + 'spring boot' both -> java (umbrella). Single canonical java. Needs split first."
+      "requires": [],
+      "note": "Split on 'và': 'java' + 'spring boot' both -> java (umbrella). Single canonical java. Needs split first. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Python & SQL",
@@ -2595,10 +2525,8 @@
         "sql"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "python&sql -> NONE. Split on '&' into python + sql."
+      "requires": [],
+      "note": "python&sql -> NONE. Split on '&' into python + sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "ReactJS, NextJS",
@@ -2608,10 +2536,8 @@
         "nextjs"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "reactjs,nextjs -> NONE. Split on ',' into react + nextjs."
+      "requires": [],
+      "note": "reactjs,nextjs -> NONE. Split on ',' into react + nextjs. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "PowerPoint, Word, Excel",
@@ -2620,10 +2546,8 @@
         "excel"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "Compound: only Excel is tracked; Word/PowerPoint must NOT match. After comma-split, excel resolves, others stay unmatched. Whole string -> NONE today so needs split."
+      "requires": [],
+      "note": "Compound: only Excel is tracked; Word/PowerPoint must NOT match. After comma-split, excel resolves, others stay unmatched. Whole string -> NONE today so needs split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "excel hơi biết",
@@ -2632,10 +2556,8 @@
         "excel"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "HARD CASE: 'excel a little'. normalizeKey->excelhơibiết -> NONE today (no fuzzy hit, good - avoids false trigger). Proper handling: strip proficiency qualifier 'hơi biết' then 'excel' resolves. Guards against compound/fuzzy false positives."
+      "requires": [],
+      "note": "HARD CASE: 'excel a little'. normalizeKey->excelhơibiết -> NONE today (no fuzzy hit, good - avoids false trigger). Proper handling: strip proficiency qualifier 'hơi biết' then 'excel' resolves. Guards against compound/fuzzy false positives. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Nguyen Van A",
@@ -2810,30 +2732,24 @@
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "ADVERSARIAL false-positive TODAY: bare 'word' FUZZY-matches database_design (d=2). MS Word is NOT a tracked skill; needs guard/blocklist (stage-0) so it resolves to NOTHING. [today FALSE fuzzy match — step-4 guard must kill it]"
+      "requires": [],
+      "note": "ADVERSARIAL false-positive TODAY: bare 'word' FUZZY-matches database_design (d=2). MS Word is NOT a tracked skill; needs guard/blocklist (stage-0) so it resolves to NOTHING. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "SEO",
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "ADVERSARIAL: 'seo' FUZZY-matches dotnet (d=2) WRONGLY today. SEO is marketing, out of IT-dev pilot. Guard must block the dotnet false-positive. [today FALSE fuzzy match — step-4 guard must kill it]"
+      "requires": [],
+      "note": "ADVERSARIAL: 'seo' FUZZY-matches dotnet (d=2) WRONGLY today. SEO is marketing, out of IT-dev pilot. Guard must block the dotnet false-positive. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "Canva",
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "ADVERSARIAL: 'canva' FUZZY-matches java (d=2) WRONGLY today. Canva is a design tool, not java. Guard must block. [today FALSE fuzzy match — step-4 guard must kill it]"
+      "requires": [],
+      "note": "ADVERSARIAL: 'canva' FUZZY-matches java (d=2) WRONGLY today. Canva is a design tool, not java. Guard must block. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     }
   ]
 }

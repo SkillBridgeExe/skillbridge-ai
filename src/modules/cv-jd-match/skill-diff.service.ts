@@ -125,10 +125,13 @@ export class SkillDiffService {
     const cvSkillsByCanonical = new Map<string, { level: number; raw: RawCvSkill }>();
     const unnormalizedCv: UnnormalizedSkill[] = [];
 
-    // Normalize CV skills → canonical with level
+    // Normalize CV skills → canonical with level. normalizeMention (stage-0) lets a compound
+    // entry ("React + Redux", "Lập trình web") credit EVERY skill it names.
     for (const raw of args.cv_skills_raw ?? []) {
-      const normalized = this.normalizer.normalizeRaw(raw.name);
-      if (!normalized.canonical_name) {
+      const results = this.normalizer
+        .normalizeMention(raw.name)
+        .filter((r) => r.canonical_name !== null);
+      if (results.length === 0) {
         unnormalizedCv.push({
           raw_input: raw.name,
           evidence_text: raw.evidence_text,
@@ -137,9 +140,12 @@ export class SkillDiffService {
         continue;
       }
       const level = this.proficiencyToLevel(raw.proficiency_hint);
-      const existing = cvSkillsByCanonical.get(normalized.canonical_name);
-      if (!existing || level > existing.level) {
-        cvSkillsByCanonical.set(normalized.canonical_name, { level, raw });
+      for (const normalized of results) {
+        const canonical = normalized.canonical_name as string;
+        const existing = cvSkillsByCanonical.get(canonical);
+        if (!existing || level > existing.level) {
+          cvSkillsByCanonical.set(canonical, { level, raw });
+        }
       }
     }
 
