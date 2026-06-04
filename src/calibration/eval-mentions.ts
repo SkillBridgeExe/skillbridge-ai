@@ -49,11 +49,12 @@ async function main(): Promise<void> {
   await taxonomy.onModuleInit();
   const normalizer = new SkillNormalizerService(taxonomy);
 
-  /** Today the cascade resolves one phrase → ≤1 canonical. Stage-0 (step 4) may yield many. */
-  const predict = (mention: string): string[] => {
-    const n = normalizer.normalizeRaw(mention);
-    return n.canonical_name ? [n.canonical_name] : [];
-  };
+  /** Full cascade incl. stage-0 (compounds/umbrella/version/token) — may yield many. */
+  const predict = (mention: string): string[] =>
+    normalizer
+      .normalizeMention(mention)
+      .map((n) => n.canonical_name)
+      .filter((c): c is string => c !== null);
 
   // Global target-state metrics (vs FINAL expected labels — shows progress toward the bars).
   let tp = 0;
@@ -62,6 +63,7 @@ async function main(): Promise<void> {
   // Ready-now subset (requires=[]) — label sanity: must ALL pass today.
   let readyTotal = 0;
   let readyCorrect = 0;
+  let flippedRows = 0;
   const labelErrors: string[] = [];
   const overLabeled: string[] = []; // locked rows that already pass → 'requires' label is wrong
   const negativeFPs: string[] = [];
@@ -98,10 +100,17 @@ async function main(): Promise<void> {
         );
     } else {
       for (const r of row.requires) lockCounts[r] += 1;
-      if (correct)
+      if (correct) {
         overLabeled.push(
           `  "${row.mention}" already resolves but is marked requires=[${row.requires.join(',')}]`,
         );
+        // FLIP mode: a step's implementation just unlocked this row — record it as ready.
+        if (process.env.EVAL_MENTIONS_FLIP === '1') {
+          row.requires = [];
+          row.note = (row.note ?? '') + ' [unlocked — flipped by EVAL_MENTIONS_FLIP run]';
+          flippedRows += 1;
+        }
+      }
     }
 
     // Sanity only for rows claiming to be clean TODAY; locked negatives (requires=['prenormalize'])
@@ -142,7 +151,21 @@ async function main(): Promise<void> {
   for (const [cat, s] of [...byCat.entries()].sort())
     console.log(`${cat.padEnd(10)} ${s.correct}/${s.total} (${pct(s.correct, s.total)})`);
 
-  const sanityFail = labelErrors.length > 0 || overLabeled.length > 0 || negativeFPs.length > 0;
+  if (flippedRows > 0) {
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf-8')), mentions }, null, 2) + '\n',
+      'utf-8',
+    );
+    console.log(
+      `\nFLIP mode: ${flippedRows} unlocked row(s) written back as requires=[] — re-run to verify clean.`,
+    );
+  }
+
+  const sanityFail =
+    labelErrors.length > 0 ||
+    (overLabeled.length > 0 && flippedRows === 0) ||
+    negativeFPs.length > 0;
   const strictFail = STRICT && (precision < PRECISION_BAR || f1 < F1_BAR);
   console.log(
     `\nVerdict: ${sanityFail ? 'FAIL ❌ (label/precision sanity)' : strictFail ? 'FAIL ❌ (strict bars not met yet)' : 'PASS ✅'}${STRICT ? ' [strict]' : ''}\n`,

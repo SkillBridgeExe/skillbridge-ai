@@ -58,6 +58,9 @@ async function main(): Promise<void> {
   console.log(`\nMatch-score eval — ${pairs.length} CV→role pairs (offline, 0 LLM calls)\n`);
 
   let inBandCount = 0;
+  let covTotal = 0;
+  let covIn = 0;
+  const covOut: string[] = [];
   const predicted: number[] = [];
   const expectedMid: number[] = [];
   const dataErrors: string[] = [];
@@ -78,6 +81,14 @@ async function main(): Promise<void> {
       );
     predicted.push(score);
     expectedMid.push(mid(pair.expected_overall));
+
+    // required_coverage check (report-only — promotes to a strict bar once stable).
+    if (pair.expected_required_coverage) {
+      covTotal += 1;
+      const [clo, chi] = pair.expected_required_coverage;
+      if (res.required_coverage >= clo && res.required_coverage <= chi) covIn += 1;
+      else covOut.push(`  ${pair.id}: coverage ${res.required_coverage}, expected ${clo}-${chi}`);
+    }
 
     if (res.unnormalized_cv_skills.length > 0) {
       dataErrors.push(
@@ -107,6 +118,10 @@ async function main(): Promise<void> {
     `within-band : ${inBandCount}/${pairs.length} (${Math.round(rate * 100)}%)  [strict bar ${Math.round(BAND_BAR * 100)}%]`,
   );
   console.log(`Spearman    : ${rho}  [strict min ${SPEARMAN_MIN}]`);
+  if (covTotal > 0) {
+    console.log(`req-coverage: ${covIn}/${covTotal} in expected band (report-only)`);
+    if (covOut.length) console.log(`Coverage out-of-band:\n${covOut.join('\n')}`);
+  }
   if (outOfBand.length) console.log(`Out-of-band:\n${outOfBand.join('\n')}`);
   if (drift.length)
     console.log(

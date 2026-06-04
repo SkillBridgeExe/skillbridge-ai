@@ -56,10 +56,42 @@ export interface UnnormalizedSkill {
   reason: 'not_in_taxonomy';
 }
 
+/** CV skill the role does NOT require — surfaced for the UI, NEVER penalized. */
+export interface BonusSkill {
+  canonical_name: string;
+  display_name: string;
+  cv_level: number;
+}
+
+/**
+ * Step-5 scoring tunables (blueprint matching_plan). Exported so the calibration sweep can
+ * exercise variants; the shipped values are the ones that put eval-match pairs in-band.
+ */
+export interface MatchTuning {
+  /** Importance is MATHEMATICAL, not just a UI label: effective_weight = weight × multiplier. */
+  importanceMultiplier: Record<Importance, number>;
+  /** Partial credit is CONVEX: strength = (cv_level/required_level)^exponent — a junior-everywhere
+   *  CV no longer harvests near-linear credit (eval edge-levelgap/keyword-stuffing pairs). */
+  partialExponent: number;
+  /** Soft cap: overall ≤ capBase + capSlope × required_coverage. A CV missing REQUIRED skills
+   *  cannot ride PREFERRED riches past the cap (eval edge-missing-required pair). */
+  coverageCapBase: number;
+  coverageCapSlope: number;
+}
+
+export const MATCH_TUNING: MatchTuning = {
+  importanceMultiplier: { REQUIRED: 1.0, PREFERRED: 0.6, NICE_TO_HAVE: 0.3 },
+  partialExponent: 1.6,
+  coverageCapBase: 45,
+  coverageCapSlope: 55,
+};
+
 export interface DiffResult {
   matched_skills: MatchedSkill[];
   partial_skills: PartialSkill[];
   missing_skills: MissingSkill[];
+  /** CV skills the role does not require — shown as strengths, never subtracted. */
+  bonus_skills: BonusSkill[];
   /** CV skills that didn't normalize to taxonomy — flagged for taxonomy expansion. */
   unnormalized_cv_skills: UnnormalizedSkill[];
   /** JD requirements that didn't normalize — same reason, flagged for review. */
@@ -67,7 +99,16 @@ export interface DiffResult {
 
   /** match_ratio = matched.length / required.length × 100 (0-100). */
   match_ratio: number;
-  /** Weighted composite: SUM(weight × match_strength) / SUM(weight) × 100 (0-100). */
+  /** Fraction of REQUIRED-importance skills met at level (0-1; 1 when the role has none). */
+  required_coverage: number;
+  /**
+   * Weighted composite with step-5 semantics (multiplier/exponent/cap values live in
+   * MATCH_TUNING — the single source of truth):
+   *   effective_weight = weight × importance_multiplier
+   *   strength          = 1 if met · (cv/required)^exponent if below · 0 if missing
+   *   raw               = Σ(eff_w × strength) / Σ(eff_w) × 100
+   *   overall           = min(raw, capBase + capSlope × required_coverage)
+   */
   overall_score: number;
   /** Breakdown for transparency / audit. */
   scoring_breakdown: {
@@ -77,6 +118,10 @@ export interface DiffResult {
     missing_count: number;
     weight_sum: number;
     achieved_weight: number;
+    required_total: number;
+    required_met: number;
+    raw_weighted_score: number;
+    cap_applied: boolean;
   };
 }
 
@@ -125,10 +170,13 @@ export class SkillDiffService {
     const cvSkillsByCanonical = new Map<string, { level: number; raw: RawCvSkill }>();
     const unnormalizedCv: UnnormalizedSkill[] = [];
 
-    // Normalize CV skills → canonical with level
+    // Normalize CV skills → canonical with level. normalizeMention (stage-0) lets a compound
+    // entry ("React + Redux", "Lập trình web") credit EVERY skill it names.
     for (const raw of args.cv_skills_raw ?? []) {
-      const normalized = this.normalizer.normalizeRaw(raw.name);
-      if (!normalized.canonical_name) {
+      const results = this.normalizer
+        .normalizeMention(raw.name)
+        .filter((r) => r.canonical_name !== null);
+      if (results.length === 0) {
         unnormalizedCv.push({
           raw_input: raw.name,
           evidence_text: raw.evidence_text,
@@ -137,9 +185,12 @@ export class SkillDiffService {
         continue;
       }
       const level = this.proficiencyToLevel(raw.proficiency_hint);
-      const existing = cvSkillsByCanonical.get(normalized.canonical_name);
-      if (!existing || level > existing.level) {
-        cvSkillsByCanonical.set(normalized.canonical_name, { level, raw });
+      for (const normalized of results) {
+        const canonical = normalized.canonical_name as string;
+        const existing = cvSkillsByCanonical.get(canonical);
+        if (!existing || level > existing.level) {
+          cvSkillsByCanonical.set(canonical, { level, raw });
+        }
       }
     }
 
@@ -151,18 +202,22 @@ export class SkillDiffService {
     const partial: PartialSkill[] = [];
     const missing: MissingSkill[] = [];
 
+    const tuning = MATCH_TUNING;
     let weightSum = 0;
     let achievedWeight = 0;
+    let requiredTotal = 0;
+    let requiredMet = 0;
 
     for (const req of requirements) {
       const cvHit = cvSkillsByCanonical.get(req.skill_canonical_name);
       const displayName =
-        this.normalizer
-          .getTaxonomyEntries()
-          .find((t) => t.canonical_name === req.skill_canonical_name)?.display_name ??
+        this.normalizer.getByCanonical(req.skill_canonical_name)?.display_name ??
         req.skill_canonical_name;
 
-      weightSum += req.weight;
+      // Step 5: importance drives the math, not just the UI label.
+      const effectiveWeight = req.weight * tuning.importanceMultiplier[req.importance];
+      weightSum += effectiveWeight;
+      if (req.importance === 'REQUIRED') requiredTotal += 1;
 
       if (!cvHit) {
         missing.push({
@@ -188,9 +243,11 @@ export class SkillDiffService {
           importance: req.importance,
           weight: req.weight,
         });
-        achievedWeight += req.weight * 1.0;
+        achievedWeight += effectiveWeight;
+        if (req.importance === 'REQUIRED') requiredMet += 1;
       } else {
-        // Partial: cv_level < required_level. Strength = cv_level / required_level (proportional).
+        // Partial: CONVEX credit (cv/required)^exponent — junior-everywhere CVs no longer
+        // harvest near-linear credit (eval pairs: levelgap-all-novice, keyword-stuffing).
         partial.push({
           skill_id: req.skill_canonical_name,
           canonical_name: req.skill_canonical_name,
@@ -201,21 +258,40 @@ export class SkillDiffService {
           weight: req.weight,
           gap_levels: req.required_level - cvHit.level,
         });
-        achievedWeight += req.weight * (cvHit.level / req.required_level);
+        achievedWeight +=
+          effectiveWeight * Math.pow(cvHit.level / req.required_level, tuning.partialExponent);
       }
+    }
+
+    // Bonus skills: everything the CV has that the role doesn't ask for — surfaced, NEVER penalized.
+    const requiredNames = new Set(requirements.map((r) => r.skill_canonical_name));
+    const bonus: BonusSkill[] = [];
+    for (const [canonical, hit] of cvSkillsByCanonical) {
+      if (requiredNames.has(canonical)) continue;
+      bonus.push({
+        canonical_name: canonical,
+        display_name: this.normalizer.getByCanonical(canonical)?.display_name ?? canonical,
+        cv_level: hit.level,
+      });
     }
 
     const totalReqs = requirements.length;
     const match_ratio = totalReqs > 0 ? Math.round((matched.length / totalReqs) * 100) : 0;
-    const overall_score = weightSum > 0 ? Math.round((achievedWeight / weightSum) * 100) : 0;
+    const required_coverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
+    const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
+    // Soft cap: PREFERRED/NICE riches cannot carry a CV past what its REQUIRED coverage supports.
+    const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
+    const overall_score = Math.round(Math.min(raw, cap));
 
     return {
       matched_skills: matched,
       partial_skills: partial,
       missing_skills: missing,
+      bonus_skills: bonus,
       unnormalized_cv_skills: unnormalizedCv,
       unnormalized_jd_requirements: unnormalizedJd,
       match_ratio,
+      required_coverage: round3(required_coverage),
       overall_score,
       scoring_breakdown: {
         total_requirements: totalReqs,
@@ -224,6 +300,10 @@ export class SkillDiffService {
         missing_count: missing.length,
         weight_sum: round3(weightSum),
         achieved_weight: round3(achievedWeight),
+        required_total: requiredTotal,
+        required_met: requiredMet,
+        raw_weighted_score: round3(raw),
+        cap_applied: cap < raw,
       },
     };
   }
@@ -256,14 +336,17 @@ export class SkillDiffService {
       return { requirements: [], unnormalizedJd: [] };
     }
 
-    // Normalize JD requirements
-    const reqs: RoleSkillRequirement[] = [];
-    // Equal weight default when from JD (rubric supplies real weights).
-    const equalWeight = round3(1 / args.jd_requirements_raw.length);
-
+    // Normalize JD requirements — full stage-0 (normalizeMention) so a JD line written as a
+    // compound ("React + Redux") or umbrella phrase contributes every skill it names (review
+    // finding: JD side previously bypassed stage-0). Equal weights are computed over the
+    // RESOLVED canonical set, deduped first-occurrence (level/importance hints of the first
+    // mention win).
+    const resolved = new Map<string, { level: number; importance: Importance }>();
     for (const raw of args.jd_requirements_raw) {
-      const normalized = this.normalizer.normalizeRaw(raw.name);
-      if (!normalized.canonical_name) {
+      const results = this.normalizer
+        .normalizeMention(raw.name)
+        .filter((r) => r.canonical_name !== null);
+      if (results.length === 0) {
         unnormalizedJd.push({
           raw_input: raw.name,
           evidence_text: raw.evidence_text,
@@ -271,13 +354,24 @@ export class SkillDiffService {
         });
         continue;
       }
-      reqs.push({
-        skill_canonical_name: normalized.canonical_name,
-        required_level: this.proficiencyToLevel(raw.required_level_hint),
-        importance: this.toImportance(raw.importance_hint),
-        weight: equalWeight,
-      });
+      for (const n of results) {
+        const canonical = n.canonical_name as string;
+        if (!resolved.has(canonical)) {
+          resolved.set(canonical, {
+            level: this.proficiencyToLevel(raw.required_level_hint),
+            importance: this.toImportance(raw.importance_hint),
+          });
+        }
+      }
     }
+
+    const equalWeight = resolved.size > 0 ? round3(1 / resolved.size) : 0;
+    const reqs: RoleSkillRequirement[] = [...resolved.entries()].map(([canonical, meta]) => ({
+      skill_canonical_name: canonical,
+      required_level: meta.level,
+      importance: meta.importance,
+      weight: equalWeight,
+    }));
 
     return { requirements: reqs, unnormalizedJd };
   }

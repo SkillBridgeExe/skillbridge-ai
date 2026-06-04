@@ -34,7 +34,9 @@
         "cascading stylesheets",
         "tailwind css",
         "scss",
-        "sass"
+        "sass",
+        "tailwind",
+        "tailwindcss"
       ]
     },
     {
@@ -85,7 +87,8 @@
       "aliases": [
         "next.js",
         "next js",
-        "nextjs framework"
+        "nextjs framework",
+        "next"
       ]
     },
     {
@@ -252,7 +255,9 @@
         "quan tri co so du lieu",
         "quản lý cơ sở dữ liệu",
         "cơ sở dữ liệu quan hệ",
-        "co so du lieu quan he"
+        "co so du lieu quan he",
+        "csdl",
+        "postgres"
       ]
     },
     {
@@ -1396,7 +1401,8 @@
         "cau truc du lieu va giai thuat",
         "cấu trúc dữ liệu",
         "cau truc du lieu",
-        "giải thuật và cấu trúc dữ liệu"
+        "giải thuật và cấu trúc dữ liệu",
+        "dsa"
       ],
       "role_relevance": [
         {
