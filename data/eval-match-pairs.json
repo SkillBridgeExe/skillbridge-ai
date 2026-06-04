@@ -421,10 +421,10 @@
         85
       ],
       "expected_required_coverage": [
-        0.8,
-        1
+        0.55,
+        0.8
       ],
-      "rationale": "Representative MID-STRONG AI/ML. Note: hitting pytorch_tensorflow requires 'tf' (both 'PyTorch' and 'TensorFlow' alias-resolve to machine_learning since they appear first there; only 'tf' resolves to pytorch_tensorflow today). Matches: python(4>=4)=1, pytorch_tensorflow via 'tf'(4>=4)=1, machine_learning(4>=4)=1, sql(3>=3)=1, pandas(3>=3)=1, data_preprocessing via 'Feature Engineering'(3>=3)=1, problem_solving(4>=4)=1, git(3>=3)=1, communication(3>=3)=1. Partial: statistics(3/4=0.75). Missing: docker(w0.05 PREFERRED), critical_thinking(w0.01 NICE). achieved=0.77, wsum=1.0 -> current_formula_score=77. Expert: strong applied ML engineer; only stats slightly short of the high bar (req4) and no deployment(docker). Band brackets 77. Flagged dependency on 'tf' alias for framework match. [FIXED: ML hint lowered to INTERMEDIATE per verifier — keeps the pair mid-strength; cfs recomputed 77.] [cfs updated to actual formula output 88; band [68,85] kept as EXPERT target — the +3 overshoot is the linear-partial-credit issue step 5 fixes.]",
+      "rationale": "Representative MID-STRONG AI/ML. Note: hitting pytorch_tensorflow requires 'tf' (both 'PyTorch' and 'TensorFlow' alias-resolve to machine_learning since they appear first there; only 'tf' resolves to pytorch_tensorflow today). Matches: python(4>=4)=1, pytorch_tensorflow via 'tf'(4>=4)=1, machine_learning(4>=4)=1, sql(3>=3)=1, pandas(3>=3)=1, data_preprocessing via 'Feature Engineering'(3>=3)=1, problem_solving(4>=4)=1, git(3>=3)=1, communication(3>=3)=1. Partial: statistics(3/4=0.75). Missing: docker(w0.05 PREFERRED), critical_thinking(w0.01 NICE). achieved=0.77, wsum=1.0 -> current_formula_score=77. Expert: strong applied ML engineer; only stats slightly short of the high bar (req4) and no deployment(docker). Band brackets 77. Flagged dependency on 'tf' alias for framework match. [FIXED: ML hint lowered to INTERMEDIATE per verifier — keeps the pair mid-strength; cfs recomputed 77.] [cfs updated to actual formula output 88; band [68,85] kept as EXPERT target — the +3 overshoot is the linear-partial-credit issue step 5 fixes.] [coverage band re-set to 0.55-0.8: ML hint was lowered to INTERMEDIATE in pair-fixing, so one more REQUIRED is partial-not-met.]",
       "current_formula_score": 82
     },
     {

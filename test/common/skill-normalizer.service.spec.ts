@@ -72,4 +72,50 @@ describe('SkillNormalizerService stage-0', () => {
     expect(canonicals('Nguyen Van A')).toEqual([]);
     expect(canonicals('làm việc chăm chỉ')).toEqual([]);
   });
+
+  // ─── review fixes (adversarial review of the engine branch) ───────────────
+
+  it('resolves versioned compound parts ("React 18 + Redux 4") — strip must not eat the split budget', () => {
+    expect(canonicals('React 18 + Redux 4')).toEqual(['react', 'redux']);
+    expect(canonicals('Spring Boot 3 + Java 17')).toEqual(['java']);
+  });
+
+  it('keeps per-part raw_input on version-strip fan-out (audit contract)', () => {
+    const results = svc.normalizeMention('React 18 + Vue 3');
+    const react = results.find((s) => s.canonical_name === 'react');
+    const vue = results.find((s) => s.canonical_name === 'vue');
+    expect(react?.raw_input).not.toBe('React 18 + Vue 3');
+    expect(vue?.raw_input).not.toBe('React 18 + Vue 3');
+  });
+
+  it('protects slash-skills nested inside larger compounds ("Docker và CI/CD")', () => {
+    expect(canonicals('Docker và CI/CD')).toEqual(['ci_cd', 'docker']);
+    expect(canonicals('AWS & Terraform, CI/CD')).toEqual(
+      expect.arrayContaining(['ci_cd', 'cloud_aws', 'infrastructure_as_code']),
+    );
+  });
+
+  it('token fallback rejects prose around short alias keys (precision guard)', () => {
+    for (const prose of [
+      'updated my cv',
+      'be on time',
+      'next step',
+      'ready to go',
+      'rest of team',
+      'team unity',
+      'java island trip',
+    ]) {
+      expect(canonicals(prose)).toEqual([]);
+    }
+    // ...while skill+qualifier phrases still resolve
+    expect(canonicals('k8s cluster')).toEqual(['kubernetes']);
+    expect(canonicals('Excel cơ bản')).toEqual(['excel']);
+  });
+
+  it('normalizeMany keeps the strongest evidence per canonical (not first-seen)', () => {
+    const out = svc.normalizeMany(['javscript', 'JavaScript']);
+    const js = out.find((s) => s.canonical_name === 'javascript');
+    expect(js?.matched_via).toBe('exact');
+    expect(js?.confidence).toBe(1.0);
+  });
 });

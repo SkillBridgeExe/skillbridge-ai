@@ -1042,10 +1042,8 @@
         "ci_cd"
       ],
       "category": "compound",
-      "requires": [
-        "prenormalize"
-      ],
-      "note": "normalizeKey collapses everything -> 'dockervàcicd'=none. Split on 'và' -> 'docker' (exact) + 'CI/CD' (alias ci_cd via 'cicd')."
+      "requires": [],
+      "note": "normalizeKey collapses everything -> 'dockervàcicd'=none. Split on 'và' -> 'docker' (exact) + 'CI/CD' (alias ci_cd via 'cicd'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
     },
     {
       "mention": "AWS & Terraform",
@@ -2750,6 +2748,57 @@
       "category": "negative",
       "requires": [],
       "note": "ADVERSARIAL: 'canva' FUZZY-matches java (d=2) WRONGLY today. Canva is a design tool, not java. Guard must block. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "React 18 + Redux 4",
+      "lang": "en",
+      "expected": [
+        "react",
+        "redux"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "[review HIGH] versioned compound parts — version-strip must not eat the recursion budget of split parts."
+    },
+    {
+      "mention": "updated my cv",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] token-fallback must not fire on prose containing short alias cv (computer_vision)."
+    },
+    {
+      "mention": "be on time",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] short alias be (backend_development) inside prose must not match."
+    },
+    {
+      "mention": "next step",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias next (nextjs) inside prose must not match."
+    },
+    {
+      "mention": "ready to go",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias go (golang) inside prose must not match."
+    },
+    {
+      "mention": "rest of team",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias rest (rest_api) inside prose must not match."
     }
   ]
 }

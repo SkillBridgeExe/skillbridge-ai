@@ -73,8 +73,73 @@ export class SkillNormalizerService {
   private static readonly TRAILING_VERSION = /\s+v?\d+(?:\.\d+)*\+?$/i;
   /** ECMAScript year/edition forms collapse to the indexed "es6" alias (javascript). */
   private static readonly ES_VERSION = /^es\d{1,4}$/i;
-  /** Compound delimiters. Whole-phrase lookup runs FIRST, so "CI/CD"/"TCP/IP" never get here. */
-  private static readonly SPLIT = /\s+(?:và|and)\s+|[+&,/]/i;
+  /**
+   * Primary compound delimiters — SLASH IS EXCLUDED here: slash-compounds ("HTML/CSS") are
+   * split in a second pass ONLY when the fragment doesn't resolve whole, so "CI/CD"/"TCP/IP"
+   * survive even when nested inside a larger compound ("Docker và CI/CD") — review finding.
+   */
+  private static readonly SPLIT_PRIMARY = /\s+(?:và|and)\s+|[+&,]/i;
+  /**
+   * Token-fallback safety (review finding: "updated my cv"→computer_vision, "next step"→nextjs):
+   * the fallback only fires when every NON-skill token is a known qualifier students attach to
+   * a skill ("excel hơi biết", "k8s cluster"). Arbitrary prose around a short alias is rejected.
+   */
+  private static readonly TOKEN_QUALIFIERS = new Set([
+    'basic',
+    'basics',
+    'fundamental',
+    'fundamentals',
+    'beginner',
+    'intermediate',
+    'advanced',
+    'knowledge',
+    'experience',
+    'experienced',
+    'skill',
+    'skills',
+    'proficient',
+    'proficiency',
+    'using',
+    'usage',
+    'with',
+    'level',
+    'cluster',
+    'administration',
+    'admin',
+    'programming',
+    'language',
+    'hơi',
+    'biết',
+    'cơ',
+    'bản',
+    'thành',
+    'thạo',
+    'tốt',
+    'khá',
+    'sử',
+    'dụng',
+    'về',
+    'căn',
+    'co',
+    'ban',
+    'thanh',
+    'thao',
+    'tot',
+    'kha',
+    'su',
+    'dung',
+    've',
+    'can',
+  ]);
+  /** Quality order for cross-mention dedupe: keep the strongest evidence for a canonical. */
+  private static readonly VIA_RANK: Record<NormalizationMatchType, number> = {
+    exact: 5,
+    alias: 4,
+    umbrella: 3,
+    token: 2,
+    fuzzy: 1,
+    none: 0,
+  };
 
   /**
    * Stage-0 entry point: one raw mention → ZERO OR MORE canonical skills.
@@ -102,7 +167,10 @@ export class SkillNormalizerService {
       }
     }
 
-    if (depth >= 2) return [];
+    // Depth 3 budget: a versioned compound part needs strip(+1) inside split(+1) — review
+    // finding: 'React 18 + Redux 4' lost react at the old depth-2 cap. Strings strictly
+    // shrink per recursion, so this cannot run away.
+    if (depth >= 3) return [];
 
     // 0c. version-strip ("Tailwind 3" → "tailwind"; "ES2022" → "es6").
     if (SkillNormalizerService.ES_VERSION.test(lower)) {
@@ -112,14 +180,31 @@ export class SkillNormalizerService {
     const stripped = raw.replace(SkillNormalizerService.TRAILING_VERSION, '');
     if (stripped !== raw && stripped.length > 0) {
       const viaStrip = this.normalizeMention(stripped, depth + 1);
-      if (viaStrip.length > 0) return viaStrip.map((s) => ({ ...s, raw_input: raw }));
+      // Single 1:1 result → the original (versioned) text is the meaningful audit trail.
+      // Fan-out (the strip uncovered a compound) → keep each PART's own raw_input (review finding).
+      if (viaStrip.length === 1) return [{ ...viaStrip[0], raw_input: raw }];
+      if (viaStrip.length > 0) return viaStrip;
     }
 
-    // 0d. compound split — union of resolved parts, deduped by canonical.
-    const parts = raw
-      .split(SkillNormalizerService.SPLIT)
+    // 0d. compound split — primary delimiters first; slash only for fragments that don't
+    // resolve whole (protects "CI/CD"/"TCP/IP" nested in "Docker và CI/CD" — review finding).
+    const fragments = raw
+      .split(SkillNormalizerService.SPLIT_PRIMARY)
       .map((p) => p.trim())
       .filter((p) => p.length >= 2);
+    const parts: string[] = [];
+    for (const frag of fragments) {
+      if (frag.includes('/') && !this.exactOrAlias(frag).canonical_name) {
+        parts.push(
+          ...frag
+            .split('/')
+            .map((p) => p.trim())
+            .filter((p) => p.length >= 2),
+        );
+      } else {
+        parts.push(frag);
+      }
+    }
     if (parts.length >= 2) {
       const resolved = new Map<string, NormalizedSkill>();
       for (const part of parts) {
@@ -131,20 +216,28 @@ export class SkillNormalizerService {
       if (resolved.size > 0) return [...resolved.values()];
     }
 
-    // 0e. exact-only token fallback for short phrases ("k8s cluster", "excel hơi biết").
-    // Fuzzy is intentionally NOT applied per-token — precision first.
+    // 0e. exact-only token fallback for "skill + qualifier" phrases ("k8s cluster",
+    // "excel hơi biết"). Fuzzy is NOT applied per-token, and EVERY non-skill token must be
+    // a known qualifier — otherwise arbitrary prose with a short alias inside would
+    // false-match ("updated my cv"→computer_vision, "next step"→nextjs; review finding).
     const tokens = raw.split(/\s+/).filter((t) => t.length >= 2);
     if (tokens.length >= 2 && tokens.length <= 4) {
       const resolved = new Map<string, NormalizedSkill>();
+      let qualifiersOnly = true;
       for (const token of tokens) {
         const key = SkillTaxonomyService.normalizeKey(token);
         const canonical = this.taxonomy.lookupByAliasKey(key);
-        if (canonical && !resolved.has(canonical)) {
-          const hit = this.fromCanonical(canonical, token, 'token', 0.8);
-          if (hit) resolved.set(canonical, hit);
+        if (canonical) {
+          if (!resolved.has(canonical)) {
+            const hit = this.fromCanonical(canonical, token, 'token', 0.8);
+            if (hit) resolved.set(canonical, hit);
+          }
+        } else if (!SkillNormalizerService.TOKEN_QUALIFIERS.has(token.toLowerCase())) {
+          qualifiersOnly = false;
+          break;
         }
       }
-      if (resolved.size > 0) return [...resolved.values()];
+      if (qualifiersOnly && resolved.size > 0) return [...resolved.values()];
     }
 
     // 0f. LAST resort: length-guarded fuzzy on the whole phrase (typos: "javscript").
@@ -230,23 +323,39 @@ export class SkillNormalizerService {
     return this.unmatched(raw);
   }
 
-  /** Flattened multi-mention normalization (compounds contribute every named skill). */
+  /**
+   * Flattened multi-mention normalization (compounds contribute every named skill).
+   * Cross-mention dedupe keeps the STRONGEST evidence per canonical (matched_via rank, then
+   * confidence) — not the first seen, which was LLM-output-order dependent (review finding).
+   */
   normalizeMany(rawNames: string[]): NormalizedSkill[] {
-    const out: NormalizedSkill[] = [];
-    const seen = new Set<string>();
+    const best = new Map<string, NormalizedSkill>();
+    const unresolved: NormalizedSkill[] = [];
     for (const n of rawNames) {
       const results = this.normalizeMention(n);
       if (results.length === 0) {
-        out.push(this.unmatched(n)); // keep the unresolved raw for audit/taxonomy-expansion signals
+        unresolved.push(this.unmatched(n)); // keep raw for audit/taxonomy-expansion signals
         continue;
       }
       for (const s of results) {
-        if (s.canonical_name && seen.has(s.canonical_name)) continue;
-        if (s.canonical_name) seen.add(s.canonical_name);
-        out.push(s);
+        if (!s.canonical_name) continue;
+        const prev = best.get(s.canonical_name);
+        const rank = SkillNormalizerService.VIA_RANK;
+        if (
+          !prev ||
+          rank[s.matched_via] > rank[prev.matched_via] ||
+          (rank[s.matched_via] === rank[prev.matched_via] && s.confidence > prev.confidence)
+        ) {
+          best.set(s.canonical_name, s);
+        }
       }
     }
-    return out;
+    return [...best.values(), ...unresolved];
+  }
+
+  /** O(1) taxonomy lookup passthrough for downstream services (display names etc.). */
+  getByCanonical(canonicalName: string): TaxonomyEntry | undefined {
+    return this.taxonomy.getByCanonical(canonicalName);
   }
 
   private fromCanonical(

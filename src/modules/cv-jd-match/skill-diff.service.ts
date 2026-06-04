@@ -102,8 +102,9 @@ export interface DiffResult {
   /** Fraction of REQUIRED-importance skills met at level (0-1; 1 when the role has none). */
   required_coverage: number;
   /**
-   * Weighted composite with step-5 semantics:
-   *   effective_weight = weight × importance_multiplier (REQUIRED 1 / PREFERRED .5 / NICE .25)
+   * Weighted composite with step-5 semantics (multiplier/exponent/cap values live in
+   * MATCH_TUNING — the single source of truth):
+   *   effective_weight = weight × importance_multiplier
    *   strength          = 1 if met · (cv/required)^exponent if below · 0 if missing
    *   raw               = Σ(eff_w × strength) / Σ(eff_w) × 100
    *   overall           = min(raw, capBase + capSlope × required_coverage)
@@ -210,9 +211,7 @@ export class SkillDiffService {
     for (const req of requirements) {
       const cvHit = cvSkillsByCanonical.get(req.skill_canonical_name);
       const displayName =
-        this.normalizer
-          .getTaxonomyEntries()
-          .find((t) => t.canonical_name === req.skill_canonical_name)?.display_name ??
+        this.normalizer.getByCanonical(req.skill_canonical_name)?.display_name ??
         req.skill_canonical_name;
 
       // Step 5: importance drives the math, not just the UI label.
@@ -269,12 +268,9 @@ export class SkillDiffService {
     const bonus: BonusSkill[] = [];
     for (const [canonical, hit] of cvSkillsByCanonical) {
       if (requiredNames.has(canonical)) continue;
-      const entry = this.normalizer
-        .getTaxonomyEntries()
-        .find((t) => t.canonical_name === canonical);
       bonus.push({
         canonical_name: canonical,
-        display_name: entry?.display_name ?? canonical,
+        display_name: this.normalizer.getByCanonical(canonical)?.display_name ?? canonical,
         cv_level: hit.level,
       });
     }
@@ -340,14 +336,17 @@ export class SkillDiffService {
       return { requirements: [], unnormalizedJd: [] };
     }
 
-    // Normalize JD requirements
-    const reqs: RoleSkillRequirement[] = [];
-    // Equal weight default when from JD (rubric supplies real weights).
-    const equalWeight = round3(1 / args.jd_requirements_raw.length);
-
+    // Normalize JD requirements — full stage-0 (normalizeMention) so a JD line written as a
+    // compound ("React + Redux") or umbrella phrase contributes every skill it names (review
+    // finding: JD side previously bypassed stage-0). Equal weights are computed over the
+    // RESOLVED canonical set, deduped first-occurrence (level/importance hints of the first
+    // mention win).
+    const resolved = new Map<string, { level: number; importance: Importance }>();
     for (const raw of args.jd_requirements_raw) {
-      const normalized = this.normalizer.normalizeRaw(raw.name);
-      if (!normalized.canonical_name) {
+      const results = this.normalizer
+        .normalizeMention(raw.name)
+        .filter((r) => r.canonical_name !== null);
+      if (results.length === 0) {
         unnormalizedJd.push({
           raw_input: raw.name,
           evidence_text: raw.evidence_text,
@@ -355,13 +354,24 @@ export class SkillDiffService {
         });
         continue;
       }
-      reqs.push({
-        skill_canonical_name: normalized.canonical_name,
-        required_level: this.proficiencyToLevel(raw.required_level_hint),
-        importance: this.toImportance(raw.importance_hint),
-        weight: equalWeight,
-      });
+      for (const n of results) {
+        const canonical = n.canonical_name as string;
+        if (!resolved.has(canonical)) {
+          resolved.set(canonical, {
+            level: this.proficiencyToLevel(raw.required_level_hint),
+            importance: this.toImportance(raw.importance_hint),
+          });
+        }
+      }
     }
+
+    const equalWeight = resolved.size > 0 ? round3(1 / resolved.size) : 0;
+    const reqs: RoleSkillRequirement[] = [...resolved.entries()].map(([canonical, meta]) => ({
+      skill_canonical_name: canonical,
+      required_level: meta.level,
+      importance: meta.importance,
+      weight: equalWeight,
+    }));
 
     return { requirements: reqs, unnormalizedJd };
   }
