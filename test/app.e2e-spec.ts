@@ -70,6 +70,30 @@ describe('SkillBridge AI (e2e)', () => {
     );
   });
 
+  it('GET /openapi.json documents CV diagnosis request body fields', async () => {
+    const res = await request(app.getHttpServer()).get('/openapi.json').expect(200);
+    const body = res.body as {
+      components: {
+        schemas: Record<
+          string,
+          {
+            properties?: Record<string, unknown>;
+            required?: string[];
+          }
+        >;
+      };
+    };
+
+    expect(body.components.schemas.CvReviewRequestDto.properties).toEqual(
+      expect.objectContaining({
+        cv_id: expect.objectContaining({ type: 'string', format: 'uuid' }),
+        parsed_text: expect.objectContaining({ type: 'string' }),
+        prompt_template_code: expect.objectContaining({ type: 'string' }),
+        target_role: expect.objectContaining({ type: 'string' }),
+      }),
+    );
+  });
+
   it('GET /reference serves Scalar API Reference', async () => {
     const res = await request(app.getHttpServer()).get('/reference').expect(200);
     expect(res.text).toContain('Scalar');
