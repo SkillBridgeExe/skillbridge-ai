@@ -34,7 +34,9 @@ export class CvUploadR2Persistence1780330000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_skills_category" ON "skills" ("category")`,
     );
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_skills_source" ON "skills" ("source")`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_skills_source" ON "skills" ("source")`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "cv_skills" (
@@ -46,7 +48,9 @@ export class CvUploadR2Persistence1780330000000 implements MigrationInterface {
         CONSTRAINT "PK_cv_skills_id" PRIMARY KEY ("id")
       )
     `);
-    await queryRunner.query(`CREATE INDEX IF NOT EXISTS "IDX_cv_skills_cv_id" ON "cv_skills" ("cv_id")`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_cv_skills_cv_id" ON "cv_skills" ("cv_id")`,
+    );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_cv_skills_skill_id" ON "cv_skills" ("skill_id")`,
     );
