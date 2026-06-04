@@ -590,10 +590,8 @@
         "database_design"
       ],
       "category": "abbrev",
-      "requires": [
-        "alias"
-      ],
-      "note": "Today FALSE: db→alias 'dbt'@d1→etl. Add 'db' alias on database_design (exact stage beats fuzzy)."
+      "requires": [],
+      "note": "Today FALSE: db→alias 'dbt'@d1→etl. Add 'db' alias on database_design (exact stage beats fuzzy). [unlocked by step-2 alias]"
     },
     {
       "mention": "OOP",
@@ -627,11 +625,8 @@
         "machine_learning"
       ],
       "category": "abbrev",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "Abbrev → ML umbrella (no separate canonical). Today fuzzy false-hits @d2 → needs guard + alias."
+      "requires": [],
+      "note": "Abbrev → ML umbrella (no separate canonical). Today fuzzy false-hits @d2 → needs guard + alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "DL",
@@ -726,10 +721,8 @@
         "node_js"
       ],
       "category": "abbrev",
-      "requires": [
-        "alias"
-      ],
-      "note": "normalizeKey='npm' fuzzy-matches WRONG to dotnet today. npm is the Node package manager; add 'npm' alias to node_js."
+      "requires": [],
+      "note": "normalizeKey='npm' fuzzy-matches WRONG to dotnet today. npm is the Node package manager; add 'npm' alias to node_js. [unlocked by step-2 alias]"
     },
     {
       "mention": "React 18",
@@ -1168,10 +1161,8 @@
         "manual_testing"
       ],
       "category": "abbrev",
-      "requires": [
-        "alias"
-      ],
-      "note": "normalizeKey='qa' fuzzy-matches WRONG to javascript today. QA (quality assurance) best maps to manual_testing; add 'qa' alias."
+      "requires": [],
+      "note": "normalizeKey='qa' fuzzy-matches WRONG to javascript today. QA (quality assurance) best maps to manual_testing; add 'qa' alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Tiếng Anh",
@@ -1200,10 +1191,8 @@
         "communication"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "Existing alias is bare 'giao tiếp' which resolves today, but the very common CV phrasing 'kỹ năng giao tiếp' does NOT (NONE today). Add 'kỹ năng giao tiếp' as alias on communication."
+      "requires": [],
+      "note": "Existing alias is bare 'giao tiếp' which resolves today, but the very common CV phrasing 'kỹ năng giao tiếp' does NOT (NONE today). Add 'kỹ năng giao tiếp' as alias on communication. [unlocked by step-2 alias]"
     },
     {
       "mention": "Giao tiếp",
@@ -1347,10 +1336,8 @@
         "sql"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'cơ sở dữ liệu' = databases generically. Most defensible single canonical = sql (the DB skill students actually mean). database_design is narrower (modeling/ERD), so sql is the better target. Add 'cơ sở dữ liệu' alias on sql."
+      "requires": [],
+      "note": "NONE today. 'cơ sở dữ liệu' = databases generically. Most defensible single canonical = sql (the DB skill students actually mean). database_design is narrower (modeling/ERD), so sql is the better target. Add 'cơ sở dữ liệu' alias on sql. [unlocked by step-2 alias]"
     },
     {
       "mention": "Quản trị cơ sở dữ liệu",
@@ -1359,10 +1346,8 @@
         "sql"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Database administration'. No dba canonical; closest defensible single = sql. Add alias on sql."
+      "requires": [],
+      "note": "NONE today. 'Database administration'. No dba canonical; closest defensible single = sql. Add alias on sql. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kiểm thử phần mềm",
@@ -1371,10 +1356,8 @@
         "manual_testing"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. Generic 'software testing'. Most defensible single canonical = manual_testing (the broad testing skill); add 'kiểm thử phần mềm' alias there."
+      "requires": [],
+      "note": "NONE today. Generic 'software testing'. Most defensible single canonical = manual_testing (the broad testing skill); add 'kiểm thử phần mềm' alias there. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kiểm thử tự động",
@@ -1383,10 +1366,8 @@
         "test_automation"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Automated testing' maps cleanly to test_automation. Add VI alias."
+      "requires": [],
+      "note": "NONE today. 'Automated testing' maps cleanly to test_automation. Add VI alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Tự động hóa kiểm thử",
@@ -1395,10 +1376,8 @@
         "test_automation"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. Alternate phrasing of automated testing -> test_automation. Add VI alias."
+      "requires": [],
+      "note": "NONE today. Alternate phrasing of automated testing -> test_automation. Add VI alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kiểm thử thủ công",
@@ -1407,10 +1386,8 @@
         "manual_testing"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. Direct VI of 'manual testing' -> manual_testing. Add VI alias."
+      "requires": [],
+      "note": "NONE today. Direct VI of 'manual testing' -> manual_testing. Add VI alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kiểm thử API",
@@ -1419,10 +1396,8 @@
         "api_testing"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'API testing' -> api_testing. Add VI alias 'kiểm thử api'."
+      "requires": [],
+      "note": "NONE today. 'API testing' -> api_testing. Add VI alias 'kiểm thử api'. [unlocked by step-2 alias]"
     },
     {
       "mention": "Lập trình hướng đối tượng",
@@ -1443,10 +1418,8 @@
         "machine_learning"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Artificial Intelligence'. No 'ai' canonical; machine_learning is the most defensible single target in this taxonomy. Add 'trí tuệ nhân tạo' alias on machine_learning."
+      "requires": [],
+      "note": "NONE today. 'Artificial Intelligence'. No 'ai' canonical; machine_learning is the most defensible single target in this taxonomy. Add 'trí tuệ nhân tạo' alias on machine_learning. [unlocked by step-2 alias]"
     },
     {
       "mention": "Phân tích dữ liệu",
@@ -1467,10 +1440,8 @@
         "data_visualization"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (only the longer 'trực quan hóa dữ liệu' is aliased). Add short form 'trực quan hóa' alias on data_visualization."
+      "requires": [],
+      "note": "NONE today (only the longer 'trực quan hóa dữ liệu' is aliased). Add short form 'trực quan hóa' alias on data_visualization. [unlocked by step-2 alias]"
     },
     {
       "mention": "Điện toán đám mây",
@@ -1479,10 +1450,8 @@
         "cloud_aws"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Cloud computing'. Only cloud canonical is cloud_aws (AWS); most defensible single target. Add 'điện toán đám mây' alias on cloud_aws."
+      "requires": [],
+      "note": "NONE today. 'Cloud computing'. Only cloud canonical is cloud_aws (AWS); most defensible single target. Add 'điện toán đám mây' alias on cloud_aws. [unlocked by step-2 alias]"
     },
     {
       "mention": "Quản lý dự án",
@@ -1491,10 +1460,8 @@
         "agile_scrum"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Project management'. No project_management canonical; the closest defensible single is agile_scrum (process). Add VI alias there; a dedicated project_management canonical would be cleaner future work."
+      "requires": [],
+      "note": "NONE today. 'Project management'. No project_management canonical; the closest defensible single is agile_scrum (process). Add VI alias there; a dedicated project_management canonical would be cleaner future work. [unlocked by step-2 alias]"
     },
     {
       "mention": "Tiếng Nhật",
@@ -1535,10 +1502,8 @@
         "networking"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Computer networking' -> networking. Add VI alias."
+      "requires": [],
+      "note": "NONE today. 'Computer networking' -> networking. Add VI alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Hệ điều hành Linux",
@@ -1547,10 +1512,8 @@
         "linux"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Linux OS' -> linux. Add VI alias 'hệ điều hành linux'."
+      "requires": [],
+      "note": "NONE today. 'Linux OS' -> linux. Add VI alias 'hệ điều hành linux'. [unlocked by step-2 alias]"
     },
     {
       "mention": "Bảo mật",
@@ -1614,10 +1577,8 @@
         "communication"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Technical writing/documentation' -> closest defensible single is communication (written communication is an alias). Add 'viết tài liệu kỹ thuật' alias on communication."
+      "requires": [],
+      "note": "NONE today. 'Technical writing/documentation' -> closest defensible single is communication (written communication is an alias). Add 'viết tài liệu kỹ thuật' alias on communication. [unlocked by step-2 alias]"
     },
     {
       "mention": "Lập trình Python",
@@ -1626,10 +1587,8 @@
         "python"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (no 'Lập trình Python' alias, unlike the curated JS/React/Swift VI aliases). Add 'Lập trình Python' alias on python."
+      "requires": [],
+      "note": "NONE today (no 'Lập trình Python' alias, unlike the curated JS/React/Swift VI aliases). Add 'Lập trình Python' alias on python. [unlocked by step-2 alias]"
     },
     {
       "mention": "Lập trình Java",
@@ -1638,10 +1597,8 @@
         "java"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. Parallel gap to Python; add 'Lập trình Java' alias on java."
+      "requires": [],
+      "note": "NONE today. Parallel gap to Python; add 'Lập trình Java' alias on java. [unlocked by step-2 alias]"
     },
     {
       "mention": "Quản lý mã nguồn",
@@ -1650,10 +1607,8 @@
         "git"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Source code management / version control' -> git (alias 'version control' exists in EN). Add VI 'quản lý mã nguồn' alias on git."
+      "requires": [],
+      "note": "NONE today. 'Source code management / version control' -> git (alias 'version control' exists in EN). Add VI 'quản lý mã nguồn' alias on git. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kiểm soát phiên bản",
@@ -1662,10 +1617,8 @@
         "git"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. Direct VI of 'version control' -> git. Add VI alias."
+      "requires": [],
+      "note": "NONE today. Direct VI of 'version control' -> git. Add VI alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Thiết kế giao diện",
@@ -1674,10 +1627,8 @@
         "responsive_design"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'UI design'. No ui_design canonical; closest defensible single in taxonomy is responsive_design (front-end UI skill). Add VI alias there."
+      "requires": [],
+      "note": "NONE today. 'UI design'. No ui_design canonical; closest defensible single in taxonomy is responsive_design (front-end UI skill). Add VI alias there. [unlocked by step-2 alias]"
     },
     {
       "mention": "Lập trình React Native",
@@ -1686,10 +1637,8 @@
         "react_native"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (the 'Lập trình X' VI prefix is only aliased for react/js/swift). Add 'Lập trình React Native' alias on react_native."
+      "requires": [],
+      "note": "NONE today (the 'Lập trình X' VI prefix is only aliased for react/js/swift). Add 'Lập trình React Native' alias on react_native. [unlocked by step-2 alias]"
     },
     {
       "mention": "Học sâu",
@@ -1698,10 +1647,8 @@
         "machine_learning"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML)."
+      "requires": [],
+      "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML). [unlocked by step-2 alias]"
     },
     {
       "mention": "Khoa học dữ liệu",
@@ -1710,10 +1657,8 @@
         "machine_learning"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Data science' umbrella; no data_science canonical. Most defensible single existing target = machine_learning. Add VI alias; future dedicated canonical preferable."
+      "requires": [],
+      "note": "NONE today. 'Data science' umbrella; no data_science canonical. Most defensible single existing target = machine_learning. Add VI alias; future dedicated canonical preferable. [unlocked by step-2 alias]"
     },
     {
       "mention": "CSDL",
@@ -1748,10 +1693,8 @@
         "etl"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Big data analysis'. Closest defensible single existing canonical = etl (data engineering/pipelines). Add VI alias; big-data has no dedicated canonical."
+      "requires": [],
+      "note": "NONE today. 'Big data analysis'. Closest defensible single existing canonical = etl (data engineering/pipelines). Add VI alias; big-data has no dedicated canonical. [unlocked by step-2 alias]"
     },
     {
       "mention": "Triển khai CI/CD",
@@ -1760,10 +1703,8 @@
         "ci_cd"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (the verb prefix 'triển khai' blocks the exact 'ci/cd' match). Add 'triển khai ci/cd' alias on ci_cd, or rely on future stage-0 verb stripping."
+      "requires": [],
+      "note": "NONE today (the verb prefix 'triển khai' blocks the exact 'ci/cd' match). Add 'triển khai ci/cd' alias on ci_cd, or rely on future stage-0 verb stripping. [unlocked by step-2 alias]"
     },
     {
       "mention": "Sử dụng Git",
@@ -1772,11 +1713,8 @@
         "git"
       ],
       "category": "expansion",
-      "requires": [
-        "prenormalize",
-        "alias"
-      ],
-      "note": "NONE today (verb prefix 'sử dụng' blocks 'git' exact match). Needs stage-0 to strip the VI verb prefix, or add explicit alias. Target = git."
+      "requires": [],
+      "note": "NONE today (verb prefix 'sử dụng' blocks 'git' exact match). Needs stage-0 to strip the VI verb prefix, or add explicit alias. Target = git. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kỹ năng thuyết trình",
@@ -1785,10 +1723,8 @@
         "communication"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'Presentation skills' -> communication (alias 'presentation' exists in EN). Add VI 'kỹ năng thuyết trình'/'thuyết trình' alias."
+      "requires": [],
+      "note": "NONE today. 'Presentation skills' -> communication (alias 'presentation' exists in EN). Add VI 'kỹ năng thuyết trình'/'thuyết trình' alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Tiếng Anh giao tiếp",
@@ -1797,10 +1733,8 @@
         "english_proficiency"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (compound phrase 'conversational English' is not the bare 'tiếng anh' key). Add 'tiếng anh giao tiếp' alias on english_proficiency, or stage-0 to reduce to 'tiếng anh'."
+      "requires": [],
+      "note": "NONE today (compound phrase 'conversational English' is not the bare 'tiếng anh' key). Add 'tiếng anh giao tiếp' alias on english_proficiency, or stage-0 to reduce to 'tiếng anh'. [unlocked by step-2 alias]"
     },
     {
       "mention": "Quản trị hệ thống",
@@ -1809,10 +1743,8 @@
         "linux"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today. 'System administration'. No sysadmin canonical; most defensible single is linux (shell/ops skill). Add VI alias on linux."
+      "requires": [],
+      "note": "NONE today. 'System administration'. No sysadmin canonical; most defensible single is linux (shell/ops skill). Add VI alias on linux. [unlocked by step-2 alias]"
     },
     {
       "mention": "Kỹ năng làm việc nhóm",
@@ -1821,10 +1753,8 @@
         "teamwork"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "NONE today (bare 'làm việc nhóm' resolves, but the 'kỹ năng ...' prefixed CV phrasing does not). Add 'kỹ năng làm việc nhóm' alias on teamwork, or stage-0 to strip 'kỹ năng' prefix."
+      "requires": [],
+      "note": "NONE today (bare 'làm việc nhóm' resolves, but the 'kỹ năng ...' prefixed CV phrasing does not). Add 'kỹ năng làm việc nhóm' alias on teamwork, or stage-0 to strip 'kỹ năng' prefix. [unlocked by step-2 alias]"
     },
     {
       "mention": "Express.js",
@@ -2022,10 +1952,8 @@
         "database_design"
       ],
       "category": "vi",
-      "requires": [
-        "alias"
-      ],
-      "note": "Existing VN alias is 'thiết kế database' ('thiếtkếdatabase'); 'thiết kế cơ sở dữ liệu' ('thiếtkếcơsởdữliệu') is NONE today and too far for fuzzy. Needs a new VN alias on database_design."
+      "requires": [],
+      "note": "Existing VN alias is 'thiết kế database' ('thiếtkếdatabase'); 'thiết kế cơ sở dữ liệu' ('thiếtkếcơsởdữliệu') is NONE today and too far for fuzzy. Needs a new VN alias on database_design. [unlocked by step-2 alias]"
     },
     {
       "mention": "Tư duy logic",
@@ -2034,10 +1962,8 @@
         "critical_thinking"
       ],
       "category": "vi",
-      "requires": [
-        "alias"
-      ],
-      "note": "critical_thinking has 'logical thinking' and 'tư duy phản biện' but not 'tư duy logic' ('tưduylogic'), which is NONE today. Common VN CV phrase; add as alias."
+      "requires": [],
+      "note": "critical_thinking has 'logical thinking' and 'tư duy phản biện' but not 'tư duy logic' ('tưduylogic'), which is NONE today. Common VN CV phrase; add as alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Vue.js",
@@ -2510,11 +2436,8 @@
         "swift"
       ],
       "category": "abbrev",
-      "requires": [
-        "alias",
-        "prenormalize"
-      ],
-      "note": "iOS → swift umbrella (alias 'ios swift' exists, bare 'ios' does not). Today ios→css@d2 FALSE → guard + alias."
+      "requires": [],
+      "note": "iOS → swift umbrella (alias 'ios swift' exists, bare 'ios' does not). Today ios→css@d2 FALSE → guard + alias. [unlocked by step-2 alias]"
     },
     {
       "mention": "Vercel",
@@ -2533,11 +2456,8 @@
         "flutter"
       ],
       "category": "alias",
-      "requires": [
-        "alias",
-        "prenormalize"
-      ],
-      "note": "Dart → flutter umbrella (ecosystem); today fuzzy risk dax/dbt@d2 → guard."
+      "requires": [],
+      "note": "Dart → flutter umbrella (ecosystem); today fuzzy risk dax/dbt@d2 → guard. [unlocked by step-2 alias]"
     },
     {
       "mention": "React.js",
@@ -2688,10 +2608,8 @@
         "java"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "Bare 'spring' -> NONE today (only 'spring boot' aliased, fuzzy too far). Add 'spring' as alias of java."
+      "requires": [],
+      "note": "Bare 'spring' -> NONE today (only 'spring boot' aliased, fuzzy too far). Add 'spring' as alias of java. [unlocked by step-2 alias]"
     },
     {
       "mention": "Spring MVC",
@@ -2700,10 +2618,8 @@
         "java"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "springmvc -> NONE today; far from 'spring boot' fuzzy. Add 'spring mvc'/'spring' alias to java."
+      "requires": [],
+      "note": "springmvc -> NONE today; far from 'spring boot' fuzzy. Add 'spring mvc'/'spring' alias to java. [unlocked by step-2 alias]"
     },
     {
       "mention": "sklearn",
@@ -2712,10 +2628,8 @@
         "machine_learning"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "sklearn -> NONE today (only 'scikit-learn' aliased, fuzzy too far). Add 'sklearn' alias to machine_learning."
+      "requires": [],
+      "note": "sklearn -> NONE today (only 'scikit-learn' aliased, fuzzy too far). Add 'sklearn' alias to machine_learning. [unlocked by step-2 alias]"
     },
     {
       "mention": "agile",
@@ -2724,10 +2638,8 @@
         "agile_scrum"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "bare 'agile' -> NONE today (aliases have 'agile methodology' not bare 'agile'; fuzzy too far). Add alias 'agile'."
+      "requires": [],
+      "note": "bare 'agile' -> NONE today (aliases have 'agile methodology' not bare 'agile'; fuzzy too far). Add alias 'agile'. [unlocked by step-2 alias]"
     },
     {
       "mention": "Scrum",
@@ -2736,10 +2648,8 @@
         "agile_scrum"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "bare 'scrum' -> NONE today. Add alias 'scrum' to agile_scrum."
+      "requires": [],
+      "note": "bare 'scrum' -> NONE today. Add alias 'scrum' to agile_scrum. [unlocked by step-2 alias]"
     },
     {
       "mention": "DevOps",
@@ -2748,10 +2658,8 @@
         "ci_cd"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "devops -> NONE today. Add 'devops' alias (best fit ci_cd)."
+      "requires": [],
+      "note": "devops -> NONE today. Add 'devops' alias (best fit ci_cd). [unlocked by step-2 alias]"
     },
     {
       "mention": "Trello",
@@ -2760,10 +2668,8 @@
         "agile_scrum"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "trello -> NONE today. Project-board tool; add as alias of agile_scrum (or bug_tracking_jira)."
+      "requires": [],
+      "note": "trello -> NONE today. Project-board tool; add as alias of agile_scrum (or bug_tracking_jira). [unlocked by step-2 alias]"
     },
     {
       "mention": "Confluence",
@@ -2772,10 +2678,8 @@
         "agile_scrum"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "confluence -> NONE today. Atlassian collab tool; add alias to agile_scrum."
+      "requires": [],
+      "note": "confluence -> NONE today. Atlassian collab tool; add alias to agile_scrum. [unlocked by step-2 alias]"
     },
     {
       "mention": "Oracle",
@@ -2784,10 +2688,8 @@
         "sql"
       ],
       "category": "alias",
-      "requires": [
-        "alias"
-      ],
-      "note": "oracle/oracle db -> NONE today (not in sql aliases). Add 'oracle' alias to sql."
+      "requires": [],
+      "note": "oracle/oracle db -> NONE today (not in sql aliases). Add 'oracle' alias to sql. [unlocked by step-2 alias]"
     },
     {
       "mention": "Node 18",
