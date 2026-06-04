@@ -25,10 +25,14 @@ function renderButton(label: string, url: string): string {
 }
 
 export function renderEmailLayout(content: EmailTemplateContent): string {
-  const eyebrow = content.eyebrow ? `<p style="margin: 0 0 10px; color: ${emailTheme.colors.textInverse}; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">${escapeHtml(content.eyebrow)}</p>` : '';
-  const cta = content.ctaLabel && content.ctaUrl ? renderButton(content.ctaLabel, content.ctaUrl) : '';
-  const fallback = content.fallbackLabel && content.fallbackUrl
-    ? `
+  const eyebrow = content.eyebrow
+    ? `<p style="margin: 0 0 10px; color: ${emailTheme.colors.textInverse}; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;">${escapeHtml(content.eyebrow)}</p>`
+    : '';
+  const cta =
+    content.ctaLabel && content.ctaUrl ? renderButton(content.ctaLabel, content.ctaUrl) : '';
+  const fallback =
+    content.fallbackLabel && content.fallbackUrl
+      ? `
       <div style="margin-top: 22px; padding-top: 18px; border-top: 1px solid ${emailTheme.colors.cardBorder};">
         <p style="margin: 0 0 8px; color: ${emailTheme.colors.textMuted}; font-size: 13px; line-height: 1.6;">
           ${escapeHtml(content.fallbackLabel)}
@@ -40,7 +44,7 @@ export function renderEmailLayout(content: EmailTemplateContent): string {
         </p>
       </div>
     `
-    : '';
+      : '';
   const note = content.note
     ? `<p style="margin: 24px 0 0; color: ${emailTheme.colors.textMuted}; font-size: 13px; line-height: 1.7; text-align: center;">${escapeHtml(content.note)}</p>`
     : '';
