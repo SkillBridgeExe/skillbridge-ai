@@ -36,8 +36,8 @@ export const configValidationSchema = Joi.object({
   GEMINI_MODEL_DEFAULT: Joi.string().default('gemini-2.0-flash'),
   GEMINI_MODEL_EMBEDDING: Joi.string().default('text-embedding-004'),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
-  OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-4o-mini'),
-  OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-small'),
+  OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-5.4-mini'),
+  OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),
 
   // Database
   DATABASE_URL: Joi.string()
@@ -66,10 +66,15 @@ export const configValidationSchema = Joi.object({
     otherwise: Joi.string().min(1).required(),
   }),
 
-  // Vector
-  VECTOR_DIMENSION: Joi.number().integer().positive().default(768),
+  // Vector — dimension MUST match skill_embeddings vector(1024) + the OpenAI dimensions param.
+  VECTOR_DIMENSION: Joi.number().integer().positive().default(1024),
   VECTOR_TABLE: Joi.string().default('document_chunks'),
   VECTOR_COLUMN: Joi.string().default('embedding'),
+  VECTOR_EMBEDDING_VERSION: Joi.string().default('v1'),
+
+  // Semantic fallback tier (3-band gate; tuned by pnpm eval:semantic)
+  SEMANTIC_ACCEPT_THRESHOLD: Joi.number().min(0).max(1).default(0.78),
+  SEMANTIC_REVIEW_BAND: Joi.number().min(0).max(0.3).default(0.08),
 
   // Observability
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug', 'verbose').default('debug'),

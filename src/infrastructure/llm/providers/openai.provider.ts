@@ -99,16 +99,33 @@ export class OpenAiProvider implements LlmProviderClient {
 
   async embed(text: string, options: LlmEmbedOptions): Promise<LlmEmbedResult> {
     const modelCode = options.model ?? this.config.get<string>('llm.openai.modelEmbedding') ?? '';
+    // Dimension contract: the vector MUST match the pgvector column width. The `dimensions`
+    // param makes OpenAI shorten via Matryoshka AND return a unit-length vector (verified:
+    // no manual re-normalization needed on this path).
+    const dimensions = options.dimensions ?? this.config.get<number>('vector.dimension');
 
     const start = Date.now();
     const response = await this.getClient().embeddings.create({
       model: modelCode,
       input: text,
+      ...(dimensions ? { dimensions: Number(dimensions) } : {}),
     });
     const latencyMs = Date.now() - start;
 
+    let embedding = response.data[0]?.embedding ?? [];
+    if (dimensions && embedding.length !== Number(dimensions)) {
+      throw new Error(
+        `Embedding dimension contract violated: expected ${dimensions}, got ${embedding.length} (model=${modelCode})`,
+      );
+    }
+    // Defensive: should already be unit-length; re-normalize only if it measurably is not.
+    const norm = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+    if (norm > 0 && Math.abs(norm - 1) > 1e-3) {
+      embedding = embedding.map((v) => v / norm);
+    }
+
     return {
-      embedding: response.data[0]?.embedding ?? [],
+      embedding,
       modelCode,
       provider: 'openai',
       tokenUsage: response.usage?.total_tokens ?? 0,
