@@ -28,6 +28,7 @@
     "eval:accuracy": "ts-node -r tsconfig-paths/register src/calibration/eval-accuracy.ts",
     "eval:mentions": "ts-node -r tsconfig-paths/register src/calibration/eval-mentions.ts",
     "eval:match": "ts-node -r tsconfig-paths/register src/calibration/eval-match.ts",
+    "taxonomy:validate": "ts-node -r tsconfig-paths/register src/tools/validate-taxonomy.ts",
     "dev": "nest start --watch"
   },
   "dependencies": {
