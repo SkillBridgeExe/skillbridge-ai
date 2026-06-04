@@ -257,7 +257,8 @@
         "cơ sở dữ liệu quan hệ",
         "co so du lieu quan he",
         "csdl",
-        "postgres"
+        "postgres",
+        "relational databases"
       ]
     },
     {
@@ -366,7 +367,8 @@
         "continuous deployment",
         "devops",
         "triển khai ci/cd",
-        "trien khai ci/cd"
+        "trien khai ci/cd",
+        "continuous delivery"
       ]
     },
     {
@@ -864,7 +866,8 @@
         "kiểm thử tự động",
         "kiem thu tu dong",
         "tự động hóa kiểm thử",
-        "tu dong hoa kiem thu"
+        "tu dong hoa kiem thu",
+        "writing automated test scripts"
       ]
     },
     {
@@ -1361,7 +1364,9 @@
       "aliases": [
         "object orientation",
         "lập trình hướng đối tượng",
-        "lap trinh huong doi tuong"
+        "lap trinh huong doi tuong",
+        "object oriented design",
+        "principles of object oriented programming"
       ],
       "role_relevance": [
         {
@@ -1505,7 +1510,8 @@
         "mạng nơ-ron",
         "mang no ron",
         "mạng neural",
-        "học sâu deep learning"
+        "học sâu deep learning",
+        "mạng thần kinh nhân tạo"
       ],
       "role_relevance": [
         {
@@ -1532,7 +1538,8 @@
         "named entity recognition",
         "ner",
         "xử lý ngôn ngữ tự nhiên",
-        "xu ly ngon ngu tu nhien"
+        "xu ly ngon ngu tu nhien",
+        "natural language understanding"
       ],
       "role_relevance": [
         {
@@ -1750,7 +1757,8 @@
       "aliases": [
         "kafka streams",
         "event streaming",
-        "message streaming"
+        "message streaming",
+        "distributed event streaming"
       ],
       "role_relevance": [
         {
