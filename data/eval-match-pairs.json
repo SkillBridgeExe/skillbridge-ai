@@ -1,5 +1,5 @@
 {
-  "$note": "R2 eval set #2 — CV→role match pairs for match-formula quality (blueprint §5). expected_overall = EXPERT band; current_formula_score = author-computed baseline under today's formula. Gate: pnpm eval:match.",
+  "$note": "R2 eval set #2 — CV→role match pairs for match-formula quality (blueprint §5). expected_overall = EXPERT band; current_formula_score = author-computed baseline under today's formula. Gate: pnpm eval:match. current_formula_score refreshed for the step-5 formula (importance multipliers + convex partial + coverage cap).",
   "version": "eval-match-pairs-v1",
   "created_at": "2026-06-04",
   "pairs": [
@@ -56,7 +56,8 @@
         0.95,
         1
       ],
-      "rationale": "Representative STRONG frontend. Per-skill strength: html(5>=3)=1, css(4>=4)=1, javascript(4>=4)=1, typescript(4>=3)=1, react(4>=4)=1, responsive_design(4>=3)=1, git(4>=3)=1, web_performance via 'Lighthouse'(3>=2)=1, frontend_testing via 'Jest'(3>=2)=1, communication via 'giao tiếp'(4>=3)=1. Missing: accessibility_a11y(w0.05), nextjs(w0.04). achieved=0.91, wsum=1.0 -> current_formula_score=91. Expert: solid senior-ready FE; only soft gaps (a11y, Next.js) which are PREFERRED/NICE -> band aligns with formula, slightly wider downward to allow for the two real gaps. Note 'Lighthouse'->web_performance, 'Jest'->frontend_testing both via alias today."
+      "rationale": "Representative STRONG frontend. Per-skill strength: html(5>=3)=1, css(4>=4)=1, javascript(4>=4)=1, typescript(4>=3)=1, react(4>=4)=1, responsive_design(4>=3)=1, git(4>=3)=1, web_performance via 'Lighthouse'(3>=2)=1, frontend_testing via 'Jest'(3>=2)=1, communication via 'giao tiếp'(4>=3)=1. Missing: accessibility_a11y(w0.05), nextjs(w0.04). achieved=0.91, wsum=1.0 -> current_formula_score=91. Expert: solid senior-ready FE; only soft gaps (a11y, Next.js) which are PREFERRED/NICE -> band aligns with formula, slightly wider downward to allow for the two real gaps. Note 'Lighthouse'->web_performance, 'Jest'->frontend_testing both via alias today.",
+      "current_formula_score": 95
     },
     {
       "id": "match-be-mid-levelgaps",
@@ -103,7 +104,8 @@
         0.5,
         0.7
       ],
-      "rationale": "Representative MID backend with level gaps. Strengths: node_js(3>=3)=1, database_design(3>=3)=1, git(3>=3)=1, docker via 'Docker'(2>=2)=1, communication(3>=3)=1. Partials: sql via 'MySQL'(3/4=0.75), rest_api(3/4=0.75), authentication_authorization via 'JWT'(2/3=0.667). Missing: dotnet, nosql, caching, api_testing, linux. achieved=0.6167, wsum=1.0 -> current_formula_score=62. Expert: a mid-level junior BE — has the spine (Node/SQL/REST/DB/auth) but every core skill is one level short and breadth gaps (no NoSQL/caching/testing). Band ~62 is fair; allow downward room since the two heaviest REQUIRED (sql w0.15, rest_api w0.13) are only partial. 'MySQL'->sql, 'JWT'->authentication_authorization via alias."
+      "rationale": "Representative MID backend with level gaps. Strengths: node_js(3>=3)=1, database_design(3>=3)=1, git(3>=3)=1, docker via 'Docker'(2>=2)=1, communication(3>=3)=1. Partials: sql via 'MySQL'(3/4=0.75), rest_api(3/4=0.75), authentication_authorization via 'JWT'(2/3=0.667). Missing: dotnet, nosql, caching, api_testing, linux. achieved=0.6167, wsum=1.0 -> current_formula_score=62. Expert: a mid-level junior BE — has the spine (Node/SQL/REST/DB/auth) but every core skill is one level short and breadth gaps (no NoSQL/caching/testing). Band ~62 is fair; allow downward room since the two heaviest REQUIRED (sql w0.15, rest_api w0.13) are only partial. 'MySQL'->sql, 'JWT'->authentication_authorization via alias.",
+      "current_formula_score": 63
     },
     {
       "id": "match-fullstack-mid",
@@ -162,7 +164,8 @@
         0.6,
         0.8
       ],
-      "rationale": "Representative MID fullstack — classic FE-leaning junior with thin backend. Matches: html(4>=3)=1, css via 'Tailwind CSS'(4>=3)=1, javascript(4>=4)=1, typescript(3>=3)=1, react(4>=3)=1, git via 'GitHub'(4>=3)=1, communication(3>=3)=1. Partials: node_js via 'Express.js'(2/3=0.667), sql via 'PostgreSQL'(2/3=0.667), rest_api(3/4=0.75), database_design via 'Data Modeling'(2/3=0.667). Missing: authentication_authorization(w0.07), docker(w0.04), system_design(w0.02). achieved=0.7375, wsum=1.0 -> current_formula_score=74. Expert: competent on FE, real but shallow BE, no auth — a believable mid fullstack; band brackets 74. 'Tailwind CSS'/'PostgreSQL'/'Express.js'/'Data Modeling'/'GitHub' all alias-resolve today."
+      "rationale": "Representative MID fullstack — classic FE-leaning junior with thin backend. Matches: html(4>=3)=1, css via 'Tailwind CSS'(4>=3)=1, javascript(4>=4)=1, typescript(3>=3)=1, react(4>=3)=1, git via 'GitHub'(4>=3)=1, communication(3>=3)=1. Partials: node_js via 'Express.js'(2/3=0.667), sql via 'PostgreSQL'(2/3=0.667), rest_api(3/4=0.75), database_design via 'Data Modeling'(2/3=0.667). Missing: authentication_authorization(w0.07), docker(w0.04), system_design(w0.02). achieved=0.7375, wsum=1.0 -> current_formula_score=74. Expert: competent on FE, real but shallow BE, no auth — a believable mid fullstack; band brackets 74. 'Tailwind CSS'/'PostgreSQL'/'Express.js'/'Data Modeling'/'GitHub' all alias-resolve today.",
+      "current_formula_score": 70
     },
     {
       "id": "match-da-mid",
@@ -213,7 +216,8 @@
         0.85,
         1
       ],
-      "rationale": "Representative MID-STRONG data analyst. Matches: sql(4>=4)=1, excel(4>=4)=1, python(3>=3)=1, pandas(3>=3)=1, data_visualization(3>=3)=1, communication(4>=4)=1, problem_solving(4>=4)=1, critical_thinking(3>=3)=1. Partial: statistics via 'thống kê'(2/3=0.667). Missing: tableau(w0.07), power_bi(w0.07). achieved=0.8267, wsum=1.0 -> current_formula_score=83. Expert: strong analyst — full SQL+Excel+Python core, only BI dashboards (Tableau/Power BI) absent and stats slightly thin. Band ~83 fair, slight downward room for missing BI tooling. 'thống kê'->statistics via VN alias."
+      "rationale": "Representative MID-STRONG data analyst. Matches: sql(4>=4)=1, excel(4>=4)=1, python(3>=3)=1, pandas(3>=3)=1, data_visualization(3>=3)=1, communication(4>=4)=1, problem_solving(4>=4)=1, critical_thinking(3>=3)=1. Partial: statistics via 'thống kê'(2/3=0.667). Missing: tableau(w0.07), power_bi(w0.07). achieved=0.8267, wsum=1.0 -> current_formula_score=83. Expert: strong analyst — full SQL+Excel+Python core, only BI dashboards (Tableau/Power BI) absent and stats slightly thin. Band ~83 fair, slight downward room for missing BI tooling. 'thống kê'->statistics via VN alias.",
+      "current_formula_score": 85
     },
     {
       "id": "match-mobile-mid",
@@ -276,7 +280,8 @@
         0.75,
         0.95
       ],
-      "rationale": "Representative MID mobile (Android-focused, no iOS). Note 'Kotlin' + 'Jetpack Compose' both map to kotlin -> max level ADVANCED. Matches: kotlin(4>=4)=1, flutter(3>=3)=1, react_native(3>=3)=1, rest_api(4>=4)=1, firebase(3>=3)=1, git(4>=3)=1, authentication_authorization via 'OAuth2'(3>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1, english_proficiency via 'IELTS'(3>=3)=1. Partial: mobile_testing via 'Appium'(2/3=0.667). Missing: swift(w0.14 REQUIRED), bug_tracking_jira(w0.03). achieved=0.8033, wsum=1.0 -> current_formula_score=80. Expert: strong cross-platform Android dev; the single big hole is iOS/Swift (a heavy REQUIRED). A fair counselor docks for missing iOS but recognizes broad coverage -> band centered just below formula. 'Appium'->mobile_testing, 'IELTS'->english_proficiency via alias."
+      "rationale": "Representative MID mobile (Android-focused, no iOS). Note 'Kotlin' + 'Jetpack Compose' both map to kotlin -> max level ADVANCED. Matches: kotlin(4>=4)=1, flutter(3>=3)=1, react_native(3>=3)=1, rest_api(4>=4)=1, firebase(3>=3)=1, git(4>=3)=1, authentication_authorization via 'OAuth2'(3>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1, english_proficiency via 'IELTS'(3>=3)=1. Partial: mobile_testing via 'Appium'(2/3=0.667). Missing: swift(w0.14 REQUIRED), bug_tracking_jira(w0.03). achieved=0.8033, wsum=1.0 -> current_formula_score=80. Expert: strong cross-platform Android dev; the single big hole is iOS/Swift (a heavy REQUIRED). A fair counselor docks for missing iOS but recognizes broad coverage -> band centered just below formula. 'Appium'->mobile_testing, 'IELTS'->english_proficiency via alias.",
+      "current_formula_score": 79
     },
     {
       "id": "match-devops-mid",
@@ -331,7 +336,8 @@
         0.7,
         0.9
       ],
-      "rationale": "Representative MID DevOps. Matches: docker(4>=4)=1, ci_cd via 'GitHub Actions'(4>=4)=1, cloud_aws(3>=3)=1, linux(4>=4)=1, git(4>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1. Partials: kubernetes(3/4=0.75), infrastructure_as_code via 'Terraform'(3/4=0.75), monitoring_logging via 'Prometheus'(2/3=0.667). Missing: python(w0.07 PREFERRED), networking(w0.07 PREFERRED), system_design(w0.04 NICE). achieved=0.7375, wsum=1.0 -> current_formula_score=74. Expert: solid mid DevOps — owns the container/CI/cloud/IaC core but k8s & IaC under senior bar and no scripting(python)/networking depth. Band brackets 74. 'GitHub Actions'->ci_cd, 'Terraform'->infrastructure_as_code, 'Prometheus'->monitoring_logging via alias."
+      "rationale": "Representative MID DevOps. Matches: docker(4>=4)=1, ci_cd via 'GitHub Actions'(4>=4)=1, cloud_aws(3>=3)=1, linux(4>=4)=1, git(4>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1. Partials: kubernetes(3/4=0.75), infrastructure_as_code via 'Terraform'(3/4=0.75), monitoring_logging via 'Prometheus'(2/3=0.667). Missing: python(w0.07 PREFERRED), networking(w0.07 PREFERRED), system_design(w0.04 NICE). achieved=0.7375, wsum=1.0 -> current_formula_score=74. Expert: solid mid DevOps — owns the container/CI/cloud/IaC core but k8s & IaC under senior bar and no scripting(python)/networking depth. Band brackets 74. 'GitHub Actions'->ci_cd, 'Terraform'->infrastructure_as_code, 'Prometheus'->monitoring_logging via alias.",
+      "current_formula_score": 77
     },
     {
       "id": "match-qa-weak",
@@ -362,7 +368,8 @@
         0.1,
         0.25
       ],
-      "rationale": "Representative WEAK QA — a student who only shadowed manual testing. Partials: manual_testing(2/4=0.5, w0.18), bug_tracking_jira via 'Defect Management'(2/3=0.667, w0.12). Matches: agile_scrum via 'Kanban'(2>=2)=1, w0.06; communication(3>=3)=1, w0.05. Missing: test_automation(w0.15), api_testing(w0.12), database_testing(w0.10), sql(w0.10), problem_solving(w0.08), git(w0.03), english_proficiency(w0.01). achieved=0.28, wsum=1.0 -> current_formula_score=28. Required fully-met = communication only ≈1/6 = 0.167. Expert: not hireable as QA yet — no automation, no API/DB/SQL testing; band ~28 is fair and stays low. 'Defect Management'->bug_tracking_jira (note: 'Jira' itself would map to agile_scrum, so I used 'Defect Management' to legitimately hit bug_tracking_jira), 'Kanban'->agile_scrum."
+      "rationale": "Representative WEAK QA — a student who only shadowed manual testing. Partials: manual_testing(2/4=0.5, w0.18), bug_tracking_jira via 'Defect Management'(2/3=0.667, w0.12). Matches: agile_scrum via 'Kanban'(2>=2)=1, w0.06; communication(3>=3)=1, w0.05. Missing: test_automation(w0.15), api_testing(w0.12), database_testing(w0.10), sql(w0.10), problem_solving(w0.08), git(w0.03), english_proficiency(w0.01). achieved=0.28, wsum=1.0 -> current_formula_score=28. Required fully-met = communication only ≈1/6 = 0.167. Expert: not hireable as QA yet — no automation, no API/DB/SQL testing; band ~28 is fair and stays low. 'Defect Management'->bug_tracking_jira (note: 'Jira' itself would map to agile_scrum, so I used 'Defect Management' to legitimately hit bug_tracking_jira), 'Kanban'->agile_scrum.",
+      "current_formula_score": 24
     },
     {
       "id": "match-aiml-mid",
@@ -418,7 +425,7 @@
         1
       ],
       "rationale": "Representative MID-STRONG AI/ML. Note: hitting pytorch_tensorflow requires 'tf' (both 'PyTorch' and 'TensorFlow' alias-resolve to machine_learning since they appear first there; only 'tf' resolves to pytorch_tensorflow today). Matches: python(4>=4)=1, pytorch_tensorflow via 'tf'(4>=4)=1, machine_learning(4>=4)=1, sql(3>=3)=1, pandas(3>=3)=1, data_preprocessing via 'Feature Engineering'(3>=3)=1, problem_solving(4>=4)=1, git(3>=3)=1, communication(3>=3)=1. Partial: statistics(3/4=0.75). Missing: docker(w0.05 PREFERRED), critical_thinking(w0.01 NICE). achieved=0.77, wsum=1.0 -> current_formula_score=77. Expert: strong applied ML engineer; only stats slightly short of the high bar (req4) and no deployment(docker). Band brackets 77. Flagged dependency on 'tf' alias for framework match. [FIXED: ML hint lowered to INTERMEDIATE per verifier — keeps the pair mid-strength; cfs recomputed 77.] [cfs updated to actual formula output 88; band [68,85] kept as EXPERT target — the +3 overshoot is the linear-partial-credit issue step 5 fixes.]",
-      "current_formula_score": 88
+      "current_formula_score": 82
     },
     {
       "id": "edge-fe-perfect",
@@ -481,7 +488,8 @@
         1,
         1
       ],
-      "rationale": "EDGE (1) perfect-everything FE. Every one of the 12 rubric skills present at EXPERT(5) >= each required_level, so strength=1 for all. css via 'SCSS', web_performance via 'Core Web Vitals', accessibility_a11y via 'WCAG', frontend_testing via 'Cypress' (cypress->frontend_testing under first-writer-wins). achieved=1.0, wsum=1.0 -> current_formula_score=100. Expert agrees this is a top candidate; band [88,100] (lower bound below 100 only because a real counselor reserves perfect-100 skepticism for self-reported all-EXPERT CVs)."
+      "rationale": "EDGE (1) perfect-everything FE. Every one of the 12 rubric skills present at EXPERT(5) >= each required_level, so strength=1 for all. css via 'SCSS', web_performance via 'Core Web Vitals', accessibility_a11y via 'WCAG', frontend_testing via 'Cypress' (cypress->frontend_testing under first-writer-wins). achieved=1.0, wsum=1.0 -> current_formula_score=100. Expert agrees this is a top candidate; band [88,100] (lower bound below 100 only because a real counselor reserves perfect-100 skepticism for self-reported all-EXPERT CVs).",
+      "current_formula_score": 100
     },
     {
       "id": "edge-cross-role-fe-vs-devops",
@@ -528,7 +536,8 @@
         0.1,
         0.3
       ],
-      "rationale": "EDGE (2) cross-role mismatch: a pure senior frontend CV scored against devops_engineer. Almost nothing transfers: only git(4>=3)=1 (w0.05) and communication(4>=3)=1 (w0.02) overlap. The 6 FE-specific skills (html/css/js/ts/react/responsive) are not in the devops rubric so they contribute nothing. Missing all of: docker, kubernetes, ci_cd, cloud_aws, infrastructure_as_code, linux, monitoring_logging, python, networking, system_design, problem_solving. achieved=0.07, wsum=1.0 -> current_formula_score=7. Expert agrees: this person is not a DevOps candidate. Band [0,18] confirms the formula handles cross-role mismatch correctly."
+      "rationale": "EDGE (2) cross-role mismatch: a pure senior frontend CV scored against devops_engineer. Almost nothing transfers: only git(4>=3)=1 (w0.05) and communication(4>=3)=1 (w0.02) overlap. The 6 FE-specific skills (html/css/js/ts/react/responsive) are not in the devops rubric so they contribute nothing. Missing all of: docker, kubernetes, ci_cd, cloud_aws, infrastructure_as_code, linux, monitoring_logging, python, networking, system_design, problem_solving. achieved=0.07, wsum=1.0 -> current_formula_score=7. Expert agrees: this person is not a DevOps candidate. Band [0,18] confirms the formula handles cross-role mismatch correctly.",
+      "current_formula_score": 6
     },
     {
       "id": "edge-levelgap-all-novice",
@@ -591,7 +600,8 @@
         0,
         0.15
       ],
-      "rationale": "EDGE (3) level-gap: ALL 12 FE skills present but EVERY hint NOVICE(2). Hand-computed strengths: the high-bar core skills are all PARTIAL — html(2/3=0.667,w0.08), css(2/4=0.5,w0.10), javascript(2/4=0.5,w0.15), typescript(2/3=0.667,w0.10), react(2/4=0.5,w0.18), responsive_design(2/3=0.667,w0.08), git(2/3=0.667,w0.07), communication(2/3=0.667,w0.02). The four low-bar req2 skills score FULL: web_performance(2>=2)=1, accessibility_a11y(2>=2)=1, frontend_testing(2>=2)=1, nextjs(2>=2)=1 (combined w0.22). achieved=0.6683, wsum=1.0 -> current_formula_score=67. DIVERGENCE: a fair counselor sees a junior who is uniformly level-2 against a rubric whose hardest, heaviest skills demand level-4 (react/css/js = 0.43 of total weight) — they cannot do the job at the required bar. Required-coverage (fully-met) = 0/8 = 0.0. Expert band [42,58] sits well BELOW the formula's 67 because the partial-credit 2/required over-rewards low-bar PREFERRED/NICE skills hitting full match. This gap is exactly what step-5 formula fixes (e.g. required-coverage gate or steeper partial penalty) should close."
+      "rationale": "EDGE (3) level-gap: ALL 12 FE skills present but EVERY hint NOVICE(2). Hand-computed strengths: the high-bar core skills are all PARTIAL — html(2/3=0.667,w0.08), css(2/4=0.5,w0.10), javascript(2/4=0.5,w0.15), typescript(2/3=0.667,w0.10), react(2/4=0.5,w0.18), responsive_design(2/3=0.667,w0.08), git(2/3=0.667,w0.07), communication(2/3=0.667,w0.02). The four low-bar req2 skills score FULL: web_performance(2>=2)=1, accessibility_a11y(2>=2)=1, frontend_testing(2>=2)=1, nextjs(2>=2)=1 (combined w0.22). achieved=0.6683, wsum=1.0 -> current_formula_score=67. DIVERGENCE: a fair counselor sees a junior who is uniformly level-2 against a rubric whose hardest, heaviest skills demand level-4 (react/css/js = 0.43 of total weight) — they cannot do the job at the required bar. Required-coverage (fully-met) = 0/8 = 0.0. Expert band [42,58] sits well BELOW the formula's 67 because the partial-credit 2/required over-rewards low-bar PREFERRED/NICE skills hitting full match. This gap is exactly what step-5 formula fixes (e.g. required-coverage gate or steeper partial penalty) should close.",
+      "current_formula_score": 45
     },
     {
       "id": "edge-missing-required-rich-preferred-da",
@@ -622,7 +632,8 @@
         0,
         0.1
       ],
-      "rationale": "EDGE (4) missing-all-REQUIRED-but-rich-PREFERRED, tests the need for a required_coverage cap. CV has only the 4 PREFERRED skills, all EXPERT: python(5>=3)=1(w0.10), pandas(5>=3)=1(w0.10), tableau(5>=3)=1(w0.07), power_bi(5>=3)=1(w0.07). It has NONE of the 7 REQUIRED skills: sql(w0.20), excel(w0.15), data_visualization(w0.10), statistics(w0.10), communication(w0.05), problem_solving(w0.04), critical_thinking(w0.02) all MISSING. achieved=0.34, wsum=1.0 -> current_formula_score=34. Required-coverage = 0/7 = 0.0. DIVERGENCE: 34 is far too generous — a candidate with zero SQL and zero Excel literally cannot perform the DA core job, regardless of fancy tooling. Expert band [10,28] sits BELOW the formula. This is the canonical case for a required_coverage multiplier/gate in step-5: 0% required coverage should cap the overall well under 30."
+      "rationale": "EDGE (4) missing-all-REQUIRED-but-rich-PREFERRED, tests the need for a required_coverage cap. CV has only the 4 PREFERRED skills, all EXPERT: python(5>=3)=1(w0.10), pandas(5>=3)=1(w0.10), tableau(5>=3)=1(w0.07), power_bi(5>=3)=1(w0.07). It has NONE of the 7 REQUIRED skills: sql(w0.20), excel(w0.15), data_visualization(w0.10), statistics(w0.10), communication(w0.05), problem_solving(w0.04), critical_thinking(w0.02) all MISSING. achieved=0.34, wsum=1.0 -> current_formula_score=34. Required-coverage = 0/7 = 0.0. DIVERGENCE: 34 is far too generous — a candidate with zero SQL and zero Excel literally cannot perform the DA core job, regardless of fancy tooling. Expert band [10,28] sits BELOW the formula. This is the canonical case for a required_coverage multiplier/gate in step-5: 0% required coverage should cap the overall well under 30.",
+      "current_formula_score": 24
     },
     {
       "id": "edge-keyword-stuffing-all-beginner",
@@ -701,7 +712,8 @@
         0,
         0.1
       ],
-      "rationale": "EDGE (5) keyword-stuffing: 16 skills all BEGINNER(1). All 13 backend rubric skills are PRESENT but level-1, so every one is PARTIAL = 1/required: node_js(1/3=0.333), dotnet via 'C#'(1/3), sql via 'MySQL'(1/4=0.25), rest_api(1/4=0.25), database_design(1/3), authentication_authorization via 'JWT'(1/3), nosql via 'MongoDB'(1/2=0.5), caching(1/2=0.5), docker(1/2=0.5), git(1/3), api_testing via 'Postman'(1/2=0.5), linux(1/2=0.5), communication(1/3). The 3 extra noise skills (react/html/python) aren't in the rubric -> ignored. achieved=0.3583, wsum=1.0 -> current_formula_score=36. DIVERGENCE: 36 is too high for someone who has literally never used any tool beyond 'heard of it'. A fair counselor reads breadth-at-level-1 as a red flag, not competence. Required-coverage (fully-met) = 0/6 = 0.0. Expert band [8,25] sits BELOW the formula — step-5 should add a level-floor or non-linear penalty so all-BEGINNER breadth can't accumulate ~0.36. 'C#'->dotnet, 'MongoDB'->nosql, 'JWT'->authentication_authorization, 'Postman'->api_testing all via alias."
+      "rationale": "EDGE (5) keyword-stuffing: 16 skills all BEGINNER(1). All 13 backend rubric skills are PRESENT but level-1, so every one is PARTIAL = 1/required: node_js(1/3=0.333), dotnet via 'C#'(1/3), sql via 'MySQL'(1/4=0.25), rest_api(1/4=0.25), database_design(1/3), authentication_authorization via 'JWT'(1/3), nosql via 'MongoDB'(1/2=0.5), caching(1/2=0.5), docker(1/2=0.5), git(1/3), api_testing via 'Postman'(1/2=0.5), linux(1/2=0.5), communication(1/3). The 3 extra noise skills (react/html/python) aren't in the rubric -> ignored. achieved=0.3583, wsum=1.0 -> current_formula_score=36. DIVERGENCE: 36 is too high for someone who has literally never used any tool beyond 'heard of it'. A fair counselor reads breadth-at-level-1 as a red flag, not competence. Required-coverage (fully-met) = 0/6 = 0.0. Expert band [8,25] sits BELOW the formula — step-5 should add a level-floor or non-linear penalty so all-BEGINNER breadth can't accumulate ~0.36. 'C#'->dotnet, 'MongoDB'->nosql, 'JWT'->authentication_authorization, 'Postman'->api_testing all via alias.",
+      "current_formula_score": 18
     },
     {
       "id": "edge-da-strong-no-tools",
@@ -744,7 +756,8 @@
         1,
         1
       ],
-      "rationale": "EDGE (6) da-strong-no-tools: strong fundamentals but no BI tools / no Python stack. Matches (all REQUIRED): sql(5>=4)=1(w0.20), excel(5>=4)=1(w0.15), data_visualization(4>=3)=1(w0.10), statistics via 'thống kê'(4>=3)=1(w0.10), communication(4>=4)=1(w0.05), problem_solving(4>=4)=1(w0.04), critical_thinking(4>=3)=1(w0.02). Missing (all PREFERRED): python(w0.10), pandas(w0.10), tableau(w0.07), power_bi(w0.07). achieved=0.66, wsum=1.0 -> current_formula_score=66. Required-coverage = 7/7 = 1.0 (every REQUIRED skill fully met). Expert: this is actually a HIRABLE analyst — SQL+Excel+stats+dataviz mastery is the real job; Python/Tableau/Power BI are ramp-up-able tooling. A fair counselor rates this near or slightly ABOVE the formula's 66 because 100% required coverage matters more than missing optional tools. Band [60,78] brackets 66 with upward lean. Mild divergence in the opposite direction from the stuffing/pref-only cases: shows step-5 should reward full required-coverage, not just raw weighted sum. 'thống kê'->statistics via VN alias."
+      "rationale": "EDGE (6) da-strong-no-tools: strong fundamentals but no BI tools / no Python stack. Matches (all REQUIRED): sql(5>=4)=1(w0.20), excel(5>=4)=1(w0.15), data_visualization(4>=3)=1(w0.10), statistics via 'thống kê'(4>=3)=1(w0.10), communication(4>=4)=1(w0.05), problem_solving(4>=4)=1(w0.04), critical_thinking(4>=3)=1(w0.02). Missing (all PREFERRED): python(w0.10), pandas(w0.10), tableau(w0.07), power_bi(w0.07). achieved=0.66, wsum=1.0 -> current_formula_score=66. Required-coverage = 7/7 = 1.0 (every REQUIRED skill fully met). Expert: this is actually a HIRABLE analyst — SQL+Excel+stats+dataviz mastery is the real job; Python/Tableau/Power BI are ramp-up-able tooling. A fair counselor rates this near or slightly ABOVE the formula's 66 because 100% required coverage matters more than missing optional tools. Band [60,78] brackets 66 with upward lean. Mild divergence in the opposite direction from the stuffing/pref-only cases: shows step-5 should reward full required-coverage, not just raw weighted sum. 'thống kê'->statistics via VN alias.",
+      "current_formula_score": 76
     }
   ]
 }
