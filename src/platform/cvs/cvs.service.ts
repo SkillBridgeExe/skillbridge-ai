@@ -8,6 +8,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { AiResultEntity } from '../../database/entities/ai-result.entity';
+import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
@@ -24,6 +26,8 @@ import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-respo
 import { TextExtractorService } from './text-extractor.service';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
+const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
+const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
 const SUPPORTED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -43,6 +47,10 @@ export class CvsService {
     private readonly extractor: TextExtractorService,
     private readonly cvReview: CvReviewService,
     private readonly skillNormalizer: SkillNormalizerService,
+    @InjectRepository(CvConsentAuditEntity)
+    private readonly consentAudits: Repository<CvConsentAuditEntity>,
+    @InjectRepository(AiResultEntity)
+    private readonly aiResults: Repository<AiResultEntity>,
   ) {}
 
   async create(
@@ -51,9 +59,16 @@ export class CvsService {
     file: Express.Multer.File,
   ): Promise<CvResponseDto> {
     this.validateFile(file);
+    if (dto.consentAccepted !== true) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'CV processing consent is required',
+      });
+    }
 
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
+    const targetRole = this.normalizeTargetRole(dto.targetRole);
     let cvSaved = false;
 
     await this.storage.upload({
@@ -75,12 +90,14 @@ export class CvsService {
           fileUrl: objectKey,
           parsedText: extracted.text,
           cvKind: 'UPLOADED',
+          targetRole,
           isOcrOnly: extracted.isOcrOnly,
         }),
       );
       cvSaved = true;
+      await this.recordConsentAudit(userId, cv.id);
 
-      const review = await this.reviewCv(userId, cv, dto.targetRole);
+      const review = await this.reviewCv(userId, cv, targetRole ?? undefined);
       cv = review.cv;
 
       return this.toResponse(cv, review.skills, review.parsed);
@@ -111,7 +128,11 @@ export class CvsService {
 
   async get(userId: string, cvId: string): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
-    return this.toResponse(cv, await this.getPersistedSkills(cv.id), null);
+    const [skills, review] = await Promise.all([
+      this.getPersistedSkills(cv.id),
+      this.getLatestPersistedReview(userId, cv.id),
+    ]);
+    return this.toResponse(cv, skills, review);
   }
 
   async download(
@@ -154,11 +175,13 @@ export class CvsService {
       });
     }
 
+    const effectiveTargetRole = this.normalizeTargetRole(targetRole ?? cv.targetRole ?? undefined);
+
     const review = await this.cvReview.review(userId, {
       cv_id: cv.id,
       parsed_text: cv.parsedText,
       prompt_template_code: 'cv_review_v1',
-      target_role: targetRole,
+      target_role: effectiveTargetRole ?? undefined,
       mime_type: cv.fileType ?? undefined,
       is_ocr_only: cv.isOcrOnly,
     });
@@ -167,6 +190,7 @@ export class CvsService {
     cv.parsedJson = parsed.document;
     cv.language = parsed.language;
     cv.atsReadabilityScore = parsed.ats_rule_score.toFixed(2);
+    cv.targetRole = effectiveTargetRole;
     const saved = await this.cvs.save(cv);
     const skills = await this.persistExtractedSkills(
       saved.id,
@@ -197,18 +221,22 @@ export class CvsService {
     const entityByCanonical = new Map(entities.map((skill) => [skill.canonicalName, skill]));
 
     await this.cvSkills.delete({ cvId });
-    const rows = normalized.flatMap((skill) => {
-      if (!skill.canonical_name) return [];
+    const rowsBySkillId = new Map<string, CvSkillEntity>();
+    for (const skill of normalized) {
+      if (!skill.canonical_name) continue;
       const entity = entityByCanonical.get(skill.canonical_name);
-      if (!entity) return [];
-      return [
-        this.cvSkills.create({
-          cvId,
-          skillId: entity.id,
-          confidence: skill.confidence.toFixed(2),
-        }),
-      ];
-    });
+      if (!entity) continue;
+      const row = this.cvSkills.create({
+        cvId,
+        skillId: entity.id,
+        confidence: skill.confidence.toFixed(2),
+      });
+      const existing = rowsBySkillId.get(entity.id);
+      if (!existing || Number(row.confidence ?? 0) > Number(existing.confidence ?? 0)) {
+        rowsBySkillId.set(entity.id, row);
+      }
+    }
+    const rows = [...rowsBySkillId.values()];
     if (rows.length > 0) await this.cvSkills.save(rows);
 
     return normalized.map((skill) => {
@@ -242,6 +270,44 @@ export class CvsService {
         confidence: link.confidence ? Number(link.confidence) : 0,
       };
     });
+  }
+
+  private async getLatestPersistedReview(
+    userId: string,
+    cvId: string,
+  ): Promise<CvReviewParsedResponse | null> {
+    const rows = (await this.aiResults.manager.query(
+      `
+        SELECT ar.parsed_response
+        FROM ai_results ar
+        INNER JOIN ai_requests req ON req.id = ar.ai_request_id
+        WHERE ar.user_id = $1
+          AND ar.result_type = 'cv_review'
+          AND req.request_payload -> 'payload' ->> 'cv_id' = $2
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+      `,
+      [userId, cvId],
+    )) as Array<{ parsed_response: CvReviewParsedResponse | null }>;
+
+    return rows[0]?.parsed_response ?? null;
+  }
+
+  private async recordConsentAudit(userId: string, cvId: string): Promise<void> {
+    await this.consentAudits.save(
+      this.consentAudits.create({
+        userId,
+        cvId,
+        consentVersion: CV_PROCESSING_CONSENT_VERSION,
+        consentSource: CV_UPLOAD_CONSENT_SOURCE,
+        acceptedAt: new Date(),
+      }),
+    );
+  }
+
+  private normalizeTargetRole(value: string | null | undefined): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
   }
 
   private validateFile(file: Express.Multer.File | undefined): asserts file is Express.Multer.File {
@@ -287,6 +353,7 @@ export class CvsService {
       parsedJson: cv.parsedJson,
       cvKind: cv.cvKind,
       language: cv.language,
+      targetRole: cv.targetRole,
       isOcrOnly: cv.isOcrOnly,
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       skills,
@@ -304,6 +371,7 @@ export class CvsService {
       fileType: cv.fileType,
       fileSize: cv.fileSize,
       language: cv.language,
+      targetRole: cv.targetRole,
       isOcrOnly: cv.isOcrOnly,
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       createdAt: cv.createdAt.toISOString(),

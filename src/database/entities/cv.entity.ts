@@ -58,6 +58,11 @@ export class CvEntity {
   @Column({ type: 'varchar', nullable: true })
   language!: string | null;
 
+  /** R1 completion: target role used for role-specific CV diagnosis scoring. */
+  @Index()
+  @Column({ type: 'varchar', name: 'target_role', nullable: true })
+  targetRole!: string | null;
+
   @Column({ type: 'boolean', name: 'is_ocr_only', default: false })
   isOcrOnly!: boolean;
 

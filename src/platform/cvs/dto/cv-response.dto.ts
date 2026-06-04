@@ -21,6 +21,7 @@ export interface CvResponseDto {
   parsedJson: CanonicalCvDocument | null;
   cvKind: string;
   language: string | null;
+  targetRole: string | null;
   isOcrOnly: boolean;
   atsReadabilityScore: number | null;
   skills: CvSkillResponseDto[];
@@ -36,6 +37,7 @@ export interface CvListItemDto {
   fileType: string | null;
   fileSize: number | null;
   language: string | null;
+  targetRole: string | null;
   isOcrOnly: boolean;
   atsReadabilityScore: number | null;
   createdAt: string;
