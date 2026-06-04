@@ -72,8 +72,8 @@ export const configValidationSchema = Joi.object({
   VECTOR_COLUMN: Joi.string().default('embedding'),
   VECTOR_EMBEDDING_VERSION: Joi.string().default('v1'),
 
-  // Semantic fallback tier (3-band gate; tuned by pnpm eval:semantic)
-  SEMANTIC_ACCEPT_THRESHOLD: Joi.number().min(0).max(1).default(0.78),
+  // Semantic fallback tier (3-band gate; tuned by pnpm eval:semantic — see configuration.ts)
+  SEMANTIC_ACCEPT_THRESHOLD: Joi.number().min(0).max(1).default(0.72),
   SEMANTIC_REVIEW_BAND: Joi.number().min(0).max(0.3).default(0.08),
 
   // Observability

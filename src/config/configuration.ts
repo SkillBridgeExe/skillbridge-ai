@@ -62,9 +62,11 @@ export default () => ({
   },
 
   semantic: {
-    // 3-band gate for the embedding fallback tier. Placeholders until `pnpm eval:semantic`
-    // picks the smallest accept threshold with precision ≥0.90 overall AND per-language.
-    acceptThreshold: parseFloat(process.env.SEMANTIC_ACCEPT_THRESHOLD ?? '0.78'),
+    // 3-band gate for the embedding fallback tier. 0.72 = pnpm eval:semantic pick
+    // (2026-06-05, 45 rows): precision 1.000 overall+en+vi, zero negative auto-accepts,
+    // 0.04 margin above the closest negative (noise-margin rule ≥0.02). Recall 0.48 —
+    // precision-first by design; the review band [accept−0.08, accept) catches the gray zone.
+    acceptThreshold: parseFloat(process.env.SEMANTIC_ACCEPT_THRESHOLD ?? '0.72'),
     reviewBandWidth: parseFloat(process.env.SEMANTIC_REVIEW_BAND ?? '0.08'),
   },
 
