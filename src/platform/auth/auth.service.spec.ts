@@ -11,6 +11,7 @@ import { SessionEntity } from '../../database/entities/session.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
 import { VerificationEntity } from '../../database/entities/verification.entity';
+import { UsersService } from '../users/users.service';
 
 type RepositoryMock<T extends object> = Pick<
   Repository<T>,
@@ -71,6 +72,7 @@ describe('AuthService', () => {
       }),
     } as unknown as ConfigService;
     const email = { sendVerifyEmail: jest.fn().mockResolvedValue(undefined) };
+    const usersService = { getCurrentUserAggregate: jest.fn() };
 
     const service = new AuthService(
       users as unknown as Repository<UserEntity>,
@@ -82,9 +84,20 @@ describe('AuthService', () => {
       jwt as unknown as JwtService,
       config,
       email as unknown as EmailService,
+      usersService as unknown as UsersService,
     );
 
-    return { service, users, accounts, sessions, roles, userRoles, verifications, email };
+    return {
+      service,
+      users,
+      accounts,
+      sessions,
+      roles,
+      userRoles,
+      verifications,
+      email,
+      usersService,
+    };
   }
 
   it('blocks credentials login until email is verified', async () => {
@@ -126,5 +139,52 @@ describe('AuthService', () => {
     expect(verifications.save).toHaveBeenCalledWith(
       expect.objectContaining({ usedAt: expect.any(Date) }),
     );
+  });
+
+  it('returns the current user aggregate for /auth/me', async () => {
+    const { service, usersService } = setup();
+    const aggregate = {
+      id: baseUser.id,
+      email: baseUser.email,
+      displayName: baseUser.fullName,
+      avatarUrl: null,
+      roles: ['USER'],
+      isEmailVerified: true,
+      profile: {
+        university: null,
+        major: null,
+        experienceYears: null,
+        targetJob: null,
+        careerGoal: null,
+        githubUrl: null,
+        linkedinUrl: null,
+        portfolioUrl: null,
+      },
+      skills: [],
+    };
+    usersService.getCurrentUserAggregate.mockResolvedValue(aggregate);
+
+    await expect(service.me(baseUser.id)).resolves.toBe(aggregate);
+    expect(usersService.getCurrentUserAggregate).toHaveBeenCalledWith(baseUser.id);
+  });
+
+  it('normalizes uploaded avatar keys in login responses', async () => {
+    const { service, users, accounts, sessions, userRoles } = setup();
+    users.findOne.mockResolvedValue({
+      ...baseUser,
+      avatarUrl: 'avatars/user-1/avatar',
+      isEmailVerified: true,
+    });
+    accounts.findOne.mockResolvedValue({
+      userId: baseUser.id,
+      provider: 'CREDENTIALS',
+      passwordHash: await bcrypt.hash('StrongPass123!', 4),
+    });
+    userRoles.find.mockResolvedValue([]);
+    sessions.save.mockResolvedValue({});
+
+    const result = await service.login(baseUser.email, 'StrongPass123!');
+
+    expect(result.user.avatarUrl).toBe('/api/users/me/avatar');
   });
 });
