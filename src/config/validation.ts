@@ -31,7 +31,7 @@ export const configValidationSchema = Joi.object({
   EMAIL_VERIFY_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(86400),
 
   // LLM
-  LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('gemini'),
+  LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('openai'),
   GEMINI_API_KEY: Joi.string().allow('').optional(),
   GEMINI_MODEL_DEFAULT: Joi.string().default('gemini-2.0-flash'),
   GEMINI_MODEL_EMBEDDING: Joi.string().default('text-embedding-004'),

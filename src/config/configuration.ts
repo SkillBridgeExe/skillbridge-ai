@@ -22,7 +22,10 @@ export default () => ({
   },
 
   llm: {
-    providerDefault: process.env.LLM_PROVIDER_DEFAULT ?? 'gemini',
+    // OpenAI is the standardized text-LLM provider (2026-06-04 decision; Gemini chỉ còn cho
+    // Gemini Live voice sau này). Fallback openai để môi trường thiếu env không âm thầm rơi về
+    // Gemini free-tier (quota 20/ngày).
+    providerDefault: process.env.LLM_PROVIDER_DEFAULT ?? 'openai',
     gemini: {
       apiKey: process.env.GEMINI_API_KEY ?? '',
       modelDefault: process.env.GEMINI_MODEL_DEFAULT ?? 'gemini-2.5-flash',
