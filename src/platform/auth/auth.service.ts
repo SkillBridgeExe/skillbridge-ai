@@ -14,6 +14,7 @@ import { UserRoleEntity } from '../../database/entities/user-role.entity';
 import { VerificationEntity } from '../../database/entities/verification.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { EmailService } from '../../infrastructure/email/email.service';
+import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 
 /**
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly email: EmailService,
+    private readonly usersService: UsersService,
   ) {
     this.google = new OAuth2Client(this.config.get<string>('GOOGLE_CLIENT_ID'));
   }
@@ -205,9 +207,7 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = await this.users.findOne({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException();
-    return this.publicUser(user, await this.roleCodes(userId));
+    return this.usersService.getCurrentUserAggregate(userId);
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────
@@ -285,9 +285,14 @@ export class AuthService {
       id: user.id,
       email: user.email,
       displayName: user.fullName,
-      avatarUrl: user.avatarUrl,
+      avatarUrl: this.toPublicAvatarUrl(user.avatarUrl),
       roles,
       isEmailVerified: user.isEmailVerified,
     };
+  }
+
+  private toPublicAvatarUrl(avatarUrl: string | null): string | null {
+    if (!avatarUrl) return null;
+    return avatarUrl.startsWith('avatars/') ? '/api/users/me/avatar' : avatarUrl;
   }
 }

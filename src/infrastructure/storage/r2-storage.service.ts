@@ -56,6 +56,17 @@ export class R2StorageService {
     return `cvs/${userId}/${cvId}/${safeName || 'cv-file'}`;
   }
 
+  buildAvatarObjectKey(userId: string, _originalName: string): string {
+    const safeName = _originalName
+      .trim()
+      .replace(/[\\/]+/g, '-')
+      .replace(/[^\w.\-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 160);
+    return `avatars/${userId}/${safeName || 'avatar'}`;
+  }
+
   async upload(input: R2UploadInput): Promise<R2UploadedObject> {
     const result = await this.client.send(
       new PutObjectCommand({

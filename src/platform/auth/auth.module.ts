@@ -10,6 +10,7 @@ import { RoleEntity } from '../../database/entities/role.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
 import { VerificationEntity } from '../../database/entities/verification.entity';
 import { EmailModule } from '../../infrastructure/email/email.module';
+import { UsersModule } from '../users/users.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -29,6 +30,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       VerificationEntity,
     ]),
     EmailModule,
+    UsersModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

@@ -6,6 +6,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DatabaseOrmModule } from './database/database-orm.module';
 import { AuthModule } from './platform/auth/auth.module';
 import { CvsModule } from './platform/cvs/cvs.module';
+import { UsersModule } from './platform/users/users.module';
 
 import configuration from './config/configuration';
 import { configValidationSchema } from './config/validation';
@@ -29,7 +30,8 @@ import { InterviewModule } from './modules/interview/interview.module';
 import { RoadmapModule } from './modules/roadmap/roadmap.module';
 
 // Platform modules need the DB → skip in the e2e env (NODE_ENV=test, no Postgres).
-const PLATFORM_MODULES = process.env.NODE_ENV === 'test' ? [] : [AuthModule, CvsModule];
+const PLATFORM_MODULES =
+  process.env.NODE_ENV === 'test' ? [] : [AuthModule, UsersModule, CvsModule];
 
 @Module({
   imports: [
