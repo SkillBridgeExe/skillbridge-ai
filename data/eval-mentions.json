@@ -600,10 +600,8 @@
         "oop"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "Resolves NONE today; just needs the new canonical oop."
+      "requires": [],
+      "note": "Resolves NONE today; just needs the new canonical oop. [unlocked by step-3 expansion]"
     },
     {
       "mention": "DSA",
@@ -635,11 +633,8 @@
         "deep_learning"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today FALSE: dl→alias 'ml'@d1→machine_learning → guard + new canonical deep_learning."
+      "requires": [],
+      "note": "Today FALSE: dl→alias 'ml'@d1→machine_learning → guard + new canonical deep_learning. [unlocked by step-3 expansion]"
     },
     {
       "mention": "BE",
@@ -648,10 +643,8 @@
         "backend_development"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "normalizeKey='be' fuzzy-matches WRONG to javascript. 'Backend' is a role/area, no canonical; propose new 'backend_development'."
+      "requires": [],
+      "note": "normalizeKey='be' fuzzy-matches WRONG to javascript. 'Backend' is a role/area, no canonical; propose new 'backend_development'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "FE",
@@ -660,10 +653,8 @@
         "frontend_development"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "normalizeKey='fe' fuzzy-matches WRONG to javascript. 'Frontend' area has no canonical; propose new 'frontend_development'."
+      "requires": [],
+      "note": "normalizeKey='fe' fuzzy-matches WRONG to javascript. 'Frontend' area has no canonical; propose new 'frontend_development'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "ORM",
@@ -672,10 +663,8 @@
         "orm"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "normalizeKey='orm' fuzzy-matches WRONG to java. No ORM/object-relational-mapping canonical; propose new 'orm'."
+      "requires": [],
+      "note": "normalizeKey='orm' fuzzy-matches WRONG to java. No ORM/object-relational-mapping canonical; propose new 'orm'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "CV",
@@ -684,10 +673,8 @@
         "computer_vision"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "normalizeKey='cv' fuzzy-matches WRONG to dotnet. In ML context CV=computer vision; no canonical; propose new 'computer_vision'."
+      "requires": [],
+      "note": "normalizeKey='cv' fuzzy-matches WRONG to dotnet. In ML context CV=computer vision; no canonical; propose new 'computer_vision'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "GCP",
@@ -696,10 +683,8 @@
         "cloud_gcp"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "normalizeKey='gcp' fuzzy-matches WRONG to dotnet. Only cloud_aws exists; propose new 'cloud_gcp' for Google Cloud."
+      "requires": [],
+      "note": "normalizeKey='gcp' fuzzy-matches WRONG to dotnet. Only cloud_aws exists; propose new 'cloud_gcp' for Google Cloud. [unlocked by step-3 expansion]"
     },
     {
       "mention": "NLP",
@@ -708,11 +693,8 @@
         "nlp"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today 'nlp'→'net'@d2→dotnet FALSE → guard + new canonical nlp."
+      "requires": [],
+      "note": "Today 'nlp'→'net'@d2→dotnet FALSE → guard + new canonical nlp. [unlocked by step-3 expansion]"
     },
     {
       "mention": "npm",
@@ -741,11 +723,8 @@
         "vue"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='vue3' = none today. Needs prenormalize to strip '3'->'vue', AND vue has no canonical -> propose new 'vue'."
+      "requires": [],
+      "note": "normalizeKey='vue3' = none today. Needs prenormalize to strip '3'->'vue', AND vue has no canonical -> propose new 'vue'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Python 3.11",
@@ -784,11 +763,8 @@
         "angular"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='angular16'=none. Strip version -> 'angular', but angular has no canonical -> propose new 'angular'."
+      "requires": [],
+      "note": "normalizeKey='angular16'=none. Strip version -> 'angular', but angular has no canonical -> propose new 'angular'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
     },
     {
       "mention": ".NET 8",
@@ -817,11 +793,8 @@
         "php"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='php8'=none. Strip version -> 'php', but php has no canonical -> propose new 'php'."
+      "requires": [],
+      "note": "normalizeKey='php8'=none. Strip version -> 'php', but php has no canonical -> propose new 'php'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
     },
     {
       "mention": "Go 1.21",
@@ -905,11 +878,8 @@
         "ruby"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey='ruby3'=none. Strip version -> 'ruby', but ruby has no canonical -> propose new 'ruby'."
+      "requires": [],
+      "note": "normalizeKey='ruby3'=none. Strip version -> 'ruby', but ruby has no canonical -> propose new 'ruby'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
     },
     {
       "mention": "C++ 17",
@@ -918,11 +888,8 @@
         "cpp"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "normalizeKey keeps '+' -> 'c++17'=none. Strip version -> 'c++', but no C++ canonical exists -> propose new 'cplusplus'."
+      "requires": [],
+      "note": "normalizeKey keeps '+' -> 'c++17'=none. Strip version -> 'c++', but no C++ canonical exists -> propose new 'cplusplus'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
     },
     {
       "mention": "React + Redux",
@@ -1148,11 +1115,8 @@
         "ui_ux_design"
       ],
       "category": "abbrev",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today uiux→linux@d2 FALSE → guard + new canonical ui_ux_design."
+      "requires": [],
+      "note": "Today uiux→linux@d2 FALSE → guard + new canonical ui_ux_design. [unlocked by step-3 expansion]"
     },
     {
       "mention": "QA",
@@ -1406,10 +1370,8 @@
         "oop"
       ],
       "category": "vi",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "NONE today. OOP is a cross-language paradigm not represented by any existing canonical (java/python/dotnet are languages, not OOP). Propose NEW canonical snake_case 'oop' (display 'Object-Oriented Programming'), aliases incl 'lập trình hướng đối tượng','oop','object oriented programming'."
+      "requires": [],
+      "note": "NONE today. OOP is a cross-language paradigm not represented by any existing canonical (java/python/dotnet are languages, not OOP). Propose NEW canonical snake_case 'oop' (display 'Object-Oriented Programming'), aliases incl 'lập trình hướng đối tượng','oop','object oriented programming'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Trí tuệ nhân tạo",
@@ -1428,10 +1390,8 @@
         "data_analysis"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "New canonical data_analysis (statistics/data_visualization are narrower)."
+      "requires": [],
+      "note": "New canonical data_analysis (statistics/data_visualization are narrower). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Trực quan hóa",
@@ -1522,10 +1482,8 @@
         "security"
       ],
       "category": "vi",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "NONE today. Generic 'security' is not covered (authentication_authorization is narrower auth-only; networking has firewall but is infra). Propose NEW canonical 'security' (display 'Security'), aliases 'bảo mật','an toàn thông tin','an ninh mạng','information security','cybersecurity'."
+      "requires": [],
+      "note": "NONE today. Generic 'security' is not covered (authentication_authorization is narrower auth-only; networking has firewall but is infra). Propose NEW canonical 'security' (display 'Security'), aliases 'bảo mật','an toàn thông tin','an ninh mạng','information security','cybersecurity'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "An toàn thông tin",
@@ -1534,10 +1492,8 @@
         "security"
       ],
       "category": "vi",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "NONE today. 'Information security' -> proposed new canonical 'security' (same as bảo mật). No defensible existing single canonical."
+      "requires": [],
+      "note": "NONE today. 'Information security' -> proposed new canonical 'security' (same as bảo mật). No defensible existing single canonical. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Lập trình di động",
@@ -1644,11 +1600,11 @@
       "mention": "Học sâu",
       "lang": "vi",
       "expected": [
-        "machine_learning"
+        "deep_learning"
       ],
       "category": "alias",
       "requires": [],
-      "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML). [unlocked by step-2 alias]"
+      "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML). [unlocked by step-2 alias] [label fixed step-3: deep_learning canonical now exists; alias relocated]"
     },
     {
       "mention": "Khoa học dữ liệu",
@@ -1680,11 +1636,8 @@
         "security"
       ],
       "category": "abbrev",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "DANGER: today 'ATTT' fuzzy-matches authentication_authorization (d=2)! ATTT = 'an toàn thông tin' (information security). Needs abbreviation expansion + the proposed new 'security' canonical. Current cascade resolves to wrong (auth) canonical."
+      "requires": [],
+      "note": "DANGER: today 'ATTT' fuzzy-matches authentication_authorization (d=2)! ATTT = 'an toàn thông tin' (information security). Needs abbreviation expansion + the proposed new 'security' canonical. Current cascade resolves to wrong (auth) canonical. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Phân tích dữ liệu lớn",
@@ -1875,11 +1828,8 @@
         "angular"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "'angular15' NONE today. Needs stage-0 version strip to 'angular' plus new angular canonical (frontend_framework)."
+      "requires": [],
+      "note": "'angular15' NONE today. Needs stage-0 version strip to 'angular' plus new angular canonical (frontend_framework). [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
     },
     {
       "mention": "Vue 2",
@@ -1888,11 +1838,8 @@
         "vue"
       ],
       "category": "version",
-      "requires": [
-        "prenormalize",
-        "new_skill"
-      ],
-      "note": "'vue2' NONE today. Needs version strip + new vue canonical."
+      "requires": [],
+      "note": "'vue2' NONE today. Needs version strip + new vue canonical. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Node.js & Express",
@@ -1972,10 +1919,8 @@
         "vue"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'vuejs' NONE today, no alias covers it. Top-3 VN frontend framework. Propose canonical vue (category frontend_framework)."
+      "requires": [],
+      "note": "'vuejs' NONE today, no alias covers it. Top-3 VN frontend framework. Propose canonical vue (category frontend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Angular",
@@ -1984,10 +1929,8 @@
         "angular"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'angular' NONE today. Major frontend framework in VN enterprise/outsourcing. Propose canonical angular (frontend_framework)."
+      "requires": [],
+      "note": "'angular' NONE today. Major frontend framework in VN enterprise/outsourcing. Propose canonical angular (frontend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Svelte",
@@ -1996,10 +1939,8 @@
         "svelte"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'svelte' NONE. Growing frontend framework. Propose canonical svelte (frontend_framework)."
+      "requires": [],
+      "note": "'svelte' NONE. Growing frontend framework. Propose canonical svelte (frontend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Redux",
@@ -2008,11 +1949,8 @@
         "redux"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today FALSE: redux→'redis'@d2→nosql → guard + new canonical redux."
+      "requires": [],
+      "note": "Today FALSE: redux→'redis'@d2→nosql → guard + new canonical redux. [unlocked by step-3 expansion]"
     },
     {
       "mention": "PHP",
@@ -2021,11 +1959,8 @@
         "php"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today fuzzy FALSE→python (py@d2 path) → guard + new canonical php."
+      "requires": [],
+      "note": "Today fuzzy FALSE→python (py@d2 path) → guard + new canonical php. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Laravel",
@@ -2034,10 +1969,8 @@
         "laravel"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'laravel' NONE. Dominant PHP framework in VN. Propose canonical laravel (backend_framework)."
+      "requires": [],
+      "note": "'laravel' NONE. Dominant PHP framework in VN. Propose canonical laravel (backend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Golang",
@@ -2046,10 +1979,8 @@
         "golang"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "Canonical name standardized: golang (with go/go lang aliases)."
+      "requires": [],
+      "note": "Canonical name standardized: golang (with go/go lang aliases). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Rust",
@@ -2058,11 +1989,8 @@
         "rust"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today FALSE: rust→alias 'rest'@d1→rest_api → guard + new canonical rust."
+      "requires": [],
+      "note": "Today FALSE: rust→alias 'rest'@d1→rest_api → guard + new canonical rust. [unlocked by step-3 expansion]"
     },
     {
       "mention": "C++",
@@ -2071,11 +1999,8 @@
         "cpp"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today 'c++'→'c#'@d1→dotnet FALSE → guard; canonical cpp."
+      "requires": [],
+      "note": "Today 'c++'→'c#'@d1→dotnet FALSE → guard; canonical cpp. [unlocked by step-3 expansion]"
     },
     {
       "mention": "C language",
@@ -2084,10 +2009,8 @@
         "c_lang"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'clanguage' NONE. Foundational language in VN curricula and embedded roles. Propose canonical c_lang (programming_language)."
+      "requires": [],
+      "note": "'clanguage' NONE. Foundational language in VN curricula and embedded roles. Propose canonical c_lang (programming_language). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Django",
@@ -2096,10 +2019,8 @@
         "django"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'django' NONE. Major Python backend framework in VN. Propose canonical django (backend_framework)."
+      "requires": [],
+      "note": "'django' NONE. Major Python backend framework in VN. Propose canonical django (backend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Flask",
@@ -2108,10 +2029,8 @@
         "flask"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'flask' NONE. Lightweight Python web framework common in VN student projects/AI APIs. Propose canonical flask (backend_framework)."
+      "requires": [],
+      "note": "'flask' NONE. Lightweight Python web framework common in VN student projects/AI APIs. Propose canonical flask (backend_framework). [unlocked by step-3 expansion]"
     },
     {
       "mention": "FastAPI",
@@ -2120,11 +2039,8 @@
         "fastapi"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today FALSE: fastapi→'restapi'@d2→rest_api → guard + new canonical fastapi."
+      "requires": [],
+      "note": "Today FALSE: fastapi→'restapi'@d2→rest_api → guard + new canonical fastapi. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Kafka",
@@ -2133,10 +2049,8 @@
         "kafka"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'kafka' NONE. Event-streaming backbone in VN microservices/data roles. Propose canonical kafka (messaging_streaming / backend_skill)."
+      "requires": [],
+      "note": "'kafka' NONE. Event-streaming backbone in VN microservices/data roles. Propose canonical kafka (messaging_streaming / backend_skill). [unlocked by step-3 expansion]"
     },
     {
       "mention": "RabbitMQ",
@@ -2145,10 +2059,8 @@
         "rabbitmq"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'rabbitmq' NONE. Message broker common in VN backend systems. Propose canonical rabbitmq (messaging_streaming)."
+      "requires": [],
+      "note": "'rabbitmq' NONE. Message broker common in VN backend systems. Propose canonical rabbitmq (messaging_streaming). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Elasticsearch",
@@ -2157,10 +2069,8 @@
         "elasticsearch"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'elasticsearch' NONE ('elk' is a monitoring alias but Elasticsearch as a search/data store is distinct). Propose canonical elasticsearch (search / database)."
+      "requires": [],
+      "note": "'elasticsearch' NONE ('elk' is a monitoring alias but Elasticsearch as a search/data store is distinct). Propose canonical elasticsearch (search / database). [unlocked by step-3 expansion]"
     },
     {
       "mention": "WebSocket",
@@ -2169,10 +2079,8 @@
         "websocket"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'websocket' NONE. Real-time comms skill for chat/live features in VN apps. Propose canonical websocket (backend_skill)."
+      "requires": [],
+      "note": "'websocket' NONE. Real-time comms skill for chat/live features in VN apps. Propose canonical websocket (backend_skill). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Microservices",
@@ -2181,10 +2089,8 @@
         "microservices"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'microservices' NONE. Core architecture skill in VN enterprise/outsourcing JDs. Propose canonical microservices (architecture)."
+      "requires": [],
+      "note": "'microservices' NONE. Core architecture skill in VN enterprise/outsourcing JDs. Propose canonical microservices (architecture). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Cấu trúc dữ liệu và giải thuật",
@@ -2193,23 +2099,18 @@
         "data_structures_algorithms"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "VN phrase for DSA; whole string NONE and contains 'và' which a compound-splitter would mishandle, so needs both a new canonical data_structures_algorithms (cs_fundamentals) and a stage-0 alias for the VN phrase. Heavily tested in VN interviews."
+      "requires": [],
+      "note": "VN phrase for DSA; whole string NONE and contains 'và' which a compound-splitter would mishandle, so needs both a new canonical data_structures_algorithms (cs_fundamentals) and a stage-0 alias for the VN phrase. Heavily tested in VN interviews. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Security fundamentals",
       "lang": "en",
       "expected": [
-        "security_fundamentals"
+        "security"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'securityfundamentals' NONE (auth canonical only covers authn/authz). OWASP/web-security basics appear in VN backend/devsecops JDs. Propose canonical security_fundamentals (security)."
+      "requires": [],
+      "note": "'securityfundamentals' NONE (auth canonical only covers authn/authz). OWASP/web-security basics appear in VN backend/devsecops JDs. Propose canonical security_fundamentals (security). [label fixed step-3: folded into security per verifier reconciliation] [unlocked by step-3 expansion]"
     },
     {
       "mention": "Figma",
@@ -2218,10 +2119,8 @@
         "figma"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'figma' NONE. Default design/handoff tool; even FE devs list it in VN CVs. Propose canonical figma (design_tool)."
+      "requires": [],
+      "note": "'figma' NONE. Default design/handoff tool; even FE devs list it in VN CVs. Propose canonical figma (design_tool). [unlocked by step-3 expansion]"
     },
     {
       "mention": "UI/UX Design",
@@ -2230,10 +2129,8 @@
         "ui_ux_design"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'uiuxdesign' NONE ('ui/ux' alone dangerously fuzzy-hits linux). Common in VN FE/design hybrid roles. Propose canonical ui_ux_design (design)."
+      "requires": [],
+      "note": "'uiuxdesign' NONE ('ui/ux' alone dangerously fuzzy-hits linux). Common in VN FE/design hybrid roles. Propose canonical ui_ux_design (design). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Android (Native)",
@@ -2242,10 +2139,8 @@
         "android_native"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'android' NONE (kotlin/java exist but native Android platform skill is distinct). Propose canonical android_native (mobile_platform)."
+      "requires": [],
+      "note": "'android' NONE (kotlin/java exist but native Android platform skill is distinct). Propose canonical android_native (mobile_platform). [unlocked by step-3 expansion]"
     },
     {
       "mention": "iOS Development",
@@ -2254,10 +2149,8 @@
         "ios_native"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "bare 'iOS' dangerously fuzzy-hits css; 'iosdevelopment' NONE. Swift exists but iOS platform skill is distinct. Propose canonical ios_native (mobile_platform)."
+      "requires": [],
+      "note": "bare 'iOS' dangerously fuzzy-hits css; 'iosdevelopment' NONE. Swift exists but iOS platform skill is distinct. Propose canonical ios_native (mobile_platform). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Unity",
@@ -2266,11 +2159,8 @@
         "unity"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today FALSE: unity→'unix'@d2→linux → guard + new canonical unity."
+      "requires": [],
+      "note": "Today FALSE: unity→'unix'@d2→linux → guard + new canonical unity. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Blockchain",
@@ -2279,10 +2169,8 @@
         "blockchain"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'blockchain' NONE. Strong VN web3/crypto hiring. Propose canonical blockchain (blockchain) covering smart-contracts/web3."
+      "requires": [],
+      "note": "'blockchain' NONE. Strong VN web3/crypto hiring. Propose canonical blockchain (blockchain) covering smart-contracts/web3. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Solidity",
@@ -2291,10 +2179,8 @@
         "solidity"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'solidity' NONE. Smart-contract language for VN web3 roles. Propose canonical solidity (blockchain)."
+      "requires": [],
+      "note": "'solidity' NONE. Smart-contract language for VN web3 roles. Propose canonical solidity (blockchain). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Prompt Engineering",
@@ -2303,10 +2189,8 @@
         "prompt_engineering"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'promptengineering' NONE. Fast-growing AI skill in VN JDs/student projects. Propose canonical prompt_engineering (ai_ml)."
+      "requires": [],
+      "note": "'promptengineering' NONE. Fast-growing AI skill in VN JDs/student projects. Propose canonical prompt_engineering (ai_ml). [unlocked by step-3 expansion]"
     },
     {
       "mention": "LLM",
@@ -2315,10 +2199,8 @@
         "llm_engineering"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "DANGER: 'llm' fuzzy-matches java at d=2 (wrong!). LLM/RAG app building is a real emerging VN AI role. Propose canonical llm_engineering (ai_ml)."
+      "requires": [],
+      "note": "DANGER: 'llm' fuzzy-matches java at d=2 (wrong!). LLM/RAG app building is a real emerging VN AI role. Propose canonical llm_engineering (ai_ml). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Computer Vision",
@@ -2327,10 +2209,8 @@
         "computer_vision"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'computervision' NONE. Core AI specialization in VN AI labs/startups. Propose canonical computer_vision (ai_ml)."
+      "requires": [],
+      "note": "'computervision' NONE. Core AI specialization in VN AI labs/startups. Propose canonical computer_vision (ai_ml). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Web Scraping",
@@ -2339,10 +2219,8 @@
         "web_scraping"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'webscraping' NONE. Common data-collection skill in VN data/AI student projects. Propose canonical web_scraping (data_skill)."
+      "requires": [],
+      "note": "'webscraping' NONE. Common data-collection skill in VN data/AI student projects. Propose canonical web_scraping (data_skill). [unlocked by step-3 expansion]"
     },
     {
       "mention": "gRPC",
@@ -2351,11 +2229,8 @@
         "grpc"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "New canonical grpc; guard against short-key fuzzy."
+      "requires": [],
+      "note": "New canonical grpc; guard against short-key fuzzy. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Apache Spark",
@@ -2364,10 +2239,8 @@
         "spark"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'apachespark' NONE. Big-data processing engine in VN data-engineering roles. Propose canonical spark (data_skill) with 'pyspark' alias."
+      "requires": [],
+      "note": "'apachespark' NONE. Big-data processing engine in VN data-engineering roles. Propose canonical spark (data_skill) with 'pyspark' alias. [unlocked by step-3 expansion]"
     },
     {
       "mention": "R",
@@ -2386,10 +2259,8 @@
         "cloud_gcp"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'googlecloudplatform' NONE; bare 'GCP' dangerously fuzzy-hits dotnet. Only AWS has a canonical today. Propose canonical cloud_gcp (cloud)."
+      "requires": [],
+      "note": "'googlecloudplatform' NONE; bare 'GCP' dangerously fuzzy-hits dotnet. Only AWS has a canonical today. Propose canonical cloud_gcp (cloud). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Microsoft Azure",
@@ -2398,10 +2269,8 @@
         "cloud_azure"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "'microsoftazure' NONE. Azure common in VN enterprise/.NET shops; only AWS covered today. Propose canonical cloud_azure (cloud)."
+      "requires": [],
+      "note": "'microsoftazure' NONE. Azure common in VN enterprise/.NET shops; only AWS covered today. Propose canonical cloud_azure (cloud). [unlocked by step-3 expansion]"
     },
     {
       "mention": "Go",
@@ -2410,11 +2279,8 @@
         "golang"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Bare 2-char token false-fuzzy-hits short alias keys @d2 today → fuzzy min-length guard; final = alias of golang."
+      "requires": [],
+      "note": "Bare 2-char token false-fuzzy-hits short alias keys @d2 today → fuzzy min-length guard; final = alias of golang. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Vue",
@@ -2423,11 +2289,8 @@
         "vue"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill",
-        "prenormalize"
-      ],
-      "note": "Today fuzzy false-hit @d2 → guard; new canonical vue (vuejs/vue.js/vue 3 aliases)."
+      "requires": [],
+      "note": "Today fuzzy false-hit @d2 → guard; new canonical vue (vuejs/vue.js/vue 3 aliases). [unlocked by step-3 expansion]"
     },
     {
       "mention": "iOS",
@@ -2596,10 +2459,8 @@
         "vue"
       ],
       "category": "expansion",
-      "requires": [
-        "new_skill"
-      ],
-      "note": "Same: vuejs -> NONE today. Needs new canonical 'vue'."
+      "requires": [],
+      "note": "Same: vuejs -> NONE today. Needs new canonical 'vue'. [unlocked by step-3 expansion]"
     },
     {
       "mention": "Spring",
