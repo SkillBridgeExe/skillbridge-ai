@@ -83,7 +83,8 @@ describe('CvsService R1 completion behavior', () => {
       review: jest.fn().mockResolvedValue({ parsed_response: parsedReview }),
     };
     const skillNormalizer = {
-      normalizeMany: jest.fn().mockReturnValue([]),
+      // cvs.service uses the async variant (deterministic cascade + semantic fallback tier).
+      normalizeManyAsync: jest.fn().mockResolvedValue([]),
     };
     const consentAudits = {
       create: jest.fn((input) => input),
@@ -218,7 +219,7 @@ describe('CvsService R1 completion behavior', () => {
         },
       },
     });
-    skillNormalizer.normalizeMany.mockReturnValue([
+    skillNormalizer.normalizeManyAsync.mockResolvedValue([
       {
         canonical_name: 'react',
         display_name: 'React',

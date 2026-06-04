@@ -205,7 +205,9 @@ export class CvsService {
     rawSkills: string[],
   ): Promise<CvSkillResponseDto[]> {
     const uniqueRawSkills = [...new Set(rawSkills.map((s) => s.trim()).filter(Boolean))];
-    const normalized = this.skillNormalizer.normalizeMany(uniqueRawSkills);
+    // Async variant = deterministic cascade + embedding fallback for the long tail
+    // (semantic tier fires only on full cascade misses; no-ops in test/keyless envs).
+    const normalized = await this.skillNormalizer.normalizeManyAsync(uniqueRawSkills);
     const canonicalNames = [
       ...new Set(
         normalized
