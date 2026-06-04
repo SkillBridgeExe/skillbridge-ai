@@ -2,7 +2,7 @@
   "$schema_note": "Seed data for the `skills` table (skillbridge-mvp.dbml). Each entry maps 1:1 to a row. Pilot taxonomy ~52 skills covering 5 target roles: Frontend / Backend / Fullstack / Data Analyst / Digital Marketer.",
   "version": "pilot-v1",
   "created_at": "2026-05-26",
-  "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase.",
+  "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase. License hygiene 2026-06-04: test_automation re-attributed from SFIA (paid Partner License, embedding/sub-licensing forbidden) to ONET 15-1253.00 (Software QA Analysts and Testers, CC BY 4.0) — generic QA/automation skill present in O*NET Technology Skills; no SFIA-, Lightcast-, or LinkedIn-sourced rows remain.",
   "level_scale": {
     "1": "BEGINNER — heard of, never used",
     "2": "NOVICE — used in tutorials / class projects",
@@ -17,7 +17,11 @@
       "category": "web_fundamentals",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["html5", "hypertext markup", "Ngôn ngữ HTML"]
+      "aliases": [
+        "html5",
+        "hypertext markup",
+        "Ngôn ngữ HTML"
+      ]
     },
     {
       "canonical_name": "css",
@@ -25,7 +29,13 @@
       "category": "web_fundamentals",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["css3", "cascading stylesheets", "tailwind css", "scss", "sass"]
+      "aliases": [
+        "css3",
+        "cascading stylesheets",
+        "tailwind css",
+        "scss",
+        "sass"
+      ]
     },
     {
       "canonical_name": "javascript",
@@ -33,7 +43,14 @@
       "category": "programming_language",
       "source": "ONET",
       "source_external_id": "15-1252.00.javascript",
-      "aliases": ["js", "ecmascript", "es6", "es2015", "vanilla js", "Lập trình JavaScript"]
+      "aliases": [
+        "js",
+        "ecmascript",
+        "es6",
+        "es2015",
+        "vanilla js",
+        "Lập trình JavaScript"
+      ]
     },
     {
       "canonical_name": "typescript",
@@ -41,7 +58,10 @@
       "category": "programming_language",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["ts", "typed javascript"]
+      "aliases": [
+        "ts",
+        "typed javascript"
+      ]
     },
     {
       "canonical_name": "react",
@@ -49,7 +69,12 @@
       "category": "frontend_framework",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["react.js", "reactjs", "react js", "Lập trình React"]
+      "aliases": [
+        "react.js",
+        "reactjs",
+        "react js",
+        "Lập trình React"
+      ]
     },
     {
       "canonical_name": "nextjs",
@@ -57,7 +82,11 @@
       "category": "frontend_framework",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["next.js", "next js", "nextjs framework"]
+      "aliases": [
+        "next.js",
+        "next js",
+        "nextjs framework"
+      ]
     },
     {
       "canonical_name": "responsive_design",
@@ -65,7 +94,13 @@
       "category": "web_fundamentals",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["mobile-first design", "media queries", "thiết kế responsive"]
+      "aliases": [
+        "mobile-first design",
+        "media queries",
+        "thiết kế responsive",
+        "thiết kế giao diện",
+        "thiet ke giao dien"
+      ]
     },
     {
       "canonical_name": "accessibility_a11y",
@@ -73,7 +108,12 @@
       "category": "web_fundamentals",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["a11y", "web accessibility", "wcag", "aria"]
+      "aliases": [
+        "a11y",
+        "web accessibility",
+        "wcag",
+        "aria"
+      ]
     },
     {
       "canonical_name": "web_performance",
@@ -81,7 +121,12 @@
       "category": "web_fundamentals",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["lighthouse", "core web vitals", "performance optimization", "tối ưu web"]
+      "aliases": [
+        "lighthouse",
+        "core web vitals",
+        "performance optimization",
+        "tối ưu web"
+      ]
     },
     {
       "canonical_name": "frontend_testing",
@@ -89,7 +134,13 @@
       "category": "testing",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["jest", "vitest", "react testing library", "cypress", "playwright"]
+      "aliases": [
+        "jest",
+        "vitest",
+        "react testing library",
+        "cypress",
+        "playwright"
+      ]
     },
     {
       "canonical_name": "node_js",
@@ -97,7 +148,14 @@
       "category": "backend_runtime",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["nodejs", "node", "node.js", "express.js", "nestjs"]
+      "aliases": [
+        "nodejs",
+        "node",
+        "node.js",
+        "express.js",
+        "nestjs",
+        "npm"
+      ]
     },
     {
       "canonical_name": "dotnet",
@@ -105,7 +163,14 @@
       "category": "backend_runtime",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": [".net", "dot net", "asp.net", "asp.net core", "c#", "csharp"]
+      "aliases": [
+        ".net",
+        "dot net",
+        "asp.net",
+        "asp.net core",
+        "c#",
+        "csharp"
+      ]
     },
     {
       "canonical_name": "python",
@@ -113,7 +178,13 @@
       "category": "programming_language",
       "source": "ONET",
       "source_external_id": "15-1252.00.python",
-      "aliases": ["py", "python3", "python language"]
+      "aliases": [
+        "py",
+        "python3",
+        "python language",
+        "lập trình python",
+        "lap trinh python"
+      ]
     },
     {
       "canonical_name": "java",
@@ -121,7 +192,17 @@
       "category": "programming_language",
       "source": "ONET",
       "source_external_id": "15-1252.00.java",
-      "aliases": ["java se", "java ee", "spring boot", "jvm"]
+      "aliases": [
+        "java se",
+        "java ee",
+        "spring boot",
+        "jvm",
+        "spring",
+        "spring mvc",
+        "spring framework",
+        "lập trình java",
+        "lap trinh java"
+      ]
     },
     {
       "canonical_name": "rest_api",
@@ -129,7 +210,13 @@
       "category": "backend_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["restful api", "rest", "http api", "api design", "thiết kế api"]
+      "aliases": [
+        "restful api",
+        "rest",
+        "http api",
+        "api design",
+        "thiết kế api"
+      ]
     },
     {
       "canonical_name": "graphql",
@@ -137,7 +224,11 @@
       "category": "backend_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["graph ql", "apollo graphql", "hasura"]
+      "aliases": [
+        "graph ql",
+        "apollo graphql",
+        "hasura"
+      ]
     },
     {
       "canonical_name": "sql",
@@ -145,7 +236,24 @@
       "category": "database",
       "source": "ONET",
       "source_external_id": "15-1252.00.sql",
-      "aliases": ["postgresql", "mysql", "sql server", "tsql", "mssql", "Ngôn ngữ SQL"]
+      "aliases": [
+        "postgresql",
+        "mysql",
+        "sql server",
+        "tsql",
+        "mssql",
+        "Ngôn ngữ SQL",
+        "oracle",
+        "oracle db",
+        "pl/sql",
+        "cơ sở dữ liệu",
+        "co so du lieu",
+        "quản trị cơ sở dữ liệu",
+        "quan tri co so du lieu",
+        "quản lý cơ sở dữ liệu",
+        "cơ sở dữ liệu quan hệ",
+        "co so du lieu quan he"
+      ]
     },
     {
       "canonical_name": "nosql",
@@ -153,7 +261,13 @@
       "category": "database",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["mongodb", "redis", "cassandra", "dynamodb", "firestore"]
+      "aliases": [
+        "mongodb",
+        "redis",
+        "cassandra",
+        "dynamodb",
+        "firestore"
+      ]
     },
     {
       "canonical_name": "database_design",
@@ -161,7 +275,17 @@
       "category": "database",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["data modeling", "schema design", "erd", "normalization", "thiết kế database"]
+      "aliases": [
+        "data modeling",
+        "schema design",
+        "erd",
+        "normalization",
+        "thiết kế database",
+        "db",
+        "thiết kế cơ sở dữ liệu",
+        "thiet ke co so du lieu",
+        "mô hình hóa dữ liệu"
+      ]
     },
     {
       "canonical_name": "authentication_authorization",
@@ -169,7 +293,15 @@
       "category": "backend_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["auth", "jwt", "oauth", "oauth2", "session auth", "rbac", "xác thực"]
+      "aliases": [
+        "auth",
+        "jwt",
+        "oauth",
+        "oauth2",
+        "session auth",
+        "rbac",
+        "xác thực"
+      ]
     },
     {
       "canonical_name": "caching",
@@ -177,7 +309,12 @@
       "category": "backend_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["redis cache", "cdn cache", "http cache", "memoization"]
+      "aliases": [
+        "redis cache",
+        "cdn cache",
+        "http cache",
+        "memoization"
+      ]
     },
     {
       "canonical_name": "git",
@@ -185,7 +322,18 @@
       "category": "tool",
       "source": "ONET",
       "source_external_id": "15-1252.00.git",
-      "aliases": ["github", "gitlab", "bitbucket", "version control", "git flow"]
+      "aliases": [
+        "github",
+        "gitlab",
+        "bitbucket",
+        "version control",
+        "git flow",
+        "sử dụng git",
+        "quản lý mã nguồn",
+        "quan ly ma nguon",
+        "kiểm soát phiên bản",
+        "kiem soat phien ban"
+      ]
     },
     {
       "canonical_name": "docker",
@@ -193,7 +341,11 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["containerization", "docker compose", "dockerfile"]
+      "aliases": [
+        "containerization",
+        "docker compose",
+        "dockerfile"
+      ]
     },
     {
       "canonical_name": "ci_cd",
@@ -201,7 +353,16 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["github actions", "gitlab ci", "jenkins", "continuous integration", "continuous deployment"]
+      "aliases": [
+        "github actions",
+        "gitlab ci",
+        "jenkins",
+        "continuous integration",
+        "continuous deployment",
+        "devops",
+        "triển khai ci/cd",
+        "trien khai ci/cd"
+      ]
     },
     {
       "canonical_name": "linux",
@@ -209,7 +370,17 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["bash", "shell scripting", "unix", "ubuntu", "command line"]
+      "aliases": [
+        "bash",
+        "shell scripting",
+        "unix",
+        "ubuntu",
+        "command line",
+        "hệ điều hành linux",
+        "he dieu hanh linux",
+        "quản trị hệ thống",
+        "quan tri he thong"
+      ]
     },
     {
       "canonical_name": "cloud_aws",
@@ -217,7 +388,15 @@
       "category": "cloud",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["amazon web services", "ec2", "s3", "lambda", "rds"]
+      "aliases": [
+        "amazon web services",
+        "ec2",
+        "s3",
+        "lambda",
+        "rds",
+        "điện toán đám mây",
+        "dien toan dam may"
+      ]
     },
     {
       "canonical_name": "system_design",
@@ -225,7 +404,12 @@
       "category": "architecture",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["architecture design", "distributed systems", "scalability", "thiết kế hệ thống"]
+      "aliases": [
+        "architecture design",
+        "distributed systems",
+        "scalability",
+        "thiết kế hệ thống"
+      ]
     },
     {
       "canonical_name": "api_testing",
@@ -233,7 +417,14 @@
       "category": "testing",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["postman", "insomnia", "swagger testing", "integration testing"]
+      "aliases": [
+        "postman",
+        "insomnia",
+        "swagger testing",
+        "integration testing",
+        "kiểm thử api",
+        "kiem thu api"
+      ]
     },
     {
       "canonical_name": "agile_scrum",
@@ -241,7 +432,19 @@
       "category": "process",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["scrum master", "sprint planning", "jira", "kanban", "agile methodology"]
+      "aliases": [
+        "scrum master",
+        "sprint planning",
+        "jira",
+        "kanban",
+        "agile methodology",
+        "agile",
+        "scrum",
+        "trello",
+        "confluence",
+        "quản lý dự án",
+        "quan ly du an"
+      ]
     },
     {
       "canonical_name": "excel",
@@ -249,7 +452,13 @@
       "category": "data_tool",
       "source": "ONET",
       "source_external_id": "13-1161.00.excel",
-      "aliases": ["ms excel", "spreadsheet", "google sheets", "pivot tables", "vlookup"]
+      "aliases": [
+        "ms excel",
+        "spreadsheet",
+        "google sheets",
+        "pivot tables",
+        "vlookup"
+      ]
     },
     {
       "canonical_name": "pandas",
@@ -257,7 +466,11 @@
       "category": "data_tool",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["python pandas", "dataframe", "pandas library"]
+      "aliases": [
+        "python pandas",
+        "dataframe",
+        "pandas library"
+      ]
     },
     {
       "canonical_name": "numpy",
@@ -265,7 +478,10 @@
       "category": "data_tool",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["python numpy", "numerical python"]
+      "aliases": [
+        "python numpy",
+        "numerical python"
+      ]
     },
     {
       "canonical_name": "data_visualization",
@@ -273,7 +489,15 @@
       "category": "data_skill",
       "source": "ONET",
       "source_external_id": "15-2051.00.dataviz",
-      "aliases": ["dataviz", "charting", "matplotlib", "seaborn", "trực quan hóa dữ liệu"]
+      "aliases": [
+        "dataviz",
+        "charting",
+        "matplotlib",
+        "seaborn",
+        "trực quan hóa dữ liệu",
+        "trực quan hóa",
+        "truc quan hoa"
+      ]
     },
     {
       "canonical_name": "tableau",
@@ -281,7 +505,10 @@
       "category": "data_tool",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["tableau desktop", "tableau dashboard"]
+      "aliases": [
+        "tableau desktop",
+        "tableau dashboard"
+      ]
     },
     {
       "canonical_name": "power_bi",
@@ -289,7 +516,11 @@
       "category": "data_tool",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["powerbi", "microsoft power bi", "dax"]
+      "aliases": [
+        "powerbi",
+        "microsoft power bi",
+        "dax"
+      ]
     },
     {
       "canonical_name": "statistics",
@@ -297,7 +528,12 @@
       "category": "data_skill",
       "source": "ONET",
       "source_external_id": "15-2051.00.statistics",
-      "aliases": ["statistical analysis", "regression", "hypothesis testing", "thống kê"]
+      "aliases": [
+        "statistical analysis",
+        "regression",
+        "hypothesis testing",
+        "thống kê"
+      ]
     },
     {
       "canonical_name": "etl",
@@ -305,7 +541,14 @@
       "category": "data_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["extract transform load", "data engineering", "airflow", "dbt"]
+      "aliases": [
+        "extract transform load",
+        "data engineering",
+        "airflow",
+        "dbt",
+        "phân tích dữ liệu lớn",
+        "phan tich du lieu lon"
+      ]
     },
     {
       "canonical_name": "machine_learning",
@@ -313,7 +556,22 @@
       "category": "data_skill",
       "source": "ONET",
       "source_external_id": "15-2051.00.ml",
-      "aliases": ["ml", "scikit-learn", "tensorflow", "pytorch", "học máy"]
+      "aliases": [
+        "ml",
+        "scikit-learn",
+        "tensorflow",
+        "pytorch",
+        "học máy",
+        "ai",
+        "artificial intelligence",
+        "sklearn",
+        "trí tuệ nhân tạo",
+        "tri tue nhan tao",
+        "học sâu",
+        "hoc sau",
+        "khoa học dữ liệu",
+        "khoa hoc du lieu"
+      ]
     },
     {
       "canonical_name": "communication",
@@ -321,7 +579,20 @@
       "category": "soft_skill",
       "source": "ONET",
       "source_external_id": "skill.4.A.4.a",
-      "aliases": ["verbal communication", "written communication", "presentation", "giao tiếp"]
+      "aliases": [
+        "verbal communication",
+        "written communication",
+        "presentation",
+        "giao tiếp",
+        "kỹ năng giao tiếp",
+        "ky nang giao tiep",
+        "viết tài liệu kỹ thuật",
+        "viet tai lieu ky thuat",
+        "kỹ năng thuyết trình",
+        "ky nang thuyet trinh",
+        "thuyết trình",
+        "thuyet trinh"
+      ]
     },
     {
       "canonical_name": "problem_solving",
@@ -329,7 +600,12 @@
       "category": "soft_skill",
       "source": "ONET",
       "source_external_id": "skill.2.B.2.a",
-      "aliases": ["analytical thinking", "troubleshooting", "debugging mindset", "giải quyết vấn đề"]
+      "aliases": [
+        "analytical thinking",
+        "troubleshooting",
+        "debugging mindset",
+        "giải quyết vấn đề"
+      ]
     },
     {
       "canonical_name": "teamwork",
@@ -337,7 +613,15 @@
       "category": "soft_skill",
       "source": "ONET",
       "source_external_id": "skill.2.B.1.f",
-      "aliases": ["collaboration", "team player", "cross-functional", "làm việc nhóm"]
+      "aliases": [
+        "collaboration",
+        "team player",
+        "cross-functional",
+        "làm việc nhóm",
+        "kỹ năng làm việc nhóm",
+        "ky nang lam viec nhom",
+        "làm việc theo nhóm"
+      ]
     },
     {
       "canonical_name": "time_management",
@@ -345,7 +629,12 @@
       "category": "soft_skill",
       "source": "ONET",
       "source_external_id": "skill.2.B.5.c",
-      "aliases": ["prioritization", "deadline management", "productivity", "quản lý thời gian"]
+      "aliases": [
+        "prioritization",
+        "deadline management",
+        "productivity",
+        "quản lý thời gian"
+      ]
     },
     {
       "canonical_name": "english_proficiency",
@@ -353,7 +642,16 @@
       "category": "soft_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["english reading", "english writing", "ielts", "toeic", "tiếng anh"]
+      "aliases": [
+        "english reading",
+        "english writing",
+        "ielts",
+        "toeic",
+        "tiếng anh",
+        "tiếng anh giao tiếp",
+        "tieng anh giao tiep",
+        "giao tiếp tiếng anh"
+      ]
     },
     {
       "canonical_name": "critical_thinking",
@@ -361,7 +659,13 @@
       "category": "soft_skill",
       "source": "ONET",
       "source_external_id": "skill.2.A.2.a",
-      "aliases": ["analytical reasoning", "logical thinking", "tư duy phản biện"]
+      "aliases": [
+        "analytical reasoning",
+        "logical thinking",
+        "tư duy phản biện",
+        "tư duy logic",
+        "tu duy logic"
+      ]
     },
     {
       "canonical_name": "swift",
@@ -369,7 +673,13 @@
       "category": "mobile_language",
       "source": "ONET",
       "source_external_id": "15-1252.00",
-      "aliases": ["swift lang", "swiftui", "ios swift", "Lập trình Swift"]
+      "aliases": [
+        "swift lang",
+        "swiftui",
+        "ios swift",
+        "Lập trình Swift",
+        "ios"
+      ]
     },
     {
       "canonical_name": "kotlin",
@@ -377,7 +687,11 @@
       "category": "mobile_language",
       "source": "ONET",
       "source_external_id": "15-1252.00",
-      "aliases": ["kotlin lang", "android kotlin", "jetpack compose"]
+      "aliases": [
+        "kotlin lang",
+        "android kotlin",
+        "jetpack compose"
+      ]
     },
     {
       "canonical_name": "flutter",
@@ -385,7 +699,13 @@
       "category": "mobile_framework",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["flutter sdk", "dart flutter", "flutter framework"]
+      "aliases": [
+        "flutter sdk",
+        "dart flutter",
+        "flutter framework",
+        "dart",
+        "dart language"
+      ]
     },
     {
       "canonical_name": "react_native",
@@ -393,7 +713,13 @@
       "category": "mobile_framework",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["react-native", "rn", "expo"]
+      "aliases": [
+        "react-native",
+        "rn",
+        "expo",
+        "lập trình react native",
+        "lap trinh react native"
+      ]
     },
     {
       "canonical_name": "firebase",
@@ -401,7 +727,13 @@
       "category": "backend_service",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["firestore", "firebase auth", "firebase cloud messaging", "fcm", "realtime database"]
+      "aliases": [
+        "firestore",
+        "firebase auth",
+        "firebase cloud messaging",
+        "fcm",
+        "realtime database"
+      ]
     },
     {
       "canonical_name": "mobile_testing",
@@ -409,7 +741,13 @@
       "category": "testing",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["espresso", "xctest", "appium", "detox", "ui testing mobile"]
+      "aliases": [
+        "espresso",
+        "xctest",
+        "appium",
+        "detox",
+        "ui testing mobile"
+      ]
     },
     {
       "canonical_name": "bug_tracking_jira",
@@ -417,7 +755,13 @@
       "category": "tool",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["jira", "bug tracking", "issue tracking", "defect management", "test management"]
+      "aliases": [
+        "jira",
+        "bug tracking",
+        "issue tracking",
+        "defect management",
+        "test management"
+      ]
     },
     {
       "canonical_name": "kubernetes",
@@ -425,7 +769,15 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["k8s", "kubectl", "helm", "container orchestration", "eks", "gke", "aks"]
+      "aliases": [
+        "k8s",
+        "kubectl",
+        "helm",
+        "container orchestration",
+        "eks",
+        "gke",
+        "aks"
+      ]
     },
     {
       "canonical_name": "infrastructure_as_code",
@@ -433,7 +785,13 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["iac", "terraform", "ansible", "pulumi", "cloudformation"]
+      "aliases": [
+        "iac",
+        "terraform",
+        "ansible",
+        "pulumi",
+        "cloudformation"
+      ]
     },
     {
       "canonical_name": "monitoring_logging",
@@ -441,7 +799,15 @@
       "category": "devops",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["prometheus", "grafana", "elk", "elk stack", "datadog", "observability", "log aggregation"]
+      "aliases": [
+        "prometheus",
+        "grafana",
+        "elk",
+        "elk stack",
+        "datadog",
+        "observability",
+        "log aggregation"
+      ]
     },
     {
       "canonical_name": "networking",
@@ -449,7 +815,17 @@
       "category": "devops",
       "source": "ONET",
       "source_external_id": "15-1244.00",
-      "aliases": ["tcp/ip", "dns", "load balancing", "vpc", "firewall", "reverse proxy", "nginx"]
+      "aliases": [
+        "tcp/ip",
+        "dns",
+        "load balancing",
+        "vpc",
+        "firewall",
+        "reverse proxy",
+        "nginx",
+        "mạng máy tính",
+        "mang may tinh"
+      ]
     },
     {
       "canonical_name": "manual_testing",
@@ -457,15 +833,39 @@
       "category": "testing",
       "source": "ONET",
       "source_external_id": "15-1253.00",
-      "aliases": ["test case design", "functional testing", "regression testing", "smoke testing", "user acceptance testing", "uat"]
+      "aliases": [
+        "test case design",
+        "functional testing",
+        "regression testing",
+        "smoke testing",
+        "user acceptance testing",
+        "uat",
+        "qa",
+        "quality assurance",
+        "kiểm thử phần mềm",
+        "kiem thu phan mem",
+        "kiểm thử thủ công",
+        "kiem thu thu cong"
+      ]
     },
     {
       "canonical_name": "test_automation",
       "display_name": "Test Automation",
       "category": "testing",
-      "source": "SFIA",
-      "source_external_id": null,
-      "aliases": ["automation framework", "selenium", "cypress", "test script", "automated testing", "e2e testing"]
+      "source": "ONET",
+      "source_external_id": "15-1253.00",
+      "aliases": [
+        "automation framework",
+        "selenium",
+        "cypress",
+        "test script",
+        "automated testing",
+        "e2e testing",
+        "kiểm thử tự động",
+        "kiem thu tu dong",
+        "tự động hóa kiểm thử",
+        "tu dong hoa kiem thu"
+      ]
     },
     {
       "canonical_name": "database_testing",
@@ -473,7 +873,12 @@
       "category": "testing",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["test data management", "database validation", "query testing", "data integrity"]
+      "aliases": [
+        "test data management",
+        "database validation",
+        "query testing",
+        "data integrity"
+      ]
     },
     {
       "canonical_name": "pytorch_tensorflow",
@@ -481,7 +886,13 @@
       "category": "ai_ml",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["pytorch", "tensorflow", "tf", "deep learning frameworks", "deep learning libs"]
+      "aliases": [
+        "pytorch",
+        "tensorflow",
+        "tf",
+        "deep learning frameworks",
+        "deep learning libs"
+      ]
     },
     {
       "canonical_name": "data_preprocessing",
@@ -489,7 +900,13 @@
       "category": "data_skill",
       "source": "CUSTOM",
       "source_external_id": null,
-      "aliases": ["data cleaning", "feature engineering", "data wrangling", "feature extraction", "data preparation"]
+      "aliases": [
+        "data cleaning",
+        "feature engineering",
+        "data wrangling",
+        "feature extraction",
+        "data preparation"
+      ]
     }
   ]
 }
