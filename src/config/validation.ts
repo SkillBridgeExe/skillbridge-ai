@@ -66,8 +66,11 @@ export const configValidationSchema = Joi.object({
     otherwise: Joi.string().min(1).required(),
   }),
 
-  // Vector — dimension MUST match skill_embeddings vector(1024) + the OpenAI dimensions param.
-  VECTOR_DIMENSION: Joi.number().integer().positive().default(1024),
+  // Vector — PINNED to 1024: the migration hardcodes skill_embeddings vector(1024), and a
+  // mismatched env (e.g. a stale 768 from the old default) would silently kill the semantic
+  // tier at query time (pgvector cast error → best-effort catch). Fail fast at boot instead.
+  // Changing the width requires a column migration + full re-backfill + version bump.
+  VECTOR_DIMENSION: Joi.number().integer().valid(1024).default(1024),
   VECTOR_TABLE: Joi.string().default('document_chunks'),
   VECTOR_COLUMN: Joi.string().default('embedding'),
   VECTOR_EMBEDDING_VERSION: Joi.string().default('v1'),
@@ -75,6 +78,7 @@ export const configValidationSchema = Joi.object({
   // Semantic fallback tier (3-band gate; tuned by pnpm eval:semantic — see configuration.ts)
   SEMANTIC_ACCEPT_THRESHOLD: Joi.number().min(0).max(1).default(0.72),
   SEMANTIC_REVIEW_BAND: Joi.number().min(0).max(0.3).default(0.08),
+  SEMANTIC_MAX_PER_CV: Joi.number().integer().min(0).default(16),
 
   // Observability
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug', 'verbose').default('debug'),

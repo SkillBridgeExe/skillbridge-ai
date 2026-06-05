@@ -42,6 +42,17 @@ async function main(): Promise<void> {
   const dimensions = parseInt(process.env.VECTOR_DIMENSION ?? '1024', 10);
   const embeddingVersion = process.env.VECTOR_EMBEDDING_VERSION ?? 'v1';
 
+  // Pre-spend guard: this tool bypasses Joi, but the column is physically vector(1024)
+  // (migration 1780500000000). Catch a stale env (old 768 default) BEFORE paying OpenAI
+  // and instead of a raw Postgres cast error mid-insert.
+  const COLUMN_VECTOR_WIDTH = 1024;
+  if (dimensions !== COLUMN_VECTOR_WIDTH) {
+    throw new Error(
+      `VECTOR_DIMENSION=${dimensions} but skill_embeddings.embedding is vector(${COLUMN_VECTOR_WIDTH}). ` +
+        `Fix the env (stale 768 default?) or migrate the column + re-backfill + bump VECTOR_EMBEDDING_VERSION.`,
+    );
+  }
+
   const taxonomy = new SkillTaxonomyService();
   await taxonomy.onModuleInit();
   const entries = taxonomy.getAll();
@@ -126,6 +137,13 @@ async function main(): Promise<void> {
     // INVARIANT: the resolution cache is only valid against the matrix it was computed on.
     // New vectors can change any phrase's top-1/similarity, so a grown matrix invalidates
     // skill_resolutions for the tuple (cheap: each phrase re-resolves once, ~$0.0000004).
+    //
+    // KNOWN RACE (review finding, LOW): a production resolve() whose embed call straddles
+    // this DELETE can writeCache a pre-growth resolution AFTER the purge — one stale row
+    // per affected phrase, match-quality only (never breaks CV processing). Backfill is a
+    // rare manual ops action: run it when traffic is quiet, or simply re-run the tool once
+    // afterwards (0 inserts → no purge needed; a paranoid sweep can also bump
+    // VECTOR_EMBEDDING_VERSION, which re-keys both tables).
     if (inserted > 0) {
       const purged = await pool.query(
         `DELETE FROM public.skill_resolutions

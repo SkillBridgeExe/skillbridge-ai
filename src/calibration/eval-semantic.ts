@@ -10,8 +10,8 @@
  *      deterministic cascade — a row it already resolves is a LABELING ERROR (exit 1).
  *   2. THRESHOLD SWEEP (only with OPENAI_API_KEY; NODE_ENV=test skips): build the skill
  *      matrix EXACTLY like production backfill (shared enumerateSkillVariants + embedBatch),
- *      embed the 52 mentions, sweep accept t ∈ [0.60, 0.90] step 0.01, pick the SMALLEST t
- *      with precision ≥0.90 overall AND per-language, then max recall (tie → lower t).
+ *      embed every eval mention, sweep accept t ∈ [0.60, 0.90] step 0.01, pick per the
+ *      qualify rule (precision bars + noise margin), then max recall → max precision → low t.
  *
  * PASS BARS (strict): precondition green · overall precision ≥0.90 · recall ≥0.60 ·
  * per-language precision ≥0.90 (en + vi) · ZERO semantic_negative auto-accepted at chosen t.
@@ -220,9 +220,17 @@ async function main(): Promise<void> {
   //   negative by ≥ NEG_MARGIN (a bars-pass 0.0006 above a negative is one noise sample
   //   away from a production false-accept — rejected).
   //   among qualifying: max recall → max precision → lowest t.
-  const closestNegative = Math.max(
-    ...scored.filter((r) => r.kind === 'semantic_negative').map((r) => r.top1Sim),
-  );
+  const negatives = scored.filter((r) => r.kind === 'semantic_negative');
+  if (negatives.length === 0) {
+    // Math.max() over an empty spread is -Infinity → the margin rule would VACUOUSLY pass
+    // (and "zero negatives accepted" too) — a dataset with no negatives defeats the harness.
+    console.error(
+      'FATAL: eval-semantic.json has zero semantic_negative rows — the noise-margin rule and the ' +
+        'zero-negative bar cannot be evaluated. Add adversarial negatives before trusting any threshold.',
+    );
+    process.exit(1);
+  }
+  const closestNegative = Math.max(...negatives.map((r) => r.top1Sim));
   const qualifying = curve.filter(
     (c) =>
       c.overall.precision >= PRECISION_BAR &&

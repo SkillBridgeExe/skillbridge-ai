@@ -368,10 +368,15 @@ export class SkillNormalizerService {
   async normalizeMentionAsync(rawName: string): Promise<NormalizedSkill[]> {
     const sync = this.normalizeMention(rawName);
     if (sync.length > 0) return sync;
-    if (!this.semantic?.isEnabled()) return sync;
+    return this.resolveSemantic(rawName);
+  }
+
+  /** Semantic-tier resolution for a mention the WHOLE sync cascade missed. */
+  private async resolveSemantic(rawName: string): Promise<NormalizedSkill[]> {
+    if (!this.semantic?.isEnabled()) return [];
 
     const raw = (rawName ?? '').trim();
-    if (raw.length === 0) return sync;
+    if (raw.length === 0) return [];
 
     const hit = await this.semantic.resolve(raw); // null unless band 'auto'
     if (!hit) return [];
@@ -397,14 +402,26 @@ export class SkillNormalizerService {
     ];
   }
 
-  /** Async normalizeMany — same merge semantics, semantic tier on sync misses only. */
+  /**
+   * Async normalizeMany — same merge semantics, semantic tier on sync misses only,
+   * BUDGETED: at most semantic.maxPerBatch embed round-trips per call, so a noisy CV
+   * or a cold cache (embedding_version bump) cannot turn one CV-review request into an
+   * unbounded serial call storm (review finding). Overflow mentions keep their full
+   * deterministic results and land in `unresolved` for audit.
+   */
   async normalizeManyAsync(rawNames: string[]): Promise<NormalizedSkill[]> {
     const best = new Map<string, NormalizedSkill>();
     const unresolved: NormalizedSkill[] = [];
+    let semanticBudget = this.semantic?.isEnabled() ? this.semantic.getMaxPerBatch() : 0;
     // Sequential on purpose: misses are rare (head handled by stages 0-3), and the
     // resolution cache makes repeats free — no need to burst the embeddings API.
     for (const n of rawNames) {
-      this.mergeMentionResults(n, await this.normalizeMentionAsync(n), best, unresolved);
+      let results = this.normalizeMention(n);
+      if (results.length === 0 && semanticBudget > 0) {
+        semanticBudget--;
+        results = await this.resolveSemantic(n);
+      }
+      this.mergeMentionResults(n, results, best, unresolved);
     }
     return [...best.values(), ...unresolved];
   }

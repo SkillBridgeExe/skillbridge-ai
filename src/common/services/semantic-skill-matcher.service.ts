@@ -71,6 +71,14 @@ export class SemanticSkillMatcherService {
   }
 
   /**
+   * Per-batch (per-CV) ceiling on semantic resolutions — bounds the serial embed
+   * round-trips one CV-review request can trigger on a cold cache (review finding).
+   */
+  getMaxPerBatch(): number {
+    return this.config.get<number>('semantic.maxPerBatch') ?? 16;
+  }
+
+  /**
    * Resolve a single unresolved mention. Returns the canonical ONLY for band 'auto';
    * 'needs_review' and 'none' (and every failure) return null.
    */

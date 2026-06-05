@@ -68,6 +68,11 @@ export default () => ({
     // precision-first by design; the review band [accept−0.08, accept) catches the gray zone.
     acceptThreshold: parseFloat(process.env.SEMANTIC_ACCEPT_THRESHOLD ?? '0.72'),
     reviewBandWidth: parseFloat(process.env.SEMANTIC_REVIEW_BAND ?? '0.08'),
+    // Per-CV ceiling on semantic resolutions: each cache-miss is one serial OpenAI embed
+    // round-trip inside the CV-review request, so a noisy CV (OCR junk) or a cold cache
+    // (embedding_version bump) must not turn one request into an unbounded call storm.
+    // Overflow mentions still get full deterministic results — review finding.
+    maxPerBatch: parseInt(process.env.SEMANTIC_MAX_PER_CV ?? '16', 10),
   },
 
   observability: {
