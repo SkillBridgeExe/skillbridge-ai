@@ -1,2874 +1,2874 @@
 {
- "$note": "R2 eval set #1 — labeled skill mentions for normalization quality (blueprint §5). requires=[] must resolve TODAY; alias/new_skill/prenormalize mark which implementation step unlocks the row. Gate: pnpm eval:mentions.",
- "version": "eval-mentions-v1",
- "created_at": "2026-06-04",
- "mentions": [
-  {
-   "mention": "React",
-   "lang": "en",
-   "expected": [
-    "react"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "normalizeKey('React')='react' = canonical key. Exact hit."
-  },
-  {
-   "mention": "TypeScript",
-   "lang": "en",
-   "expected": [
-    "typescript"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "normalizeKey='typescript' = canonical/display key. Exact."
-  },
-  {
-   "mention": "Python",
-   "lang": "en",
-   "expected": [
-    "python"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'python' canonical key. Exact."
-  },
-  {
-   "mention": "Java",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'java' canonical key. Exact."
-  },
-  {
-   "mention": "Docker",
-   "lang": "en",
-   "expected": [
-    "docker"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'docker' canonical key. Exact."
-  },
-  {
-   "mention": "Kubernetes",
-   "lang": "en",
-   "expected": [
-    "kubernetes"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'kubernetes' canonical key. Exact."
-  },
-  {
-   "mention": "GraphQL",
-   "lang": "en",
-   "expected": [
-    "graphql"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "normalizeKey('GraphQL')='graphql' = canonical key. Exact."
-  },
-  {
-   "mention": "Tableau",
-   "lang": "en",
-   "expected": [
-    "tableau"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'tableau' canonical key. Exact."
-  },
-  {
-   "mention": "Power BI",
-   "lang": "en",
-   "expected": [
-    "power_bi"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'Power BI' -> normalizeKey='powerbi' indexed to power_bi. Exact (display hit)."
-  },
-  {
-   "mention": "CI/CD",
-   "lang": "en",
-   "expected": [
-    "ci_cd"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'CI/CD' -> normalizeKey drops slash ='cicd' indexed to ci_cd. Exact (display hit)."
-  },
-  {
-   "mention": "Flutter",
-   "lang": "en",
-   "expected": [
-    "flutter"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'flutter' canonical key. Exact."
-  },
-  {
-   "mention": "Kotlin",
-   "lang": "en",
-   "expected": [
-    "kotlin"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'kotlin' canonical key. Exact."
-  },
-  {
-   "mention": "Swift",
-   "lang": "en",
-   "expected": [
-    "swift"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'swift' canonical key. Exact."
-  },
-  {
-   "mention": "Firebase",
-   "lang": "en",
-   "expected": [
-    "firebase"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'firebase' canonical key. Exact."
-  },
-  {
-   "mention": "Next.js",
-   "lang": "en",
-   "expected": [
-    "nextjs"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "normalizeKey('Next.js') drops dot ='nextjs' = canonical/display key. Exact."
-  },
-  {
-   "mention": "REST API",
-   "lang": "en",
-   "expected": [
-    "rest_api"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'REST API' -> normalizeKey='restapi' indexed to rest_api. Exact (display hit)."
-  },
-  {
-   "mention": "System Design",
-   "lang": "en",
-   "expected": [
-    "system_design"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'System Design' -> 'systemdesign' indexed to system_design. Exact."
-  },
-  {
-   "mention": "Machine Learning",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'Machine Learning' -> 'machinelearning' indexed to machine_learning. Exact."
-  },
-  {
-   "mention": "Pandas",
-   "lang": "en",
-   "expected": [
-    "pandas"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "'pandas' = canonical key (display 'Pandas (Python)' also strips to 'pandaspython', but canonical 'pandas' indexed). Exact via canonical."
-  },
-  {
-   "mention": "NumPy",
-   "lang": "en",
-   "expected": [
-    "numpy"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "normalizeKey('NumPy')='numpy' = canonical key. Exact."
-  },
-  {
-   "mention": "reactjs",
-   "lang": "en",
-   "expected": [
-    "react"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'reactjs' -> 'reactjs' indexed to react. Alias hit today."
-  },
-  {
-   "mention": "ES6",
-   "lang": "en",
-   "expected": [
-    "javascript"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'es6' -> 'es6' indexed to javascript. Alias hit."
-  },
-  {
-   "mention": "Spring Boot",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'spring boot' -> 'springboot' indexed to java. Alias hit (umbrella -> java)."
-  },
-  {
-   "mention": "K8s",
-   "lang": "en",
-   "expected": [
-    "kubernetes"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'k8s' -> 'k8s' indexed to kubernetes. Alias hit."
-  },
-  {
-   "mention": "Postman",
-   "lang": "en",
-   "expected": [
-    "api_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'postman' -> 'postman' indexed to api_testing. Alias hit."
-  },
-  {
-   "mention": "Node.js",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'node.js' -> 'nodejs' indexed to node_js (canonical 'node_js' -> 'nodejs' is same key, registered first). Resolves to node_js; matched_via alias (key != canonical raw? canonical normalizeKey('node_js')='nodejs' equals key -> actually exact). Resolves correctly regardless."
-  },
-  {
-   "mention": "NestJS",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'nestjs' -> 'nestjs' indexed to node_js. Alias hit (umbrella -> node_js)."
-  },
-  {
-   "mention": "GitHub",
-   "lang": "en",
-   "expected": [
-    "git"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'github' -> 'github' indexed to git. Alias hit."
-  },
-  {
-   "mention": "MongoDB",
-   "lang": "en",
-   "expected": [
-    "nosql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'mongodb' -> 'mongodb' indexed to nosql (first-writer). Alias hit -> nosql."
-  },
-  {
-   "mention": "Redis",
-   "lang": "en",
-   "expected": [
-    "nosql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'redis' (nosql) registered before caching's 'redis cache'; 'redis' -> nosql. Alias hit."
-  },
-  {
-   "mention": "Terraform",
-   "lang": "en",
-   "expected": [
-    "infrastructure_as_code"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'terraform' -> indexed to infrastructure_as_code. Alias hit."
-  },
-  {
-   "mention": "Jira",
-   "lang": "en",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'jira' appears in agile_scrum aliases (earlier in file) AND bug_tracking_jira; first-writer-wins -> agile_scrum. Resolves to agile_scrum today."
-  },
-  {
-   "mention": "Cypress",
-   "lang": "en",
-   "expected": [
-    "frontend_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'cypress' in frontend_testing aliases (earlier) AND test_automation; first-writer -> frontend_testing. Alias hit -> frontend_testing."
-  },
-  {
-   "mention": "Selenium",
-   "lang": "en",
-   "expected": [
-    "test_automation"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'selenium' -> indexed to test_automation. Alias hit."
-  },
-  {
-   "mention": "C#",
-   "lang": "en",
-   "expected": [
-    "dotnet"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey keeps '#' so 'c#' -> 'c#' indexed (dotnet alias) -> dotnet. Alias hit."
-  },
-  {
-   "mention": "PyTorch",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'pytorch' under machine_learning (earlier in file) AND pytorch_tensorflow; first-writer -> machine_learning. Alias hit -> machine_learning."
-  },
-  {
-   "mention": "scikit-learn",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey drops dash ='scikitlearn' indexed (machine_learning alias). Alias hit."
-  },
-  {
-   "mention": "IELTS",
-   "lang": "en",
-   "expected": [
-    "english_proficiency"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'ielts' -> 'ielts' indexed to english_proficiency. Alias hit."
-  },
-  {
-   "mention": "javscript",
-   "lang": "en",
-   "expected": [
-    "javascript"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "normalizeKey='javscript' (missing 'a'); Levenshtein=1 to 'javascript'. Fuzzy hit."
-  },
-  {
-   "mention": "kubernets",
-   "lang": "en",
-   "expected": [
-    "kubernetes"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='kubernets'; Lev=1 to 'kubernetes'. Fuzzy hit."
-  },
-  {
-   "mention": "dockr",
-   "lang": "en",
-   "expected": [
-    "docker"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='dockr'; Lev=1 to 'docker'. Fuzzy hit."
-  },
-  {
-   "mention": "tableu",
-   "lang": "en",
-   "expected": [
-    "tableau"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='tableu'; Lev=1 to 'tableau'. Fuzzy hit."
-  },
-  {
-   "mention": "pyton",
-   "lang": "en",
-   "expected": [
-    "python"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='pyton'; Lev=1 to 'python'. Fuzzy hit."
-  },
-  {
-   "mention": "tyepscript",
-   "lang": "en",
-   "expected": [
-    "typescript"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='tyepscript' (transposed); Lev=2 to 'typescript'. Fuzzy hit at threshold."
-  },
-  {
-   "mention": "mongdb",
-   "lang": "en",
-   "expected": [
-    "nosql"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='mongdb'; Lev=1 to alias 'mongodb' -> nosql. Fuzzy hit."
-  },
-  {
-   "mention": "tensrflow",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='tensrflow'; Lev=1 to alias 'tensorflow' (machine_learning, first-writer) . Fuzzy hit -> machine_learning."
-  },
-  {
-   "mention": "seleniu",
-   "lang": "en",
-   "expected": [
-    "test_automation"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='seleniu'; Lev=1 to alias 'selenium' -> test_automation. Fuzzy hit."
-  },
-  {
-   "mention": "graphq",
-   "lang": "en",
-   "expected": [
-    "graphql"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='graphq'; Lev=1 to canonical key 'graphql'. Fuzzy hit."
-  },
-  {
-   "mention": "jenkin",
-   "lang": "en",
-   "expected": [
-    "ci_cd"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='jenkin'; Lev=1 to alias 'jenkins' -> ci_cd. Fuzzy hit."
-  },
-  {
-   "mention": "postmann",
-   "lang": "en",
-   "expected": [
-    "api_testing"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "='postmann'; Lev=1 to alias 'postman' -> api_testing. Fuzzy hit."
-  },
-  {
-   "mention": "JS",
-   "lang": "en",
-   "expected": [
-    "javascript"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'js' is an existing alias of javascript; normalizeKey('JS')='js' hits the index directly."
-  },
-  {
-   "mention": "TS",
-   "lang": "en",
-   "expected": [
-    "typescript"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'ts' is an existing alias of typescript; direct alias hit."
-  },
-  {
-   "mention": "RN",
-   "lang": "en",
-   "expected": [
-    "react_native"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'rn' is an existing alias of react_native; direct hit."
-  },
-  {
-   "mention": "a11y",
-   "lang": "en",
-   "expected": [
-    "accessibility_a11y"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'a11y' is an existing alias; direct hit."
-  },
-  {
-   "mention": "ML",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'ml' is an existing alias of machine_learning; direct hit."
-  },
-  {
-   "mention": "TF",
-   "lang": "en",
-   "expected": [
-    "pytorch_tensorflow"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'tf' is an existing alias of pytorch_tensorflow; direct hit."
-  },
-  {
-   "mention": "JWT",
-   "lang": "en",
-   "expected": [
-    "authentication_authorization"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'jwt' is an existing alias of authentication_authorization; direct hit."
-  },
-  {
-   "mention": "IaC",
-   "lang": "en",
-   "expected": [
-    "infrastructure_as_code"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey('IaC')='iac', an existing alias of infrastructure_as_code; direct hit."
-  },
-  {
-   "mention": "DB",
-   "lang": "en",
-   "expected": [
-    "database_design"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Today FALSE: db→alias 'dbt'@d1→etl. Add 'db' alias on database_design (exact stage beats fuzzy). [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "OOP",
-   "lang": "en",
-   "expected": [
-    "oop"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Resolves NONE today; just needs the new canonical oop. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "DSA",
-   "lang": "en",
-   "expected": [
-    "data_structures_algorithms"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Today fuzzy risk @d2 → guard + new canonical data_structures_algorithms. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "AI",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Abbrev → ML umbrella (no separate canonical). Today fuzzy false-hits @d2 → needs guard + alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "DL",
-   "lang": "en",
-   "expected": [
-    "deep_learning"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Today FALSE: dl→alias 'ml'@d1→machine_learning → guard + new canonical deep_learning. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "BE",
-   "lang": "en",
-   "expected": [
-    "backend_development"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='be' fuzzy-matches WRONG to javascript. 'Backend' is a role/area, no canonical; propose new 'backend_development'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "FE",
-   "lang": "en",
-   "expected": [
-    "frontend_development"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='fe' fuzzy-matches WRONG to javascript. 'Frontend' area has no canonical; propose new 'frontend_development'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "ORM",
-   "lang": "en",
-   "expected": [
-    "orm"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='orm' fuzzy-matches WRONG to java. No ORM/object-relational-mapping canonical; propose new 'orm'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "CV",
-   "lang": "en",
-   "expected": [
-    "computer_vision"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='cv' fuzzy-matches WRONG to dotnet. In ML context CV=computer vision; no canonical; propose new 'computer_vision'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "GCP",
-   "lang": "en",
-   "expected": [
-    "cloud_gcp"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='gcp' fuzzy-matches WRONG to dotnet. Only cloud_aws exists; propose new 'cloud_gcp' for Google Cloud. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "NLP",
-   "lang": "en",
-   "expected": [
-    "nlp"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Today 'nlp'→'net'@d2→dotnet FALSE → guard + new canonical nlp. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "npm",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='npm' fuzzy-matches WRONG to dotnet today. npm is the Node package manager; add 'npm' alias to node_js. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "React 18",
-   "lang": "en",
-   "expected": [
-    "react"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='react18'. Currently fuzzy2->react (fragile, depends on threshold). Robust path: strip version '18' so 'react18'->'react' then exact alias hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Vue 3",
-   "lang": "en",
-   "expected": [
-    "vue"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='vue3' = none today. Needs prenormalize to strip '3'->'vue', AND vue has no canonical -> propose new 'vue'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Python 3.11",
-   "lang": "en",
-   "expected": [
-    "python"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey strips the dot -> 'python311'. It only coincidentally fuzzy-hits the 'python3' alias at dist2. Robust path: strip version to 'python' then exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Java 17",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='java17'; relies on fragile fuzzy2->java. Strip version -> 'java' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Node 20",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='node20'; fragile fuzzy2->node_js. Strip version -> 'node' which is an existing alias of node_js. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Angular 16",
-   "lang": "en",
-   "expected": [
-    "angular"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='angular16'=none. Strip version -> 'angular', but angular has no canonical -> propose new 'angular'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
-  },
-  {
-   "mention": ".NET 8",
-   "lang": "en",
-   "expected": [
-    "dotnet"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='net8' fuzzy1->dotnet today (coincidental). Robust path: strip version, '.net' is an existing alias of dotnet. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "ES2022",
-   "lang": "en",
-   "expected": [
-    "javascript"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='es2022'=fuzzy2 to javascript via es2015/es6 (fragile). Robust: normalize ECMAScript year to javascript; es6/es2015 are existing aliases but es2022 is not. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "PHP 8",
-   "lang": "en",
-   "expected": [
-    "php"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='php8'=none. Strip version -> 'php', but php has no canonical -> propose new 'php'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
-  },
-  {
-   "mention": "Go 1.21",
-   "lang": "en",
-   "expected": [
-    "golang"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='go121'=none. Strip version -> 'go'/'golang', no canonical -> propose new 'golang'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Spring Boot 3",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='springboot3' fuzzy1->java via 'springboot' alias (fragile). Strip version -> 'spring boot' which is an existing alias of java. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Next 14",
-   "lang": "en",
-   "expected": [
-    "nextjs"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='next14' fuzzy2->nextjs (fragile). Strip version -> 'next js' which is an existing alias of nextjs. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Tailwind 3",
-   "lang": "en",
-   "expected": [
-    "css"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='tailwind3'=none. Strip version -> 'tailwind css' which is an existing alias of css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Postgres 16",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='postgres16' fuzzy2->sql via 'postgresql' (fragile). Strip version -> 'postgres'/'postgresql' which is an existing alias of sql. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Kotlin 1.9",
-   "lang": "en",
-   "expected": [
-    "kotlin"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey strips dot -> 'kotlin19' fuzzy2->kotlin (fragile, two trailing digits). Strip version -> 'kotlin' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Swift 5",
-   "lang": "en",
-   "expected": [
-    "swift"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='swift5' fuzzy1->swift (coincidental). Strip version -> 'swift' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Ruby 3",
-   "lang": "en",
-   "expected": [
-    "ruby"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey='ruby3'=none. Strip version -> 'ruby', but ruby has no canonical -> propose new 'ruby'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
-  },
-  {
-   "mention": "C++ 17",
-   "lang": "en",
-   "expected": [
-    "cpp"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "normalizeKey keeps '+' -> 'c++17'=none. Strip version -> 'c++', but no C++ canonical exists -> propose new 'cplusplus'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
-  },
-  {
-   "mention": "React + Redux",
-   "lang": "en",
-   "expected": [
-    "react",
-    "redux"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='react+redux'=none. Split on '+' -> 'react' (exact) + 'redux' (no canonical -> propose new 'redux'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "HTML/CSS",
-   "lang": "en",
-   "expected": [
-    "html",
-    "css"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey collapses slash -> 'htmlcss'=none. Split on '/' -> 'html' + 'css', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Node.js và Express",
-   "lang": "vi",
-   "expected": [
-    "node_js"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='nodejsvàexpress'=none. Split on 'và' -> 'node.js'(alias node_js) + 'express'/'express.js'(alias node_js); both resolve to node_js. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Docker & Kubernetes",
-   "lang": "en",
-   "expected": [
-    "docker",
-    "kubernetes"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='docker&kubernetes'=none. Split on '&' -> 'docker' (exact) + 'kubernetes' (exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Swift/Kotlin",
-   "lang": "en",
-   "expected": [
-    "swift",
-    "kotlin"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='swiftkotlin'=none. Split on '/' -> 'swift' + 'kotlin', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "SQL Server, MySQL",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='sqlserver,mysql'=none. Split on ',' -> 'sql server' + 'mysql', both existing aliases of sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Vue và Vuex",
-   "lang": "vi",
-   "expected": [
-    "vue",
-    "vuex"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='vuevàvuex'=none. Split on 'và' -> 'vue' + 'vuex'; neither has a canonical -> propose new 'vue' and 'vuex'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Java và Spring",
-   "lang": "vi",
-   "expected": [
-    "java"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='javavàspring'=none. Split on 'và' -> 'java' (exact) + 'spring'/'spring boot' (alias of java); both -> java. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "React, TypeScript",
-   "lang": "en",
-   "expected": [
-    "react",
-    "typescript"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='react,typescript'=none (comma not stripped). Split on ',' -> 'react' + 'typescript', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Python và Pandas",
-   "lang": "vi",
-   "expected": [
-    "python",
-    "pandas"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='pythonvàpandas' WRONGLY fuzzy2->pandas today (drops python). Split on 'và' -> 'python' + 'pandas', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "HTML, CSS, JavaScript",
-   "lang": "en",
-   "expected": [
-    "html",
-    "css",
-    "javascript"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='html,css,javascript'=none. Split on ',' -> three components, all exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "REST/GraphQL",
-   "lang": "en",
-   "expected": [
-    "rest_api",
-    "graphql"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='restgraphql'=none. Split on '/' -> 'rest'(alias rest_api) + 'graphql'(exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Jest và Cypress",
-   "lang": "vi",
-   "expected": [
-    "frontend_testing"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='jestvàcypress'=none. Split on 'và' -> 'jest' + 'cypress'; both aliases resolve to frontend_testing (cypress -> frontend_testing by first-writer-wins). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "NumPy và Pandas",
-   "lang": "vi",
-   "expected": [
-    "numpy",
-    "pandas"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='numpyvàpandas'=none. Split on 'và' -> 'numpy' + 'pandas', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Docker và CI/CD",
-   "lang": "vi",
-   "expected": [
-    "docker",
-    "ci_cd"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey collapses everything -> 'dockervàcicd'=none. Split on 'và' -> 'docker' (exact) + 'CI/CD' (alias ci_cd via 'cicd'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "AWS & Terraform",
-   "lang": "en",
-   "expected": [
-    "cloud_aws",
-    "infrastructure_as_code"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "normalizeKey='aws&terraform'=none. Split on '&' -> 'aws' (alias cloud_aws) + 'terraform' (alias infrastructure_as_code). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "TCP/IP",
-   "lang": "en",
-   "expected": [
-    "networking"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='tcpip' is an existing alias of networking -> direct hit (slash stripped, single concept)."
-  },
-  {
-   "mention": "UI/UX",
-   "lang": "en",
-   "expected": [
-    "ui_ux_design"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "Today uiux→linux@d2 FALSE → guard + new canonical ui_ux_design. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "QA",
-   "lang": "en",
-   "expected": [
-    "manual_testing"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "normalizeKey='qa' fuzzy-matches WRONG to javascript today. QA (quality assurance) best maps to manual_testing; add 'qa' alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Tiếng Anh",
-   "lang": "vi",
-   "expected": [
-    "english_proficiency"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'tiếng anh' already on english_proficiency; normalizeKey keeps diacritics -> 'tiếnganh' hits index directly."
-  },
-  {
-   "mention": "Làm việc nhóm",
-   "lang": "vi",
-   "expected": [
-    "teamwork"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Existing VI alias 'làm việc nhóm' on teamwork."
-  },
-  {
-   "mention": "Kỹ năng giao tiếp",
-   "lang": "vi",
-   "expected": [
-    "communication"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Existing alias is bare 'giao tiếp' which resolves today, but the very common CV phrasing 'kỹ năng giao tiếp' does NOT (NONE today). Add 'kỹ năng giao tiếp' as alias on communication. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Giao tiếp",
-   "lang": "vi",
-   "expected": [
-    "communication"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'giao tiếp' present on communication; resolves today."
-  },
-  {
-   "mention": "Học máy",
-   "lang": "vi",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'học máy' present on machine_learning."
-  },
-  {
-   "mention": "Thống kê",
-   "lang": "vi",
-   "expected": [
-    "statistics"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'thống kê' present on statistics."
-  },
-  {
-   "mention": "Thiết kế API",
-   "lang": "mixed",
-   "expected": [
-    "rest_api"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'thiết kế api' present on rest_api; mixed VI+EN."
-  },
-  {
-   "mention": "Xác thực",
-   "lang": "vi",
-   "expected": [
-    "authentication_authorization"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'xác thực' present on authentication_authorization."
-  },
-  {
-   "mention": "Giải quyết vấn đề",
-   "lang": "vi",
-   "expected": [
-    "problem_solving"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'giải quyết vấn đề' present on problem_solving."
-  },
-  {
-   "mention": "Lập trình React",
-   "lang": "mixed",
-   "expected": [
-    "react"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'Lập trình React' present on react; resolves today."
-  },
-  {
-   "mention": "Lập trình JavaScript",
-   "lang": "mixed",
-   "expected": [
-    "javascript"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'Lập trình JavaScript' present on javascript."
-  },
-  {
-   "mention": "Trực quan hóa dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "data_visualization"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'trực quan hóa dữ liệu' present on data_visualization."
-  },
-  {
-   "mention": "Thiết kế hệ thống",
-   "lang": "vi",
-   "expected": [
-    "system_design"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'thiết kế hệ thống' present on system_design."
-  },
-  {
-   "mention": "Quản lý thời gian",
-   "lang": "vi",
-   "expected": [
-    "time_management"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'quản lý thời gian' present on time_management."
-  },
-  {
-   "mention": "Tư duy phản biện",
-   "lang": "vi",
-   "expected": [
-    "critical_thinking"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "VI alias 'tư duy phản biện' present on critical_thinking."
-  },
-  {
-   "mention": "Lập trình web",
-   "lang": "vi",
-   "expected": [
-    "html",
-    "css",
-    "javascript"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "NONE today. Generic 'web programming' is a compound implying web fundamentals stack. Needs stage-0 to map this VI phrase to the HTML/CSS/JS bundle, or per-component aliasing. Most CVs mean front-end web fundamentals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Cơ sở dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'cơ sở dữ liệu' = databases generically. Most defensible single canonical = sql (the DB skill students actually mean). database_design is narrower (modeling/ERD), so sql is the better target. Add 'cơ sở dữ liệu' alias on sql. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Quản trị cơ sở dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Database administration'. No dba canonical; closest defensible single = sql. Add alias on sql. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kiểm thử phần mềm",
-   "lang": "vi",
-   "expected": [
-    "manual_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. Generic 'software testing'. Most defensible single canonical = manual_testing (the broad testing skill); add 'kiểm thử phần mềm' alias there. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kiểm thử tự động",
-   "lang": "vi",
-   "expected": [
-    "test_automation"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Automated testing' maps cleanly to test_automation. Add VI alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Tự động hóa kiểm thử",
-   "lang": "vi",
-   "expected": [
-    "test_automation"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. Alternate phrasing of automated testing -> test_automation. Add VI alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kiểm thử thủ công",
-   "lang": "vi",
-   "expected": [
-    "manual_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. Direct VI of 'manual testing' -> manual_testing. Add VI alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kiểm thử API",
-   "lang": "mixed",
-   "expected": [
-    "api_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'API testing' -> api_testing. Add VI alias 'kiểm thử api'. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Lập trình hướng đối tượng",
-   "lang": "vi",
-   "expected": [
-    "oop"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "NONE today. OOP is a cross-language paradigm not represented by any existing canonical (java/python/dotnet are languages, not OOP). Propose NEW canonical snake_case 'oop' (display 'Object-Oriented Programming'), aliases incl 'lập trình hướng đối tượng','oop','object oriented programming'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Trí tuệ nhân tạo",
-   "lang": "vi",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Artificial Intelligence'. No 'ai' canonical; machine_learning is the most defensible single target in this taxonomy. Add 'trí tuệ nhân tạo' alias on machine_learning. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Phân tích dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "data_analysis"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "New canonical data_analysis (statistics/data_visualization are narrower). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Trực quan hóa",
-   "lang": "vi",
-   "expected": [
-    "data_visualization"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (only the longer 'trực quan hóa dữ liệu' is aliased). Add short form 'trực quan hóa' alias on data_visualization. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Điện toán đám mây",
-   "lang": "vi",
-   "expected": [
-    "cloud_aws"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Cloud computing'. Only cloud canonical is cloud_aws (AWS); most defensible single target. Add 'điện toán đám mây' alias on cloud_aws. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Quản lý dự án",
-   "lang": "vi",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Project management'. No project_management canonical; the closest defensible single is agile_scrum (process). Add VI alias there; a dedicated project_management canonical would be cleaner future work. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Tiếng Nhật",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "NONE today and SHOULD stay unmatched. Only language skill in taxonomy is english_proficiency; Japanese has no canonical. Must NOT match anything (expected=[]). A real fix is a future new_skill, but per current scope it is a correct negative."
-  },
-  {
-   "mention": "Tiếng Trung",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "NONE today, correct negative. No Chinese-language canonical; only english_proficiency exists. Must NOT match."
-  },
-  {
-   "mention": "Tiếng Hàn",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "NONE today, correct negative. No Korean-language canonical."
-  },
-  {
-   "mention": "tin học văn phòng",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Generic office-literacy phrase — precision-first: must NOT match (excel-alias debated and rejected)."
-  },
-  {
-   "mention": "Mạng máy tính",
-   "lang": "vi",
-   "expected": [
-    "networking"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Computer networking' -> networking. Add VI alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Hệ điều hành Linux",
-   "lang": "mixed",
-   "expected": [
-    "linux"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Linux OS' -> linux. Add VI alias 'hệ điều hành linux'. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Bảo mật",
-   "lang": "vi",
-   "expected": [
-    "security"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "NONE today. Generic 'security' is not covered (authentication_authorization is narrower auth-only; networking has firewall but is infra). Propose NEW canonical 'security' (display 'Security'), aliases 'bảo mật','an toàn thông tin','an ninh mạng','information security','cybersecurity'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "An toàn thông tin",
-   "lang": "vi",
-   "expected": [
-    "security"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "NONE today. 'Information security' -> proposed new canonical 'security' (same as bảo mật). No defensible existing single canonical. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Lập trình di động",
-   "lang": "vi",
-   "expected": [
-    "swift",
-    "kotlin",
-    "flutter",
-    "react_native"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "NONE today. 'Mobile programming' is a generic umbrella spanning all mobile canonicals (swift/kotlin/flutter/react_native). No single target; needs stage-0 to expand to the mobile bundle or a new 'mobile_development' canonical. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Phát triển ứng dụng web",
-   "lang": "vi",
-   "expected": [
-    "html",
-    "css",
-    "javascript"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "NONE today. 'Web application development' -> web fundamentals bundle html/css/javascript. Same treatment as 'lập trình web'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Viết tài liệu kỹ thuật",
-   "lang": "vi",
-   "expected": [
-    "communication"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Technical writing/documentation' -> closest defensible single is communication (written communication is an alias). Add 'viết tài liệu kỹ thuật' alias on communication. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Lập trình Python",
-   "lang": "mixed",
-   "expected": [
-    "python"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (no 'Lập trình Python' alias, unlike the curated JS/React/Swift VI aliases). Add 'Lập trình Python' alias on python. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Lập trình Java",
-   "lang": "mixed",
-   "expected": [
-    "java"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. Parallel gap to Python; add 'Lập trình Java' alias on java. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Quản lý mã nguồn",
-   "lang": "vi",
-   "expected": [
-    "git"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Source code management / version control' -> git (alias 'version control' exists in EN). Add VI 'quản lý mã nguồn' alias on git. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kiểm soát phiên bản",
-   "lang": "vi",
-   "expected": [
-    "git"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. Direct VI of 'version control' -> git. Add VI alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Thiết kế giao diện",
-   "lang": "vi",
-   "expected": [
-    "responsive_design"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'UI design'. No ui_design canonical; closest defensible single in taxonomy is responsive_design (front-end UI skill). Add VI alias there. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Lập trình React Native",
-   "lang": "mixed",
-   "expected": [
-    "react_native"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (the 'Lập trình X' VI prefix is only aliased for react/js/swift). Add 'Lập trình React Native' alias on react_native. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Học sâu",
-   "lang": "vi",
-   "expected": [
-    "deep_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML). [unlocked by step-2 alias] [label fixed step-3: deep_learning canonical now exists; alias relocated]"
-  },
-  {
-   "mention": "Khoa học dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Data science' umbrella; no data_science canonical. Most defensible single existing target = machine_learning. Add VI alias; future dedicated canonical preferable. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "CSDL",
-   "lang": "vi",
-   "expected": [
-    "sql"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "DANGER: today abbreviation 'CSDL' fuzzy-matches css (d=2)! Wrong. CSDL = 'cơ sở dữ liệu' (database). Needs stage-0 abbreviation expansion CSDL -> cơ sở dữ liệu, target sql. Current cascade resolves INCORRECTLY to css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "ATTT",
-   "lang": "vi",
-   "expected": [
-    "security"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "DANGER: today 'ATTT' fuzzy-matches authentication_authorization (d=2)! ATTT = 'an toàn thông tin' (information security). Needs abbreviation expansion + the proposed new 'security' canonical. Current cascade resolves to wrong (auth) canonical. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Phân tích dữ liệu lớn",
-   "lang": "vi",
-   "expected": [
-    "etl"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Big data analysis'. Closest defensible single existing canonical = etl (data engineering/pipelines). Add VI alias; big-data has no dedicated canonical. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Triển khai CI/CD",
-   "lang": "mixed",
-   "expected": [
-    "ci_cd"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (the verb prefix 'triển khai' blocks the exact 'ci/cd' match). Add 'triển khai ci/cd' alias on ci_cd, or rely on future stage-0 verb stripping. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Sử dụng Git",
-   "lang": "mixed",
-   "expected": [
-    "git"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "NONE today (verb prefix 'sử dụng' blocks 'git' exact match). Needs stage-0 to strip the VI verb prefix, or add explicit alias. Target = git. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kỹ năng thuyết trình",
-   "lang": "vi",
-   "expected": [
-    "communication"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'Presentation skills' -> communication (alias 'presentation' exists in EN). Add VI 'kỹ năng thuyết trình'/'thuyết trình' alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Tiếng Anh giao tiếp",
-   "lang": "vi",
-   "expected": [
-    "english_proficiency"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (compound phrase 'conversational English' is not the bare 'tiếng anh' key). Add 'tiếng anh giao tiếp' alias on english_proficiency, or stage-0 to reduce to 'tiếng anh'. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Quản trị hệ thống",
-   "lang": "vi",
-   "expected": [
-    "linux"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today. 'System administration'. No sysadmin canonical; most defensible single is linux (shell/ops skill). Add VI alias on linux. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Kỹ năng làm việc nhóm",
-   "lang": "vi",
-   "expected": [
-    "teamwork"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "NONE today (bare 'làm việc nhóm' resolves, but the 'kỹ năng ...' prefixed CV phrasing does not). Add 'kỹ năng làm việc nhóm' alias on teamwork, or stage-0 to strip 'kỹ năng' prefix. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Express.js",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'express.js'->'expressjs' is an existing alias of node_js."
-  },
-  {
-   "mention": "ASP.NET Core",
-   "lang": "en",
-   "expected": [
-    "dotnet"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey->'aspnetcore'; 'asp.net core'->'aspnetcore' is an existing alias of dotnet."
-  },
-  {
-   "mention": "PostgreSQL",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'postgresql' alias of sql (umbrella). Resolves today."
-  },
-  {
-   "mention": "Tailwind CSS",
-   "lang": "en",
-   "expected": [
-    "css"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'tailwind css'->'tailwindcss' alias of css umbrella. Resolves today."
-  },
-  {
-   "mention": "Datadog",
-   "lang": "en",
-   "expected": [
-    "monitoring_logging"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'datadog' alias of monitoring_logging umbrella. Resolves today."
-  },
-  {
-   "mention": "GitHub Actions",
-   "lang": "en",
-   "expected": [
-    "ci_cd"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'github actions'->'githubactions' alias of ci_cd. Resolves today."
-  },
-  {
-   "mention": "Firestore",
-   "lang": "en",
-   "expected": [
-    "nosql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "'firestore' appears in nosql aliases FIRST (nosql before firebase in file) so first-writer-wins -> nosql, NOT firebase. Resolves today (to nosql)."
-  },
-  {
-   "mention": "Postgres",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "normalizeKey 'postgres' fuzzy Levenshtein=2 to alias 'postgresql' -> sql. Resolves today via fuzzy, correct target."
-  },
-  {
-   "mention": "k8s cluster",
-   "lang": "en",
-   "expected": [
-    "kubernetes"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "'k8s cluster'->'k8scluster' misses index and fuzzy (too far). Needs stage-0 to drop the 'cluster' qualifier so 'k8s'->kubernetes resolves. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Next.js 14",
-   "lang": "en",
-   "expected": [
-    "nextjs"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "'nextjs14' fuzzy-matches nextjs at d=2 today but only coincidentally; stage-0 version stripping makes 'Next.js 14'->nextjs robust. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "TypeScript 5",
-   "lang": "en",
-   "expected": [
-    "typescript"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "'typescript5' fuzzy d=1 to typescript today, but relies on fuzzy; version stripping is the correct deterministic fix. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "Angular 15",
-   "lang": "en",
-   "expected": [
-    "angular"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "'angular15' NONE today. Needs stage-0 version strip to 'angular' plus new angular canonical (frontend_framework). [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
-  },
-  {
-   "mention": "Vue 2",
-   "lang": "en",
-   "expected": [
-    "vue"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "'vue2' NONE today. Needs version strip + new vue canonical. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Node.js & Express",
-   "lang": "mixed",
-   "expected": [
-    "node_js"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "Combined 'nodejs&express' is NONE. Split on '&' yields 'node.js' and 'express', both already aliases of node_js. Needs stage-0 compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "React + TypeScript",
-   "lang": "en",
-   "expected": [
-    "react",
-    "typescript"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "'react+typescript' NONE. Split on '+' -> react and typescript (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Docker và Kubernetes",
-   "lang": "mixed",
-   "expected": [
-    "docker",
-    "kubernetes"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "'dockervàkubernetes' NONE. Split on Vietnamese 'và' -> docker + kubernetes (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Python và SQL",
-   "lang": "mixed",
-   "expected": [
-    "python",
-    "sql"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "'pythonvàsql' NONE. Split on 'và' -> python + sql. Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Thiết kế cơ sở dữ liệu",
-   "lang": "vi",
-   "expected": [
-    "database_design"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "Existing VN alias is 'thiết kế database' ('thiếtkếdatabase'); 'thiết kế cơ sở dữ liệu' ('thiếtkếcơsởdữliệu') is NONE today and too far for fuzzy. Needs a new VN alias on database_design. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Tư duy logic",
-   "lang": "vi",
-   "expected": [
-    "critical_thinking"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "critical_thinking has 'logical thinking' and 'tư duy phản biện' but not 'tư duy logic' ('tưduylogic'), which is NONE today. Common VN CV phrase; add as alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Vue.js",
-   "lang": "en",
-   "expected": [
-    "vue"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'vuejs' NONE today, no alias covers it. Top-3 VN frontend framework. Propose canonical vue (category frontend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Angular",
-   "lang": "en",
-   "expected": [
-    "angular"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'angular' NONE today. Major frontend framework in VN enterprise/outsourcing. Propose canonical angular (frontend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Svelte",
-   "lang": "en",
-   "expected": [
-    "svelte"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'svelte' NONE. Growing frontend framework. Propose canonical svelte (frontend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Redux",
-   "lang": "en",
-   "expected": [
-    "redux"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today FALSE: redux→'redis'@d2→nosql → guard + new canonical redux. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "PHP",
-   "lang": "en",
-   "expected": [
-    "php"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today fuzzy FALSE→python (py@d2 path) → guard + new canonical php. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Laravel",
-   "lang": "en",
-   "expected": [
-    "laravel"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'laravel' NONE. Dominant PHP framework in VN. Propose canonical laravel (backend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Golang",
-   "lang": "en",
-   "expected": [
-    "golang"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Canonical name standardized: golang (with go/go lang aliases). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Rust",
-   "lang": "en",
-   "expected": [
-    "rust"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today FALSE: rust→alias 'rest'@d1→rest_api → guard + new canonical rust. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "C++",
-   "lang": "en",
-   "expected": [
-    "cpp"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today 'c++'→'c#'@d1→dotnet FALSE → guard; canonical cpp. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "C language",
-   "lang": "en",
-   "expected": [
-    "c_lang"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'clanguage' NONE. Foundational language in VN curricula and embedded roles. Propose canonical c_lang (programming_language). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Django",
-   "lang": "en",
-   "expected": [
-    "django"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'django' NONE. Major Python backend framework in VN. Propose canonical django (backend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Flask",
-   "lang": "en",
-   "expected": [
-    "flask"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'flask' NONE. Lightweight Python web framework common in VN student projects/AI APIs. Propose canonical flask (backend_framework). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "FastAPI",
-   "lang": "en",
-   "expected": [
-    "fastapi"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today FALSE: fastapi→'restapi'@d2→rest_api → guard + new canonical fastapi. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Kafka",
-   "lang": "en",
-   "expected": [
-    "kafka"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'kafka' NONE. Event-streaming backbone in VN microservices/data roles. Propose canonical kafka (messaging_streaming / backend_skill). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "RabbitMQ",
-   "lang": "en",
-   "expected": [
-    "rabbitmq"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'rabbitmq' NONE. Message broker common in VN backend systems. Propose canonical rabbitmq (messaging_streaming). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Elasticsearch",
-   "lang": "en",
-   "expected": [
-    "elasticsearch"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'elasticsearch' NONE ('elk' is a monitoring alias but Elasticsearch as a search/data store is distinct). Propose canonical elasticsearch (search / database). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "WebSocket",
-   "lang": "en",
-   "expected": [
-    "websocket"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'websocket' NONE. Real-time comms skill for chat/live features in VN apps. Propose canonical websocket (backend_skill). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Microservices",
-   "lang": "en",
-   "expected": [
-    "microservices"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'microservices' NONE. Core architecture skill in VN enterprise/outsourcing JDs. Propose canonical microservices (architecture). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Cấu trúc dữ liệu và giải thuật",
-   "lang": "vi",
-   "expected": [
-    "data_structures_algorithms"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "VN phrase for DSA; whole string NONE and contains 'và' which a compound-splitter would mishandle, so needs both a new canonical data_structures_algorithms (cs_fundamentals) and a stage-0 alias for the VN phrase. Heavily tested in VN interviews. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Security fundamentals",
-   "lang": "en",
-   "expected": [
-    "security"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'securityfundamentals' NONE (auth canonical only covers authn/authz). OWASP/web-security basics appear in VN backend/devsecops JDs. Propose canonical security_fundamentals (security). [label fixed step-3: folded into security per verifier reconciliation] [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Figma",
-   "lang": "en",
-   "expected": [
-    "figma"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'figma' NONE. Default design/handoff tool; even FE devs list it in VN CVs. Propose canonical figma (design_tool). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "UI/UX Design",
-   "lang": "en",
-   "expected": [
-    "ui_ux_design"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'uiuxdesign' NONE ('ui/ux' alone dangerously fuzzy-hits linux). Common in VN FE/design hybrid roles. Propose canonical ui_ux_design (design). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Android (Native)",
-   "lang": "en",
-   "expected": [
-    "android_native"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'android' NONE (kotlin/java exist but native Android platform skill is distinct). Propose canonical android_native (mobile_platform). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "iOS Development",
-   "lang": "en",
-   "expected": [
-    "ios_native"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "bare 'iOS' dangerously fuzzy-hits css; 'iosdevelopment' NONE. Swift exists but iOS platform skill is distinct. Propose canonical ios_native (mobile_platform). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Unity",
-   "lang": "en",
-   "expected": [
-    "unity"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today FALSE: unity→'unix'@d2→linux → guard + new canonical unity. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Blockchain",
-   "lang": "en",
-   "expected": [
-    "blockchain"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'blockchain' NONE. Strong VN web3/crypto hiring. Propose canonical blockchain (blockchain) covering smart-contracts/web3. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Solidity",
-   "lang": "en",
-   "expected": [
-    "solidity"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'solidity' NONE. Smart-contract language for VN web3 roles. Propose canonical solidity (blockchain). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Prompt Engineering",
-   "lang": "en",
-   "expected": [
-    "prompt_engineering"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'promptengineering' NONE. Fast-growing AI skill in VN JDs/student projects. Propose canonical prompt_engineering (ai_ml). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "LLM",
-   "lang": "en",
-   "expected": [
-    "llm_engineering"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "DANGER: 'llm' fuzzy-matches java at d=2 (wrong!). LLM/RAG app building is a real emerging VN AI role. Propose canonical llm_engineering (ai_ml). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Computer Vision",
-   "lang": "en",
-   "expected": [
-    "computer_vision"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'computervision' NONE. Core AI specialization in VN AI labs/startups. Propose canonical computer_vision (ai_ml). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Web Scraping",
-   "lang": "en",
-   "expected": [
-    "web_scraping"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'webscraping' NONE. Common data-collection skill in VN data/AI student projects. Propose canonical web_scraping (data_skill). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "gRPC",
-   "lang": "en",
-   "expected": [
-    "grpc"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "New canonical grpc; guard against short-key fuzzy. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Apache Spark",
-   "lang": "en",
-   "expected": [
-    "spark"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'apachespark' NONE. Big-data processing engine in VN data-engineering roles. Propose canonical spark (data_skill) with 'pyspark' alias. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "R",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Single letter too ambiguous (rn@d1→react_native FALSE today). Min-length guard → NONE. No r canonical for MVP. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Google Cloud Platform",
-   "lang": "en",
-   "expected": [
-    "cloud_gcp"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'googlecloudplatform' NONE; bare 'GCP' dangerously fuzzy-hits dotnet. Only AWS has a canonical today. Propose canonical cloud_gcp (cloud). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Microsoft Azure",
-   "lang": "en",
-   "expected": [
-    "cloud_azure"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "'microsoftazure' NONE. Azure common in VN enterprise/.NET shops; only AWS covered today. Propose canonical cloud_azure (cloud). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Go",
-   "lang": "en",
-   "expected": [
-    "golang"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Bare 2-char token false-fuzzy-hits short alias keys @d2 today → fuzzy min-length guard; final = alias of golang. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Vue",
-   "lang": "en",
-   "expected": [
-    "vue"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Today fuzzy false-hit @d2 → guard; new canonical vue (vuejs/vue.js/vue 3 aliases). [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "iOS",
-   "lang": "en",
-   "expected": [
-    "swift"
-   ],
-   "category": "abbrev",
-   "requires": [],
-   "note": "iOS → swift umbrella (alias 'ios swift' exists, bare 'ios' does not). Today ios→css@d2 FALSE → guard + alias. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Vercel",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Deploy platform, not an MVP skill. Today FALSE: vercel→'excel'@d2 → the fuzzy guard must kill this. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Dart",
-   "lang": "en",
-   "expected": [
-    "flutter"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Dart → flutter umbrella (ecosystem); today fuzzy risk dax/dbt@d2 → guard. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "React.js",
-   "lang": "en",
-   "expected": [
-    "react"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey strips dot -> reactjs; alias hit."
-  },
-  {
-   "mention": "MySQL",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'mysql' -> sql."
-  },
-  {
-   "mention": "Prometheus",
-   "lang": "en",
-   "expected": [
-    "monitoring_logging"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'prometheus' -> monitoring_logging."
-  },
-  {
-   "mention": "Jest",
-   "lang": "en",
-   "expected": [
-    "frontend_testing"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'jest' -> frontend_testing."
-  },
-  {
-   "mention": "TensorFlow",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Same first-writer issue: tensorflow -> machine_learning (not pytorch_tensorflow)."
-  },
-  {
-   "mention": "Google Sheets",
-   "lang": "en",
-   "expected": [
-    "excel"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'google sheets' -> excel."
-  },
-  {
-   "mention": "VLOOKUP",
-   "lang": "en",
-   "expected": [
-    "excel"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'vlookup' -> excel."
-  },
-  {
-   "mention": "Nginx",
-   "lang": "en",
-   "expected": [
-    "networking"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'nginx' -> networking."
-  },
-  {
-   "mention": "react js",
-   "lang": "en",
-   "expected": [
-    "react"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey->reactjs; alias hit react."
-  },
-  {
-   "mention": "Mongo DB",
-   "lang": "en",
-   "expected": [
-    "nosql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "normalizeKey->mongodb; alias -> nosql."
-  },
-  {
-   "mention": "pivot table",
-   "lang": "en",
-   "expected": [
-    "excel"
-   ],
-   "category": "fuzzy",
-   "requires": [],
-   "note": "normalizeKey->pivottable; fuzzy d=1 to alias 'pivot tables' -> excel."
-  },
-  {
-   "mention": "SQL Server",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "alias 'sql server' present -> sql. Resolves today."
-  },
-  {
-   "mention": "Microsoft Excel",
-   "lang": "en",
-   "expected": [
-    "excel"
-   ],
-   "category": "exact",
-   "requires": [],
-   "note": "display 'Microsoft Excel' -> excel. Distinguished from 'Microsoft Word' (negative). Excel IS a tracked skill."
-  },
-  {
-   "mention": "VueJS",
-   "lang": "en",
-   "expected": [
-    "vue"
-   ],
-   "category": "expansion",
-   "requires": [],
-   "note": "Same: vuejs -> NONE today. Needs new canonical 'vue'. [unlocked by step-3 expansion]"
-  },
-  {
-   "mention": "Spring",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Bare 'spring' -> NONE today (only 'spring boot' aliased, fuzzy too far). Add 'spring' as alias of java. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Spring MVC",
-   "lang": "en",
-   "expected": [
-    "java"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "springmvc -> NONE today; far from 'spring boot' fuzzy. Add 'spring mvc'/'spring' alias to java. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "sklearn",
-   "lang": "en",
-   "expected": [
-    "machine_learning"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "sklearn -> NONE today (only 'scikit-learn' aliased, fuzzy too far). Add 'sklearn' alias to machine_learning. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "agile",
-   "lang": "en",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "bare 'agile' -> NONE today (aliases have 'agile methodology' not bare 'agile'; fuzzy too far). Add alias 'agile'. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Scrum",
-   "lang": "en",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "bare 'scrum' -> NONE today. Add alias 'scrum' to agile_scrum. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "DevOps",
-   "lang": "en",
-   "expected": [
-    "ci_cd"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "devops -> NONE today. Add 'devops' alias (best fit ci_cd). [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Trello",
-   "lang": "en",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "trello -> NONE today. Project-board tool; add as alias of agile_scrum (or bug_tracking_jira). [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Confluence",
-   "lang": "en",
-   "expected": [
-    "agile_scrum"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "confluence -> NONE today. Atlassian collab tool; add alias to agile_scrum. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Oracle",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "oracle/oracle db -> NONE today (not in sql aliases). Add 'oracle' alias to sql. [unlocked by step-2 alias]"
-  },
-  {
-   "mention": "Node 18",
-   "lang": "en",
-   "expected": [
-    "node_js"
-   ],
-   "category": "version",
-   "requires": [],
-   "note": "node18 currently fuzzy-hits node_js (d=2) accidentally. Correct fix = version strip stage-0. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
-  },
-  {
-   "mention": "React và Node.js",
-   "lang": "vi",
-   "expected": [
-    "react",
-    "node_js"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "reactvànodejs -> NONE today. Split on 'và' into 'react' + 'node.js'. Compound -> both canonicals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Java và Spring Boot",
-   "lang": "vi",
-   "expected": [
-    "java"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "Split on 'và': 'java' + 'spring boot' both -> java (umbrella). Single canonical java. Needs split first. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Python & SQL",
-   "lang": "mixed",
-   "expected": [
-    "python",
-    "sql"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "python&sql -> NONE. Split on '&' into python + sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "ReactJS, NextJS",
-   "lang": "en",
-   "expected": [
-    "react",
-    "nextjs"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "reactjs,nextjs -> NONE. Split on ',' into react + nextjs. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "PowerPoint, Word, Excel",
-   "lang": "en",
-   "expected": [
-    "excel"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "Compound: only Excel is tracked; Word/PowerPoint must NOT match. After comma-split, excel resolves, others stay unmatched. Whole string -> NONE today so needs split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "excel hơi biết",
-   "lang": "mixed",
-   "expected": [
-    "excel"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "HARD CASE: 'excel a little'. normalizeKey->excelhơibiết -> NONE today (no fuzzy hit, good - avoids false trigger). Proper handling: strip proficiency qualifier 'hơi biết' then 'excel' resolves. Guards against compound/fuzzy false positives. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Nguyen Van A",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Person name. normalizeKey->nguyenvana, no match today. Correctly NOTHING."
-  },
-  {
-   "mention": "2023",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Year. No match today, correct."
-  },
-  {
-   "mention": "Microsoft Word",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "microsoftword -> NONE. Word is NOT in taxonomy. Must stay unmatched."
-  },
-  {
-   "mention": "MS Word",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "msword -> NONE today. Correct negative."
-  },
-  {
-   "mention": "PowerPoint",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "powerpoint -> NONE. Not in taxonomy. Correct negative."
-  },
-  {
-   "mention": "lái xe B2",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Driving license B2. No match, correct."
-  },
-  {
-   "mention": "chăm chỉ",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "'hardworking' trait, not a tracked skill. No match, correct."
-  },
-  {
-   "mention": "nhiệt tình",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "'enthusiastic' trait. No match, correct."
-  },
-  {
-   "mention": "hard working",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Generic trait. hardworking -> NONE. Correct."
-  },
-  {
-   "mention": "good attitude",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Generic filler. No match, correct."
-  },
-  {
-   "mention": "love coding",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Filler phrase. No match, correct."
-  },
-  {
-   "mention": "gaming",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "Hobby. No match, correct."
-  },
-  {
-   "mention": "english club member",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "englishclubmember -> NONE. Activity, NOT english_proficiency. Contains 'english' but is not a skill claim. Must stay unmatched."
-  },
-  {
-   "mention": "GPA 3.5",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "gpa35 -> NONE. Academic metric, not a skill. Correct."
-  },
-  {
-   "mention": "Đại học FPT",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "University name. No match, correct."
-  },
-  {
-   "mention": "sinh viên năm 3",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "'3rd year student'. No match, correct."
-  },
-  {
-   "mention": "customer service",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "customerservice -> NONE. Non-IT skill, out of pilot scope. Correct negative."
-  },
-  {
-   "mention": "bán hàng",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "'sales' -> NONE. Out of IT scope. Correct."
-  },
-  {
-   "mention": "kế toán",
-   "lang": "vi",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "'accounting' -> NONE. Out of scope. Correct."
-  },
-  {
-   "mention": "no experience",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "noexperience -> NONE. Filler. Correct."
-  },
-  {
-   "mention": "leadership",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "leadership -> NONE today. No leadership canonical in pilot. Stays unmatched (could be future new_skill but expected=[] today)."
-  },
-  {
-   "mention": "Word",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "ADVERSARIAL false-positive TODAY: bare 'word' FUZZY-matches database_design (d=2). MS Word is NOT a tracked skill; needs guard/blocklist (stage-0) so it resolves to NOTHING. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "SEO",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "ADVERSARIAL: 'seo' FUZZY-matches dotnet (d=2) WRONGLY today. SEO is marketing, out of IT-dev pilot. Guard must block the dotnet false-positive. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "Canva",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "ADVERSARIAL: 'canva' FUZZY-matches java (d=2) WRONGLY today. Canva is a design tool, not java. Guard must block. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
-  },
-  {
-   "mention": "React 18 + Redux 4",
-   "lang": "en",
-   "expected": [
-    "react",
-    "redux"
-   ],
-   "category": "compound",
-   "requires": [],
-   "note": "[review HIGH] versioned compound parts — version-strip must not eat the recursion budget of split parts."
-  },
-  {
-   "mention": "updated my cv",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "[review MED] token-fallback must not fire on prose containing short alias cv (computer_vision)."
-  },
-  {
-   "mention": "be on time",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "[review MED] short alias be (backend_development) inside prose must not match."
-  },
-  {
-   "mention": "next step",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "[review MED] alias next (nextjs) inside prose must not match."
-  },
-  {
-   "mention": "ready to go",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "[review MED] alias go (golang) inside prose must not match."
-  },
-  {
-   "mention": "rest of team",
-   "lang": "en",
-   "expected": [],
-   "category": "negative",
-   "requires": [],
-   "note": "[review MED] alias rest (rest_api) inside prose must not match."
-  },
-  {
-   "mention": "object oriented design",
-   "lang": "en",
-   "expected": [
-    "oop"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. OOD is the design practice of OOP; oop is the only paradigm canonical (java/python/dotnet are languages). Cascade: no alias key 'objectorienteddesign'; no compound delimiter; tokens object/oriented/design none alias nor qualifier; fuzzy len20 vs 'objectorientation'(17) d=3>2."
-  },
-  {
-   "mention": "principles of object oriented programming",
-   "lang": "en",
-   "expected": [
-    "oop"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. Verbatim 'object orientation' alias differs from this longer phrase; 6 tokens skip token fallback; fuzzy way over guard. -> oop."
-  },
-  {
-   "mention": "relational databases",
-   "lang": "en",
-   "expected": [
-    "sql"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. sql holds VI 'cơ sở dữ liệu quan hệ' but no EN 'relational databases' alias; 'db' is an alias but 'databases' is not; tokens relational/databases unaliased. -> sql. Alt: database_design."
-  },
-  {
-   "mention": "writing automated test scripts",
-   "lang": "en",
-   "expected": [
-    "test_automation"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. test_automation aliases 'automated testing','test script' but full phrase has none as a key; tokens writing/automated/test/scripts none aliased nor qualifiers -> token fallback rejects. -> test_automation."
-  },
-  {
-   "mention": "distributed event streaming",
-   "lang": "en",
-   "expected": [
-    "kafka"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. kafka aliases 'event streaming','message streaming'; full key 'distributedeventstreaming' != ; tokens distributed/event/streaming unaliased. -> kafka. Alt: rabbitmq."
-  },
-  {
-   "mention": "natural language understanding",
-   "lang": "en",
-   "expected": [
-    "nlp"
-   ],
-   "category": "alias",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. nlp alias 'natural language processing' (key 'naturallanguageprocessing') != 'naturallanguageunderstanding'; tokens unaliased; fuzzy d>2. -> nlp."
-  },
-  {
-   "mention": "mạng thần kinh nhân tạo",
-   "lang": "vi",
-   "expected": [
-    "deep_learning"
-   ],
-   "category": "vi",
-   "requires": [],
-   "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. 'artificial neural network'. Deliberately NOT 'mạng nơ-ron' (that IS a deep_learning alias -> would resolve). 'mạng thần kinh nhân tạo' is unindexed; 4 tokens none aliased. -> deep_learning."
-  }
- ]
+  "$note": "R2 eval set #1 — labeled skill mentions for normalization quality (blueprint §5). requires=[] must resolve TODAY; alias/new_skill/prenormalize mark which implementation step unlocks the row. Gate: pnpm eval:mentions.",
+  "version": "eval-mentions-v1",
+  "created_at": "2026-06-04",
+  "mentions": [
+    {
+      "mention": "React",
+      "lang": "en",
+      "expected": [
+        "react"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "normalizeKey('React')='react' = canonical key. Exact hit."
+    },
+    {
+      "mention": "TypeScript",
+      "lang": "en",
+      "expected": [
+        "typescript"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "normalizeKey='typescript' = canonical/display key. Exact."
+    },
+    {
+      "mention": "Python",
+      "lang": "en",
+      "expected": [
+        "python"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'python' canonical key. Exact."
+    },
+    {
+      "mention": "Java",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'java' canonical key. Exact."
+    },
+    {
+      "mention": "Docker",
+      "lang": "en",
+      "expected": [
+        "docker"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'docker' canonical key. Exact."
+    },
+    {
+      "mention": "Kubernetes",
+      "lang": "en",
+      "expected": [
+        "kubernetes"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'kubernetes' canonical key. Exact."
+    },
+    {
+      "mention": "GraphQL",
+      "lang": "en",
+      "expected": [
+        "graphql"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "normalizeKey('GraphQL')='graphql' = canonical key. Exact."
+    },
+    {
+      "mention": "Tableau",
+      "lang": "en",
+      "expected": [
+        "tableau"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'tableau' canonical key. Exact."
+    },
+    {
+      "mention": "Power BI",
+      "lang": "en",
+      "expected": [
+        "power_bi"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'Power BI' -> normalizeKey='powerbi' indexed to power_bi. Exact (display hit)."
+    },
+    {
+      "mention": "CI/CD",
+      "lang": "en",
+      "expected": [
+        "ci_cd"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'CI/CD' -> normalizeKey drops slash ='cicd' indexed to ci_cd. Exact (display hit)."
+    },
+    {
+      "mention": "Flutter",
+      "lang": "en",
+      "expected": [
+        "flutter"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'flutter' canonical key. Exact."
+    },
+    {
+      "mention": "Kotlin",
+      "lang": "en",
+      "expected": [
+        "kotlin"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'kotlin' canonical key. Exact."
+    },
+    {
+      "mention": "Swift",
+      "lang": "en",
+      "expected": [
+        "swift"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'swift' canonical key. Exact."
+    },
+    {
+      "mention": "Firebase",
+      "lang": "en",
+      "expected": [
+        "firebase"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'firebase' canonical key. Exact."
+    },
+    {
+      "mention": "Next.js",
+      "lang": "en",
+      "expected": [
+        "nextjs"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "normalizeKey('Next.js') drops dot ='nextjs' = canonical/display key. Exact."
+    },
+    {
+      "mention": "REST API",
+      "lang": "en",
+      "expected": [
+        "rest_api"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'REST API' -> normalizeKey='restapi' indexed to rest_api. Exact (display hit)."
+    },
+    {
+      "mention": "System Design",
+      "lang": "en",
+      "expected": [
+        "system_design"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'System Design' -> 'systemdesign' indexed to system_design. Exact."
+    },
+    {
+      "mention": "Machine Learning",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'Machine Learning' -> 'machinelearning' indexed to machine_learning. Exact."
+    },
+    {
+      "mention": "Pandas",
+      "lang": "en",
+      "expected": [
+        "pandas"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "'pandas' = canonical key (display 'Pandas (Python)' also strips to 'pandaspython', but canonical 'pandas' indexed). Exact via canonical."
+    },
+    {
+      "mention": "NumPy",
+      "lang": "en",
+      "expected": [
+        "numpy"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "normalizeKey('NumPy')='numpy' = canonical key. Exact."
+    },
+    {
+      "mention": "reactjs",
+      "lang": "en",
+      "expected": [
+        "react"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'reactjs' -> 'reactjs' indexed to react. Alias hit today."
+    },
+    {
+      "mention": "ES6",
+      "lang": "en",
+      "expected": [
+        "javascript"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'es6' -> 'es6' indexed to javascript. Alias hit."
+    },
+    {
+      "mention": "Spring Boot",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'spring boot' -> 'springboot' indexed to java. Alias hit (umbrella -> java)."
+    },
+    {
+      "mention": "K8s",
+      "lang": "en",
+      "expected": [
+        "kubernetes"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'k8s' -> 'k8s' indexed to kubernetes. Alias hit."
+    },
+    {
+      "mention": "Postman",
+      "lang": "en",
+      "expected": [
+        "api_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'postman' -> 'postman' indexed to api_testing. Alias hit."
+    },
+    {
+      "mention": "Node.js",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'node.js' -> 'nodejs' indexed to node_js (canonical 'node_js' -> 'nodejs' is same key, registered first). Resolves to node_js; matched_via alias (key != canonical raw? canonical normalizeKey('node_js')='nodejs' equals key -> actually exact). Resolves correctly regardless."
+    },
+    {
+      "mention": "NestJS",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'nestjs' -> 'nestjs' indexed to node_js. Alias hit (umbrella -> node_js)."
+    },
+    {
+      "mention": "GitHub",
+      "lang": "en",
+      "expected": [
+        "git"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'github' -> 'github' indexed to git. Alias hit."
+    },
+    {
+      "mention": "MongoDB",
+      "lang": "en",
+      "expected": [
+        "nosql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'mongodb' -> 'mongodb' indexed to nosql (first-writer). Alias hit -> nosql."
+    },
+    {
+      "mention": "Redis",
+      "lang": "en",
+      "expected": [
+        "nosql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'redis' (nosql) registered before caching's 'redis cache'; 'redis' -> nosql. Alias hit."
+    },
+    {
+      "mention": "Terraform",
+      "lang": "en",
+      "expected": [
+        "infrastructure_as_code"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'terraform' -> indexed to infrastructure_as_code. Alias hit."
+    },
+    {
+      "mention": "Jira",
+      "lang": "en",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'jira' appears in agile_scrum aliases (earlier in file) AND bug_tracking_jira; first-writer-wins -> agile_scrum. Resolves to agile_scrum today."
+    },
+    {
+      "mention": "Cypress",
+      "lang": "en",
+      "expected": [
+        "frontend_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'cypress' in frontend_testing aliases (earlier) AND test_automation; first-writer -> frontend_testing. Alias hit -> frontend_testing."
+    },
+    {
+      "mention": "Selenium",
+      "lang": "en",
+      "expected": [
+        "test_automation"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'selenium' -> indexed to test_automation. Alias hit."
+    },
+    {
+      "mention": "C#",
+      "lang": "en",
+      "expected": [
+        "dotnet"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey keeps '#' so 'c#' -> 'c#' indexed (dotnet alias) -> dotnet. Alias hit."
+    },
+    {
+      "mention": "PyTorch",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'pytorch' under machine_learning (earlier in file) AND pytorch_tensorflow; first-writer -> machine_learning. Alias hit -> machine_learning."
+    },
+    {
+      "mention": "scikit-learn",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey drops dash ='scikitlearn' indexed (machine_learning alias). Alias hit."
+    },
+    {
+      "mention": "IELTS",
+      "lang": "en",
+      "expected": [
+        "english_proficiency"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'ielts' -> 'ielts' indexed to english_proficiency. Alias hit."
+    },
+    {
+      "mention": "javscript",
+      "lang": "en",
+      "expected": [
+        "javascript"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "normalizeKey='javscript' (missing 'a'); Levenshtein=1 to 'javascript'. Fuzzy hit."
+    },
+    {
+      "mention": "kubernets",
+      "lang": "en",
+      "expected": [
+        "kubernetes"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='kubernets'; Lev=1 to 'kubernetes'. Fuzzy hit."
+    },
+    {
+      "mention": "dockr",
+      "lang": "en",
+      "expected": [
+        "docker"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='dockr'; Lev=1 to 'docker'. Fuzzy hit."
+    },
+    {
+      "mention": "tableu",
+      "lang": "en",
+      "expected": [
+        "tableau"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='tableu'; Lev=1 to 'tableau'. Fuzzy hit."
+    },
+    {
+      "mention": "pyton",
+      "lang": "en",
+      "expected": [
+        "python"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='pyton'; Lev=1 to 'python'. Fuzzy hit."
+    },
+    {
+      "mention": "tyepscript",
+      "lang": "en",
+      "expected": [
+        "typescript"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='tyepscript' (transposed); Lev=2 to 'typescript'. Fuzzy hit at threshold."
+    },
+    {
+      "mention": "mongdb",
+      "lang": "en",
+      "expected": [
+        "nosql"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='mongdb'; Lev=1 to alias 'mongodb' -> nosql. Fuzzy hit."
+    },
+    {
+      "mention": "tensrflow",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='tensrflow'; Lev=1 to alias 'tensorflow' (machine_learning, first-writer) . Fuzzy hit -> machine_learning."
+    },
+    {
+      "mention": "seleniu",
+      "lang": "en",
+      "expected": [
+        "test_automation"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='seleniu'; Lev=1 to alias 'selenium' -> test_automation. Fuzzy hit."
+    },
+    {
+      "mention": "graphq",
+      "lang": "en",
+      "expected": [
+        "graphql"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='graphq'; Lev=1 to canonical key 'graphql'. Fuzzy hit."
+    },
+    {
+      "mention": "jenkin",
+      "lang": "en",
+      "expected": [
+        "ci_cd"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='jenkin'; Lev=1 to alias 'jenkins' -> ci_cd. Fuzzy hit."
+    },
+    {
+      "mention": "postmann",
+      "lang": "en",
+      "expected": [
+        "api_testing"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "='postmann'; Lev=1 to alias 'postman' -> api_testing. Fuzzy hit."
+    },
+    {
+      "mention": "JS",
+      "lang": "en",
+      "expected": [
+        "javascript"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'js' is an existing alias of javascript; normalizeKey('JS')='js' hits the index directly."
+    },
+    {
+      "mention": "TS",
+      "lang": "en",
+      "expected": [
+        "typescript"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'ts' is an existing alias of typescript; direct alias hit."
+    },
+    {
+      "mention": "RN",
+      "lang": "en",
+      "expected": [
+        "react_native"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'rn' is an existing alias of react_native; direct hit."
+    },
+    {
+      "mention": "a11y",
+      "lang": "en",
+      "expected": [
+        "accessibility_a11y"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'a11y' is an existing alias; direct hit."
+    },
+    {
+      "mention": "ML",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'ml' is an existing alias of machine_learning; direct hit."
+    },
+    {
+      "mention": "TF",
+      "lang": "en",
+      "expected": [
+        "pytorch_tensorflow"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'tf' is an existing alias of pytorch_tensorflow; direct hit."
+    },
+    {
+      "mention": "JWT",
+      "lang": "en",
+      "expected": [
+        "authentication_authorization"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'jwt' is an existing alias of authentication_authorization; direct hit."
+    },
+    {
+      "mention": "IaC",
+      "lang": "en",
+      "expected": [
+        "infrastructure_as_code"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey('IaC')='iac', an existing alias of infrastructure_as_code; direct hit."
+    },
+    {
+      "mention": "DB",
+      "lang": "en",
+      "expected": [
+        "database_design"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Today FALSE: db→alias 'dbt'@d1→etl. Add 'db' alias on database_design (exact stage beats fuzzy). [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "OOP",
+      "lang": "en",
+      "expected": [
+        "oop"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Resolves NONE today; just needs the new canonical oop. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "DSA",
+      "lang": "en",
+      "expected": [
+        "data_structures_algorithms"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Today fuzzy risk @d2 → guard + new canonical data_structures_algorithms. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "AI",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Abbrev → ML umbrella (no separate canonical). Today fuzzy false-hits @d2 → needs guard + alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "DL",
+      "lang": "en",
+      "expected": [
+        "deep_learning"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Today FALSE: dl→alias 'ml'@d1→machine_learning → guard + new canonical deep_learning. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "BE",
+      "lang": "en",
+      "expected": [
+        "backend_development"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='be' fuzzy-matches WRONG to javascript. 'Backend' is a role/area, no canonical; propose new 'backend_development'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "FE",
+      "lang": "en",
+      "expected": [
+        "frontend_development"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='fe' fuzzy-matches WRONG to javascript. 'Frontend' area has no canonical; propose new 'frontend_development'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "ORM",
+      "lang": "en",
+      "expected": [
+        "orm"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='orm' fuzzy-matches WRONG to java. No ORM/object-relational-mapping canonical; propose new 'orm'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "CV",
+      "lang": "en",
+      "expected": [
+        "computer_vision"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='cv' fuzzy-matches WRONG to dotnet. In ML context CV=computer vision; no canonical; propose new 'computer_vision'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "GCP",
+      "lang": "en",
+      "expected": [
+        "cloud_gcp"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='gcp' fuzzy-matches WRONG to dotnet. Only cloud_aws exists; propose new 'cloud_gcp' for Google Cloud. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "NLP",
+      "lang": "en",
+      "expected": [
+        "nlp"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Today 'nlp'→'net'@d2→dotnet FALSE → guard + new canonical nlp. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "npm",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='npm' fuzzy-matches WRONG to dotnet today. npm is the Node package manager; add 'npm' alias to node_js. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "React 18",
+      "lang": "en",
+      "expected": [
+        "react"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='react18'. Currently fuzzy2->react (fragile, depends on threshold). Robust path: strip version '18' so 'react18'->'react' then exact alias hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Vue 3",
+      "lang": "en",
+      "expected": [
+        "vue"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='vue3' = none today. Needs prenormalize to strip '3'->'vue', AND vue has no canonical -> propose new 'vue'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Python 3.11",
+      "lang": "en",
+      "expected": [
+        "python"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey strips the dot -> 'python311'. It only coincidentally fuzzy-hits the 'python3' alias at dist2. Robust path: strip version to 'python' then exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Java 17",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='java17'; relies on fragile fuzzy2->java. Strip version -> 'java' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Node 20",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='node20'; fragile fuzzy2->node_js. Strip version -> 'node' which is an existing alias of node_js. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Angular 16",
+      "lang": "en",
+      "expected": [
+        "angular"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='angular16'=none. Strip version -> 'angular', but angular has no canonical -> propose new 'angular'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
+    },
+    {
+      "mention": ".NET 8",
+      "lang": "en",
+      "expected": [
+        "dotnet"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='net8' fuzzy1->dotnet today (coincidental). Robust path: strip version, '.net' is an existing alias of dotnet. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "ES2022",
+      "lang": "en",
+      "expected": [
+        "javascript"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='es2022'=fuzzy2 to javascript via es2015/es6 (fragile). Robust: normalize ECMAScript year to javascript; es6/es2015 are existing aliases but es2022 is not. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "PHP 8",
+      "lang": "en",
+      "expected": [
+        "php"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='php8'=none. Strip version -> 'php', but php has no canonical -> propose new 'php'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
+    },
+    {
+      "mention": "Go 1.21",
+      "lang": "en",
+      "expected": [
+        "golang"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='go121'=none. Strip version -> 'go'/'golang', no canonical -> propose new 'golang'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Spring Boot 3",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='springboot3' fuzzy1->java via 'springboot' alias (fragile). Strip version -> 'spring boot' which is an existing alias of java. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Next 14",
+      "lang": "en",
+      "expected": [
+        "nextjs"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='next14' fuzzy2->nextjs (fragile). Strip version -> 'next js' which is an existing alias of nextjs. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Tailwind 3",
+      "lang": "en",
+      "expected": [
+        "css"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='tailwind3'=none. Strip version -> 'tailwind css' which is an existing alias of css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Postgres 16",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='postgres16' fuzzy2->sql via 'postgresql' (fragile). Strip version -> 'postgres'/'postgresql' which is an existing alias of sql. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Kotlin 1.9",
+      "lang": "en",
+      "expected": [
+        "kotlin"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey strips dot -> 'kotlin19' fuzzy2->kotlin (fragile, two trailing digits). Strip version -> 'kotlin' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Swift 5",
+      "lang": "en",
+      "expected": [
+        "swift"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='swift5' fuzzy1->swift (coincidental). Strip version -> 'swift' exact hit. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Ruby 3",
+      "lang": "en",
+      "expected": [
+        "ruby"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey='ruby3'=none. Strip version -> 'ruby', but ruby has no canonical -> propose new 'ruby'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
+    },
+    {
+      "mention": "C++ 17",
+      "lang": "en",
+      "expected": [
+        "cpp"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "normalizeKey keeps '+' -> 'c++17'=none. Strip version -> 'c++', but no C++ canonical exists -> propose new 'cplusplus'. [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
+    },
+    {
+      "mention": "React + Redux",
+      "lang": "en",
+      "expected": [
+        "react",
+        "redux"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='react+redux'=none. Split on '+' -> 'react' (exact) + 'redux' (no canonical -> propose new 'redux'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "HTML/CSS",
+      "lang": "en",
+      "expected": [
+        "html",
+        "css"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey collapses slash -> 'htmlcss'=none. Split on '/' -> 'html' + 'css', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Node.js và Express",
+      "lang": "vi",
+      "expected": [
+        "node_js"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='nodejsvàexpress'=none. Split on 'và' -> 'node.js'(alias node_js) + 'express'/'express.js'(alias node_js); both resolve to node_js. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Docker & Kubernetes",
+      "lang": "en",
+      "expected": [
+        "docker",
+        "kubernetes"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='docker&kubernetes'=none. Split on '&' -> 'docker' (exact) + 'kubernetes' (exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Swift/Kotlin",
+      "lang": "en",
+      "expected": [
+        "swift",
+        "kotlin"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='swiftkotlin'=none. Split on '/' -> 'swift' + 'kotlin', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "SQL Server, MySQL",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='sqlserver,mysql'=none. Split on ',' -> 'sql server' + 'mysql', both existing aliases of sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Vue và Vuex",
+      "lang": "vi",
+      "expected": [
+        "vue",
+        "vuex"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='vuevàvuex'=none. Split on 'và' -> 'vue' + 'vuex'; neither has a canonical -> propose new 'vue' and 'vuex'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Java và Spring",
+      "lang": "vi",
+      "expected": [
+        "java"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='javavàspring'=none. Split on 'và' -> 'java' (exact) + 'spring'/'spring boot' (alias of java); both -> java. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "React, TypeScript",
+      "lang": "en",
+      "expected": [
+        "react",
+        "typescript"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='react,typescript'=none (comma not stripped). Split on ',' -> 'react' + 'typescript', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Python và Pandas",
+      "lang": "vi",
+      "expected": [
+        "python",
+        "pandas"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='pythonvàpandas' WRONGLY fuzzy2->pandas today (drops python). Split on 'và' -> 'python' + 'pandas', both exact. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "HTML, CSS, JavaScript",
+      "lang": "en",
+      "expected": [
+        "html",
+        "css",
+        "javascript"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='html,css,javascript'=none. Split on ',' -> three components, all exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "REST/GraphQL",
+      "lang": "en",
+      "expected": [
+        "rest_api",
+        "graphql"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='restgraphql'=none. Split on '/' -> 'rest'(alias rest_api) + 'graphql'(exact). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Jest và Cypress",
+      "lang": "vi",
+      "expected": [
+        "frontend_testing"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='jestvàcypress'=none. Split on 'và' -> 'jest' + 'cypress'; both aliases resolve to frontend_testing (cypress -> frontend_testing by first-writer-wins). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "NumPy và Pandas",
+      "lang": "vi",
+      "expected": [
+        "numpy",
+        "pandas"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='numpyvàpandas'=none. Split on 'và' -> 'numpy' + 'pandas', both exact hits. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Docker và CI/CD",
+      "lang": "vi",
+      "expected": [
+        "docker",
+        "ci_cd"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey collapses everything -> 'dockervàcicd'=none. Split on 'và' -> 'docker' (exact) + 'CI/CD' (alias ci_cd via 'cicd'). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "AWS & Terraform",
+      "lang": "en",
+      "expected": [
+        "cloud_aws",
+        "infrastructure_as_code"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "normalizeKey='aws&terraform'=none. Split on '&' -> 'aws' (alias cloud_aws) + 'terraform' (alias infrastructure_as_code). [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "TCP/IP",
+      "lang": "en",
+      "expected": [
+        "networking"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='tcpip' is an existing alias of networking -> direct hit (slash stripped, single concept)."
+    },
+    {
+      "mention": "UI/UX",
+      "lang": "en",
+      "expected": [
+        "ui_ux_design"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "Today uiux→linux@d2 FALSE → guard + new canonical ui_ux_design. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "QA",
+      "lang": "en",
+      "expected": [
+        "manual_testing"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "normalizeKey='qa' fuzzy-matches WRONG to javascript today. QA (quality assurance) best maps to manual_testing; add 'qa' alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Tiếng Anh",
+      "lang": "vi",
+      "expected": [
+        "english_proficiency"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'tiếng anh' already on english_proficiency; normalizeKey keeps diacritics -> 'tiếnganh' hits index directly."
+    },
+    {
+      "mention": "Làm việc nhóm",
+      "lang": "vi",
+      "expected": [
+        "teamwork"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Existing VI alias 'làm việc nhóm' on teamwork."
+    },
+    {
+      "mention": "Kỹ năng giao tiếp",
+      "lang": "vi",
+      "expected": [
+        "communication"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Existing alias is bare 'giao tiếp' which resolves today, but the very common CV phrasing 'kỹ năng giao tiếp' does NOT (NONE today). Add 'kỹ năng giao tiếp' as alias on communication. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Giao tiếp",
+      "lang": "vi",
+      "expected": [
+        "communication"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'giao tiếp' present on communication; resolves today."
+    },
+    {
+      "mention": "Học máy",
+      "lang": "vi",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'học máy' present on machine_learning."
+    },
+    {
+      "mention": "Thống kê",
+      "lang": "vi",
+      "expected": [
+        "statistics"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'thống kê' present on statistics."
+    },
+    {
+      "mention": "Thiết kế API",
+      "lang": "mixed",
+      "expected": [
+        "rest_api"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'thiết kế api' present on rest_api; mixed VI+EN."
+    },
+    {
+      "mention": "Xác thực",
+      "lang": "vi",
+      "expected": [
+        "authentication_authorization"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'xác thực' present on authentication_authorization."
+    },
+    {
+      "mention": "Giải quyết vấn đề",
+      "lang": "vi",
+      "expected": [
+        "problem_solving"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'giải quyết vấn đề' present on problem_solving."
+    },
+    {
+      "mention": "Lập trình React",
+      "lang": "mixed",
+      "expected": [
+        "react"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'Lập trình React' present on react; resolves today."
+    },
+    {
+      "mention": "Lập trình JavaScript",
+      "lang": "mixed",
+      "expected": [
+        "javascript"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'Lập trình JavaScript' present on javascript."
+    },
+    {
+      "mention": "Trực quan hóa dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "data_visualization"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'trực quan hóa dữ liệu' present on data_visualization."
+    },
+    {
+      "mention": "Thiết kế hệ thống",
+      "lang": "vi",
+      "expected": [
+        "system_design"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'thiết kế hệ thống' present on system_design."
+    },
+    {
+      "mention": "Quản lý thời gian",
+      "lang": "vi",
+      "expected": [
+        "time_management"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'quản lý thời gian' present on time_management."
+    },
+    {
+      "mention": "Tư duy phản biện",
+      "lang": "vi",
+      "expected": [
+        "critical_thinking"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "VI alias 'tư duy phản biện' present on critical_thinking."
+    },
+    {
+      "mention": "Lập trình web",
+      "lang": "vi",
+      "expected": [
+        "html",
+        "css",
+        "javascript"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "NONE today. Generic 'web programming' is a compound implying web fundamentals stack. Needs stage-0 to map this VI phrase to the HTML/CSS/JS bundle, or per-component aliasing. Most CVs mean front-end web fundamentals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Cơ sở dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'cơ sở dữ liệu' = databases generically. Most defensible single canonical = sql (the DB skill students actually mean). database_design is narrower (modeling/ERD), so sql is the better target. Add 'cơ sở dữ liệu' alias on sql. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Quản trị cơ sở dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Database administration'. No dba canonical; closest defensible single = sql. Add alias on sql. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kiểm thử phần mềm",
+      "lang": "vi",
+      "expected": [
+        "manual_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. Generic 'software testing'. Most defensible single canonical = manual_testing (the broad testing skill); add 'kiểm thử phần mềm' alias there. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kiểm thử tự động",
+      "lang": "vi",
+      "expected": [
+        "test_automation"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Automated testing' maps cleanly to test_automation. Add VI alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Tự động hóa kiểm thử",
+      "lang": "vi",
+      "expected": [
+        "test_automation"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. Alternate phrasing of automated testing -> test_automation. Add VI alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kiểm thử thủ công",
+      "lang": "vi",
+      "expected": [
+        "manual_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. Direct VI of 'manual testing' -> manual_testing. Add VI alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kiểm thử API",
+      "lang": "mixed",
+      "expected": [
+        "api_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'API testing' -> api_testing. Add VI alias 'kiểm thử api'. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Lập trình hướng đối tượng",
+      "lang": "vi",
+      "expected": [
+        "oop"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "NONE today. OOP is a cross-language paradigm not represented by any existing canonical (java/python/dotnet are languages, not OOP). Propose NEW canonical snake_case 'oop' (display 'Object-Oriented Programming'), aliases incl 'lập trình hướng đối tượng','oop','object oriented programming'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Trí tuệ nhân tạo",
+      "lang": "vi",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Artificial Intelligence'. No 'ai' canonical; machine_learning is the most defensible single target in this taxonomy. Add 'trí tuệ nhân tạo' alias on machine_learning. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Phân tích dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "data_analysis"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "New canonical data_analysis (statistics/data_visualization are narrower). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Trực quan hóa",
+      "lang": "vi",
+      "expected": [
+        "data_visualization"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (only the longer 'trực quan hóa dữ liệu' is aliased). Add short form 'trực quan hóa' alias on data_visualization. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Điện toán đám mây",
+      "lang": "vi",
+      "expected": [
+        "cloud_aws"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Cloud computing'. Only cloud canonical is cloud_aws (AWS); most defensible single target. Add 'điện toán đám mây' alias on cloud_aws. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Quản lý dự án",
+      "lang": "vi",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Project management'. No project_management canonical; the closest defensible single is agile_scrum (process). Add VI alias there; a dedicated project_management canonical would be cleaner future work. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Tiếng Nhật",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NONE today and SHOULD stay unmatched. Only language skill in taxonomy is english_proficiency; Japanese has no canonical. Must NOT match anything (expected=[]). A real fix is a future new_skill, but per current scope it is a correct negative."
+    },
+    {
+      "mention": "Tiếng Trung",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NONE today, correct negative. No Chinese-language canonical; only english_proficiency exists. Must NOT match."
+    },
+    {
+      "mention": "Tiếng Hàn",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NONE today, correct negative. No Korean-language canonical."
+    },
+    {
+      "mention": "tin học văn phòng",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Generic office-literacy phrase — precision-first: must NOT match (excel-alias debated and rejected)."
+    },
+    {
+      "mention": "Mạng máy tính",
+      "lang": "vi",
+      "expected": [
+        "networking"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Computer networking' -> networking. Add VI alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Hệ điều hành Linux",
+      "lang": "mixed",
+      "expected": [
+        "linux"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Linux OS' -> linux. Add VI alias 'hệ điều hành linux'. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Bảo mật",
+      "lang": "vi",
+      "expected": [
+        "security"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "NONE today. Generic 'security' is not covered (authentication_authorization is narrower auth-only; networking has firewall but is infra). Propose NEW canonical 'security' (display 'Security'), aliases 'bảo mật','an toàn thông tin','an ninh mạng','information security','cybersecurity'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "An toàn thông tin",
+      "lang": "vi",
+      "expected": [
+        "security"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "NONE today. 'Information security' -> proposed new canonical 'security' (same as bảo mật). No defensible existing single canonical. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Lập trình di động",
+      "lang": "vi",
+      "expected": [
+        "swift",
+        "kotlin",
+        "flutter",
+        "react_native"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "NONE today. 'Mobile programming' is a generic umbrella spanning all mobile canonicals (swift/kotlin/flutter/react_native). No single target; needs stage-0 to expand to the mobile bundle or a new 'mobile_development' canonical. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Phát triển ứng dụng web",
+      "lang": "vi",
+      "expected": [
+        "html",
+        "css",
+        "javascript"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "NONE today. 'Web application development' -> web fundamentals bundle html/css/javascript. Same treatment as 'lập trình web'. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Viết tài liệu kỹ thuật",
+      "lang": "vi",
+      "expected": [
+        "communication"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Technical writing/documentation' -> closest defensible single is communication (written communication is an alias). Add 'viết tài liệu kỹ thuật' alias on communication. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Lập trình Python",
+      "lang": "mixed",
+      "expected": [
+        "python"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (no 'Lập trình Python' alias, unlike the curated JS/React/Swift VI aliases). Add 'Lập trình Python' alias on python. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Lập trình Java",
+      "lang": "mixed",
+      "expected": [
+        "java"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. Parallel gap to Python; add 'Lập trình Java' alias on java. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Quản lý mã nguồn",
+      "lang": "vi",
+      "expected": [
+        "git"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Source code management / version control' -> git (alias 'version control' exists in EN). Add VI 'quản lý mã nguồn' alias on git. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kiểm soát phiên bản",
+      "lang": "vi",
+      "expected": [
+        "git"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. Direct VI of 'version control' -> git. Add VI alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Thiết kế giao diện",
+      "lang": "vi",
+      "expected": [
+        "responsive_design"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'UI design'. No ui_design canonical; closest defensible single in taxonomy is responsive_design (front-end UI skill). Add VI alias there. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Lập trình React Native",
+      "lang": "mixed",
+      "expected": [
+        "react_native"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (the 'Lập trình X' VI prefix is only aliased for react/js/swift). Add 'Lập trình React Native' alias on react_native. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Học sâu",
+      "lang": "vi",
+      "expected": [
+        "deep_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Deep learning'. pytorch_tensorflow exists but the generic concept maps most defensibly to machine_learning. Add 'học sâu' alias (deep learning is a subset of ML). [unlocked by step-2 alias] [label fixed step-3: deep_learning canonical now exists; alias relocated]"
+    },
+    {
+      "mention": "Khoa học dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Data science' umbrella; no data_science canonical. Most defensible single existing target = machine_learning. Add VI alias; future dedicated canonical preferable. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "CSDL",
+      "lang": "vi",
+      "expected": [
+        "sql"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "DANGER: today abbreviation 'CSDL' fuzzy-matches css (d=2)! Wrong. CSDL = 'cơ sở dữ liệu' (database). Needs stage-0 abbreviation expansion CSDL -> cơ sở dữ liệu, target sql. Current cascade resolves INCORRECTLY to css. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "ATTT",
+      "lang": "vi",
+      "expected": [
+        "security"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "DANGER: today 'ATTT' fuzzy-matches authentication_authorization (d=2)! ATTT = 'an toàn thông tin' (information security). Needs abbreviation expansion + the proposed new 'security' canonical. Current cascade resolves to wrong (auth) canonical. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Phân tích dữ liệu lớn",
+      "lang": "vi",
+      "expected": [
+        "etl"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Big data analysis'. Closest defensible single existing canonical = etl (data engineering/pipelines). Add VI alias; big-data has no dedicated canonical. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Triển khai CI/CD",
+      "lang": "mixed",
+      "expected": [
+        "ci_cd"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (the verb prefix 'triển khai' blocks the exact 'ci/cd' match). Add 'triển khai ci/cd' alias on ci_cd, or rely on future stage-0 verb stripping. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Sử dụng Git",
+      "lang": "mixed",
+      "expected": [
+        "git"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "NONE today (verb prefix 'sử dụng' blocks 'git' exact match). Needs stage-0 to strip the VI verb prefix, or add explicit alias. Target = git. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kỹ năng thuyết trình",
+      "lang": "vi",
+      "expected": [
+        "communication"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'Presentation skills' -> communication (alias 'presentation' exists in EN). Add VI 'kỹ năng thuyết trình'/'thuyết trình' alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Tiếng Anh giao tiếp",
+      "lang": "vi",
+      "expected": [
+        "english_proficiency"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (compound phrase 'conversational English' is not the bare 'tiếng anh' key). Add 'tiếng anh giao tiếp' alias on english_proficiency, or stage-0 to reduce to 'tiếng anh'. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Quản trị hệ thống",
+      "lang": "vi",
+      "expected": [
+        "linux"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today. 'System administration'. No sysadmin canonical; most defensible single is linux (shell/ops skill). Add VI alias on linux. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Kỹ năng làm việc nhóm",
+      "lang": "vi",
+      "expected": [
+        "teamwork"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "NONE today (bare 'làm việc nhóm' resolves, but the 'kỹ năng ...' prefixed CV phrasing does not). Add 'kỹ năng làm việc nhóm' alias on teamwork, or stage-0 to strip 'kỹ năng' prefix. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Express.js",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'express.js'->'expressjs' is an existing alias of node_js."
+    },
+    {
+      "mention": "ASP.NET Core",
+      "lang": "en",
+      "expected": [
+        "dotnet"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey->'aspnetcore'; 'asp.net core'->'aspnetcore' is an existing alias of dotnet."
+    },
+    {
+      "mention": "PostgreSQL",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'postgresql' alias of sql (umbrella). Resolves today."
+    },
+    {
+      "mention": "Tailwind CSS",
+      "lang": "en",
+      "expected": [
+        "css"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'tailwind css'->'tailwindcss' alias of css umbrella. Resolves today."
+    },
+    {
+      "mention": "Datadog",
+      "lang": "en",
+      "expected": [
+        "monitoring_logging"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'datadog' alias of monitoring_logging umbrella. Resolves today."
+    },
+    {
+      "mention": "GitHub Actions",
+      "lang": "en",
+      "expected": [
+        "ci_cd"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'github actions'->'githubactions' alias of ci_cd. Resolves today."
+    },
+    {
+      "mention": "Firestore",
+      "lang": "en",
+      "expected": [
+        "nosql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "'firestore' appears in nosql aliases FIRST (nosql before firebase in file) so first-writer-wins -> nosql, NOT firebase. Resolves today (to nosql)."
+    },
+    {
+      "mention": "Postgres",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "normalizeKey 'postgres' fuzzy Levenshtein=2 to alias 'postgresql' -> sql. Resolves today via fuzzy, correct target."
+    },
+    {
+      "mention": "k8s cluster",
+      "lang": "en",
+      "expected": [
+        "kubernetes"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "'k8s cluster'->'k8scluster' misses index and fuzzy (too far). Needs stage-0 to drop the 'cluster' qualifier so 'k8s'->kubernetes resolves. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Next.js 14",
+      "lang": "en",
+      "expected": [
+        "nextjs"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "'nextjs14' fuzzy-matches nextjs at d=2 today but only coincidentally; stage-0 version stripping makes 'Next.js 14'->nextjs robust. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "TypeScript 5",
+      "lang": "en",
+      "expected": [
+        "typescript"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "'typescript5' fuzzy d=1 to typescript today, but relies on fuzzy; version stripping is the correct deterministic fix. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "Angular 15",
+      "lang": "en",
+      "expected": [
+        "angular"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "'angular15' NONE today. Needs stage-0 version strip to 'angular' plus new angular canonical (frontend_framework). [resolves today via fuzzy d<=2 after step-3 canonicals — fragile; stage-0 makes robust]"
+    },
+    {
+      "mention": "Vue 2",
+      "lang": "en",
+      "expected": [
+        "vue"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "'vue2' NONE today. Needs version strip + new vue canonical. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Node.js & Express",
+      "lang": "mixed",
+      "expected": [
+        "node_js"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "Combined 'nodejs&express' is NONE. Split on '&' yields 'node.js' and 'express', both already aliases of node_js. Needs stage-0 compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "React + TypeScript",
+      "lang": "en",
+      "expected": [
+        "react",
+        "typescript"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "'react+typescript' NONE. Split on '+' -> react and typescript (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Docker và Kubernetes",
+      "lang": "mixed",
+      "expected": [
+        "docker",
+        "kubernetes"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "'dockervàkubernetes' NONE. Split on Vietnamese 'và' -> docker + kubernetes (both existing). Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Python và SQL",
+      "lang": "mixed",
+      "expected": [
+        "python",
+        "sql"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "'pythonvàsql' NONE. Split on 'và' -> python + sql. Needs compound split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Thiết kế cơ sở dữ liệu",
+      "lang": "vi",
+      "expected": [
+        "database_design"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "Existing VN alias is 'thiết kế database' ('thiếtkếdatabase'); 'thiết kế cơ sở dữ liệu' ('thiếtkếcơsởdữliệu') is NONE today and too far for fuzzy. Needs a new VN alias on database_design. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Tư duy logic",
+      "lang": "vi",
+      "expected": [
+        "critical_thinking"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "critical_thinking has 'logical thinking' and 'tư duy phản biện' but not 'tư duy logic' ('tưduylogic'), which is NONE today. Common VN CV phrase; add as alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Vue.js",
+      "lang": "en",
+      "expected": [
+        "vue"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'vuejs' NONE today, no alias covers it. Top-3 VN frontend framework. Propose canonical vue (category frontend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Angular",
+      "lang": "en",
+      "expected": [
+        "angular"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'angular' NONE today. Major frontend framework in VN enterprise/outsourcing. Propose canonical angular (frontend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Svelte",
+      "lang": "en",
+      "expected": [
+        "svelte"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'svelte' NONE. Growing frontend framework. Propose canonical svelte (frontend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Redux",
+      "lang": "en",
+      "expected": [
+        "redux"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today FALSE: redux→'redis'@d2→nosql → guard + new canonical redux. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "PHP",
+      "lang": "en",
+      "expected": [
+        "php"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today fuzzy FALSE→python (py@d2 path) → guard + new canonical php. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Laravel",
+      "lang": "en",
+      "expected": [
+        "laravel"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'laravel' NONE. Dominant PHP framework in VN. Propose canonical laravel (backend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Golang",
+      "lang": "en",
+      "expected": [
+        "golang"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Canonical name standardized: golang (with go/go lang aliases). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Rust",
+      "lang": "en",
+      "expected": [
+        "rust"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today FALSE: rust→alias 'rest'@d1→rest_api → guard + new canonical rust. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "C++",
+      "lang": "en",
+      "expected": [
+        "cpp"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today 'c++'→'c#'@d1→dotnet FALSE → guard; canonical cpp. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "C language",
+      "lang": "en",
+      "expected": [
+        "c_lang"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'clanguage' NONE. Foundational language in VN curricula and embedded roles. Propose canonical c_lang (programming_language). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Django",
+      "lang": "en",
+      "expected": [
+        "django"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'django' NONE. Major Python backend framework in VN. Propose canonical django (backend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Flask",
+      "lang": "en",
+      "expected": [
+        "flask"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'flask' NONE. Lightweight Python web framework common in VN student projects/AI APIs. Propose canonical flask (backend_framework). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "FastAPI",
+      "lang": "en",
+      "expected": [
+        "fastapi"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today FALSE: fastapi→'restapi'@d2→rest_api → guard + new canonical fastapi. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Kafka",
+      "lang": "en",
+      "expected": [
+        "kafka"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'kafka' NONE. Event-streaming backbone in VN microservices/data roles. Propose canonical kafka (messaging_streaming / backend_skill). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "RabbitMQ",
+      "lang": "en",
+      "expected": [
+        "rabbitmq"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'rabbitmq' NONE. Message broker common in VN backend systems. Propose canonical rabbitmq (messaging_streaming). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Elasticsearch",
+      "lang": "en",
+      "expected": [
+        "elasticsearch"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'elasticsearch' NONE ('elk' is a monitoring alias but Elasticsearch as a search/data store is distinct). Propose canonical elasticsearch (search / database). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "WebSocket",
+      "lang": "en",
+      "expected": [
+        "websocket"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'websocket' NONE. Real-time comms skill for chat/live features in VN apps. Propose canonical websocket (backend_skill). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Microservices",
+      "lang": "en",
+      "expected": [
+        "microservices"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'microservices' NONE. Core architecture skill in VN enterprise/outsourcing JDs. Propose canonical microservices (architecture). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Cấu trúc dữ liệu và giải thuật",
+      "lang": "vi",
+      "expected": [
+        "data_structures_algorithms"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "VN phrase for DSA; whole string NONE and contains 'và' which a compound-splitter would mishandle, so needs both a new canonical data_structures_algorithms (cs_fundamentals) and a stage-0 alias for the VN phrase. Heavily tested in VN interviews. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Security fundamentals",
+      "lang": "en",
+      "expected": [
+        "security"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'securityfundamentals' NONE (auth canonical only covers authn/authz). OWASP/web-security basics appear in VN backend/devsecops JDs. Propose canonical security_fundamentals (security). [label fixed step-3: folded into security per verifier reconciliation] [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Figma",
+      "lang": "en",
+      "expected": [
+        "figma"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'figma' NONE. Default design/handoff tool; even FE devs list it in VN CVs. Propose canonical figma (design_tool). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "UI/UX Design",
+      "lang": "en",
+      "expected": [
+        "ui_ux_design"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'uiuxdesign' NONE ('ui/ux' alone dangerously fuzzy-hits linux). Common in VN FE/design hybrid roles. Propose canonical ui_ux_design (design). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Android (Native)",
+      "lang": "en",
+      "expected": [
+        "android_native"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'android' NONE (kotlin/java exist but native Android platform skill is distinct). Propose canonical android_native (mobile_platform). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "iOS Development",
+      "lang": "en",
+      "expected": [
+        "ios_native"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "bare 'iOS' dangerously fuzzy-hits css; 'iosdevelopment' NONE. Swift exists but iOS platform skill is distinct. Propose canonical ios_native (mobile_platform). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Unity",
+      "lang": "en",
+      "expected": [
+        "unity"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today FALSE: unity→'unix'@d2→linux → guard + new canonical unity. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Blockchain",
+      "lang": "en",
+      "expected": [
+        "blockchain"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'blockchain' NONE. Strong VN web3/crypto hiring. Propose canonical blockchain (blockchain) covering smart-contracts/web3. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Solidity",
+      "lang": "en",
+      "expected": [
+        "solidity"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'solidity' NONE. Smart-contract language for VN web3 roles. Propose canonical solidity (blockchain). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Prompt Engineering",
+      "lang": "en",
+      "expected": [
+        "prompt_engineering"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'promptengineering' NONE. Fast-growing AI skill in VN JDs/student projects. Propose canonical prompt_engineering (ai_ml). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "LLM",
+      "lang": "en",
+      "expected": [
+        "llm_engineering"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "DANGER: 'llm' fuzzy-matches java at d=2 (wrong!). LLM/RAG app building is a real emerging VN AI role. Propose canonical llm_engineering (ai_ml). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Computer Vision",
+      "lang": "en",
+      "expected": [
+        "computer_vision"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'computervision' NONE. Core AI specialization in VN AI labs/startups. Propose canonical computer_vision (ai_ml). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Web Scraping",
+      "lang": "en",
+      "expected": [
+        "web_scraping"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'webscraping' NONE. Common data-collection skill in VN data/AI student projects. Propose canonical web_scraping (data_skill). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "gRPC",
+      "lang": "en",
+      "expected": [
+        "grpc"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "New canonical grpc; guard against short-key fuzzy. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Apache Spark",
+      "lang": "en",
+      "expected": [
+        "spark"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'apachespark' NONE. Big-data processing engine in VN data-engineering roles. Propose canonical spark (data_skill) with 'pyspark' alias. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "R",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Single letter too ambiguous (rn@d1→react_native FALSE today). Min-length guard → NONE. No r canonical for MVP. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Google Cloud Platform",
+      "lang": "en",
+      "expected": [
+        "cloud_gcp"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'googlecloudplatform' NONE; bare 'GCP' dangerously fuzzy-hits dotnet. Only AWS has a canonical today. Propose canonical cloud_gcp (cloud). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Microsoft Azure",
+      "lang": "en",
+      "expected": [
+        "cloud_azure"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "'microsoftazure' NONE. Azure common in VN enterprise/.NET shops; only AWS covered today. Propose canonical cloud_azure (cloud). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Go",
+      "lang": "en",
+      "expected": [
+        "golang"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Bare 2-char token false-fuzzy-hits short alias keys @d2 today → fuzzy min-length guard; final = alias of golang. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Vue",
+      "lang": "en",
+      "expected": [
+        "vue"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Today fuzzy false-hit @d2 → guard; new canonical vue (vuejs/vue.js/vue 3 aliases). [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "iOS",
+      "lang": "en",
+      "expected": [
+        "swift"
+      ],
+      "category": "abbrev",
+      "requires": [],
+      "note": "iOS → swift umbrella (alias 'ios swift' exists, bare 'ios' does not). Today ios→css@d2 FALSE → guard + alias. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Vercel",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Deploy platform, not an MVP skill. Today FALSE: vercel→'excel'@d2 → the fuzzy guard must kill this. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Dart",
+      "lang": "en",
+      "expected": [
+        "flutter"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Dart → flutter umbrella (ecosystem); today fuzzy risk dax/dbt@d2 → guard. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "React.js",
+      "lang": "en",
+      "expected": [
+        "react"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey strips dot -> reactjs; alias hit."
+    },
+    {
+      "mention": "MySQL",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'mysql' -> sql."
+    },
+    {
+      "mention": "Prometheus",
+      "lang": "en",
+      "expected": [
+        "monitoring_logging"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'prometheus' -> monitoring_logging."
+    },
+    {
+      "mention": "Jest",
+      "lang": "en",
+      "expected": [
+        "frontend_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'jest' -> frontend_testing."
+    },
+    {
+      "mention": "TensorFlow",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Same first-writer issue: tensorflow -> machine_learning (not pytorch_tensorflow)."
+    },
+    {
+      "mention": "Google Sheets",
+      "lang": "en",
+      "expected": [
+        "excel"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'google sheets' -> excel."
+    },
+    {
+      "mention": "VLOOKUP",
+      "lang": "en",
+      "expected": [
+        "excel"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'vlookup' -> excel."
+    },
+    {
+      "mention": "Nginx",
+      "lang": "en",
+      "expected": [
+        "networking"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'nginx' -> networking."
+    },
+    {
+      "mention": "react js",
+      "lang": "en",
+      "expected": [
+        "react"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey->reactjs; alias hit react."
+    },
+    {
+      "mention": "Mongo DB",
+      "lang": "en",
+      "expected": [
+        "nosql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "normalizeKey->mongodb; alias -> nosql."
+    },
+    {
+      "mention": "pivot table",
+      "lang": "en",
+      "expected": [
+        "excel"
+      ],
+      "category": "fuzzy",
+      "requires": [],
+      "note": "normalizeKey->pivottable; fuzzy d=1 to alias 'pivot tables' -> excel."
+    },
+    {
+      "mention": "SQL Server",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "alias 'sql server' present -> sql. Resolves today."
+    },
+    {
+      "mention": "Microsoft Excel",
+      "lang": "en",
+      "expected": [
+        "excel"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "display 'Microsoft Excel' -> excel. Distinguished from 'Microsoft Word' (negative). Excel IS a tracked skill."
+    },
+    {
+      "mention": "VueJS",
+      "lang": "en",
+      "expected": [
+        "vue"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Same: vuejs -> NONE today. Needs new canonical 'vue'. [unlocked by step-3 expansion]"
+    },
+    {
+      "mention": "Spring",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Bare 'spring' -> NONE today (only 'spring boot' aliased, fuzzy too far). Add 'spring' as alias of java. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Spring MVC",
+      "lang": "en",
+      "expected": [
+        "java"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "springmvc -> NONE today; far from 'spring boot' fuzzy. Add 'spring mvc'/'spring' alias to java. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "sklearn",
+      "lang": "en",
+      "expected": [
+        "machine_learning"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "sklearn -> NONE today (only 'scikit-learn' aliased, fuzzy too far). Add 'sklearn' alias to machine_learning. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "agile",
+      "lang": "en",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "bare 'agile' -> NONE today (aliases have 'agile methodology' not bare 'agile'; fuzzy too far). Add alias 'agile'. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Scrum",
+      "lang": "en",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "bare 'scrum' -> NONE today. Add alias 'scrum' to agile_scrum. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "DevOps",
+      "lang": "en",
+      "expected": [
+        "ci_cd"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "devops -> NONE today. Add 'devops' alias (best fit ci_cd). [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Trello",
+      "lang": "en",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "trello -> NONE today. Project-board tool; add as alias of agile_scrum (or bug_tracking_jira). [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Confluence",
+      "lang": "en",
+      "expected": [
+        "agile_scrum"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "confluence -> NONE today. Atlassian collab tool; add alias to agile_scrum. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Oracle",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "oracle/oracle db -> NONE today (not in sql aliases). Add 'oracle' alias to sql. [unlocked by step-2 alias]"
+    },
+    {
+      "mention": "Node 18",
+      "lang": "en",
+      "expected": [
+        "node_js"
+      ],
+      "category": "version",
+      "requires": [],
+      "note": "node18 currently fuzzy-hits node_js (d=2) accidentally. Correct fix = version strip stage-0. [verified: resolves TODAY via fuzzy d<=2 — fragile; stage-0 will make it robust]"
+    },
+    {
+      "mention": "React và Node.js",
+      "lang": "vi",
+      "expected": [
+        "react",
+        "node_js"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "reactvànodejs -> NONE today. Split on 'và' into 'react' + 'node.js'. Compound -> both canonicals. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Java và Spring Boot",
+      "lang": "vi",
+      "expected": [
+        "java"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "Split on 'và': 'java' + 'spring boot' both -> java (umbrella). Single canonical java. Needs split first. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Python & SQL",
+      "lang": "mixed",
+      "expected": [
+        "python",
+        "sql"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "python&sql -> NONE. Split on '&' into python + sql. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "ReactJS, NextJS",
+      "lang": "en",
+      "expected": [
+        "react",
+        "nextjs"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "reactjs,nextjs -> NONE. Split on ',' into react + nextjs. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "PowerPoint, Word, Excel",
+      "lang": "en",
+      "expected": [
+        "excel"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "Compound: only Excel is tracked; Word/PowerPoint must NOT match. After comma-split, excel resolves, others stay unmatched. Whole string -> NONE today so needs split. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "excel hơi biết",
+      "lang": "mixed",
+      "expected": [
+        "excel"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "HARD CASE: 'excel a little'. normalizeKey->excelhơibiết -> NONE today (no fuzzy hit, good - avoids false trigger). Proper handling: strip proficiency qualifier 'hơi biết' then 'excel' resolves. Guards against compound/fuzzy false positives. [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Nguyen Van A",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Person name. normalizeKey->nguyenvana, no match today. Correctly NOTHING."
+    },
+    {
+      "mention": "2023",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Year. No match today, correct."
+    },
+    {
+      "mention": "Microsoft Word",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "microsoftword -> NONE. Word is NOT in taxonomy. Must stay unmatched."
+    },
+    {
+      "mention": "MS Word",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "msword -> NONE today. Correct negative."
+    },
+    {
+      "mention": "PowerPoint",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "powerpoint -> NONE. Not in taxonomy. Correct negative."
+    },
+    {
+      "mention": "lái xe B2",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Driving license B2. No match, correct."
+    },
+    {
+      "mention": "chăm chỉ",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "'hardworking' trait, not a tracked skill. No match, correct."
+    },
+    {
+      "mention": "nhiệt tình",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "'enthusiastic' trait. No match, correct."
+    },
+    {
+      "mention": "hard working",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Generic trait. hardworking -> NONE. Correct."
+    },
+    {
+      "mention": "good attitude",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Generic filler. No match, correct."
+    },
+    {
+      "mention": "love coding",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Filler phrase. No match, correct."
+    },
+    {
+      "mention": "gaming",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "Hobby. No match, correct."
+    },
+    {
+      "mention": "english club member",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "englishclubmember -> NONE. Activity, NOT english_proficiency. Contains 'english' but is not a skill claim. Must stay unmatched."
+    },
+    {
+      "mention": "GPA 3.5",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "gpa35 -> NONE. Academic metric, not a skill. Correct."
+    },
+    {
+      "mention": "Đại học FPT",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "University name. No match, correct."
+    },
+    {
+      "mention": "sinh viên năm 3",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "'3rd year student'. No match, correct."
+    },
+    {
+      "mention": "customer service",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "customerservice -> NONE. Non-IT skill, out of pilot scope. Correct negative."
+    },
+    {
+      "mention": "bán hàng",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "'sales' -> NONE. Out of IT scope. Correct."
+    },
+    {
+      "mention": "kế toán",
+      "lang": "vi",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "'accounting' -> NONE. Out of scope. Correct."
+    },
+    {
+      "mention": "no experience",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "noexperience -> NONE. Filler. Correct."
+    },
+    {
+      "mention": "leadership",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "leadership -> NONE today. No leadership canonical in pilot. Stays unmatched (could be future new_skill but expected=[] today)."
+    },
+    {
+      "mention": "Word",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "ADVERSARIAL false-positive TODAY: bare 'word' FUZZY-matches database_design (d=2). MS Word is NOT a tracked skill; needs guard/blocklist (stage-0) so it resolves to NOTHING. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "SEO",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "ADVERSARIAL: 'seo' FUZZY-matches dotnet (d=2) WRONGLY today. SEO is marketing, out of IT-dev pilot. Guard must block the dotnet false-positive. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "Canva",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "ADVERSARIAL: 'canva' FUZZY-matches java (d=2) WRONGLY today. Canva is a design tool, not java. Guard must block. [today FALSE fuzzy match — step-4 guard must kill it] [unlocked — flipped by EVAL_MENTIONS_FLIP run]"
+    },
+    {
+      "mention": "React 18 + Redux 4",
+      "lang": "en",
+      "expected": [
+        "react",
+        "redux"
+      ],
+      "category": "compound",
+      "requires": [],
+      "note": "[review HIGH] versioned compound parts — version-strip must not eat the recursion budget of split parts."
+    },
+    {
+      "mention": "updated my cv",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] token-fallback must not fire on prose containing short alias cv (computer_vision)."
+    },
+    {
+      "mention": "be on time",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] short alias be (backend_development) inside prose must not match."
+    },
+    {
+      "mention": "next step",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias next (nextjs) inside prose must not match."
+    },
+    {
+      "mention": "ready to go",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias go (golang) inside prose must not match."
+    },
+    {
+      "mention": "rest of team",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "[review MED] alias rest (rest_api) inside prose must not match."
+    },
+    {
+      "mention": "object oriented design",
+      "lang": "en",
+      "expected": [
+        "oop"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. OOD is the design practice of OOP; oop is the only paradigm canonical (java/python/dotnet are languages). Cascade: no alias key 'objectorienteddesign'; no compound delimiter; tokens object/oriented/design none alias nor qualifier; fuzzy len20 vs 'objectorientation'(17) d=3>2."
+    },
+    {
+      "mention": "principles of object oriented programming",
+      "lang": "en",
+      "expected": [
+        "oop"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. Verbatim 'object orientation' alias differs from this longer phrase; 6 tokens skip token fallback; fuzzy way over guard. -> oop."
+    },
+    {
+      "mention": "relational databases",
+      "lang": "en",
+      "expected": [
+        "sql"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. sql holds VI 'cơ sở dữ liệu quan hệ' but no EN 'relational databases' alias; 'db' is an alias but 'databases' is not; tokens relational/databases unaliased. -> sql. Alt: database_design."
+    },
+    {
+      "mention": "writing automated test scripts",
+      "lang": "en",
+      "expected": [
+        "test_automation"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. test_automation aliases 'automated testing','test script' but full phrase has none as a key; tokens writing/automated/test/scripts none aliased nor qualifiers -> token fallback rejects. -> test_automation."
+    },
+    {
+      "mention": "distributed event streaming",
+      "lang": "en",
+      "expected": [
+        "kafka"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. kafka aliases 'event streaming','message streaming'; full key 'distributedeventstreaming' != ; tokens distributed/event/streaming unaliased. -> kafka. Alt: rabbitmq."
+    },
+    {
+      "mention": "natural language understanding",
+      "lang": "en",
+      "expected": [
+        "nlp"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. nlp alias 'natural language processing' (key 'naturallanguageprocessing') != 'naturallanguageunderstanding'; tokens unaliased; fuzzy d>2. -> nlp."
+    },
+    {
+      "mention": "mạng thần kinh nhân tạo",
+      "lang": "vi",
+      "expected": [
+        "deep_learning"
+      ],
+      "category": "vi",
+      "requires": [],
+      "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. 'artificial neural network'. Deliberately NOT 'mạng nơ-ron' (that IS a deep_learning alias -> would resolve). 'mạng thần kinh nhân tạo' is unindexed; 4 tokens none aliased. -> deep_learning."
+    }
+  ]
 }
