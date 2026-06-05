@@ -1,0 +1,27 @@
+[
+  {
+    "source_type": "imported",
+    "source_name": "manual",
+    "source_url": "https://example-board.vn/jobs/fresher-frontend-react-12345",
+    "title": "Fresher Frontend Developer (ReactJS)",
+    "company_name": "Example Tech Co., Ltd.",
+    "location": "Hồ Chí Minh",
+    "employment_type": "FULL_TIME",
+    "experience_level": "FRESHER",
+    "salary_min": 10000000,
+    "salary_max": 15000000,
+    "currency": "VND",
+    "jd_text": "Mô tả công việc:\n- Phát triển giao diện web bằng ReactJS, HTML, CSS, JavaScript.\n- Làm việc với REST API, Git.\nYêu cầu:\n- Nắm vững JavaScript, TypeScript là lợi thế.\n- Biết Tailwind hoặc Bootstrap.\nQuyền lợi: lương tháng 13, bảo hiểm đầy đủ."
+  },
+  {
+    "source_type": "imported",
+    "source_name": "manual",
+    "source_url": "https://example-board.vn/jobs/junior-backend-nodejs-67890",
+    "title": "Junior Backend Developer (NodeJS)",
+    "company_name": "Sample Solutions JSC",
+    "location": "Hà Nội",
+    "employment_type": "FULL_TIME",
+    "experience_level": "JUNIOR",
+    "jd_text": "Responsibilities:\n- Build REST API with Node.js, NestJS, PostgreSQL.\n- Write unit tests, use Docker, Git.\nRequirements:\n- Solid SQL and database design.\n- Knowledge of Redis or Kafka is a plus.\nContact: hr@samplesolutions.vn - 0901234567"
+  }
+]

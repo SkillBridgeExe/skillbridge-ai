@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { SkillTaxonomyService } from './skill-taxonomy.service';
 import { SkillNormalizerService } from './skill-normalizer.service';
 import { SemanticSkillMatcherService } from './semantic-skill-matcher.service';
+import { SkillTextScannerService } from './skill-text-scanner.service';
 import { RoleRubricService } from './role-rubric.service';
 
 /**
@@ -26,12 +27,14 @@ import { RoleRubricService } from './role-rubric.service';
     SkillTaxonomyService,
     SkillNormalizerService,
     SemanticSkillMatcherService,
+    SkillTextScannerService,
     RoleRubricService,
   ],
   exports: [
     SkillTaxonomyService,
     SkillNormalizerService,
     SemanticSkillMatcherService,
+    SkillTextScannerService,
     RoleRubricService,
   ],
 })

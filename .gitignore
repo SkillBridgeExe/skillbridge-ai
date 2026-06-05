@@ -59,6 +59,9 @@ temp/
 !prompts/
 !prompts/*.md
 
+# Real-JD seed input (contains posting text + possibly PII pre-scrub) — input-only, NEVER commit
+data/jobs-seed.json
+
 # Local embedding-vector cache (eval-semantic re-runs = $0; megabytes of floats, never commit)
 data/.cache/
     
