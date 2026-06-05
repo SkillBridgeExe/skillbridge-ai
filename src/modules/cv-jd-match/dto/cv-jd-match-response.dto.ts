@@ -49,6 +49,7 @@ export interface CvJdMatchParsedResponse {
 
 export interface CvJdMatchResponseDto {
   ai_request_id: string;
+  ai_result_id: string;
   result_type: 'cv_jd_match';
   parsed_response: CvJdMatchParsedResponse;
   retrieval_log_id: string | null;
