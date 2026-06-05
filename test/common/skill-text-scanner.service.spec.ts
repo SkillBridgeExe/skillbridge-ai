@@ -56,4 +56,19 @@ describe('SkillTextScannerService (gazetteer over real taxonomy)', () => {
       [],
     );
   });
+
+  it('does NOT fire denylisted prose words (CV, the rest of, Go to, be responsible, DB)', () => {
+    const found = canonicals(
+      'Please send your CV. The rest of the team is great. Go to our office. You will be responsible for DB design.',
+    );
+    expect(found).not.toContain('computer_vision'); // "CV"
+    expect(found).not.toContain('rest_api'); // "the rest of"
+    expect(found).not.toContain('golang'); // "Go to"
+    expect(found).not.toContain('backend_development'); // "be"
+  });
+
+  it('still finds the same skills via unambiguous surfaces (Node.js, Spring Boot, RESTful API, Golang)', () => {
+    const found = canonicals('Stack: Node.js, Spring Boot, RESTful API, Golang.');
+    expect(found).toEqual(expect.arrayContaining(['node_js', 'java', 'rest_api', 'golang']));
+  });
 });

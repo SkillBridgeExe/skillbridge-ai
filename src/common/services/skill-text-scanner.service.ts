@@ -40,6 +40,29 @@ export class SkillTextScannerService implements OnModuleInit {
     this.buildMatchers();
   }
 
+  /**
+   * Surface forms that are common English/Vietnamese PROSE words and would false-fire on
+   * job-description text ("send your CV" → computer_vision, "the rest of" → rest_api,
+   * "Go to step 2" → golang, "be responsible" → backend). They stay in the NORMALIZER's
+   * alias index (short CV-mention path, length-guarded) — ONLY the long-text gazetteer skips
+   * them. Each owning skill still matches via an unambiguous surface (canonical/display or a
+   * longer alias: nodejs, spring boot, restful api, golang, ...).
+   */
+  private static readonly GAZETTEER_DENYLIST = new Set([
+    'cv',
+    'be',
+    'fe',
+    'ts',
+    'dl',
+    'db',
+    'ai',
+    'qa',
+    'go',
+    'rest',
+    'node',
+    'spring',
+  ]);
+
   /** Idempotent (re)build — callable directly by DB-less harnesses/tests after taxonomy init. */
   buildMatchers(): void {
     const seen = new Set<string>();
@@ -49,6 +72,7 @@ export class SkillTextScannerService implements OnModuleInit {
       for (const surface of surfaces) {
         const s = (surface ?? '').trim();
         if (s.length < 2) continue;
+        if (SkillTextScannerService.GAZETTEER_DENYLIST.has(s.toLowerCase())) continue;
         const key = `${entry.canonical_name}|${s.toLowerCase()}`;
         if (seen.has(key)) continue;
         seen.add(key);

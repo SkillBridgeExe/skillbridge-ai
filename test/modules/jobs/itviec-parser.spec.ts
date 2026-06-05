@@ -1,6 +1,7 @@
 import {
   extractJobSlugs,
   extractJsonLdBlocks,
+  extractSitemapSlugs,
   htmlToText,
   normalizeLocation,
   parseDetailPage,
@@ -17,6 +18,29 @@ describe('itviec-parser (pure)', () => {
       expect(extractJobSlugs(html)).toEqual([
         'senior-react-developer-acme-1234',
         'backend-engineer-nodejs-foo-5678',
+      ]);
+    });
+
+    it('captures 5+ digit ids too (regression: -[0-9]{4} dropped them)', () => {
+      const html = `<a href="/it-jobs/data-engineer-bigco-12345">A</a>
+        <a href="/it-jobs/ml-engineer-tiny-987654">B</a>`;
+      expect(extractJobSlugs(html)).toEqual([
+        'data-engineer-bigco-12345',
+        'ml-engineer-tiny-987654',
+      ]);
+    });
+  });
+
+  describe('extractSitemapSlugs', () => {
+    it('captures slugs from <loc> URLs with 4 OR more digit ids, matching the listing path', () => {
+      const xml = `<urlset>
+        <url><loc>https://itviec.com/it-jobs/senior-be-acme-1234</loc></url>
+        <url><loc>https://itviec.com/it-jobs/data-engineer-bigco-12345</loc></url>
+        <url><loc>https://itviec.com/companies/acme</loc></url>
+      </urlset>`;
+      expect(extractSitemapSlugs(xml)).toEqual([
+        'senior-be-acme-1234',
+        'data-engineer-bigco-12345',
       ]);
     });
   });

@@ -167,84 +167,89 @@ export class JdIngestService {
     // 3. Company upsert on the normalized dedup key.
     const companyId = await this.upsertCompany(item.company_name);
 
-    // 4. Identity + dedup hash (company|title|location|sorted skills — text-free).
+    // 4. Two distinct hashes:
+    //   - identityHash (company|title|location) is TAXONOMY-INDEPENDENT → stable fallback
+    //     external_id so re-importing a manual JD after taxonomy growth UPSERTs the same row
+    //     instead of inserting a duplicate (review finding). Real sources pass external_id.
+    //   - contentHash adds the sorted skill set → change-detection + cross-source dup link.
     const canonicals = skills.map((s) => s.canonical).sort();
+    const identityParts = [
+      normalizeForHash(normalizeCompanyName(item.company_name)),
+      normalizeForHash(item.title),
+      normalizeForHash(item.location ?? ''),
+    ];
+    const identityHash = createHash('sha256').update(identityParts.join('|')).digest('hex');
     const contentHash = createHash('sha256')
-      .update(
-        [
-          normalizeForHash(normalizeCompanyName(item.company_name)),
-          normalizeForHash(item.title),
-          normalizeForHash(item.location ?? ''),
-          canonicals.join(','),
-        ].join('|'),
-      )
+      .update([...identityParts, canonicals.join(',')].join('|'))
       .digest('hex');
-    const externalId = item.external_id ?? contentHash;
+    const externalId = item.external_id ?? identityHash;
     const roleCode = classifyRole(item.title);
 
-    // 5. Idempotent job upsert; re-seeing an expired posting revives it.
-    const jobRows = await this.db.query<{ id: string; is_new: boolean }>(
-      `INSERT INTO public.jobs
-         (company_id, title, role_code, location, employment_type, experience_level,
-          salary_min, salary_max, currency, status, source_type, source_name, source_url,
-          external_id, content_hash, posted_at, last_seen_at, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,'VND'),'active',$10,$11,$12,$13,$14,$15,now(),$16)
-       ON CONFLICT (source_name, external_id) DO UPDATE SET
-         title = EXCLUDED.title,
-         role_code = EXCLUDED.role_code,
-         location = EXCLUDED.location,
-         employment_type = EXCLUDED.employment_type,
-         experience_level = EXCLUDED.experience_level,
-         salary_min = EXCLUDED.salary_min,
-         salary_max = EXCLUDED.salary_max,
-         currency = EXCLUDED.currency,
-         status = 'active',
-         source_url = EXCLUDED.source_url,
-         content_hash = EXCLUDED.content_hash,
-         expires_at = EXCLUDED.expires_at,
-         last_seen_at = now(),
-         updated_at = now()
-       RETURNING id, (xmax = 0) AS is_new`,
-      [
-        companyId,
-        item.title.slice(0, 255),
-        roleCode,
-        item.location?.slice(0, 255) ?? null,
-        item.employment_type ?? null,
-        item.experience_level ?? null,
-        item.salary_min ?? null,
-        item.salary_max ?? null,
-        item.currency ?? null,
-        item.source_type,
-        item.source_name,
-        item.source_url ?? null,
-        externalId,
-        contentHash,
-        item.posted_at ?? null,
-        item.expires_at ?? null,
-      ],
-    );
-    const jobId = jobRows[0].id;
-    const isNew = jobRows[0].is_new;
+    // 5-7. ATOMIC: job upsert + cross-source canonical link + job_skills replacement run in
+    // ONE transaction so a new job row never becomes visible WITHOUT its skills (a crash
+    // between them used to leave a skill-less job in the pool — review finding). The embedding
+    // (step 8) stays OUTSIDE — it is a best-effort network call and must not hold a tx open.
+    const { jobId, isNew } = await this.db.transaction(async (client) => {
+      const jobRows = await client.query<{ id: string; is_new: boolean }>(
+        `INSERT INTO public.jobs
+           (company_id, title, role_code, location, employment_type, experience_level,
+            salary_min, salary_max, currency, status, source_type, source_name, source_url,
+            external_id, content_hash, posted_at, last_seen_at, expires_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,'VND'),'active',$10,$11,$12,$13,$14,$15,now(),$16)
+         ON CONFLICT (source_name, external_id) DO UPDATE SET
+           title = EXCLUDED.title,
+           role_code = EXCLUDED.role_code,
+           location = EXCLUDED.location,
+           employment_type = EXCLUDED.employment_type,
+           experience_level = EXCLUDED.experience_level,
+           salary_min = EXCLUDED.salary_min,
+           salary_max = EXCLUDED.salary_max,
+           currency = EXCLUDED.currency,
+           status = 'active',
+           source_url = EXCLUDED.source_url,
+           content_hash = EXCLUDED.content_hash,
+           expires_at = EXCLUDED.expires_at,
+           last_seen_at = now(),
+           updated_at = now()
+         RETURNING id, (xmax = 0) AS is_new`,
+        [
+          companyId,
+          item.title.slice(0, 255),
+          roleCode,
+          item.location?.slice(0, 255) ?? null,
+          item.employment_type ?? null,
+          item.experience_level ?? null,
+          this.clampSalary(item.salary_min),
+          this.clampSalary(item.salary_max),
+          item.currency ?? null,
+          item.source_type,
+          item.source_name,
+          item.source_url ?? null,
+          externalId,
+          contentHash,
+          item.posted_at ?? null,
+          item.expires_at ?? null,
+        ],
+      );
+      const id = jobRows.rows[0].id;
 
-    // 6. Cross-source duplicate link (same content, different board) — first writer is canonical.
-    await this.db.query(
-      `UPDATE public.jobs SET canonical_job_id = (
-         SELECT id FROM public.jobs
-          WHERE content_hash = $2 AND id <> $1 AND canonical_job_id IS NULL AND status = 'active'
-          ORDER BY created_at ASC LIMIT 1
-       ), updated_at = now()
-       WHERE id = $1 AND canonical_job_id IS NULL
-         AND EXISTS (
-           SELECT 1 FROM public.jobs
+      // Cross-source duplicate link (same content, different board) — first writer is canonical.
+      await client.query(
+        `UPDATE public.jobs SET canonical_job_id = (
+           SELECT id FROM public.jobs
             WHERE content_hash = $2 AND id <> $1 AND canonical_job_id IS NULL AND status = 'active'
-         )`,
-      [jobId, contentHash],
-    );
+            ORDER BY created_at ASC LIMIT 1
+         ), updated_at = now()
+         WHERE id = $1 AND canonical_job_id IS NULL
+           AND EXISTS (
+             SELECT 1 FROM public.jobs
+              WHERE content_hash = $2 AND id <> $1 AND canonical_job_id IS NULL AND status = 'active'
+           )`,
+        [id, contentHash],
+      );
 
-    // 7. Replace job_skills (re-extraction may legitimately change on update).
-    await this.db.transaction(async (client) => {
-      await client.query(`DELETE FROM public.job_skills WHERE job_id = $1`, [jobId]);
+      // Replace job_skills (re-extraction may legitimately change on update).
+      await client.query(`DELETE FROM public.job_skills WHERE job_id = $1`, [id]);
       for (const s of skills) {
         const skillIdRows = await client.query<{ id: string }>(
           `SELECT id FROM public.skills WHERE canonical_name = $1`,
@@ -256,9 +261,10 @@ export class JdIngestService {
           `INSERT INTO public.job_skills (job_id, skill_id, importance, confidence, raw_text)
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT (job_id, skill_id) DO NOTHING`,
-          [jobId, skillId, s.importance, '0.90', s.matchedText.slice(0, 255)],
+          [id, skillId, s.importance, '0.90', s.matchedText.slice(0, 255)],
         );
       }
+      return { jobId: id, isNew: jobRows.rows[0].is_new };
     });
 
     // 8. Skill-set embedding (outside the tx — network call must not hold a transaction).
@@ -267,18 +273,34 @@ export class JdIngestService {
     return isNew ? 'inserted' : 'updated';
   }
 
-  /** Distinct canonicals with per-line importance: advantage-line-only mentions → NICE_TO_HAVE. */
+  /**
+   * Distinct canonicals with importance. SECTION-AWARE (review finding): an advantage cue
+   * on a HEADER line ("Nice to have:", "Ưu tiên:") opens an advantage section, so the bullet
+   * lines beneath it inherit NICE_TO_HAVE even though they carry no cue themselves. A header
+   * is a cue line that names NO skill of its own; a later non-cue line that itself names a
+   * skill closes the section. A skill seen REQUIRED anywhere always wins over advantage-only.
+   */
   private extractSkills(text: string): ExtractedSkillRow[] {
     const all = this.scanner.scan(text);
     if (all.length === 0) return [];
 
     const advantageCanonicals = new Set<string>();
     const requiredCanonicals = new Set<string>();
+    let inAdvantageSection = false;
     for (const line of text.split(/\r?\n/)) {
       if (line.trim().length === 0) continue;
       const lineSkills = this.scanner.scan(line);
-      if (lineSkills.length === 0) continue;
-      const bucket = isAdvantageLine(line) ? advantageCanonicals : requiredCanonicals;
+      const cue = isAdvantageLine(line);
+
+      if (lineSkills.length === 0) {
+        // Pure cue header opens a section; a non-cue header (a new "Requirements:" etc.) closes it.
+        if (cue) inAdvantageSection = true;
+        else if (/[:：]\s*$/.test(line.trim())) inAdvantageSection = false;
+        continue;
+      }
+
+      const isAdvantage = cue || inAdvantageSection;
+      const bucket = isAdvantage ? advantageCanonicals : requiredCanonicals;
       for (const s of lineSkills) bucket.add(s.canonical_name);
     }
 
@@ -291,6 +313,16 @@ export class JdIngestService {
           : 'REQUIRED',
       matchedText: s.matched_text,
     }));
+  }
+
+  /**
+   * Clamp salary into numeric(12,2) range (max 9,999,999,999.99). Untrusted JSON-LD figures
+   * can be absurd (e.g. annual-in-cents); an out-of-range value would abort the whole batch
+   * with a Postgres numeric-overflow. Out-of-range or non-finite → null (unknown salary).
+   */
+  private clampSalary(v: number | undefined): number | null {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return null;
+    return v <= 9_999_999_999.99 ? v : null;
   }
 
   private async upsertCompany(rawName: string): Promise<string> {

@@ -8,7 +8,10 @@ export interface SkillDemandRow {
   pct_of_postings: number;
   /** Median monthly salary across VND-denominated postings naming the skill (null = no data). */
   salary_p50_vnd: number | null;
-  /** Δ posting_count vs the previous snapshot period (null until ≥2 periods exist). */
+  /**
+   * Δ posting_count vs the previous snapshot period. null ONLY when no prior period exists
+   * (first snapshot). A skill new in this period (absent before) reports delta = posting_count.
+   */
   trend_delta: number | null;
 }
 
@@ -114,6 +117,7 @@ export class SkillDemandService {
       salary_p50: string | null;
       prev_count: number | null;
       period: string;
+      has_prev: boolean;
     }>(
       `WITH latest AS (
          SELECT max(period) AS period FROM public.skill_demand_snapshots WHERE role_code = $1
@@ -124,7 +128,8 @@ export class SkillDemandService {
        )
        SELECT s.canonical_name, s.display_name, cur.posting_count,
               cur.pct_of_postings::text, cur.salary_p50::text,
-              p.posting_count AS prev_count, cur.period::text AS period
+              p.posting_count AS prev_count, cur.period::text AS period,
+              (SELECT period FROM prev) IS NOT NULL AS has_prev
          FROM public.skill_demand_snapshots cur
          JOIN public.skills s ON s.id = cur.skill_id
          LEFT JOIN public.skill_demand_snapshots p
@@ -133,7 +138,8 @@ export class SkillDemandService {
         WHERE cur.role_code = $1 AND cur.period = (SELECT period FROM latest)
         ORDER BY cur.posting_count DESC, s.canonical_name ASC
         LIMIT $2`,
-      [roleCode, Math.min(Math.max(limit, 1), 106)],
+      // Number(NaN)||20 guards a non-numeric ?limit that would otherwise bind "NaN" → SQL 500.
+      [roleCode, Math.min(Math.max(Number(limit) || 20, 1), 106)],
     );
     if (rows.length === 0) {
       throw new NotFoundException({
@@ -159,7 +165,10 @@ export class SkillDemandService {
         posting_count: r.posting_count,
         pct_of_postings: r.pct_of_postings ? Number(r.pct_of_postings) : 0,
         salary_p50_vnd: r.salary_p50 ? Number(r.salary_p50) : null,
-        trend_delta: r.prev_count === null ? null : r.posting_count - r.prev_count,
+        // null ONLY when there is no prior period at all. When a prior period exists but this
+        // skill was absent from it, the skill is NEW → delta = its full posting_count (the
+        // "emerging skill" signal the trends feature is for).
+        trend_delta: !r.has_prev ? null : r.posting_count - (r.prev_count ?? 0),
       })),
     };
   }

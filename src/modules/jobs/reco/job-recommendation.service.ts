@@ -80,7 +80,8 @@ export class JobRecommendationService {
     cvId: string,
     options: { limit?: number; roleCode?: string } = {},
   ): Promise<JobRecommendationResponse> {
-    const limit = Math.min(Math.max(options.limit ?? 5, 1), 20);
+    // Number(NaN)||5 → a non-numeric ?limit falls back to 5 (not an empty result); 0→1 via Math.max.
+    const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 20);
 
     // 1. Ownership + CV skills (persisted by the CV review pipeline).
     const cvRows = await this.db.query<{ id: string }>(
@@ -116,7 +117,8 @@ export class JobRecommendationService {
           AND (j.expires_at IS NULL OR j.expires_at > now())
           AND j.canonical_job_id IS NULL
           AND ($1::varchar IS NULL OR j.role_code = $1)
-        GROUP BY j.id, c.name`,
+        GROUP BY j.id, c.name
+        ORDER BY j.id`, // deterministic source order → reproducible RRF for tied scores
       [options.roleCode ?? null],
     );
     if (candidates.length === 0 || cvCanonicals.length === 0) {
@@ -136,7 +138,11 @@ export class JobRecommendationService {
       diffByJob.set(job.id, diff);
     }
     const rankA = [...candidates]
-      .sort((a, b) => diffByJob.get(b.id)!.overall_score - diffByJob.get(a.id)!.overall_score)
+      .sort(
+        (a, b) =>
+          diffByJob.get(b.id)!.overall_score - diffByJob.get(a.id)!.overall_score ||
+          a.id.localeCompare(b.id), // explicit tiebreak — equal scores rank by stable id
+      )
       .map((j) => j.id);
 
     // 4. Signal B — dense cosine rank (best-effort: pool stays usable without vectors).
@@ -154,17 +160,19 @@ export class JobRecommendationService {
         .join(', ');
       const { embedding } = await this.llm.embed(cvText, { provider: 'openai', dimensions });
       const vectorLiteral = `[${embedding.join(',')}]`;
+      // Restrict the dense ranking to the SAME candidate set (active/canonical/role-filtered)
+      // BEFORE the LIMIT — otherwise expired/duplicate/out-of-role jobs steal the top-N dense
+      // slots from real candidates (review finding). job_id = ANY($5) does that in-DB.
+      const candIdArray = candidates.map((c) => c.id);
       const simRows = await this.db.query<{ job_id: string; similarity: number }>(
         `SELECT job_id, 1 - (embedding <=> $1::extensions.vector) AS similarity
            FROM public.job_embeddings
           WHERE model = $2 AND dimensions = $3 AND embedding_version = $4
-          ORDER BY embedding <=> $1::extensions.vector
-          LIMIT 200`,
-        [vectorLiteral, model, dimensions, version],
+            AND job_id = ANY($5)
+          ORDER BY embedding <=> $1::extensions.vector`,
+        [vectorLiteral, model, dimensions, version, candIdArray],
       );
-      const candidateIds = new Set(candidates.map((c) => c.id));
       for (const row of simRows) {
-        if (!candidateIds.has(row.job_id)) continue;
         simByJob.set(row.job_id, Number(row.similarity));
         rankB.push(row.job_id);
       }

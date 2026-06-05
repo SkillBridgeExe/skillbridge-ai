@@ -27,6 +27,12 @@ describe('JD ingest normalizers (pure)', () => {
       const input = 'Thành lập 2015, hơn 300 nhân sự, lương 13 tháng';
       expect(scrubPii(input)).toBe(input);
     });
+
+    it('removes international phone numbers (+1, +65, +44), not just +84', () => {
+      const out = scrubPii('Call +1 415 555 0123 or +65 9123 4567 or +44 20 7946 0958');
+      expect(out).not.toMatch(/\+1 415|\+65 9123|\+44 20/);
+      expect(out).toContain('[phone-removed]');
+    });
   });
 
   describe('normalizeCompanyName', () => {
@@ -49,6 +55,8 @@ describe('JD ingest normalizers (pure)', () => {
   describe('classifyRole', () => {
     it.each([
       ['Fresher Frontend Developer (ReactJS)', 'frontend_developer'],
+      ['React Developer', 'frontend_developer'], // regression: `reactjs?` typo broke this
+      ['Senior React Developer', 'frontend_developer'],
       ['Junior Backend Developer (NodeJS)', 'backend_developer'],
       ['Fullstack Engineer', 'fullstack_developer'],
       ['Full-stack Developer (React + Node)', 'fullstack_developer'],
@@ -57,6 +65,7 @@ describe('JD ingest normalizers (pure)', () => {
       ['QA/QC Engineer', 'qa_tester'],
       ['Nhân viên kiểm thử phần mềm', 'qa_tester'],
       ['AI Engineer (LLM)', 'ai_ml_engineer'],
+      ['Machine Learning Engineer (Android on-device)', 'ai_ml_engineer'], // AI beats mobile token
       ['Data Analyst', 'data_analyst'],
       ['Software Engineer', 'backend_developer'], // generic fallback
       ['Nhân viên kinh doanh', null], // non-IT → unclassified

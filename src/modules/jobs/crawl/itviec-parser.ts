@@ -27,17 +27,40 @@ export interface ItviecPosting {
   descriptionText: string;
 }
 
+/**
+ * Canonical ITviec job-slug shape: kebab text then a hyphen + a numeric id of 4 OR MORE
+ * digits (real ids are not always exactly 4 — review finding). Shared by BOTH the listing
+ * and sitemap discovery paths so they capture an IDENTICAL slug set (the freshness bump
+ * keys on these — a mismatch would silently never match known jobs).
+ */
+export const ITVIEC_SLUG_CORE = '[a-z0-9][a-z0-9-]*-[0-9]{4,}';
+
 /** Job-detail slugs from a listing page (deduped, order preserved). */
 export function extractJobSlugs(listingHtml: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  const re = /href=["']\/it-jobs\/([a-z0-9][a-z0-9-]*[0-9]{4})["'?#]/gi;
+  const re = new RegExp(`href=["']/it-jobs/(${ITVIEC_SLUG_CORE})["'?#]`, 'gi');
   let m: RegExpExecArray | null;
   while ((m = re.exec(listingHtml)) !== null) {
     const slug = m[1];
     if (!seen.has(slug)) {
       seen.add(slug);
       out.push(slug);
+    }
+  }
+  return out;
+}
+
+/** Job slugs from a sitemap XML (<loc> URLs). Same slug shape as the listing path. */
+export function extractSitemapSlugs(xml: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const re = new RegExp(`<loc>[^<]*/it-jobs/(${ITVIEC_SLUG_CORE})</loc>`, 'gi');
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    if (!seen.has(m[1])) {
+      seen.add(m[1]);
+      out.push(m[1]);
     }
   }
   return out;
@@ -58,22 +81,47 @@ export function extractJsonLdBlocks(html: string): unknown[] {
   return blocks;
 }
 
-/** Crude but dependency-free HTML→text: strip tags, decode common entities, keep line structure. */
+/** Minimal named-entity map (the rest are decoded numerically). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+/**
+ * Crude but dependency-free HTML→text: strip tags, keep line structure, and FULLY decode
+ * entities — Vietnamese JD text is riddled with numeric entities (&#7847; = ầ) and named
+ * Latin ones (&ecirc; = ê) that, left raw, become garbage tokens in skill extraction.
+ */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<\s*(br|\/p|\/li|\/h[1-6]|\/div)[^>]*>/gi, '\n')
-    .replace(/<li[^>]*>/gi, '- ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#0?39;|&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/ ?\n ?/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    html
+      .replace(/<\s*(br|\/p|\/li|\/h[1-6]|\/div)[^>]*>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '- ')
+      .replace(/<[^>]+>/g, ' ')
+      // Numeric entities: &#7847; (decimal) and &#x1EA7; (hex).
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeFromCodePoint(parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, dec) => safeFromCodePoint(parseInt(dec, 10)))
+      // Named entities: known set decoded exactly; any other &name; collapses to a space
+      // (so "&ecirc;" never survives as a literal token).
+      .replace(/&([a-z][a-z0-9]{1,31});/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/ ?\n ?/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
+}
+
+function safeFromCodePoint(cp: number): string {
+  if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff) return ' ';
+  try {
+    return String.fromCodePoint(cp);
+  } catch {
+    return ' ';
+  }
 }
 
 /** ITviec districts → city (JSON-LD gives "Quan 1" etc.; trends need the city). */
@@ -111,9 +159,17 @@ export function parseDetailPage(slug: string, url: string, html: string): Itviec
   const description = htmlToText(String(posting.description ?? ''));
   if (!title || !companyName || description.length < 200) return null;
 
-  // validThrough in the past = expired even when the page still renders.
+  // validThrough in the past = expired even when the page still renders. A DATE-ONLY value
+  // ("2026-06-05") is parsed by Date as UTC midnight; in VN (UTC+7) that wrongly expires a
+  // still-valid posting for the first 7 hours of its last day — anchor date-only values to
+  // END of day in UTC+7 (review finding).
   const validThrough = posting.validThrough ? String(posting.validThrough) : null;
-  if (validThrough && Date.parse(validThrough) < Date.now()) return null;
+  if (validThrough) {
+    const cmp = /^\d{4}-\d{2}-\d{2}$/.test(validThrough)
+      ? Date.parse(`${validThrough}T23:59:59+07:00`)
+      : Date.parse(validThrough);
+    if (Number.isFinite(cmp) && cmp < Date.now()) return null;
+  }
 
   const jobLocation = posting.jobLocation as
     | { address?: { addressLocality?: string; addressRegion?: string } }

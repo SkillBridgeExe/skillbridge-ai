@@ -7,17 +7,21 @@
  *  - The pipeline never persists JD full text — only extracted skills + metadata + source link.
  */
 
-/** Vietnamese phone formats: 0xx..., +84..., spaced/dotted groups; 9-11 digits total. */
-const PHONE_RE = /(?:\+?84|0)(?:[\s.\-]?\d){8,10}\b/g;
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 /** zalo/skype/telegram handles often written "Zalo: 09xx" or "skype: live:abc". */
 const HANDLE_RE = /\b(?:zalo|skype|telegram|whatsapp|viber)\s*[:\-]?\s*[\w.@:+\-]{3,40}/gi;
+/** Intl numbers: +<country>... (1-3 digit code) then 7-12 more digits w/ separators. */
+const INTL_PHONE_RE = /\+\d{1,3}(?:[\s.\-]?\d){7,12}\b/g;
+/** Vietnamese local: 0xx... 9-11 digits total, spaced/dotted groups allowed. */
+const VN_PHONE_RE = /(?<!\d)0(?:[\s.\-]?\d){8,10}\b/g;
 
 export function scrubPii(text: string): string {
+  // Email + handles before phones (a handle line may embed a number); intl before VN-local.
   return (text ?? '')
     .replace(EMAIL_RE, '[email-removed]')
     .replace(HANDLE_RE, '[contact-removed]')
-    .replace(PHONE_RE, '[phone-removed]');
+    .replace(INTL_PHONE_RE, '[phone-removed]')
+    .replace(VN_PHONE_RE, '[phone-removed]');
 }
 
 /**
@@ -80,24 +84,33 @@ export type RoleCode =
   | 'qa_tester'
   | 'ai_ml_engineer';
 
-/** Ordered: more specific patterns FIRST (fullstack before frontend/backend). */
+/**
+ * Ordered: more specific patterns FIRST. AI/ML + QA + DevOps + Data are checked BEFORE the
+ * mobile/frontend/backend stack patterns, because a domain like "ML Engineer (Android on-device)"
+ * is primarily an AI/ML role — letting the generic 'android' token win would misclassify it.
+ * NOTE: `react(?:js)?` (not `reactjs?` — that meant "reactj" + optional "s", so "React
+ * Developer" never matched; review finding).
+ */
 const ROLE_PATTERNS: Array<[RegExp, RoleCode]> = [
-  [/full[\s-]?stack/i, 'fullstack_developer'],
   [
-    /front[\s-]?end|reactjs?\s+developer|vue\s+developer|angular\s+developer/i,
+    /\bai\b|machine\s+learning|\bml\b|deep\s+learning|data\s+scientist|\bllm\b|\bnlp\b|computer\s+vision/i,
+    'ai_ml_engineer',
+  ],
+  [
+    /data\s+analyst|business\s+analyst.*data|phân\s+tích\s+dữ\s+liệu|data\s+engineer/i,
+    'data_analyst',
+  ],
+  [/devops|\bsre\b|site\s+reliability|platform\s+engineer|cloud\s+engineer/i, 'devops_engineer'],
+  [/\bqa\b|\bqc\b|tester|test\s+engineer|quality\s+assurance|kiểm\s*thử/i, 'qa_tester'],
+  [/full[\s-]?stack/i, 'fullstack_developer'],
+  [/mobile|android|ios|flutter|react\s+native/i, 'mobile_developer'],
+  [
+    /front[\s-]?end|react(?:js)?\s+developer|vue\s+developer|angular\s+developer/i,
     'frontend_developer',
   ],
   [
     /back[\s-]?end|node(?:js)?\s+developer|java\s+developer|\.net\s+developer|php\s+developer|golang\s+developer|python\s+developer/i,
     'backend_developer',
-  ],
-  [/mobile|android|ios|flutter|react\s+native/i, 'mobile_developer'],
-  [/devops|sre|site\s+reliability|platform\s+engineer|cloud\s+engineer/i, 'devops_engineer'],
-  [/\bqa\b|\bqc\b|tester|test\s+engineer|quality\s+assurance|kiểm\s*thử/i, 'qa_tester'],
-  [/\bai\b|machine\s+learning|\bml\b|deep\s+learning|data\s+scientist|llm/i, 'ai_ml_engineer'],
-  [
-    /data\s+analyst|business\s+analyst.*data|phân\s+tích\s+dữ\s+liệu|data\s+engineer/i,
-    'data_analyst',
   ],
   // Generic fallbacks LAST (only fire when nothing specific did):
   [/software\s+engineer|developer|lập\s+trình/i, 'backend_developer'],
