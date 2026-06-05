@@ -54,6 +54,12 @@ export interface LlmCompleteResult {
 export interface LlmEmbedOptions {
   provider?: LlmProvider;
   model?: string;
+  /**
+   * Target embedding dimensionality (OpenAI `dimensions` param — Matryoshka shortening,
+   * server returns UNIT-LENGTH vectors, no manual re-normalization needed). Must match the
+   * pgvector column width (config `vector.dimension`). Verified June 2026: OpenAI docs.
+   */
+  dimensions?: number;
 }
 
 export interface LlmEmbedResult {

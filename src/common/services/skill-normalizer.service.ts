@@ -1,7 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SkillTaxonomyService, TaxonomyEntry } from './skill-taxonomy.service';
+import { SemanticSkillMatcherService } from './semantic-skill-matcher.service';
 
-export type NormalizationMatchType = 'exact' | 'alias' | 'fuzzy' | 'umbrella' | 'token' | 'none';
+export type NormalizationMatchType =
+  | 'exact'
+  | 'alias'
+  | 'fuzzy'
+  | 'umbrella'
+  | 'token'
+  | 'semantic'
+  | 'none';
 
 export interface NormalizedSkill {
   /** canonical_name if matched, null if unrecognized */
@@ -39,7 +47,13 @@ export interface NormalizedSkill {
 export class SkillNormalizerService {
   private readonly logger = new Logger(SkillNormalizerService.name);
 
-  constructor(private readonly taxonomy: SkillTaxonomyService) {}
+  constructor(
+    private readonly taxonomy: SkillTaxonomyService,
+    // @Optional so DB-less constructions stay valid: the calibration harnesses
+    // (eval-mentions/eval-match) and unit tests build `new SkillNormalizerService(taxonomy)`
+    // directly — the sync cascade must never require the semantic tier.
+    @Optional() private readonly semantic?: SemanticSkillMatcherService,
+  ) {}
 
   // ─── Stage-0 tables ─────────────────────────────────────────────────────────
 
@@ -131,12 +145,17 @@ export class SkillNormalizerService {
     've',
     'can',
   ]);
-  /** Quality order for cross-mention dedupe: keep the strongest evidence for a canonical. */
+  /**
+   * Quality order for cross-mention dedupe: keep the strongest evidence for a canonical.
+   * 'semantic' (whole-phrase cosine ≥ accept-threshold) ranks above 'fuzzy' (levenshtein
+   * d≤2 can be a near-collision) but below 'token' (an exact alias hit inside the phrase).
+   */
   private static readonly VIA_RANK: Record<NormalizationMatchType, number> = {
-    exact: 5,
-    alias: 4,
-    umbrella: 3,
-    token: 2,
+    exact: 6,
+    alias: 5,
+    umbrella: 4,
+    token: 3,
+    semantic: 2,
     fuzzy: 1,
     none: 0,
   };
@@ -332,25 +351,104 @@ export class SkillNormalizerService {
     const best = new Map<string, NormalizedSkill>();
     const unresolved: NormalizedSkill[] = [];
     for (const n of rawNames) {
-      const results = this.normalizeMention(n);
-      if (results.length === 0) {
-        unresolved.push(this.unmatched(n)); // keep raw for audit/taxonomy-expansion signals
-        continue;
-      }
-      for (const s of results) {
-        if (!s.canonical_name) continue;
-        const prev = best.get(s.canonical_name);
-        const rank = SkillNormalizerService.VIA_RANK;
-        if (
-          !prev ||
-          rank[s.matched_via] > rank[prev.matched_via] ||
-          (rank[s.matched_via] === rank[prev.matched_via] && s.confidence > prev.confidence)
-        ) {
-          best.set(s.canonical_name, s);
-        }
-      }
+      this.mergeMentionResults(n, this.normalizeMention(n), best, unresolved);
     }
     return [...best.values(), ...unresolved];
+  }
+
+  // ─── Async variants (deterministic cascade + semantic embedding fallback) ──────────
+
+  /**
+   * normalizeMention + the semantic embedding tier as TRUE last resort: the async path
+   * consults SemanticSkillMatcherService ONLY when the whole sync cascade returned [],
+   * so every deterministic result is byte-identical to the sync API (eval:mentions
+   * stays the source of truth for stages 0-3). When the tier is disabled (test env,
+   * no key, no DB) this degrades to exactly normalizeMention.
+   */
+  async normalizeMentionAsync(rawName: string): Promise<NormalizedSkill[]> {
+    const sync = this.normalizeMention(rawName);
+    if (sync.length > 0) return sync;
+    return this.resolveSemantic(rawName);
+  }
+
+  /** Semantic-tier resolution for a mention the WHOLE sync cascade missed. */
+  private async resolveSemantic(rawName: string): Promise<NormalizedSkill[]> {
+    if (!this.semantic?.isEnabled()) return [];
+
+    const raw = (rawName ?? '').trim();
+    if (raw.length === 0) return [];
+
+    const hit = await this.semantic.resolve(raw); // null unless band 'auto'
+    if (!hit) return [];
+    const entry = this.taxonomy.getByCanonical(hit.canonicalName);
+    if (!entry) {
+      // DB knows a skill the in-memory taxonomy doesn't (drifted seed) — don't fabricate.
+      this.logger.warn(
+        `semantic tier resolved "${raw}" → ${hit.canonicalName}, which is missing from skills-pilot.json; ignoring.`,
+      );
+      return [];
+    }
+    return [
+      {
+        skill_id: entry.canonical_name,
+        canonical_name: entry.canonical_name,
+        display_name: entry.display_name,
+        raw_input: raw,
+        matched_via: 'semantic',
+        // Carry the measured similarity (capped below alias's 0.9) so downstream
+        // confidence ordering stays meaningful and auditable.
+        confidence: Math.min(0.85, Number(hit.similarity.toFixed(2))),
+      },
+    ];
+  }
+
+  /**
+   * Async normalizeMany — same merge semantics, semantic tier on sync misses only,
+   * BUDGETED: at most semantic.maxPerBatch embed round-trips per call, so a noisy CV
+   * or a cold cache (embedding_version bump) cannot turn one CV-review request into an
+   * unbounded serial call storm (review finding). Overflow mentions keep their full
+   * deterministic results and land in `unresolved` for audit.
+   */
+  async normalizeManyAsync(rawNames: string[]): Promise<NormalizedSkill[]> {
+    const best = new Map<string, NormalizedSkill>();
+    const unresolved: NormalizedSkill[] = [];
+    let semanticBudget = this.semantic?.isEnabled() ? this.semantic.getMaxPerBatch() : 0;
+    // Sequential on purpose: misses are rare (head handled by stages 0-3), and the
+    // resolution cache makes repeats free — no need to burst the embeddings API.
+    for (const n of rawNames) {
+      let results = this.normalizeMention(n);
+      if (results.length === 0 && semanticBudget > 0) {
+        semanticBudget--;
+        results = await this.resolveSemantic(n);
+      }
+      this.mergeMentionResults(n, results, best, unresolved);
+    }
+    return [...best.values(), ...unresolved];
+  }
+
+  /** Shared merge for normalizeMany/normalizeManyAsync (strongest evidence per canonical). */
+  private mergeMentionResults(
+    rawName: string,
+    results: NormalizedSkill[],
+    best: Map<string, NormalizedSkill>,
+    unresolved: NormalizedSkill[],
+  ): void {
+    if (results.length === 0) {
+      unresolved.push(this.unmatched(rawName)); // keep raw for audit/taxonomy-expansion signals
+      return;
+    }
+    for (const s of results) {
+      if (!s.canonical_name) continue;
+      const prev = best.get(s.canonical_name);
+      const rank = SkillNormalizerService.VIA_RANK;
+      if (
+        !prev ||
+        rank[s.matched_via] > rank[prev.matched_via] ||
+        (rank[s.matched_via] === rank[prev.matched_via] && s.confidence > prev.confidence)
+      ) {
+        best.set(s.canonical_name, s);
+      }
+    }
   }
 
   /** O(1) taxonomy lookup passthrough for downstream services (display names etc.). */

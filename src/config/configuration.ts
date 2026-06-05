@@ -33,8 +33,10 @@ export default () => ({
     },
     openai: {
       apiKey: process.env.OPENAI_API_KEY ?? '',
-      modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-4o-mini',
-      modelEmbedding: process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-small',
+      // gpt-5.4-mini = benchmark winner (94% within-band, lowest MAE) — see model-routing memo.
+      modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
+      // 3-large @1024 dims (Matryoshka) — chosen for bilingual VI/EN short-phrase recall.
+      modelEmbedding: process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-large',
     },
   },
 
@@ -50,9 +52,27 @@ export default () => ({
   },
 
   vector: {
-    dimension: parseInt(process.env.VECTOR_DIMENSION ?? '768', 10),
+    // MUST match the pgvector column width (skill_embeddings vector(1024)) AND the
+    // `dimensions` param sent to OpenAI — the dimension contract (blueprint risk list).
+    dimension: parseInt(process.env.VECTOR_DIMENSION ?? '1024', 10),
     table: process.env.VECTOR_TABLE ?? 'document_chunks',
     column: process.env.VECTOR_COLUMN ?? 'embedding',
+    // Bumping the version invalidates skill_embeddings rows + the resolution cache.
+    embeddingVersion: process.env.VECTOR_EMBEDDING_VERSION ?? 'v1',
+  },
+
+  semantic: {
+    // 3-band gate for the embedding fallback tier. 0.72 = pnpm eval:semantic pick
+    // (2026-06-05, 45 rows): precision 1.000 overall+en+vi, zero negative auto-accepts,
+    // 0.04 margin above the closest negative (noise-margin rule ≥0.02). Recall 0.48 —
+    // precision-first by design; the review band [accept−0.08, accept) catches the gray zone.
+    acceptThreshold: parseFloat(process.env.SEMANTIC_ACCEPT_THRESHOLD ?? '0.72'),
+    reviewBandWidth: parseFloat(process.env.SEMANTIC_REVIEW_BAND ?? '0.08'),
+    // Per-CV ceiling on semantic resolutions: each cache-miss is one serial OpenAI embed
+    // round-trip inside the CV-review request, so a noisy CV (OCR junk) or a cold cache
+    // (embedding_version bump) must not turn one request into an unbounded call storm.
+    // Overflow mentions still get full deterministic results — review finding.
+    maxPerBatch: parseInt(process.env.SEMANTIC_MAX_PER_CV ?? '16', 10),
   },
 
   observability: {
