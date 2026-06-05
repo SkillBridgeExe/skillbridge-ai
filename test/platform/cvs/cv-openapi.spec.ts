@@ -77,8 +77,8 @@ describe('CV OpenAPI docs', () => {
     );
   });
 
-  it('does not mark CV endpoints as public', () => {
-    expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvsController)).toBeUndefined();
+  it('marks CV endpoints public to bypass internal auth while keeping bearer docs', () => {
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvsController)).toBe(true);
   });
 
   it('keeps consent audit indexes aligned with migration intent', () => {

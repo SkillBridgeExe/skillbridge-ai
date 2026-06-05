@@ -25,6 +25,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { memoryStorage } from 'multer';
+import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
@@ -33,6 +34,7 @@ import { CvsService } from './cvs.service';
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 
 @ApiTags('CVs')
+@Public()
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/cvs')
