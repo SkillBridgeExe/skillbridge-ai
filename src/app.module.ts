@@ -28,6 +28,7 @@ import { CvReviewModule } from './modules/cv-review/cv-review.module';
 import { CvJdMatchModule } from './modules/cv-jd-match/cv-jd-match.module';
 import { InterviewModule } from './modules/interview/interview.module';
 import { RoadmapModule } from './modules/roadmap/roadmap.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 
 // Platform modules need the DB → skip in the e2e env (NODE_ENV=test, no Postgres).
 const PLATFORM_MODULES =
@@ -76,6 +77,7 @@ const PLATFORM_MODULES =
     CvJdMatchModule,
     InterviewModule,
     RoadmapModule,
+    JobsModule,
 
     // Platform context (auth/users) — loaded only outside test (needs DB)
     ...PLATFORM_MODULES,
