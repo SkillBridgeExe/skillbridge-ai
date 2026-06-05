@@ -108,7 +108,7 @@ export class CvJdMatchService {
       target_role: input.target_role ?? null,
     };
 
-    await this.tracing.saveAiResult({
+    const aiResultId = await this.tracing.saveAiResult({
       aiRequestId,
       userId,
       resultType: 'cv_jd_match',
@@ -128,6 +128,7 @@ export class CvJdMatchService {
 
     return {
       ai_request_id: aiRequestId,
+      ai_result_id: aiResultId,
       result_type: 'cv_jd_match',
       parsed_response: parsed,
       retrieval_log_id: null,
