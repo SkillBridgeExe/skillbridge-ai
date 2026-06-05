@@ -1,8 +1,8 @@
 {
   "$schema_note": "Seed data for the `skills` table (skillbridge-mvp.dbml). Each entry maps 1:1 to a row. Pilot taxonomy ~52 skills covering 5 target roles: Frontend / Backend / Fullstack / Data Analyst / Digital Marketer.",
-  "version": "pilot-v1",
+  "version": "pilot-v2",
   "created_at": "2026-05-26",
-  "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase. License hygiene 2026-06-04: test_automation re-attributed from SFIA (paid Partner License, embedding/sub-licensing forbidden) to ONET 15-1253.00 (Software QA Analysts and Testers, CC BY 4.0) — generic QA/automation skill present in O*NET Technology Skills; no SFIA-, Lightcast-, or LinkedIn-sourced rows remain.",
+  "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase. License hygiene 2026-06-04: test_automation re-attributed from SFIA (paid Partner License, embedding/sub-licensing forbidden) to ONET 15-1253.00 (Software QA Analysts and Testers, CC BY 4.0) — generic QA/automation skill present in O*NET Technology Skills; no SFIA-, Lightcast-, or LinkedIn-sourced rows remain. Step-3 expansion 2026-06-04: +46 canonicals curated for the 8 IT roles, sources ESCO (CC BY 4.0, IDs API-verified) / CUSTOM; see ATTRIBUTION.md.",
   "level_scale": {
     "1": "BEGINNER — heard of, never used",
     "2": "NOVICE — used in tutorials / class projects",
@@ -34,7 +34,9 @@
         "cascading stylesheets",
         "tailwind css",
         "scss",
-        "sass"
+        "sass",
+        "tailwind",
+        "tailwindcss"
       ]
     },
     {
@@ -85,7 +87,8 @@
       "aliases": [
         "next.js",
         "next js",
-        "nextjs framework"
+        "nextjs framework",
+        "next"
       ]
     },
     {
@@ -252,7 +255,9 @@
         "quan tri co so du lieu",
         "quản lý cơ sở dữ liệu",
         "cơ sở dữ liệu quan hệ",
-        "co so du lieu quan he"
+        "co so du lieu quan he",
+        "csdl",
+        "postgres"
       ]
     },
     {
@@ -567,8 +572,6 @@
         "sklearn",
         "trí tuệ nhân tạo",
         "tri tue nhan tao",
-        "học sâu",
-        "hoc sau",
         "khoa học dữ liệu",
         "khoa hoc du lieu"
       ]
@@ -728,7 +731,6 @@
       "source": "CUSTOM",
       "source_external_id": null,
       "aliases": [
-        "firestore",
         "firebase auth",
         "firebase cloud messaging",
         "fcm",
@@ -756,7 +758,6 @@
       "source": "CUSTOM",
       "source_external_id": null,
       "aliases": [
-        "jira",
         "bug tracking",
         "issue tracking",
         "defect management",
@@ -857,7 +858,6 @@
       "aliases": [
         "automation framework",
         "selenium",
-        "cypress",
         "test script",
         "automated testing",
         "e2e testing",
@@ -887,8 +887,6 @@
       "source": "CUSTOM",
       "source_external_id": null,
       "aliases": [
-        "pytorch",
-        "tensorflow",
         "tf",
         "deep learning frameworks",
         "deep learning libs"
@@ -907,6 +905,1225 @@
         "feature extraction",
         "data preparation"
       ]
+    },
+    {
+      "canonical_name": "angular",
+      "display_name": "Angular",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "angularjs",
+        "angular framework",
+        "angular 2+",
+        "google angular"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Component-based TypeScript SPA framework (Google); top-3 FE framework in VN enterprise/outsourcing. ESCO has no dedicated Angular concept (only generic 'computer programming'), so CUSTOM/null is honest."
+    },
+    {
+      "canonical_name": "vue",
+      "display_name": "Vue.js",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "vue 3",
+        "vue 2",
+        "vuejs framework"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Progressive JS frontend framework; very common in VN. Distinct canonical (eval splits 'Vue và Vuex' -> vue+vuex). ESCO returns 0 results for Vue.js -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "svelte",
+      "display_name": "Svelte",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "sveltejs",
+        "sveltekit"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Compiler-based reactive frontend framework (growing adoption). No ESCO concept -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "redux",
+      "display_name": "Redux",
+      "category": "frontend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "redux toolkit",
+        "react redux",
+        "rtk",
+        "redux store"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Predictable state-management library for React; distinct from react (eval wants 'React + Redux' -> react+redux). new category frontend_skill (a library/skill, not a framework). NO 'redis' alias (collides with nosql)."
+    },
+    {
+      "canonical_name": "vuex",
+      "display_name": "Vuex / Pinia",
+      "category": "frontend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "pinia",
+        "vue store",
+        "vuex store"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "State-management library for the Vue ecosystem (Vuex/Pinia); separate canonical per eval 'Vue và Vuex' -> vue+vuex. CUSTOM/null."
+    },
+    {
+      "canonical_name": "php",
+      "display_name": "PHP",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "4350c38d-0fe9-4ca7-bab9-40ed7f72b04f",
+      "aliases": [
+        "php language",
+        "hypertext preprocessor",
+        "lập trình php",
+        "lap trinh php"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Server-side scripting language; huge legacy/CMS presence in VN. Verified ESCO concept 'PHP' (URI tail 4350c38d... via ESCO API)."
+    },
+    {
+      "canonical_name": "laravel",
+      "display_name": "Laravel",
+      "category": "backend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "laravel framework",
+        "laravel php"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Dominant PHP web framework in VN agencies. new category backend_framework (server-side framework, distinct from backend_runtime). ESCO returns 0 -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "ruby",
+      "display_name": "Ruby",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "0ccdfe98-f845-4598-84a1-3dca66e9d9a3",
+      "aliases": [
+        "ruby language",
+        "ruby on rails",
+        "rails",
+        "ror",
+        "lập trình ruby",
+        "lap trinh ruby"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Dynamic language; folds Ruby on Rails/Rails as umbrella aliases (no separate RoR row required by contract). Verified ESCO concept 'Ruby (computer programming)' (URI tail 0ccdfe98... via ESCO API)."
+    },
+    {
+      "canonical_name": "golang",
+      "display_name": "Go (Golang)",
+      "category": "programming_language",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "go",
+        "go language",
+        "golang language"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Google's compiled language; common in VN backend/cloud/devops. Canonical standardized to 'golang' per eval; includes bare 'go' alias (eval 'Go' -> golang; 2-char min-length guard is stage-0's job). ESCO has no Go concept -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "rust",
+      "display_name": "Rust",
+      "category": "programming_language",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "rust lang",
+        "rust language",
+        "lập trình rust",
+        "lap trinh rust"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Memory-safe systems language; emerging in VN. NO 'rest' alias (collides with rest_api -> eval guards rust against fuzzy 'rest'). ESCO search returns only corrosion skills -> CUSTOM/null (no invented ID)."
+    },
+    {
+      "canonical_name": "cpp",
+      "display_name": "C++",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "b633eb55-8f1f-4ae6-ab4c-2022ffe2cb7f",
+      "aliases": [
+        "cplusplus",
+        "cpp language"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Systems/competitive-programming language; foundational in VN CS curricula. Canonical=cpp (contract expected[]), display C++. Verified ESCO concept 'C++' (URI tail b633eb55... via ESCO API). normalizeKey keeps '+' so 'c++' is a distinct key from 'c#' (dotnet)."
+    },
+    {
+      "canonical_name": "c_lang",
+      "display_name": "C (Programming Language)",
+      "category": "programming_language",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "c language",
+        "c programming",
+        "ngôn ngữ c",
+        "ngon ngu c",
+        "lập trình c",
+        "lap trinh c"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "The C language; embedded/curriculum staple in VN. Canonical c_lang to avoid the dangerous 1-char 'c' key (NO bare 'c' alias). ESCO top result for 'C' is generic, not the language -> CUSTOM/null (honest)."
+    },
+    {
+      "canonical_name": "django",
+      "display_name": "Django",
+      "category": "backend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "django rest framework",
+        "django rest",
+        "drf",
+        "django framework"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Batteries-included Python web framework; common in VN backend/AI-API roles. ESCO returns 0 for Django -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "flask",
+      "display_name": "Flask",
+      "category": "backend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "flask framework",
+        "flask python"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Lightweight Python micro-framework; very common in VN student projects and ML model-serving APIs. ESCO returns 0 -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "fastapi",
+      "display_name": "FastAPI",
+      "category": "backend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "fastapi framework"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Modern async Python API framework (ML/LLM serving); eval guards it against fuzzy 'restapi'. Distinct canonical. ESCO has no concept -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "websocket",
+      "display_name": "WebSocket",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "websockets",
+        "socket.io",
+        "realtime communication"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Full-duplex realtime protocol (chat/live features); folds socket.io as ecosystem alias. backend_skill (existing category). CUSTOM/null."
+    },
+    {
+      "canonical_name": "grpc",
+      "display_name": "gRPC",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "grpc framework",
+        "protocol buffers",
+        "protobuf"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "High-performance RPC framework (Protobuf-based) used in microservices; eval guards short key against fuzzy. backend_skill. CUSTOM/null."
+    },
+    {
+      "canonical_name": "microservices",
+      "display_name": "Microservices",
+      "category": "architecture",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "microservice",
+        "microservice architecture",
+        "microservices architecture",
+        "kiến trúc microservice",
+        "kien truc microservice",
+        "kiến trúc microservices"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Distributed service-decomposition architecture; core in VN enterprise/outsourcing JDs. architecture (existing category). VI alias 'kiến trúc microservice' per task. CUSTOM/null."
+    },
+    {
+      "canonical_name": "oop",
+      "display_name": "Object-Oriented Programming",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "object orientation",
+        "lập trình hướng đối tượng",
+        "lap trinh huong doi tuong"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "core"
+        },
+        {
+          "role": "mobile_developer",
+          "level": "core"
+        },
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Cross-language programming paradigm; not representable by any language canonical (java/python/dotnet are languages). new category cs_fundamentals. VI alias 'lập trình hướng đối tượng' + no-diacritics per task. CUSTOM/null."
+    },
+    {
+      "canonical_name": "data_structures_algorithms",
+      "display_name": "Data Structures & Algorithms",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "data structures and algorithms",
+        "data structures",
+        "algorithms",
+        "cấu trúc dữ liệu và giải thuật",
+        "cau truc du lieu va giai thuat",
+        "cấu trúc dữ liệu",
+        "cau truc du lieu",
+        "giải thuật và cấu trúc dữ liệu",
+        "dsa"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        },
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Foundational CS competency, heavily interview-tested in VN. Abbrev 'DSA' resolves via stage-0 prenormalize guard. cs_fundamentals. VI alias 'cấu trúc dữ liệu và giải thuật' per eval (compound 'và' handled by stage-0). CUSTOM/null."
+    },
+    {
+      "canonical_name": "backend_development",
+      "display_name": "Backend Development",
+      "category": "software_development",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "backend",
+        "backend dev",
+        "backend developer",
+        "be",
+        "server-side development",
+        "phát triển backend",
+        "phat trien backend",
+        "lập trình backend",
+        "lap trinh backend"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "core"
+        }
+      ],
+      "note": "Broad server-side development competency. Created per contract (expected[]=backend_development) so abbrev 'BE' has an exact target instead of fuzzy-false-matching javascript. new category software_development. See label_flag: borderline role-phrase. [disambiguation-only: excluded from rubric weights & gap scoring per verifier]",
+      "scoring_excluded": true
+    },
+    {
+      "canonical_name": "frontend_development",
+      "display_name": "Frontend Development",
+      "category": "software_development",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "frontend",
+        "frontend dev",
+        "frontend developer",
+        "fe",
+        "client-side development",
+        "phát triển frontend",
+        "phat trien frontend",
+        "lập trình frontend",
+        "lap trinh frontend",
+        "lập trình giao diện"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "core"
+        }
+      ],
+      "note": "Broad client-side development competency. Created per contract (expected[]=frontend_development) so abbrev 'FE' has an exact target instead of fuzzy-false-matching javascript. new category software_development. See label_flag: borderline role-phrase. [disambiguation-only: excluded from rubric weights & gap scoring per verifier]",
+      "scoring_excluded": true
+    },
+    {
+      "canonical_name": "deep_learning",
+      "display_name": "Deep Learning",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "dl",
+        "deep neural networks",
+        "neural networks",
+        "neural network",
+        "dnn",
+        "cnn",
+        "rnn",
+        "transformer models",
+        "học sâu",
+        "hoc sau",
+        "mạng nơ-ron",
+        "mang no ron",
+        "mạng neural",
+        "học sâu deep learning"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        },
+        {
+          "role": "data_analyst",
+          "level": "optional"
+        }
+      ],
+      "note": "Neural-network sub-discipline of ML (CNN/RNN/transformers). Earns its own canonical for ai_ml_engineer granularity — eval row 'DL' contractually requires a separate canonical, distinct from the classical-ML machine_learning umbrella. No ESCO exact-match concept (ESCO collapses this under 'utilise machine learning'), so CUSTOM/null is the honest attribution."
+    },
+    {
+      "canonical_name": "nlp",
+      "display_name": "Natural Language Processing (NLP)",
+      "category": "ai_ml",
+      "source": "ESCO",
+      "source_external_id": "fff0e2cd-d0bd-4b02-9daf-158b79d9688a",
+      "aliases": [
+        "natural language processing",
+        "text mining",
+        "text classification",
+        "named entity recognition",
+        "ner",
+        "xử lý ngôn ngữ tự nhiên",
+        "xu ly ngon ngu tu nhien"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Processing and modelling of human-language text — a distinct AI specialization in VN AI labs/startups. Attributed to the verified ESCO skill concept 'natural language processing' (URI tail confirmed via ESCO web-service API). Eval row 'NLP' requires this new canonical to avoid the current d=2 fuzzy false-hit to dotnet."
+    },
+    {
+      "canonical_name": "computer_vision",
+      "display_name": "Computer Vision",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "cv",
+        "image processing",
+        "image recognition",
+        "object detection",
+        "image classification",
+        "opencv",
+        "thị giác máy tính",
+        "thi giac may tinh",
+        "xử lý ảnh",
+        "xu ly anh"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Image/video understanding AI specialization (detection, recognition, OpenCV). Covers eval rows 'CV' (abbrev, context = computer vision in ML CVs) and 'Computer Vision'. No exact ESCO preferred-label concept found via API, so CUSTOM/null is honest. 'cv' abbrev needs the new canonical + fuzzy guard (currently false-hits dotnet)."
+    },
+    {
+      "canonical_name": "llm_engineering",
+      "display_name": "LLM Engineering",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "llm",
+        "llms",
+        "large language model",
+        "large language models",
+        "rag",
+        "retrieval augmented generation",
+        "langchain",
+        "llama index",
+        "hugging face",
+        "fine-tuning llm",
+        "kỹ thuật llm",
+        "ky thuat llm"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        },
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Building LLM-backed systems: RAG, embeddings, orchestration (LangChain/LlamaIndex), fine-tuning, Hugging Face. Kept SEPARATE from prompt_engineering because the contract supplies distinct eval rows and 2026 VN student CVs write both — LLM engineering = systems/infra, prompt engineering = prompt craft. Eval row 'LLM' needs this new canonical (currently d=2 fuzzy false-hit to java)."
+    },
+    {
+      "canonical_name": "prompt_engineering",
+      "display_name": "Prompt Engineering",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "prompting",
+        "prompt design",
+        "few-shot prompting",
+        "chain of thought prompting",
+        "kỹ thuật prompt",
+        "ky thuat prompt",
+        "thiết kế prompt",
+        "thiet ke prompt"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        },
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Craft of designing prompts to steer LLM outputs (few-shot, CoT) — a fast-growing standalone skill in VN JDs/student projects, separate from the broader llm_engineering systems work. Covers eval row 'Prompt Engineering'. No ESCO concept exists yet, so CUSTOM/null."
+    },
+    {
+      "canonical_name": "data_analysis",
+      "display_name": "Data Analysis",
+      "category": "data_skill",
+      "source": "ESCO",
+      "source_external_id": "2b92a5b2-6758-4ee3-9fb4-b6387a55cc8f",
+      "aliases": [
+        "data analytics",
+        "phân tích dữ liệu",
+        "phan tich du lieu",
+        "phân tích số liệu",
+        "phan tich so lieu",
+        "exploratory data analysis",
+        "eda"
+      ],
+      "role_relevance": [
+        {
+          "role": "data_analyst",
+          "level": "core"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "General data-analysis competency (broader than the narrower statistics / data_visualization canonicals). Covers eval row 'Phân tích dữ liệu'. Attributed to verified ESCO skill 'perform data analysis' (URI tail confirmed via ESCO API). Aliases deliberately avoid 'phân tích dữ liệu lớn' which already belongs to etl (first-writer-wins)."
+    },
+    {
+      "canonical_name": "spark",
+      "display_name": "Apache Spark",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "pyspark",
+        "spark sql",
+        "spark streaming"
+      ],
+      "role_relevance": [
+        {
+          "role": "data_analyst",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Distributed big-data processing engine in VN data-engineering roles. Covers eval row 'Apache Spark' (with required 'pyspark' alias). NOT attributed to the ESCO 'SPARK' concept (af7ae54f...) — that entry is the SPARK/Ada formal-verification language, NOT the Apache framework; honest attribution is CUSTOM/null. Bare canonical key 'spark' (display normalizes to 'apachespark') — short key, fuzzy guard advisable."
+    },
+    {
+      "canonical_name": "elasticsearch",
+      "display_name": "Elasticsearch",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "elastic",
+        "opensearch"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Distributed search/analytics datastore, distinct from the 'elk' monitoring-stack alias (which stays on monitoring_logging by first-writer-wins). Covers eval row 'Elasticsearch'. ESCO search returned zero matches -> CUSTOM/null. Deliberately does NOT alias 'elk' or bare 'es' (collision/ambiguity risk)."
+    },
+    {
+      "canonical_name": "web_scraping",
+      "display_name": "Web Scraping",
+      "category": "data_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "web crawling",
+        "web crawler",
+        "scrapy",
+        "beautifulsoup",
+        "selenium scraping",
+        "thu thập dữ liệu web",
+        "thu thap du lieu web",
+        "cào dữ liệu",
+        "cao du lieu"
+      ],
+      "role_relevance": [
+        {
+          "role": "data_analyst",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Programmatic web data-collection (Scrapy/BeautifulSoup), common in VN data/AI student projects. Covers eval row 'Web Scraping'. No ESCO concept (search returned cleaning/paint-removal noise) -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "kafka",
+      "display_name": "Apache Kafka",
+      "category": "messaging_streaming",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "kafka streams",
+        "event streaming",
+        "message streaming"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Distributed event-streaming platform / message broker, the streaming backbone in VN microservices and data pipelines. Covers eval row 'Kafka'. ESCO returned no match (only Apache Maven/Tomcat) -> CUSTOM/null. New 'messaging_streaming' category justified: messaging/streaming infra is distinct from generic database/devops."
+    },
+    {
+      "canonical_name": "rabbitmq",
+      "display_name": "RabbitMQ",
+      "category": "messaging_streaming",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "amqp",
+        "message queue",
+        "message broker"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "AMQP message broker common in VN backend systems. Covers eval row 'RabbitMQ'. No ESCO concept -> CUSTOM/null. Shares the messaging_streaming category with kafka. 'message queue'/'message broker' are generic synonyms students type for this skill."
+    },
+    {
+      "canonical_name": "mlops",
+      "display_name": "MLOps",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "machine learning operations",
+        "model deployment",
+        "model serving",
+        "mlflow",
+        "model monitoring",
+        "vận hành mô hình ml",
+        "van hanh mo hinh ml"
+      ],
+      "role_relevance": [
+        {
+          "role": "ai_ml_engineer",
+          "level": "core"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "EXTRA (justified): operationalizing ML models (deployment, serving, monitoring, MLflow) — a distinct, fast-growing VN AI-role skill that is neither classical machine_learning nor generic ci_cd/devops. Bridges ai_ml_engineer and devops. CUSTOM/null (no ESCO concept). Aliases avoid bare 'mlops' collision risk by keeping it as the canonical key only."
+    },
+    {
+      "canonical_name": "hadoop",
+      "display_name": "Apache Hadoop",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "hdfs",
+        "mapreduce",
+        "hive",
+        "apache hive"
+      ],
+      "role_relevance": [
+        {
+          "role": "data_analyst",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "EXTRA (justified): the classic distributed storage/processing big-data stack (HDFS/MapReduce/Hive), the companion to Spark in VN data-engineering roles and still listed on data CVs. Distinct from spark and from the generic etl pipeline canonical. No ESCO match for the framework -> CUSTOM/null."
+    },
+    {
+      "canonical_name": "android_native",
+      "display_name": "Android (Native)",
+      "category": "mobile_platform",
+      "source": "ESCO",
+      "source_external_id": "d8829a1d-dbde-435b-b921-29d6462f35c9",
+      "aliases": [
+        "native android",
+        "android development",
+        "android sdk",
+        "android studio",
+        "lập trình android",
+        "lap trinh android",
+        "phát triển android",
+        "phat trien android",
+        "phát triển ứng dụng android",
+        "phat trien ung dung android"
+      ],
+      "role_relevance": [
+        {
+          "role": "mobile_developer",
+          "level": "core"
+        }
+      ],
+      "note": "Native Android platform development (SDK/Android Studio/Activity-Fragment lifecycle). Distinct from the kotlin/java language umbrellas — it is the platform skill, which is why the eval contracts 'Android (Native)'->android_native as its own canonical. ESCO knowledge concept 'Android (mobile operating systems)'. Bare 'android' intentionally NOT aliased (ambiguous)."
+    },
+    {
+      "canonical_name": "ios_native",
+      "display_name": "iOS (Native)",
+      "category": "mobile_platform",
+      "source": "ESCO",
+      "source_external_id": "ce26e71f-2d47-474e-89b6-7920931ac4fc",
+      "aliases": [
+        "ios development",
+        "native ios",
+        "ios app development",
+        "uikit",
+        "xcode ios",
+        "lập trình ios",
+        "lap trinh ios",
+        "phát triển ios",
+        "phat trien ios",
+        "phát triển ứng dụng ios",
+        "phat trien ung dung ios"
+      ],
+      "role_relevance": [
+        {
+          "role": "mobile_developer",
+          "level": "core"
+        }
+      ],
+      "note": "Native iOS platform development (UIKit/SwiftUI app lifecycle, Xcode). Distinct from the swift language umbrella — eval contracts 'iOS Development'->ios_native while bare 'iOS'->swift (step-2 alias). ESCO knowledge concept 'iOS'. Bare 'ios' intentionally NOT aliased here to avoid colliding with the swift step-2 alias."
+    },
+    {
+      "canonical_name": "cloud_azure",
+      "display_name": "Microsoft Azure",
+      "category": "cloud",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "azure",
+        "azure cloud",
+        "ms azure",
+        "windows azure",
+        "azure devops cloud"
+      ],
+      "role_relevance": [
+        {
+          "role": "devops_engineer",
+          "level": "core"
+        },
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Microsoft's cloud platform; only cloud_aws existed before. Common in VN enterprise/.NET shops, so it earns a canonical separate from AWS. CUSTOM (vendor product name has no clean generic ESCO/O*NET concept — honest null, no invented ID)."
+    },
+    {
+      "canonical_name": "cloud_gcp",
+      "display_name": "Google Cloud Platform",
+      "category": "cloud",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "gcp",
+        "google cloud",
+        "gcloud",
+        "bigquery cloud",
+        "google cloud functions"
+      ],
+      "role_relevance": [
+        {
+          "role": "devops_engineer",
+          "level": "core"
+        },
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "ai_ml_engineer",
+          "level": "optional"
+        }
+      ],
+      "note": "Google's cloud platform; eval rows 'GCP' (today fuzzy-false-hits dotnet) and 'Google Cloud Platform' both contract to cloud_gcp. Distinct from cloud_aws/cloud_azure. CUSTOM (vendor name, no clean ESCO/O*NET concept — honest null)."
+    },
+    {
+      "canonical_name": "security",
+      "display_name": "Security",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "8088750d-8388-4170-a76f-48354c469c44",
+      "aliases": [
+        "security fundamentals",
+        "information security",
+        "infosec",
+        "cybersecurity",
+        "application security",
+        "web security",
+        "owasp",
+        "bảo mật",
+        "bao mat",
+        "an toàn thông tin",
+        "an toan thong tin",
+        "an ninh mạng",
+        "an ninh mang",
+        "attt"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        },
+        {
+          "role": "devops_engineer",
+          "level": "optional"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Single broad Security canonical. Chosen over a separate 'security_fundamentals' because the eval points 4 mentions at 'security' (Bảo mật / An toàn thông tin / ATTT + abbrev) vs 1 at security_fundamentals; one canonical with 'security fundamentals' as an alias covers all. Distinct from authentication_authorization (auth-only) and networking (firewall=infra). ESCO knowledge concept 'cyber security'. ATTT/an toàn thông tin VI aliases included."
+    },
+    {
+      "canonical_name": "figma",
+      "display_name": "Figma",
+      "category": "tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "figma design",
+        "figjam"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Figma is the default design/handoff TOOL; even FE devs list it in VN CVs. Kept distinct from ui_ux_design (the discipline/skill): tool vs skill. CUSTOM (vendor tool, no clean ESCO/O*NET concept — honest null)."
+    },
+    {
+      "canonical_name": "ui_ux_design",
+      "display_name": "UI/UX Design",
+      "category": "design",
+      "source": "ESCO",
+      "source_external_id": "fd33c66c-70c4-40e6-b87c-5495bd3bf26e",
+      "aliases": [
+        "uiux",
+        "ux design",
+        "ui design",
+        "user experience design",
+        "user interface design",
+        "interaction design",
+        "thiết kế ui/ux",
+        "thiet ke ui ux",
+        "thiết kế trải nghiệm người dùng",
+        "thiet ke trai nghiem nguoi dung"
+      ],
+      "role_relevance": [
+        {
+          "role": "frontend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "UI/UX as a DESIGN DISCIPLINE/skill (distinct from the figma tool, and from responsive_design which is FE layout). Eval: 'UI/UX Design'->ui_ux_design and bare 'UI/UX' (today fuzzy-false-hits linux) both contract here. ESCO skill concept 'design user interface'. Note 'thiết kế giao diện' stays on responsive_design per its eval row; here I use the explicit UI/UX phrasings."
+    },
+    {
+      "canonical_name": "unity",
+      "display_name": "Unity",
+      "category": "tool",
+      "source": "ESCO",
+      "source_external_id": "d1a86399-24d8-415f-98b9-e8cbb6b04a26",
+      "aliases": [
+        "unity engine",
+        "unity3d",
+        "unity game engine",
+        "game development",
+        "game dev",
+        "lập trình game",
+        "lap trinh game",
+        "phát triển game",
+        "phat trien game"
+      ],
+      "role_relevance": [],
+      "note": "Unity game engine; eval 'Unity' today fuzzy-false-hits linux (unix@d2). Sole game/3D-engine canonical in the pilot, so it absorbs generic 'game development' phrasings (no separate game_development umbrella added to keep precision). ESCO concept 'Unity (digital game creation systems)'. No pilot role maps to game dev, so role_relevance empty."
+    },
+    {
+      "canonical_name": "blockchain",
+      "display_name": "Blockchain",
+      "category": "blockchain",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "web3",
+        "smart contract",
+        "smart contracts",
+        "distributed ledger",
+        "dapp",
+        "công nghệ blockchain",
+        "cong nghe blockchain"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Blockchain/web3 umbrella (smart contracts, distributed ledger, dApps); strong VN web3/crypto hiring. CUSTOM — ESCO API returned no blockchain/distributed-ledger concept at query time, so honest null rather than an invented ID."
+    },
+    {
+      "canonical_name": "solidity",
+      "display_name": "Solidity",
+      "category": "programming_language",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "solidity lang",
+        "ngôn ngữ solidity",
+        "ngon ngu solidity"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Solidity smart-contract language (Ethereum/EVM) for VN web3 roles; distinct from blockchain (concept) as the concrete language. CUSTOM (no ESCO/O*NET concept for this niche language — honest null)."
+    },
+    {
+      "canonical_name": "orm",
+      "display_name": "ORM (Object-Relational Mapping)",
+      "category": "backend_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "object relational mapping",
+        "prisma",
+        "sequelize",
+        "typeorm",
+        "hibernate",
+        "entity framework",
+        "sqlalchemy",
+        "eloquent"
+      ],
+      "role_relevance": [
+        {
+          "role": "backend_developer",
+          "level": "core"
+        },
+        {
+          "role": "fullstack_developer",
+          "level": "optional"
+        }
+      ],
+      "note": "Object-relational mapping libraries (Prisma/TypeORM/Hibernate/EF...). Added per verifier coverage-gap: eval row ORM otherwise fuzzy-false-hits java."
     }
   ]
 }

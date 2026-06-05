@@ -96,9 +96,11 @@ export class CvJdMatchService {
     const parsed: CvJdMatchParsedResponse = {
       overall_score: diff.overall_score,
       match_ratio: diff.match_ratio,
+      required_coverage: diff.required_coverage,
       matched_skills: diff.matched_skills,
       partial_skills: diff.partial_skills,
       missing_skills: diff.missing_skills,
+      bonus_skills: diff.bonus_skills,
       unnormalized_cv_skills: diff.unnormalized_cv_skills,
       unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
       scoring_breakdown: diff.scoring_breakdown,

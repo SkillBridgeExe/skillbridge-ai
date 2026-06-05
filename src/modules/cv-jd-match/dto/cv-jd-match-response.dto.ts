@@ -1,4 +1,11 @@
-import { MatchedSkill, MissingSkill, PartialSkill, UnnormalizedSkill } from '../skill-diff.service';
+import {
+  BonusSkill,
+  DiffResult,
+  MatchedSkill,
+  MissingSkill,
+  PartialSkill,
+  UnnormalizedSkill,
+} from '../skill-diff.service';
 
 /**
  * Response from the refactored CV-JD match flow.
@@ -20,21 +27,19 @@ export interface CvJdMatchParsedResponse {
   matched_skills: MatchedSkill[];
   partial_skills: PartialSkill[];
   missing_skills: MissingSkill[];
+  /** CV skills the role doesn't require — strengths to display, never subtracted. */
+  bonus_skills: BonusSkill[];
+
+  /** Fraction of REQUIRED skills met (0-1). Explains the coverage cap on overall_score. */
+  required_coverage: number;
 
   /** CV skills LLM extracted but couldn't normalize → flag for taxonomy expansion */
   unnormalized_cv_skills: UnnormalizedSkill[];
   /** JD requirements LLM extracted but couldn't normalize → flag for taxonomy expansion */
   unnormalized_jd_requirements: UnnormalizedSkill[];
 
-  /** Breakdown for transparency / audit */
-  scoring_breakdown: {
-    total_requirements: number;
-    matched_count: number;
-    partial_count: number;
-    missing_count: number;
-    weight_sum: number;
-    achieved_weight: number;
-  };
+  /** Breakdown for transparency / audit — referenced from DiffResult so it can't drift. */
+  scoring_breakdown: DiffResult['scoring_breakdown'];
 
   /** Indicates which source was used for "required skills". */
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';
