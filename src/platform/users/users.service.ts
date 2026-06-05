@@ -182,11 +182,12 @@ export class UsersService {
     const take = query.limit ?? 20;
     const baseWhere: FindOptionsWhere<SkillEntity> = {};
     if (category) baseWhere.category = category;
+    const escapedSearch = search ? escapeSqlLike(search) : null;
 
-    const where: FindOptionsWhere<SkillEntity>[] | FindOptionsWhere<SkillEntity> = search
+    const where: FindOptionsWhere<SkillEntity>[] | FindOptionsWhere<SkillEntity> = escapedSearch
       ? [
-          { ...baseWhere, canonicalName: ILike(`%${search}%`) },
-          { ...baseWhere, displayName: ILike(`%${search}%`) },
+          { ...baseWhere, canonicalName: ILike(`%${escapedSearch}%`) },
+          { ...baseWhere, displayName: ILike(`%${escapedSearch}%`) },
         ]
       : baseWhere;
 
@@ -354,4 +355,8 @@ export class UsersService {
 
 function hasOwn<T extends object>(object: T, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function escapeSqlLike(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
 }

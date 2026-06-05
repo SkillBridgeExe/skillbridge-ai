@@ -173,6 +173,26 @@ describe('UsersService', () => {
     ]);
   });
 
+  it('escapes SQL LIKE wildcards when searching skills', async () => {
+    const { service, skills } = setup();
+    skills.find.mockResolvedValue([]);
+
+    await service.listSkills({ query: '%_', limit: 10 });
+
+    expect(skills.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: [
+          expect.objectContaining({
+            canonicalName: expect.objectContaining({ _value: '%\\%\\_%' }),
+          }),
+          expect.objectContaining({
+            displayName: expect.objectContaining({ _value: '%\\%\\_%' }),
+          }),
+        ],
+      }),
+    );
+  });
+
   it('rejects unsupported avatar file types', async () => {
     const { service } = setup();
 
