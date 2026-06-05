@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CvJdMatchModule } from '../cv-jd-match/cv-jd-match.module';
 import { JdIngestService } from './ingest/jd-ingest.service';
+import { ItviecCrawlerService } from './crawl/itviec-crawler.service';
 import { JobRecommendationService } from './reco/job-recommendation.service';
 import { SkillDemandService } from './trends/skill-demand.service';
 import { JobsController } from './jobs.controller';
@@ -15,7 +16,7 @@ import { TrendsController } from './trends/trends.controller';
 @Module({
   imports: [CvJdMatchModule],
   controllers: [JobsController, TrendsController],
-  providers: [JdIngestService, JobRecommendationService, SkillDemandService],
-  exports: [JdIngestService, JobRecommendationService, SkillDemandService],
+  providers: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService],
+  exports: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService],
 })
 export class JobsModule {}
