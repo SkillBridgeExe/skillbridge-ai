@@ -1,5 +1,5 @@
 {
-  "$schema_note": "Seed data for the `skills` table (skillbridge-mvp.dbml). Each entry maps 1:1 to a row. Pilot taxonomy ~52 skills covering 5 target roles: Frontend / Backend / Fullstack / Data Analyst / Digital Marketer.",
+  "$schema_note": "Seed data for the `skills` table (skillbridge-mvp.dbml). Each entry maps 1:1 to a row. Pilot taxonomy 106 skills covering 5 target roles: Frontend / Backend / Fullstack / Data Analyst / Digital Marketer.",
   "version": "pilot-v2",
   "created_at": "2026-05-26",
   "source_notes": "Curated for SkillBridge pilot. Soft skills + technical skills aligned with O*NET occupations 15-1252.00 (Software Developers), 15-2051.00 (Data Scientists), 13-1161.00 (Market Research Analysts). Most entries are CUSTOM (manually curated for VN tech market). Full O*NET import deferred to production phase. License hygiene 2026-06-04: test_automation re-attributed from SFIA (paid Partner License, embedding/sub-licensing forbidden) to ONET 15-1253.00 (Software QA Analysts and Testers, CC BY 4.0) — generic QA/automation skill present in O*NET Technology Skills; no SFIA-, Lightcast-, or LinkedIn-sourced rows remain. Step-3 expansion 2026-06-04: +46 canonicals curated for the 8 IT roles, sources ESCO (CC BY 4.0, IDs API-verified) / CUSTOM; see ATTRIBUTION.md.",

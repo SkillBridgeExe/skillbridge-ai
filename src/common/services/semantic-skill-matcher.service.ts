@@ -142,8 +142,10 @@ export class SemanticSkillMatcherService {
       );
 
       if (band === 'needs_review') {
+        // Surface WHICH surface form matched (canonical/display/alias text) — the reviewer
+        // needs it to judge the suggestion.
         this.logger.log(
-          `semantic needs_review: "${rawPhrase}" → ${nearest.canonicalName} (sim=${nearest.similarity.toFixed(4)}, accept=${accept})`,
+          `semantic needs_review: "${rawPhrase}" → ${nearest.canonicalName} via "${nearest.sourceText}" (sim=${nearest.similarity.toFixed(4)}, accept=${accept})`,
         );
         return null;
       }
@@ -165,8 +167,10 @@ export class SemanticSkillMatcherService {
   }
 
   private thresholds(): { accept: number; review: number } {
+    // Fallbacks mirror the eval-tuned config defaults (configuration.ts) — never a stale value:
+    // if config wiring ever regresses, the tier must not silently accept at an un-tuned bar.
     return {
-      accept: this.config.get<number>('semantic.acceptThreshold') ?? 0.78,
+      accept: this.config.get<number>('semantic.acceptThreshold') ?? 0.72,
       review: this.config.get<number>('semantic.reviewBandWidth') ?? 0.08,
     };
   }

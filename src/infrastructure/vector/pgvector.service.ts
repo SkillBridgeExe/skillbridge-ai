@@ -32,11 +32,11 @@ export interface NearestSkillResult {
 /**
  * pgvector wrapper.
  *
- * Assumes the schema has:
- *   document_chunks(id, document_id, chunk_index, content, embedding vector(N), metadata)
- * with an ivfflat or hnsw index on `embedding`.
+ * LIVE: nearestSkill() — semantic skill tier against skill_embeddings (migration
+ * 1780500000000), exact scan, tuple-filtered.
  *
- * TODO: hook into DatabaseService once .NET runs the initial migration.
+ * STUBS: upsertChunkEmbedding()/search() — future document_chunks RAG path; when
+ * implementing, schema-qualify casts as ::extensions.vector (Supabase search_path).
  */
 @Injectable()
 export class PgVectorService {
@@ -51,7 +51,9 @@ export class PgVectorService {
   ) {
     this.table = this.config.get<string>('vector.table') ?? 'document_chunks';
     this.column = this.config.get<string>('vector.column') ?? 'embedding';
-    this.dimension = this.config.get<number>('vector.dimension') ?? 768;
+    // Fallback mirrors the Joi-pinned default (1024 = skill_embeddings column width) — a stale
+    // fallback here would make assertDimension reject every valid vector if config regressed.
+    this.dimension = this.config.get<number>('vector.dimension') ?? 1024;
   }
 
   /**
@@ -63,7 +65,7 @@ export class PgVectorService {
   async upsertChunkEmbedding(chunkId: string, embedding: number[]): Promise<string> {
     this.assertDimension(embedding);
     this.logger.debug(`[stub] upsertChunkEmbedding chunkId=${chunkId} dim=${embedding.length}`);
-    // TODO: UPDATE document_chunks SET embedding = $1::vector WHERE id = $2
+    // TODO: UPDATE document_chunks SET embedding = $1::extensions.vector WHERE id = $2
     return chunkId;
   }
 
@@ -71,10 +73,10 @@ export class PgVectorService {
    * Cosine similarity search.
    * Stub: real implementation runs:
    *   SELECT id, document_id, content, metadata,
-   *          1 - (embedding <=> $1::vector) AS score
+   *          1 - (embedding <=> $1::extensions.vector) AS score
    *   FROM document_chunks
    *   WHERE <filters>
-   *   ORDER BY embedding <=> $1::vector
+   *   ORDER BY embedding <=> $1::extensions.vector
    *   LIMIT $k
    */
   async search(

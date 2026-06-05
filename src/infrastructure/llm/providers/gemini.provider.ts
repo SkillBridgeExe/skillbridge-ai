@@ -183,6 +183,14 @@ export class GeminiProvider implements LlmProviderClient {
     const latencyMs = Date.now() - start;
 
     const embedding = response.embeddings?.[0]?.values ?? [];
+    // This provider does NOT honor LlmEmbedOptions.dimensions (no outputDimensionality wired).
+    // The semantic skill tier pins provider:'openai', so this path is dormant for it — but a
+    // caller explicitly requesting a width must get an error, never a silently wrong vector.
+    if (options.dimensions && embedding.length !== Number(options.dimensions)) {
+      throw new Error(
+        `Gemini embed does not support the requested dimensions=${options.dimensions} (got ${embedding.length}, model=${modelCode})`,
+      );
+    }
 
     return {
       embedding,
