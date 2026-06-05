@@ -32,7 +32,8 @@
     "dev": "nest start --watch",
     "eval:semantic": "ts-node -r tsconfig-paths/register src/calibration/eval-semantic.ts",
     "embeddings:backfill": "ts-node -r tsconfig-paths/register src/tools/backfill-skill-embeddings.ts",
-    "semantic:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-semantic.ts"
+    "semantic:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-semantic.ts",
+    "jobs:import": "ts-node -r tsconfig-paths/register src/tools/import-jobs.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1057.0",
