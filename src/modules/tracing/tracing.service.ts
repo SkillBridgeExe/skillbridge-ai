@@ -122,6 +122,22 @@ export class TracingService {
     }
   }
 
+  /**
+   * Mark a still-PENDING ai_request FAILED after an error in the call/parse/persist path.
+   * Best-effort (swallows its own error) so it never masks the original failure. Use in the
+   * catch block of every traced LLM flow so a thrown call can't leave an orphan PENDING row.
+   */
+  async markFailed(aiRequestId: string, startedAt: number, err: unknown): Promise<void> {
+    await this.completeAiRequest(aiRequestId, {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      latencyMs: Date.now() - startedAt,
+      status: 'FAILED',
+      errorMessage: err instanceof Error ? err.message : String(err),
+    }).catch(() => undefined);
+  }
+
   async saveAiResult(input: SaveAiResultInput): Promise<string> {
     if (!this.aiResults) {
       const id = uuidv4();

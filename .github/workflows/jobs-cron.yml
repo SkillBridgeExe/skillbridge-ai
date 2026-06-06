@@ -1,0 +1,64 @@
+name: jobs-pool-refresh
+
+# R2 jobs pool freshness — the EXTERNAL scheduler the crawler/trends tools assume
+# (in-process @nestjs/schedule is deliberately avoided; Cloud Run min=0 sleeps).
+#   • crawl ITviec → ingest/refresh real JD postings (best-effort: CI IPs may be WAF-limited)
+#   • refresh trends → materialize skill_demand_snapshots (DB-only, always reliable)
+#
+# Secrets required (repo → Settings → Secrets → Actions):
+#   DATABASE_URL    (Supabase, same as BE)
+#   OPENAI_API_KEY  (job embeddings during ingest)
+# INTERNAL_AUTH_SECRET is set to a literal below — the crawl/trends CLI path never uses it,
+# but the shared AppModule config validation requires min length 16.
+on:
+  schedule:
+    - cron: '0 19 * * *' # 02:00 ICT — crawl
+    - cron: '30 20 * * *' # 03:30 ICT — trends (after the crawl window)
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'which step to run'
+        type: choice
+        default: both
+        options: [both, crawl, trends]
+
+env:
+  # development (not production) → relax prod-only required env (RESEND/GCS) the CLI doesn't need.
+  NODE_ENV: development
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DB_SSL: 'true'
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  INTERNAL_AUTH_SECRET: ci-cron-secret-not-used-by-this-path
+
+jobs:
+  crawl:
+    if: github.event.schedule == '0 19 * * *' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["crawl","both"]'), github.event.inputs.task))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --trust-lockfile
+      # 200 detail pages/run (~13 min at the 4s/req polite rate). Idempotent UPSERT on
+      # (source_name, external_id); stale postings age out via the crawler's expiry pass.
+      - name: Crawl ITviec (best-effort)
+        run: pnpm jobs:crawl 200
+
+  trends:
+    if: github.event.schedule == '30 20 * * *' || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["trends","both"]'), github.event.inputs.task))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --trust-lockfile
+      # Materialize a daily skill_demand_snapshot. trend_delta needs ≥2 daily periods,
+      # so "emerging skills" becomes meaningful after this has run on 2+ days.
+      - name: Refresh skill-demand trends
+        run: pnpm trends:refresh

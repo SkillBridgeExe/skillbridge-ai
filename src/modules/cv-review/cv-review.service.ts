@@ -266,6 +266,7 @@ export class CvReviewService {
         promptTokens: llmResult.tokenUsage.promptTokens,
         completionTokens: llmResult.tokenUsage.completionTokens,
         totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
         latencyMs: llmResult.latencyMs,
         status: 'SUCCESS',
         modelCode: llmResult.modelCode,

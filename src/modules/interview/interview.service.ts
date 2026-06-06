@@ -47,37 +47,44 @@ export class InterviewService {
       requestPayload: { session_id: input.session_id },
     });
 
-    const llmResult = await this.llm.complete(
-      [
-        { role: 'system', content: template.meta.system ?? '' },
-        { role: 'user', content: userPrompt },
-      ],
-      { jsonMode: true, temperature: 0.4, maxOutputTokens: 800 },
-    );
+    const startedAt = Date.now();
+    try {
+      const llmResult = await this.llm.complete(
+        [
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: userPrompt },
+        ],
+        { jsonMode: true, temperature: 0.4, maxOutputTokens: 800 },
+      );
 
-    await this.tracing.completeAiRequest(aiRequestId, {
-      promptTokens: llmResult.tokenUsage.promptTokens,
-      completionTokens: llmResult.tokenUsage.completionTokens,
-      totalTokens: llmResult.tokenUsage.totalTokens,
-      latencyMs: llmResult.latencyMs,
-      status: 'SUCCESS',
-    });
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: llmResult.tokenUsage.promptTokens,
+        completionTokens: llmResult.tokenUsage.completionTokens,
+        totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
+        latencyMs: llmResult.latencyMs,
+        status: 'SUCCESS',
+      });
 
-    const parsed = (llmResult.parsedJson ?? {}) as {
-      first_message?: string;
-      first_question?: string;
-      phase?: StartInterviewResponseDto['phase'];
-      total_questions_planned?: number;
-    };
+      const parsed = (llmResult.parsedJson ?? {}) as {
+        first_message?: string;
+        first_question?: string;
+        phase?: StartInterviewResponseDto['phase'];
+        total_questions_planned?: number;
+      };
 
-    return {
-      ai_request_id: aiRequestId,
-      first_message: parsed.first_message ?? '',
-      first_question: parsed.first_question ?? '',
-      phase: parsed.phase ?? 'INTRODUCTION',
-      total_questions_planned: parsed.total_questions_planned ?? 7,
-      token_usage: llmResult.tokenUsage.totalTokens,
-    };
+      return {
+        ai_request_id: aiRequestId,
+        first_message: parsed.first_message ?? '',
+        first_question: parsed.first_question ?? '',
+        phase: parsed.phase ?? 'INTRODUCTION',
+        total_questions_planned: parsed.total_questions_planned ?? 7,
+        token_usage: llmResult.tokenUsage.totalTokens,
+      };
+    } catch (err) {
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 
   async answer(
@@ -93,45 +100,52 @@ export class InterviewService {
       requestPayload: { session_id: input.session_id, order: input.current_question_order },
     });
 
-    const llmResult = await this.llm.complete(
-      [
-        {
-          role: 'system',
-          content:
-            'You are a structured interviewer. Score the current answer 0-100 and produce ONE follow-up question (or null if interview should end). Return JSON.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            history: input.question_history,
-            current_answer: input.current_user_answer,
-            current_order: input.current_question_order,
-          }),
-        },
-      ],
-      { jsonMode: true, temperature: 0.4, maxOutputTokens: 600 },
-    );
+    const startedAt = Date.now();
+    try {
+      const llmResult = await this.llm.complete(
+        [
+          {
+            role: 'system',
+            content:
+              'You are a structured interviewer. Score the current answer 0-100 and produce ONE follow-up question (or null if interview should end). Return JSON.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              history: input.question_history,
+              current_answer: input.current_user_answer,
+              current_order: input.current_question_order,
+            }),
+          },
+        ],
+        { jsonMode: true, temperature: 0.4, maxOutputTokens: 600 },
+      );
 
-    await this.tracing.completeAiRequest(aiRequestId, {
-      promptTokens: llmResult.tokenUsage.promptTokens,
-      completionTokens: llmResult.tokenUsage.completionTokens,
-      totalTokens: llmResult.tokenUsage.totalTokens,
-      latencyMs: llmResult.latencyMs,
-      status: 'SUCCESS',
-    });
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: llmResult.tokenUsage.promptTokens,
+        completionTokens: llmResult.tokenUsage.completionTokens,
+        totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
+        latencyMs: llmResult.latencyMs,
+        status: 'SUCCESS',
+      });
 
-    const parsed = (llmResult.parsedJson ?? {}) as Partial<AnswerInterviewResponseDto>;
+      const parsed = (llmResult.parsedJson ?? {}) as Partial<AnswerInterviewResponseDto>;
 
-    return {
-      ai_request_id: aiRequestId,
-      ai_message: parsed.ai_message ?? '',
-      next_question: parsed.next_question ?? null,
-      phase: parsed.phase ?? 'TECHNICAL_DEEP_DIVE',
-      finished: parsed.finished ?? false,
-      per_question_score: parsed.per_question_score ?? 0,
-      per_question_strengths: parsed.per_question_strengths ?? [],
-      per_question_improvements: parsed.per_question_improvements ?? [],
-    };
+      return {
+        ai_request_id: aiRequestId,
+        ai_message: parsed.ai_message ?? '',
+        next_question: parsed.next_question ?? null,
+        phase: parsed.phase ?? 'TECHNICAL_DEEP_DIVE',
+        finished: parsed.finished ?? false,
+        per_question_score: parsed.per_question_score ?? 0,
+        per_question_strengths: parsed.per_question_strengths ?? [],
+        per_question_improvements: parsed.per_question_improvements ?? [],
+      };
+    } catch (err) {
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 
   async end(userId: string, input: EndInterviewRequestDto): Promise<EndInterviewResponseDto> {
@@ -150,38 +164,46 @@ export class InterviewService {
       requestPayload: { session_id: input.session_id },
     });
 
-    const llmResult = await this.llm.complete(
-      [
-        { role: 'system', content: template.meta.system ?? '' },
-        { role: 'user', content: userPrompt },
-      ],
-      { jsonMode: true, temperature: 0.2, maxOutputTokens: 3000 },
-    );
+    const startedAt = Date.now();
+    try {
+      const llmResult = await this.llm.complete(
+        [
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: userPrompt },
+        ],
+        { jsonMode: true, temperature: 0.2, maxOutputTokens: 3000 },
+      );
 
-    await this.tracing.completeAiRequest(aiRequestId, {
-      promptTokens: llmResult.tokenUsage.promptTokens,
-      completionTokens: llmResult.tokenUsage.completionTokens,
-      totalTokens: llmResult.tokenUsage.totalTokens,
-      latencyMs: llmResult.latencyMs,
-      status: 'SUCCESS',
-    });
+      const parsed = (llmResult.parsedJson ?? {}) as EndInterviewParsedResponse;
 
-    const parsed = (llmResult.parsedJson ?? {}) as EndInterviewParsedResponse;
+      // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
+      await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'interview_scoring',
+        rawResponse: llmResult.rawResponse,
+        parsedResponse: parsed,
+        totalScore: parsed.overall_score ?? 0,
+        tokenUsage: llmResult.tokenUsage.totalTokens,
+      });
 
-    await this.tracing.saveAiResult({
-      aiRequestId,
-      userId,
-      resultType: 'interview_scoring',
-      rawResponse: llmResult.rawResponse,
-      parsedResponse: parsed,
-      totalScore: parsed.overall_score ?? 0,
-      tokenUsage: llmResult.tokenUsage.totalTokens,
-    });
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: llmResult.tokenUsage.promptTokens,
+        completionTokens: llmResult.tokenUsage.completionTokens,
+        totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
+        latencyMs: llmResult.latencyMs,
+        status: 'SUCCESS',
+      });
 
-    return {
-      ai_request_id: aiRequestId,
-      parsed_response: parsed,
-      token_usage: llmResult.tokenUsage.totalTokens,
-    };
+      return {
+        ai_request_id: aiRequestId,
+        parsed_response: parsed,
+        token_usage: llmResult.tokenUsage.totalTokens,
+      };
+    } catch (err) {
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 }
