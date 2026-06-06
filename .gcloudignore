@@ -1,0 +1,21 @@
+# Upload set for `gcloud run deploy --source` (Cloud Build).
+# NOTE: when this file exists, gcloud does NOT also read .gitignore — list everything here.
+# node_modules is NOT excluded by default → must list it (it's reinstalled in the build).
+
+.git
+.gitignore
+node_modules
+dist
+coverage
+
+# Secrets — MUST NOT be uploaded to Cloud Build. Env vars are set on the service instead.
+.env
+.env.*
+
+# Editor / docs
+.vscode
+.idea
+*.md
+
+# Heavy local-only cache (not needed to build)
+data/.cache

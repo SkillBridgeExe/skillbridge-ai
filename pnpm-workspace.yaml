@@ -1,5 +1,8 @@
 # pnpm 11 settings. Cho phép build script của các package native/trusted
-# (mặc định pnpm 10+ chặn postinstall/build để bảo mật).
+# (mặc định pnpm 10+ chặn postinstall/build để bảo mật; pnpm 11.3 dùng key
+# `allowBuilds` dạng map pkg→bool, và exit 1 nếu có build script chưa khai báo).
+# ⚠️ Dockerfile PHẢI copy file này trước `pnpm install`, nếu không build sẽ
+# ignore scripts (bcrypt không compile native) → exit 1.
 allowBuilds:
   '@google/genai': true
   '@nestjs/core': true
