@@ -90,4 +90,8 @@ export const configValidationSchema = Joi.object({
   // Rate limiting (@nestjs/throttler)
   THROTTLE_TTL: Joi.number().integer().positive().default(60),
   THROTTLE_LIMIT: Joi.number().integer().positive().default(100),
+
+  // Per-user daily cap on CV analyses (cv_review). 0 disables the cap. Enforced by
+  // CvAnalysisQuotaGuard against the ai_requests trace (no separate usage table).
+  CV_REVIEW_DAILY_LIMIT: Joi.number().integer().min(0).default(5),
 });

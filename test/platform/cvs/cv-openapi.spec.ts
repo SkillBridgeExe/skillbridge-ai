@@ -7,6 +7,7 @@ import { IS_PUBLIC_KEY } from '../../../src/platform/auth/decorators/public.deco
 import { CvsController } from '../../../src/platform/cvs/cvs.controller';
 import { DiagnosisController } from '../../../src/platform/cvs/diagnosis.controller';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
+import { CvAnalysisQuotaGuard } from '../../../src/platform/cvs/guards/cv-analysis-quota.guard';
 
 describe('CV OpenAPI docs', () => {
   let app: INestApplication;
@@ -32,7 +33,11 @@ describe('CV OpenAPI docs', () => {
           },
         },
       ],
-    }).compile();
+    })
+      // This suite only builds the Swagger doc; the quota guard's runtime DI is irrelevant here.
+      .overrideGuard(CvAnalysisQuotaGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     app = moduleRef.createNestApplication();
     await app.init();

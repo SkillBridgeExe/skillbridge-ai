@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { AiRequestEntity } from '../../database/entities/ai-request.entity';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
@@ -136,6 +136,20 @@ export class TracingService {
       status: 'FAILED',
       errorMessage: err instanceof Error ? err.message : String(err),
     }).catch(() => undefined);
+  }
+
+  /**
+   * Count a user's AI requests of a given type since `since` (inclusive). Backs the per-user
+   * daily usage quota — counting `ai_requests` rows means no separate usage table is needed
+   * and every metered attempt (PENDING/SUCCESS/FAILED) is included, so a flood of failing
+   * calls still consumes quota (each may have hit the paid model). Returns 0 in the stub/test
+   * path (no repo) so quota never blocks where tracing is disabled.
+   */
+  async countRequestsSince(userId: string, requestType: string, since: Date): Promise<number> {
+    if (!this.aiRequests) return 0;
+    return this.aiRequests.count({
+      where: { userId, requestType, createdAt: MoreThanOrEqual(since) },
+    });
   }
 
   async saveAiResult(input: SaveAiResultInput): Promise<string> {
