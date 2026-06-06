@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { CanonicalCvDocument } from '../../common/types/canonical-cv';
 
-export type CvKind = 'UPLOADED' | 'GENERATED';
+export type CvKind = 'UPLOADED' | 'BUILT';
 
 /**
  * Maps the `cvs` table (see skillbridge-fe-official/docs/database/skillbridge-mvp.dbml)
@@ -50,7 +50,7 @@ export class CvEntity {
   @Column({ type: 'jsonb', name: 'parsed_json', nullable: true })
   parsedJson!: CanonicalCvDocument | null;
 
-  /** R1: 'UPLOADED' (user CV) | 'GENERATED' (cold-start builder). */
+  /** R1/R1b: 'UPLOADED' (user CV) | 'BUILT' (builder draft/export source). */
   @Column({ type: 'varchar', name: 'cv_kind', default: 'UPLOADED' })
   cvKind!: CvKind;
 

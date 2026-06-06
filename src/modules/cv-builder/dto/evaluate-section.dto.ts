@@ -9,6 +9,7 @@
  * an object (@IsObject): its nested union is NOT recursively whitelisted, so the FE's nested
  * fields pass through intact for the service's defensive per-field reads.
  */
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export type BuilderSection =
@@ -102,19 +103,55 @@ export type SectionContent =
   | { entries: CertificationEntry[] };
 
 export class EvaluateSectionRequestDto {
+  @ApiProperty({
+    enum: BUILDER_SECTIONS,
+    example: 'experience',
+    description:
+      'Required builder section to evaluate. The content shape depends on this section value.',
+  })
   @IsIn(BUILDER_SECTIONS)
   section!: BuilderSection;
 
   /** One of the 8 IT role codes — sharpens "missing" hints; optional. */
+  @ApiPropertyOptional({
+    example: 'frontend_developer',
+    maxLength: 64,
+    description:
+      'Optional IT role code for sharper missing-skill hints. Examples: frontend_developer, backend_developer, fullstack_developer, data_analyst, mobile_developer, devops_engineer, qa_tester, ai_ml_engineer.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
   role_code?: string;
 
+  @ApiPropertyOptional({
+    enum: ['vi', 'en'],
+    example: 'vi',
+    description: 'Optional response language for label/checklist/missing text.',
+  })
   @IsOptional()
   @IsIn(['vi', 'en'])
   language?: 'vi' | 'en';
 
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description:
+      'Required section content. Shape follows the FE builder store for the selected section.',
+    example: {
+      entries: [
+        {
+          position: 'Frontend Developer',
+          company: 'ABC Tech',
+          startDate: '2024',
+          endDate: 'Present',
+          description: 'Built React dashboard for internal users.',
+          responsibilities: 'Owned reusable UI components.',
+          achievements: 'Reduced dashboard load time by 30%.',
+        },
+      ],
+    },
+  })
   @IsObject()
   content!: SectionContent;
 }
