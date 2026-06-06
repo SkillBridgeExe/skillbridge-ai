@@ -1,0 +1,103 @@
+{
+  "$note": "R1b eval (spec §9.4). Two gates: (1) evaluate-section reproducibility — each case asserts the deterministic checklist outcome (per-criterion pass) is EXACTLY as labelled, run repeatedly → identical (no LLM). (2) rewrite fact-preservation — live-only (needs OPENAI_API_KEY): assert the suggestion keeps every number+tech token of the input and adds NO new number. Offline by default: gate (1) always runs; gate (2) prints SKIPPED without a key.",
+  "version": "v1",
+  "evaluate_cases": [
+    {
+      "name": "experience-strong",
+      "section": "experience",
+      "language": "en",
+      "content": { "entries": [
+        { "position": "Backend Developer", "company": "FPT Software", "startDate": "06/2024", "isCurrent": true,
+          "description": "Built REST APIs with Node.js and PostgreSQL, cutting response time by 40%.\nOptimized queries handling 100+ daily requests." }
+      ]},
+      "expect": { "exp_verb_first": true, "exp_quantified": true, "exp_not_start_date": true, "exp_no_firstperson": true, "exp_reverse_chrono": true }
+    },
+    {
+      "name": "experience-weak-passive-firstperson",
+      "section": "experience",
+      "language": "en",
+      "content": { "entries": [
+        { "position": "Intern", "company": "ABC", "startDate": "01/2024", "endDate": "06/2024",
+          "description": "Responsible for testing the app.\nI was assigned to write documentation for my team." }
+      ]},
+      "expect": { "exp_verb_first": false, "exp_quantified": false, "exp_no_firstperson": false }
+    },
+    {
+      "name": "experience-bullet-starts-with-date",
+      "section": "experience",
+      "language": "en",
+      "content": { "entries": [
+        { "position": "Dev", "company": "X", "startDate": "01/2023",
+          "description": "2023 - Built the landing page with React." }
+      ]},
+      "expect": { "exp_not_start_date": false }
+    },
+    {
+      "name": "experience-reverse-chrono-violation",
+      "section": "experience",
+      "language": "en",
+      "content": { "entries": [
+        { "position": "Junior Dev", "company": "Old", "startDate": "01/2020", "endDate": "12/2020", "description": "Developed internal tools." },
+        { "position": "Senior Dev", "company": "New", "startDate": "01/2024", "isCurrent": true, "description": "Led the platform team." }
+      ]},
+      "expect": { "exp_reverse_chrono": false }
+    },
+    {
+      "name": "summary-good",
+      "section": "summary",
+      "language": "en",
+      "content": { "summary": "Backend engineer focused on scalable Node.js services. Delivered APIs serving 100+ daily users with strong reliability." },
+      "expect": { "sum_concise": true, "sum_no_firstperson": true, "sum_no_filler": true }
+    },
+    {
+      "name": "summary-filler-firstperson",
+      "section": "summary",
+      "language": "en",
+      "content": { "summary": "I am a hardworking and passionate person, a fast learner and team player." },
+      "expect": { "sum_no_firstperson": false, "sum_no_filler": false }
+    },
+    {
+      "name": "basic-complete",
+      "section": "basic",
+      "language": "vi",
+      "content": { "fullName": "Vo Phuong My", "email": "phuong.my@gmail.com", "phone": "0901234567", "location": "Hồ Chí Minh" },
+      "expect": { "basic_core": true, "basic_email_pro": true, "basic_no_personal": true }
+    },
+    {
+      "name": "basic-missing-and-unprofessional-email",
+      "section": "basic",
+      "language": "vi",
+      "content": { "fullName": "A", "email": "cutebaby2k4@gmail.com" },
+      "expect": { "basic_core": false, "basic_email_pro": false }
+    },
+    {
+      "name": "skills-overstuffed-unknown",
+      "section": "skills",
+      "language": "en",
+      "content": { "technicalSkills": ["ReactJS","NodeJS","PostgreSQL","SomeMadeUpThing","AnotherFakeSkill","XyzLang"], "tools": ["Git","Docker","Jira","Figma","Slack","Notion","Trello","Excel","Word","PowerPoint","Photoshop","Canva","Zoom","Teams","Confluence","Miro"] },
+      "expect": { "skill_not_overstuffed": false }
+    },
+    {
+      "name": "certifications-missing-issuer-date",
+      "section": "certifications",
+      "language": "vi",
+      "content": { "entries": [ { "name": "AWS Certified", "organization": "", "issueDate": "" } ] },
+      "expect": { "cert_core": false }
+    },
+    {
+      "name": "education-strong-gpa",
+      "section": "education",
+      "language": "en",
+      "content": { "entries": [ { "school": "FPT University", "major": "Software Engineering", "degree": "Bachelor", "startYear": "2021", "endYear": "2025", "gpa": "3.5/4" } ] },
+      "expect": { "edu_core": true, "edu_gpa": true }
+    }
+  ],
+  "rewrite_cases": [
+    { "name": "harvard-weak-bullet", "mode": "harvard", "role_code": "backend_developer",
+      "text": "Responsible for fixing bugs in the app" },
+    { "name": "harvard-keep-number", "mode": "harvard", "role_code": "frontend_developer",
+      "text": "Worked on dashboard that had 5000 users" },
+    { "name": "translate-keep-tech", "mode": "translate", "target_lang": "en",
+      "text": "Xây dựng API bằng Node.js và PostgreSQL, giảm 30% thời gian phản hồi" }
+  ]
+}
