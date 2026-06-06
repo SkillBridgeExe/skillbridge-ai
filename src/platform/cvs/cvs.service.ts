@@ -1,13 +1,16 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
@@ -19,13 +22,23 @@ import {
   DownloadedFile,
   GcsStorageService,
 } from '../../infrastructure/storage/gcs-storage.service';
+import { SectionEvaluatorService } from '../../modules/cv-builder/section-evaluator.service';
+import { CvRewriteService } from '../../modules/cv-builder/cv-rewrite.service';
+import {
+  EvaluateSectionRequestDto,
+  EvaluateSectionResponseDto,
+} from '../../modules/cv-builder/dto/evaluate-section.dto';
+import { RewriteRequestDto, RewriteResponseDto } from '../../modules/cv-builder/dto/rewrite.dto';
 import { CvReviewService } from '../../modules/cv-review/cv-review.service';
 import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
+import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
+import { CvPdfRendererService, RenderedCvPdf } from './cv-pdf-renderer.service';
 import { TextExtractorService } from './text-extractor.service';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
+const MAX_REAL_UPLOADS_PER_DAY = 10;
 const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
 const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
 const SUPPORTED_MIME_TYPES = new Set([
@@ -51,6 +64,9 @@ export class CvsService {
     private readonly consentAudits: Repository<CvConsentAuditEntity>,
     @InjectRepository(AiResultEntity)
     private readonly aiResults: Repository<AiResultEntity>,
+    private readonly evaluator: SectionEvaluatorService,
+    private readonly rewriter: CvRewriteService,
+    private readonly pdfRenderer: CvPdfRendererService,
   ) {}
 
   async create(
@@ -65,6 +81,17 @@ export class CvsService {
         message: 'CV processing consent is required',
       });
     }
+
+    const generatedSource = await this.findGeneratedPdfSource(userId, file);
+    if (generatedSource) {
+      const [skills, review] = await Promise.all([
+        this.getPersistedSkills(generatedSource.id),
+        this.getLatestPersistedReview(userId, generatedSource.id),
+      ]);
+      return this.toResponse(generatedSource, skills, review);
+    }
+
+    await this.enforceUploadQuota(userId);
 
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
@@ -137,7 +164,12 @@ export class CvsService {
 
   async download(userId: string, cvId: string): Promise<{ cv: CvEntity; file: DownloadedFile }> {
     const cv = await this.findOwnedCv(userId, cvId);
-    if (!cv.fileUrl) throw new NotFoundException('CV file not found');
+    if (!cv.fileUrl) {
+      throw new NotFoundException({
+        errorCode: ERROR_CODES.NOT_FOUND,
+        message: 'Original CV file is no longer stored under the privacy retention policy',
+      });
+    }
     return { cv, file: await this.storage.download(cv.fileUrl) };
   }
 
@@ -145,6 +177,90 @@ export class CvsService {
     const cv = await this.findOwnedCv(userId, cvId);
     if (cv.fileUrl) await this.storage.delete(cv.fileUrl).catch(() => undefined);
     await this.cvs.softDelete({ id: cvId, userId });
+  }
+
+  async createBuilderDraft(userId: string, dto: CreateBuilderCvDto): Promise<CvResponseDto> {
+    const source = dto.sourceCvId
+      ? await this.findOwnedCv(userId, dto.sourceCvId)
+      : await this.findLatestParsedUpload(userId);
+
+    if (dto.sourceCvId && !source?.parsedJson) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.CV_PARSE_FAILED,
+        message: 'Source CV has no structured parsed data for builder prefill',
+      });
+    }
+
+    const language = dto.language ?? source?.language ?? source?.parsedJson?.language ?? 'en';
+    const parsedJson = source?.parsedJson
+      ? this.cloneDocument(source.parsedJson)
+      : emptyCanonicalCv(language);
+
+    const cv = await this.cvs.save(
+      this.cvs.create({
+        userId,
+        title: dto.title?.trim() || this.defaultBuilderTitle(source),
+        originalFileName: null,
+        fileType: null,
+        fileSize: null,
+        fileUrl: null,
+        parsedText: null,
+        parsedJson,
+        cvKind: 'BUILT',
+        language,
+        targetRole: this.normalizeTargetRole(dto.targetRole ?? source?.targetRole ?? undefined),
+        isOcrOnly: false,
+      }),
+    );
+
+    return this.toResponse(cv, [], null);
+  }
+
+  async updateBuilderDraft(
+    userId: string,
+    cvId: string,
+    dto: UpdateBuilderCvDto,
+  ): Promise<CvResponseDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    this.assertBuiltCv(cv);
+
+    cv.parsedJson = this.cloneDocument(dto.parsedJson);
+    cv.language = dto.language ?? dto.parsedJson.language ?? cv.language;
+    if (dto.title !== undefined) cv.title = dto.title.trim() || cv.title;
+    if (dto.targetRole !== undefined) cv.targetRole = this.normalizeTargetRole(dto.targetRole);
+
+    const saved = await this.cvs.save(cv);
+    return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
+  }
+
+  async evaluateBuilderSection(
+    userId: string,
+    cvId: string,
+    dto: EvaluateSectionRequestDto,
+  ): Promise<EvaluateSectionResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    return this.evaluator.evaluate(dto);
+  }
+
+  async rewriteBuilderText(
+    userId: string,
+    cvId: string,
+    dto: RewriteRequestDto,
+  ): Promise<RewriteResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    return this.rewriter.rewrite(dto);
+  }
+
+  async renderPdf(userId: string, cvId: string): Promise<RenderedCvPdf> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    this.assertBuiltCv(cv);
+    if (!cv.parsedJson) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.CV_PARSE_FAILED,
+        message: 'CV has no structured builder data to render',
+      });
+    }
+    return this.pdfRenderer.renderHarvardPdf(cv);
   }
 
   async rerunReview(userId: string, cvId: string): Promise<CvResponseDto> {
@@ -309,6 +425,50 @@ export class CvsService {
     return trimmed ? trimmed : null;
   }
 
+  private async findGeneratedPdfSource(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<CvEntity | null> {
+    const sourceCvId = await this.pdfRenderer.extractSkillbridgeFingerprint(file);
+    if (!sourceCvId) return null;
+    return this.cvs.findOne({
+      where: { id: sourceCvId, userId, deletedAt: IsNull() },
+    });
+  }
+
+  private async enforceUploadQuota(userId: string): Promise<void> {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const count = await this.cvs.count({
+      where: {
+        userId,
+        cvKind: 'UPLOADED',
+        createdAt: MoreThanOrEqual(cutoff),
+      },
+      withDeleted: true,
+    });
+    if (count >= MAX_REAL_UPLOADS_PER_DAY) {
+      throw new HttpException(
+        {
+          errorCode: ERROR_CODES.CV_UPLOAD_QUOTA_EXCEEDED,
+          message: 'CV upload quota exceeded. You can upload up to 10 CVs per 24 hours.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+  }
+
+  private async findLatestParsedUpload(userId: string): Promise<CvEntity | null> {
+    return this.cvs.findOne({
+      where: {
+        userId,
+        cvKind: 'UPLOADED',
+        parsedJson: Not(IsNull()),
+        deletedAt: IsNull(),
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   private validateFile(file: Express.Multer.File | undefined): asserts file is Express.Multer.File {
     if (!file) {
       throw new BadRequestException({
@@ -331,9 +491,27 @@ export class CvsService {
   }
 
   private async findOwnedCv(userId: string, cvId: string): Promise<CvEntity> {
-    const cv = await this.cvs.findOne({ where: { id: cvId, userId } });
+    const cv = await this.cvs.findOne({ where: { id: cvId, userId, deletedAt: IsNull() } });
     if (!cv) throw new NotFoundException('CV not found');
     return cv;
+  }
+
+  private assertBuiltCv(cv: CvEntity): void {
+    if (cv.cvKind !== 'BUILT') {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'This operation is only available for CV builder drafts',
+      });
+    }
+  }
+
+  private defaultBuilderTitle(source: CvEntity | null): string {
+    if (source?.title?.trim()) return `${source.title.trim()} Builder`;
+    return 'Builder CV';
+  }
+
+  private cloneDocument(document: CanonicalCvDocument): CanonicalCvDocument {
+    return JSON.parse(JSON.stringify(document)) as CanonicalCvDocument;
   }
 
   private toResponse(

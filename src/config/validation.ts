@@ -53,6 +53,9 @@ export const configValidationSchema = Joi.object({
   // Optional — on Cloud Run the project is auto-detected from ADC/metadata.
   GCS_PROJECT_ID: Joi.string().allow('').optional(),
 
+  // PDF rendering. Optional; when omitted Puppeteer uses its bundled/default browser.
+  PUPPETEER_EXECUTABLE_PATH: Joi.string().allow('').optional(),
+
   // Vector — PINNED to 1024: the migration hardcodes skill_embeddings vector(1024), and a
   // mismatched env (e.g. a stale 768 from the old default) would silently kill the semantic
   // tier at query time (pgvector cast error → best-effort catch). Fail fast at boot instead.

@@ -37,7 +37,8 @@
     "reco:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-reco.ts",
     "trends:refresh": "ts-node -r tsconfig-paths/register src/tools/refresh-trends.ts",
     "jobs:crawl": "ts-node -r tsconfig-paths/register src/tools/crawl-jobs.ts",
-    "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts"
+    "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts",
+    "cv-files:cleanup": "ts-node -r tsconfig-paths/register src/tools/cleanup-cv-files.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
@@ -65,9 +66,11 @@
     "openai": "^6.39.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pg": "^8.13.0",
     "pgvector": "^0.2.1",
+    "puppeteer": "^25.1.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.4",
     "rxjs": "^7.8.1",

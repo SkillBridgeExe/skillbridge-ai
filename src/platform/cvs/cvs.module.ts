@@ -6,7 +6,10 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { StorageModule } from '../../infrastructure/storage/storage.module';
+import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
 import { CvReviewModule } from '../../modules/cv-review/cv-review.module';
+import { CvPdfRendererService } from './cv-pdf-renderer.service';
+import { CvsRetentionService } from './cv-retention.service';
 import { CvsController } from './cvs.controller';
 import { DiagnosisController } from './diagnosis.controller';
 import { CvsService } from './cvs.service';
@@ -23,8 +26,10 @@ import { TextExtractorService } from './text-extractor.service';
     ]),
     StorageModule,
     CvReviewModule,
+    CvBuilderModule,
   ],
   controllers: [CvsController, DiagnosisController],
-  providers: [CvsService, TextExtractorService],
+  providers: [CvsService, TextExtractorService, CvPdfRendererService, CvsRetentionService],
+  exports: [CvsRetentionService],
 })
 export class CvsModule {}
