@@ -40,7 +40,7 @@
     "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1057.0",
+    "@google-cloud/storage": "^7.19.0",
     "@google/genai": "^2.7.0",
     "@nestjs/common": "^11.1.24",
     "@nestjs/config": "^4.0.4",

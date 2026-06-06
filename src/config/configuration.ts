@@ -44,11 +44,9 @@ export default () => ({
     url: process.env.DATABASE_URL ?? '',
   },
 
-  r2: {
-    accountId: process.env.R2_ACCOUNT_ID ?? '',
-    bucket: process.env.R2_BUCKET ?? '',
-    accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+  gcs: {
+    bucket: process.env.GCS_BUCKET ?? '',
+    projectId: process.env.GCS_PROJECT_ID ?? '',
   },
 
   vector: {

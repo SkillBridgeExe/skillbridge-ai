@@ -44,27 +44,14 @@ export const configValidationSchema = Joi.object({
     .uri({ scheme: ['postgresql', 'postgres'] })
     .required(),
 
-  // Cloudflare R2 private CV storage
-  R2_ACCOUNT_ID: Joi.string().when('NODE_ENV', {
+  // Google Cloud Storage — private CV/avatar storage (ADC auth, no keys).
+  GCS_BUCKET: Joi.string().when('NODE_ENV', {
     is: 'test',
     then: Joi.string().allow('').optional(),
     otherwise: Joi.string().min(1).required(),
   }),
-  R2_BUCKET: Joi.string().when('NODE_ENV', {
-    is: 'test',
-    then: Joi.string().allow('').optional(),
-    otherwise: Joi.string().min(1).required(),
-  }),
-  R2_ACCESS_KEY_ID: Joi.string().when('NODE_ENV', {
-    is: 'test',
-    then: Joi.string().allow('').optional(),
-    otherwise: Joi.string().min(1).required(),
-  }),
-  R2_SECRET_ACCESS_KEY: Joi.string().when('NODE_ENV', {
-    is: 'test',
-    then: Joi.string().allow('').optional(),
-    otherwise: Joi.string().min(1).required(),
-  }),
+  // Optional — on Cloud Run the project is auto-detected from ADC/metadata.
+  GCS_PROJECT_ID: Joi.string().allow('').optional(),
 
   // Vector — PINNED to 1024: the migration hardcodes skill_embeddings vector(1024), and a
   // mismatched env (e.g. a stale 768 from the old default) would silently kill the semantic
