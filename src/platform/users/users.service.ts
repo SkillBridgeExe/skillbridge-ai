@@ -17,9 +17,9 @@ import { UserRoleEntity } from '../../database/entities/user-role.entity';
 import { UserSkillEntity } from '../../database/entities/user-skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import {
-  R2DownloadedObject,
-  R2StorageService,
-} from '../../infrastructure/storage/r2-storage.service';
+  DownloadedFile,
+  GcsStorageService,
+} from '../../infrastructure/storage/gcs-storage.service';
 import { ReplaceUserSkillsDto } from './dto/replace-user-skills.dto';
 import { SkillListQueryDto } from './dto/skill-list-query.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
@@ -66,7 +66,7 @@ export class UsersService {
     @InjectRepository(SkillEntity) private readonly skills: Repository<SkillEntity>,
     @InjectRepository(RoleEntity) private readonly roles: Repository<RoleEntity>,
     @InjectRepository(UserRoleEntity) private readonly userRoles: Repository<UserRoleEntity>,
-    private readonly storage: R2StorageService,
+    private readonly storage: GcsStorageService,
   ) {}
 
   async getCurrentUserAggregate(userId: string): Promise<CurrentUserProfileResponseDto> {
@@ -228,7 +228,7 @@ export class UsersService {
     return { avatarUrl: this.toPublicAvatarUrl(user.avatarUrl) };
   }
 
-  async downloadAvatar(userId: string): Promise<{ user: UserEntity; file: R2DownloadedObject }> {
+  async downloadAvatar(userId: string): Promise<{ user: UserEntity; file: DownloadedFile }> {
     const user = await this.requireCurrentUser(userId);
     if (!this.isUploadedAvatarKey(user.avatarUrl)) {
       throw new NotFoundException('Avatar not found');

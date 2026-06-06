@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { R2StorageService } from './r2-storage.service';
+import { GcsStorageService } from './gcs-storage.service';
 
 @Module({
-  providers: [R2StorageService],
-  exports: [R2StorageService],
+  providers: [GcsStorageService],
+  exports: [GcsStorageService],
 })
 export class StorageModule {}

@@ -16,9 +16,9 @@ import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import {
-  R2DownloadedObject,
-  R2StorageService,
-} from '../../infrastructure/storage/r2-storage.service';
+  DownloadedFile,
+  GcsStorageService,
+} from '../../infrastructure/storage/gcs-storage.service';
 import { CvReviewService } from '../../modules/cv-review/cv-review.service';
 import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
@@ -43,7 +43,7 @@ export class CvsService {
     @InjectRepository(CvEntity) private readonly cvs: Repository<CvEntity>,
     @InjectRepository(CvSkillEntity) private readonly cvSkills: Repository<CvSkillEntity>,
     @InjectRepository(SkillEntity) private readonly skills: Repository<SkillEntity>,
-    private readonly storage: R2StorageService,
+    private readonly storage: GcsStorageService,
     private readonly extractor: TextExtractorService,
     private readonly cvReview: CvReviewService,
     private readonly skillNormalizer: SkillNormalizerService,
@@ -135,10 +135,7 @@ export class CvsService {
     return this.toResponse(cv, skills, review);
   }
 
-  async download(
-    userId: string,
-    cvId: string,
-  ): Promise<{ cv: CvEntity; file: R2DownloadedObject }> {
+  async download(userId: string, cvId: string): Promise<{ cv: CvEntity; file: DownloadedFile }> {
     const cv = await this.findOwnedCv(userId, cvId);
     if (!cv.fileUrl) throw new NotFoundException('CV file not found');
     return { cv, file: await this.storage.download(cv.fileUrl) };

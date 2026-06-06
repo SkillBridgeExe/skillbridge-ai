@@ -10,7 +10,7 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { UserProfileEntity } from '../../database/entities/user-profile.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
 import { UserSkillEntity } from '../../database/entities/user-skill.entity';
-import { R2StorageService } from '../../infrastructure/storage/r2-storage.service';
+import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
 import { UsersService } from './users.service';
 
 type RepositoryMock<T extends object> = Pick<
@@ -94,7 +94,7 @@ describe('UsersService', () => {
       skills as unknown as Repository<SkillEntity>,
       roles as unknown as Repository<RoleEntity>,
       userRoles as unknown as Repository<UserRoleEntity>,
-      storage as unknown as R2StorageService,
+      storage as unknown as GcsStorageService,
     );
     userSkills.manager.transaction.mockImplementation(async (callback) =>
       callback({ getRepository: jest.fn().mockReturnValue(userSkills) }),

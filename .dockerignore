@@ -1,0 +1,27 @@
+# Build context excludes — keep the image lean and never bake host state/secrets.
+node_modules
+dist
+coverage
+
+# Secrets / local env — provided at runtime via Cloud Run env vars, never baked.
+.env
+.env.*
+
+# VCS + editor + docs (docs are *.md, gitignored & not needed at runtime)
+.git
+.gitignore
+.vscode
+.idea
+*.md
+
+# Tests
+test
+**/*.spec.ts
+
+# Heavy local-only cache (embedding vectors etc.) — not a runtime dependency
+data/.cache
+
+# Don't recurse the deploy meta into the context
+Dockerfile
+.dockerignore
+.gcloudignore
