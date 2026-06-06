@@ -115,4 +115,26 @@ describe('CvReviewParser', () => {
     } as never;
     expect(() => p.parse(nonNumber)).toThrow();
   });
+
+  it('parses N8 skills_extracted (proficiency + evidence), drops blanks, normalizes bad proficiency', () => {
+    const raw = validRaw();
+    (raw.ats_extracted as Record<string, unknown>).skills_extracted = [
+      { name: 'React', proficiency_hint: 'ADVANCED', evidence_text: 'Built a component library' },
+      { name: 'Node', proficiency_hint: 'wizard', evidence_text: '' },
+      { name: '', proficiency_hint: 'advanced' },
+    ];
+    const out = p.parse(raw);
+    expect(out.ats_extracted.skills_extracted).toEqual([
+      { name: 'React', proficiency_hint: 'advanced', evidence_text: 'Built a component library' },
+      { name: 'Node', proficiency_hint: 'unknown', evidence_text: null },
+    ]);
+  });
+
+  it('falls back skills_extracted to skills_raw names when the LLM omits it', () => {
+    const out = p.parse(validRaw()); // skills_raw ['React','Node'], no skills_extracted
+    expect(out.ats_extracted.skills_extracted).toEqual([
+      { name: 'React', proficiency_hint: 'unknown', evidence_text: null },
+      { name: 'Node', proficiency_hint: 'unknown', evidence_text: null },
+    ]);
+  });
 });

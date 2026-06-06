@@ -5,6 +5,7 @@ import {
   CvReviewLlmDimensions,
   CvReviewRationale,
   CvReviewSection,
+  CvSkillExtracted,
 } from './dto/cv-review-response.dto';
 
 /**
@@ -87,11 +88,17 @@ export class CvReviewParser {
     });
 
     const extracted = this.obj(obj.ats_extracted, 'ats_extracted');
+    // Filter to strings — a mixed array ['React', 123, null] must not lie to TS / crash a later .join.
+    const skillsRaw = Array.isArray(extracted.skills_raw)
+      ? (extracted.skills_raw as unknown[]).filter((s): s is string => typeof s === 'string')
+      : [];
+    const skillsExtracted = this.parseSkillsExtracted(extracted.skills_extracted, skillsRaw);
     const extractedParsed: CvReviewExtracted = {
       name: typeof extracted.name === 'string' ? (extracted.name as string) : null,
       email: typeof extracted.email === 'string' ? (extracted.email as string) : null,
       phone: typeof extracted.phone === 'string' ? (extracted.phone as string) : null,
-      skills_raw: Array.isArray(extracted.skills_raw) ? (extracted.skills_raw as string[]) : [],
+      skills_raw: skillsRaw.length > 0 ? skillsRaw : skillsExtracted.map((s) => s.name),
+      skills_extracted: skillsExtracted,
     };
 
     return {
@@ -101,6 +108,34 @@ export class CvReviewParser {
       sections: sectionsParsed,
       ats_extracted: extractedParsed,
     };
+  }
+
+  /**
+   * Parse the N8 `skills_extracted` array (tolerant). Each item → {name, proficiency_hint,
+   * evidence_text}. Unknown/invalid proficiency collapses to 'unknown'. If the LLM omitted the
+   * field entirely, fall back to deriving name-only entries from skills_raw (backward-compat).
+   */
+  private parseSkillsExtracted(v: unknown, skillsRaw: string[]): CvSkillExtracted[] {
+    const PROF = new Set(['beginner', 'intermediate', 'advanced', 'unknown']);
+    if (Array.isArray(v)) {
+      const out: CvSkillExtracted[] = [];
+      for (const item of v) {
+        if (!item || typeof item !== 'object') continue;
+        const o = item as Record<string, unknown>;
+        const name = typeof o.name === 'string' ? o.name.trim() : '';
+        if (!name) continue;
+        const hint = typeof o.proficiency_hint === 'string' ? o.proficiency_hint.toLowerCase() : '';
+        const evidence =
+          typeof o.evidence_text === 'string' && o.evidence_text.trim() ? o.evidence_text : null;
+        out.push({
+          name,
+          proficiency_hint: PROF.has(hint) ? hint : 'unknown',
+          evidence_text: evidence,
+        });
+      }
+      if (out.length > 0) return out;
+    }
+    return skillsRaw.map((name) => ({ name, proficiency_hint: 'unknown', evidence_text: null }));
   }
 
   // ─── Type helpers ──────────────────────────────────────────────────────────

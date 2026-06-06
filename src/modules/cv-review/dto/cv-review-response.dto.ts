@@ -29,12 +29,47 @@ export interface CvReviewRationale {
   education: string;
 }
 
+/** A skill the LLM extracted with a coarse proficiency hint + the CV quote that evidences it (N8). */
+export interface CvSkillExtracted {
+  name: string;
+  /** 'beginner' | 'intermediate' | 'advanced' | 'unknown' — LLM hint, not authoritative. */
+  proficiency_hint: string;
+  /** Short verbatim CV quote evidencing the skill, or null. */
+  evidence_text: string | null;
+}
+
 export interface CvReviewExtracted {
   name: string | null;
   email: string | null;
   phone: string | null;
   /** Raw skill names AS EXTRACTED by LLM (not yet normalized to taxonomy) */
   skills_raw: string[];
+  /** Structured skills with proficiency + evidence (N8). Falls back to skills_raw names if absent. */
+  skills_extracted: CvSkillExtracted[];
+}
+
+/** One skill in the deterministic role-rubric breakdown (matched / partial / missing). */
+export interface SkillBreakdownItem {
+  /** Canonical/display skill name. */
+  name: string;
+  /** REQUIRED | PREFERRED | NICE_TO_HAVE */
+  importance: string;
+  required_level: number;
+  /** Present for matched/partial (the CV's inferred level). */
+  cv_level?: number;
+}
+
+/** Deterministic Dimension-2 breakdown vs the role rubric — display-only, does NOT change the score. */
+export interface SkillsRelevanceBreakdown {
+  matched: SkillBreakdownItem[];
+  partial: SkillBreakdownItem[];
+  missing: SkillBreakdownItem[];
+}
+
+/** Deterministic top-of-page verdict + highest-impact fixes (no extra LLM call). */
+export interface TopSummary {
+  headline: string;
+  prioritized_actions: string[];
 }
 
 export interface CvReviewParsedResponse {
@@ -68,6 +103,10 @@ export interface CvReviewParsedResponse {
   action_verbs_analysis: BulletAnalysis;
   /** Which versioned weight set produced `overall_score` (e.g. "scoring-weights-v1"). */
   scoring_weights_version: string;
+  /** Deterministic matched/partial/missing vs the role rubric — null when no seeded rubric for the role. */
+  skills_relevance_breakdown: SkillsRelevanceBreakdown | null;
+  /** Deterministic headline + top-3 prioritized fixes, computed from scores/signals (no LLM call). */
+  top_summary: TopSummary;
 }
 
 export interface CvReviewResponseDto {
