@@ -117,7 +117,14 @@ Evaluate education entries (degree, school, year) PLUS evidence of self-improvem
     "name": "string or null",
     "email": "string or null",
     "phone": "string or null",
-    "skills_raw": ["string", "..."]
+    "skills_raw": ["string", "..."],
+    "skills_extracted": [
+      {
+        "name": "React",
+        "proficiency_hint": "beginner|intermediate|advanced|unknown",
+        "evidence_text": "short verbatim CV quote showing this skill, or null"
+      }
+    ]
   }
 }
 ```
@@ -126,6 +133,7 @@ Evaluate education entries (degree, school, year) PLUS evidence of self-improvem
 
 - `llm_total` = sum of all 4 dimension scores (must equal scores.action_verbs + scores.skills_relevance + scores.experience + scores.education).
 - `skills_raw` is the LITERAL text of skills found in CV (e.g. "ReactJS", "Node.js", "Tiếng Anh giao tiếp"). DO NOT normalize — SkillNormalizerService will do that.
+- `skills_extracted` mirrors `skills_raw` but adds, PER skill: `proficiency_hint` (exactly one of `beginner`/`intermediate`/`advanced`/`unknown` — infer ONLY from explicit evidence in the CV, otherwise `unknown`) and `evidence_text` (a SHORT verbatim quote from the CV that demonstrates the skill, or `null` if there is none). NEVER invent evidence or inflate proficiency.
 - Every `rationale` and `issues[].text` MUST quote or paraphrase actual CV content. No generic advice.
 - 2-4 issues per section. Issues should be ACTIONABLE (give a concrete fix in `hint`).
 - If `target_role` is empty or `(none)`, score `skills_relevance` based on generic tech industry expectations.

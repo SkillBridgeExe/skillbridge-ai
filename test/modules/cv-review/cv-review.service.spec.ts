@@ -87,6 +87,9 @@ describe('CvReviewService', () => {
       }),
     };
 
+    // Dim-2 breakdown engine — default returns nothing; the breakdown test overrides .diff.
+    const skillDiff = { diff: jest.fn() };
+
     const service = new CvReviewService(
       llm as never,
       prompts as never,
@@ -96,6 +99,7 @@ describe('CvReviewService', () => {
       cvParser as never,
       roleRubric as never,
       bulletAnalyzer as never,
+      skillDiff as never,
     );
     return {
       service,
@@ -107,6 +111,7 @@ describe('CvReviewService', () => {
       tracing,
       roleRubric,
       bulletAnalyzer,
+      skillDiff,
     };
   }
 
@@ -206,5 +211,65 @@ describe('CvReviewService', () => {
     const dim1 = res.parsed_response.sections.filter((s) => /action/i.test(s.name));
     expect(dim1).toHaveLength(1); // not duplicated
     expect(dim1[0].score).toBe(75); // stale 90 replaced by the deterministic value
+  });
+
+  // ─── fast-follow: Dim-2 breakdown + top_summary (deterministic, no LLM) ───────
+
+  it('builds a deterministic Dim-2 matched/missing breakdown when a role rubric exists', async () => {
+    const { service, roleRubric, skillDiff, parser } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 12, experience: 15, education: 15 },
+      llm_total: 57,
+      rationale: {},
+      sections: [],
+      ats_extracted: {
+        name: null,
+        email: null,
+        phone: null,
+        skills_raw: ['React'],
+        skills_extracted: [{ name: 'React', proficiency_hint: 'advanced', evidence_text: null }],
+      },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [
+        { display_name: 'React', importance: 'REQUIRED', required_level: 3, cv_level: 4 },
+      ],
+      partial_skills: [],
+      missing_skills: [{ display_name: 'TypeScript', importance: 'REQUIRED', required_level: 4 }],
+    });
+    const res = await service.review('u1', input);
+    const bd = res.parsed_response.skills_relevance_breakdown;
+    expect(bd).not.toBeNull();
+    expect(bd?.matched.map((m) => m.name)).toEqual(['React']);
+    expect(bd?.missing.map((m) => m.name)).toEqual(['TypeScript']);
+    // top_summary surfaces the missing required skill as a prioritized fix.
+    expect(res.parsed_response.top_summary.prioritized_actions.join(' ')).toContain('TypeScript');
+  });
+
+  it('skills_relevance_breakdown is null when there is no rubric for the role', async () => {
+    const { service } = build(); // roleRubric.getRubric → null by default
+    const res = await service.review('u1', input);
+    expect(res.parsed_response.skills_relevance_breakdown).toBeNull();
+  });
+
+  it('top_summary prioritizes quantification (in the CV language) when few bullets have numbers', async () => {
+    const { service, bulletAnalyzer } = build();
+    bulletAnalyzer.analyze.mockReturnValue({
+      bulletCount: 4,
+      verbFirstRatio: 1,
+      quantifiedRatio: 0.25,
+      weakOpenerRatio: 0,
+      firstPersonRatio: 0,
+      fillerCount: 0,
+      actionVerbsScore: 17,
+      band: 'accomplished',
+      notes: [],
+    });
+    const res = await service.review('u1', input);
+    const ts = res.parsed_response.top_summary;
+    expect(ts.prioritized_actions.length).toBeGreaterThan(0);
+    expect(ts.prioritized_actions[0]).toMatch(/số liệu/); // vi CV → vi action
+    expect(ts.headline).toContain('/100');
   });
 });

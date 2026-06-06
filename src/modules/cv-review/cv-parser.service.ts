@@ -62,15 +62,17 @@ export class CvParserService {
       { jsonMode: true, temperature: 0.1, maxOutputTokens: 3000 },
     );
 
-    if (llmResult.parsedJson === undefined) {
-      // The model produced no parseable JSON (malformed / truncated / safety-blocked).
-      // Fail loudly instead of coercing to an empty document and scoring a good CV as bad.
+    const pj = llmResult.parsedJson;
+    // Fail loudly on no / non-object JSON — including the literal `null` token, which JSON.parse
+    // returns as `null` (NOT undefined) and would otherwise coerce to an EMPTY document, scoring a
+    // perfectly good CV as a blank one with a plausible-but-wrong low score.
+    if (pj === null || pj === undefined || typeof pj !== 'object' || Array.isArray(pj)) {
       throw new BadGatewayException({
         code: ERROR_CODES.AI_ANALYSIS_FAILED,
-        message: 'CV parse failed: model returned no parseable JSON',
+        message: 'CV parse failed: model returned no usable JSON object',
       });
     }
-    const document = this.coerce(llmResult.parsedJson);
+    const document = this.coerce(pj);
 
     return {
       document,
@@ -96,7 +98,7 @@ export class CvParserService {
     const contact = this.asObj(o.contact);
 
     return {
-      language: this.asStr(o.language) || 'en',
+      language: this.normalizeLang(o.language),
       contact: {
         name: this.asStrOrNull(contact.name),
         email: this.asStrOrNull(contact.email),
@@ -201,6 +203,19 @@ export class CvParserService {
 
   private asStr(v: unknown): string {
     return typeof v === 'string' ? v : '';
+  }
+
+  /**
+   * Normalize the LLM's free-text `language` to a stable code so downstream locale gates
+   * (e.g. BulletAnalyzer's VI first-person detection, gated on `=== 'vi'`) are reliable and
+   * don't silently turn off when the model writes "Vietnamese"/"vie"/"VN" instead of "vi".
+   */
+  private normalizeLang(v: unknown): string {
+    const s = this.asStr(v).trim().toLowerCase();
+    if (!s) return 'en';
+    if (s === 'vi' || s.startsWith('vie') || s === 'vn' || s.includes('việt')) return 'vi';
+    if (s === 'en' || s.startsWith('eng')) return 'en';
+    return s.slice(0, 2) || 'en'; // best-effort ISO 639-1 prefix for other languages
   }
 
   private asStrOrNull(v: unknown): string | null {

@@ -34,7 +34,10 @@ export class GeminiProvider implements LlmProviderClient {
       if (!apiKey) {
         throw new Error('GEMINI_API_KEY is not set');
       }
-      this.client = new GoogleGenAI({ apiKey });
+      // httpOptions.timeout caps a hung Google call (the default path) so it rejects → withRetry
+      // surfaces it → the orchestrator can mark the ai_request FAILED instead of hanging forever
+      // with an orphan PENDING row. (OpenAiProvider gets the same via the SDK `timeout` option.)
+      this.client = new GoogleGenAI({ apiKey, httpOptions: { timeout: 60_000 } });
     }
     return this.client;
   }

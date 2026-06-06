@@ -7,13 +7,72 @@ import {
   CvReviewParsedResponse,
   CvReviewResponseDto,
   CvReviewSectionIssue,
+  CvSkillExtracted,
+  SkillBreakdownItem,
+  SkillsRelevanceBreakdown,
+  TopSummary,
 } from './dto/cv-review-response.dto';
 import { CvReviewLlmRawOutput, CvReviewParser } from './cv-review.parser';
-import { AtsRuleCheckerService } from './ats-rule-checker.service';
+import { AtsCheckResult, AtsRuleCheckerService } from './ats-rule-checker.service';
+import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
 import scoringWeights from './scoring-weights-v1.json';
+
+// Bilingual action templates for the deterministic top_summary, keyed by ATS rule_id.
+const ATS_ACTION: Record<string, { vi: string; en: string; impact: number }> = {
+  file_format_acceptable: {
+    impact: 95,
+    vi: 'Xuất CV bản text (PDF/DOCX), không dùng ảnh — ATS không đọc được CV ảnh.',
+    en: 'Export a text-based CV (PDF/DOCX), not an image — ATS cannot read image CVs.',
+  },
+  has_section_skills: {
+    impact: 80,
+    vi: 'Bổ sung mục Kỹ năng (≥3 kỹ năng kỹ thuật + công cụ).',
+    en: 'Add a Skills section (≥3 technical skills + tools).',
+  },
+  has_section_experience: {
+    impact: 78,
+    vi: 'Thêm Kinh nghiệm hoặc Dự án có mô tả kết quả.',
+    en: 'Add Experience or Projects with outcome-focused bullets.',
+  },
+  has_section_contact: {
+    impact: 70,
+    vi: 'Thêm thông tin liên hệ (họ tên + email + SĐT) ở đầu CV.',
+    en: 'Add contact info (full name + email + phone) at the top.',
+  },
+  email_present: {
+    impact: 66,
+    vi: 'Thêm email chuyên nghiệp.',
+    en: 'Add a professional email address.',
+  },
+  has_section_education: {
+    impact: 60,
+    vi: 'Thêm mục Học vấn (trường, ngành, thời gian).',
+    en: 'Add an Education section (school, major, dates).',
+  },
+  no_excessive_repetition: {
+    impact: 60,
+    vi: 'Thay cụm "chịu trách nhiệm / tham gia" bằng động từ hành động.',
+    en: 'Replace "responsible for / participated in" with action verbs.',
+  },
+  dates_present: {
+    impact: 58,
+    vi: 'Thêm mốc thời gian (MM/YYYY - MM/YYYY) cho mỗi mục.',
+    en: 'Add date ranges (MM/YYYY - MM/YYYY) to each entry.',
+  },
+  phone_present: {
+    impact: 55,
+    vi: 'Thêm số điện thoại liên hệ.',
+    en: 'Add a contact phone number.',
+  },
+  reasonable_length: {
+    impact: 45,
+    vi: 'Điều chỉnh độ dài CV về ~1 trang, đủ chi tiết.',
+    en: 'Adjust CV length toward ~1 page with enough detail.',
+  },
+};
 
 /**
  * Hybrid CV review:
@@ -48,6 +107,7 @@ export class CvReviewService {
     private readonly cvParser: CvParserService,
     private readonly roleRubric: RoleRubricService,
     private readonly bulletAnalyzer: BulletAnalyzerService,
+    private readonly skillDiff: SkillDiffService,
   ) {
     const sum = this.RULE_WEIGHT + this.LLM_WEIGHT;
     if (Math.abs(sum - 1) > 1e-9) {
@@ -123,13 +183,26 @@ export class CvReviewService {
       // Replace the LLM's action_verbs estimate (+ its rationale & section feedback) with the
       // analyzer's reproducible, injection-resistant result computed from the STRUCTURED document.
       const bulletAnalysis = this.bulletAnalyzer.analyze(document);
-      const routed = this.routeDimension1(llmParsed, bulletAnalysis);
+      // Dim-1 deterministic routing OVERRIDES the LLM, but the analyzer's verb lexicons are EN+VI
+      // only — for any other detected language it would force the floor band on a strong CV. So
+      // route deterministically ONLY for vi/en; otherwise keep the LLM's action_verbs estimate
+      // (the model can actually read the language). Signals are still surfaced for transparency.
+      const dim1Supported = document.language === 'vi' || document.language === 'en';
+      const routed = dim1Supported ? this.routeDimension1(llmParsed, bulletAnalysis) : llmParsed;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
       const llm_normalized = Math.round((routed.llm_total / 80) * 100);
-      const overall_score = Math.round(
-        atsCheck.ats_rule_score * this.RULE_WEIGHT +
-          (routed.llm_total / 80) * 100 * this.LLM_WEIGHT,
+      // Clamp to [0,100] before persistence: total_score is numeric(5,2), and a future weight
+      // mis-tune must surface as a clamped score, not a numeric-overflow 500 after LLM spend.
+      const overall_score = Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            atsCheck.ats_rule_score * this.RULE_WEIGHT +
+              (routed.llm_total / 80) * 100 * this.LLM_WEIGHT,
+          ),
+        ),
       );
       const confidence_score = this.computeConfidence(
         atsCheck.summary.failed,
@@ -138,6 +211,19 @@ export class CvReviewService {
       // The ai_request row records its OWN call's tokens (self-consistent: prompt+completion=total).
       // Stage-1 parse tokens are aggregated only into the result-level total below.
       const combinedTokens = llmResult.tokenUsage.totalTokens + parse.tokenUsage;
+
+      // Dim-2 transparency + top-of-page verdict — both DETERMINISTIC (no extra LLM call).
+      const skills_relevance_breakdown = this.buildSkillBreakdown(
+        routed.ats_extracted.skills_extracted,
+        input.target_role,
+      );
+      const top_summary = this.buildTopSummary({
+        overallScore: overall_score,
+        atsCheck,
+        analysis: bulletAnalysis,
+        breakdown: skills_relevance_breakdown,
+        language: document.language,
+      });
 
       const parsedResponse: CvReviewParsedResponse = {
         language: document.language,
@@ -156,7 +242,25 @@ export class CvReviewService {
         // non-LLM labels). scoring_weights_version pins which weight set produced overall_score.
         action_verbs_analysis: bulletAnalysis,
         scoring_weights_version: scoringWeights.version,
+        skills_relevance_breakdown,
+        top_summary,
       };
+
+      // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
+      // "a SUCCESS ai_request always has an ai_result" holds. If this write fails, the catch
+      // marks the (still-PENDING) row FAILED instead of leaving an orphan SUCCESS with no result.
+      await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'cv_review',
+        // Persist a PII-redacted copy (mask emails + phones, drop contact identity + rule evidence).
+        // The full data is still returned to the (authenticated) caller below — only the trace.
+        rawResponse: this.maskPii(llmResult.text ?? JSON.stringify(llmResult.rawResponse)),
+        parsedResponse: this.redactForTrace(parsedResponse),
+        totalScore: overall_score,
+        confidenceScore: confidence_score,
+        tokenUsage: combinedTokens,
+      });
 
       await this.tracing.completeAiRequest(aiRequestId, {
         promptTokens: llmResult.tokenUsage.promptTokens,
@@ -165,19 +269,6 @@ export class CvReviewService {
         latencyMs: llmResult.latencyMs,
         status: 'SUCCESS',
         modelCode: llmResult.modelCode,
-      });
-
-      await this.tracing.saveAiResult({
-        aiRequestId,
-        userId,
-        resultType: 'cv_review',
-        // #9/#13: persist a PII-redacted copy (mask emails + drop contact identity). The full
-        // data is still returned to the (authenticated) caller below — only the trace is redacted.
-        rawResponse: this.maskEmails(llmResult.text ?? JSON.stringify(llmResult.rawResponse)),
-        parsedResponse: this.redactForTrace(parsedResponse),
-        totalScore: overall_score,
-        confidenceScore: confidence_score,
-        tokenUsage: combinedTokens,
       });
 
       return {
@@ -314,17 +405,28 @@ export class CvReviewService {
     return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[redacted-email]');
   }
 
+  /** Mask VN / international phone numbers (CV PII) in an arbitrary string. */
+  private maskPhones(text: string): string {
+    return text.replace(/(?:\+?84|0)[\s.\-]?\d(?:[\s.\-]?\d){7,9}/g, '[redacted-phone]');
+  }
+
+  /** Mask all PII (emails + phones) before persisting any string to the trace. */
+  private maskPii(text: string): string {
+    return this.maskPhones(this.maskEmails(text));
+  }
+
   /**
    * #9/#13: redact PII before persisting to ai_results — mask emails everywhere and drop
    * contact identity fields. Date ranges / scores are untouched (no broad number masking).
    */
   private redactForTrace(parsed: CvReviewParsedResponse): CvReviewParsedResponse {
-    const clone = JSON.parse(this.maskEmails(JSON.stringify(parsed))) as CvReviewParsedResponse;
+    const clone = JSON.parse(this.maskPii(JSON.stringify(parsed))) as CvReviewParsedResponse;
     if (clone.document?.contact) {
       clone.document.contact.name = null;
       clone.document.contact.email = null;
       clone.document.contact.phone = null;
       clone.document.contact.location = null;
+      clone.document.contact.links = []; // a portfolio/GitHub URL often embeds the candidate's real name
     }
     for (const extracted of [clone.ats_extracted, clone.parsed_cv]) {
       if (extracted) {
@@ -333,6 +435,137 @@ export class CvReviewService {
         extracted.phone = null;
       }
     }
+    // ATS rule evidence quotes the raw matched email/phone verbatim — drop those from the trace.
+    if (clone.ats_check?.rules) {
+      for (const r of clone.ats_check.rules) {
+        if (r.rule_id === 'email_present' || r.rule_id === 'phone_present') r.evidence = undefined;
+      }
+    }
     return clone;
+  }
+
+  /**
+   * Deterministic Dimension-2 breakdown via SkillDiffService (the SAME engine as CV-JD match —
+   * no new scoring logic). Display-only: it does NOT change the LLM's skills_relevance score yet.
+   * Returns null when there is no seeded rubric for the target role.
+   */
+  private buildSkillBreakdown(
+    skills: CvSkillExtracted[],
+    targetRole?: string,
+  ): SkillsRelevanceBreakdown | null {
+    if (!targetRole || !this.roleRubric.getRubric(targetRole)) return null;
+    const diff = this.skillDiff.diff({
+      cv_skills_raw: skills.map((s) => ({
+        name: s.name,
+        proficiency_hint: s.proficiency_hint,
+        evidence_text: s.evidence_text ?? undefined,
+      })),
+      target_role: targetRole,
+    });
+    const item = (s: {
+      display_name: string;
+      importance: string;
+      required_level: number;
+      cv_level?: number;
+    }): SkillBreakdownItem => ({
+      name: s.display_name,
+      importance: s.importance,
+      required_level: s.required_level,
+      ...(s.cv_level !== undefined ? { cv_level: s.cv_level } : {}),
+    });
+    return {
+      matched: diff.matched_skills.map(item),
+      partial: diff.partial_skills.map(item),
+      missing: diff.missing_skills.map(item),
+    };
+  }
+
+  /**
+   * Deterministic "fix these first" verdict — ranks the highest-impact issues from the ATS
+   * failures, the Dim-1 signals (quantified / verb-first), and the missing role skills, in the
+   * CV's own language. No extra LLM call — pure ranking over data already computed.
+   */
+  private buildTopSummary(ctx: {
+    overallScore: number;
+    atsCheck: AtsCheckResult;
+    analysis: BulletAnalysis;
+    breakdown: SkillsRelevanceBreakdown | null;
+    language: string;
+  }): TopSummary {
+    const vi = ctx.language === 'vi';
+    const pct = (r: number) => `${Math.round(r * 100)}%`;
+    const a = ctx.analysis;
+    const actions: { impact: number; text: string }[] = [];
+
+    if (a.bulletCount > 0 && a.quantifiedRatio < 0.5) {
+      actions.push({
+        impact: 92,
+        text: vi
+          ? `Thêm số liệu vào thành tích (hiện chỉ ${pct(a.quantifiedRatio)} bullet có số) — vd "giảm 40% thời gian tải".`
+          : `Quantify your achievements (only ${pct(a.quantifiedRatio)} of bullets have numbers) — e.g. "cut load time 40%".`,
+      });
+    }
+    if (ctx.breakdown && ctx.breakdown.missing.length > 0) {
+      const names = ctx.breakdown.missing
+        .slice(0, 3)
+        .map((m) => m.name)
+        .join(', ');
+      actions.push({
+        impact: 88,
+        text: vi
+          ? `Bổ sung kỹ năng còn thiếu cho vị trí: ${names}.`
+          : `Add the role's missing skills: ${names}.`,
+      });
+    }
+    if (a.bulletCount > 0 && a.verbFirstRatio < 0.8) {
+      actions.push({
+        impact: 84,
+        text: vi
+          ? `Mở đầu mỗi bullet bằng động từ hành động mạnh (Xây dựng, Tối ưu, Dẫn dắt) — hiện ${pct(a.verbFirstRatio)} đạt.`
+          : `Start each bullet with a strong action verb (Built, Optimized, Led) — only ${pct(a.verbFirstRatio)} do today.`,
+      });
+    }
+    for (const r of ctx.atsCheck.rules) {
+      if (r.status === 'pass') continue;
+      const m = ATS_ACTION[r.rule_id];
+      if (m) {
+        actions.push({
+          impact: r.status === 'fail' ? m.impact : m.impact - 15,
+          text: vi ? m.vi : m.en,
+        });
+      }
+    }
+    if (a.bulletCount > 0 && a.firstPersonRatio > 0) {
+      actions.push({
+        impact: 48,
+        text: vi
+          ? 'Bỏ đại từ ngôi thứ nhất ("tôi/em") trong bullet — dùng chủ ngữ ẩn.'
+          : 'Drop first-person pronouns ("I") from bullets — use the implied subject.',
+      });
+    }
+
+    actions.sort((x, y) => y.impact - x.impact);
+    const prioritized_actions: string[] = [];
+    for (const x of actions) {
+      if (prioritized_actions.length >= 3) break;
+      if (!prioritized_actions.includes(x.text)) prioritized_actions.push(x.text);
+    }
+
+    const band = vi
+      ? ctx.overallScore >= 80
+        ? 'mạnh'
+        : ctx.overallScore >= 60
+          ? 'khá'
+          : 'cần cải thiện'
+      : ctx.overallScore >= 80
+        ? 'strong'
+        : ctx.overallScore >= 60
+          ? 'decent'
+          : 'needs work';
+    const headline = vi
+      ? `CV của bạn đang ở mức ${band} (${ctx.overallScore}/100).${prioritized_actions.length ? ` Ưu tiên: ${prioritized_actions[0]}` : ''}`
+      : `Your CV is ${band} (${ctx.overallScore}/100).${prioritized_actions.length ? ` Top fix: ${prioritized_actions[0]}` : ''}`;
+
+    return { headline, prioritized_actions };
   }
 }
