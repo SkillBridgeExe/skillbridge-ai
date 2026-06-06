@@ -1,3 +1,4 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 
 describe('CvsService R1 completion behavior', () => {
@@ -59,7 +60,9 @@ describe('CvsService R1 completion behavior', () => {
       })),
       findOne: jest.fn(),
       findAndCount: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
       softDelete: jest.fn(),
+      update: jest.fn(),
     };
     const cvSkillsRepo = {
       find: jest.fn().mockResolvedValue([]),
@@ -95,6 +98,19 @@ describe('CvsService R1 completion behavior', () => {
         query: jest.fn().mockResolvedValue([]),
       },
     };
+    const evaluator = {
+      evaluate: jest.fn().mockReturnValue({ score: 88, label: 'Good', checklist: [], missing: [] }),
+    };
+    const rewriter = {
+      rewrite: jest.fn().mockResolvedValue({ suggestion: 'Improved text' }),
+    };
+    const pdfRenderer = {
+      extractSkillbridgeFingerprint: jest.fn().mockResolvedValue(null),
+      renderHarvardPdf: jest.fn().mockResolvedValue({
+        buffer: Buffer.from('%PDF-1.7 rendered'),
+        fileName: 'cv-builder.pdf',
+      }),
+    };
 
     const service = new CvsService(
       cvsRepo as never,
@@ -106,6 +122,9 @@ describe('CvsService R1 completion behavior', () => {
       skillNormalizer as never,
       consentAudits as never,
       aiResults as never,
+      evaluator as never,
+      rewriter as never,
+      pdfRenderer as never,
     );
 
     return {
@@ -118,6 +137,9 @@ describe('CvsService R1 completion behavior', () => {
       skillNormalizer,
       consentAudits,
       aiResults,
+      evaluator,
+      rewriter,
+      pdfRenderer,
     };
   }
 
@@ -256,5 +278,222 @@ describe('CvsService R1 completion behavior', () => {
         confidence: '1.00',
       },
     ]);
+  });
+
+  it('creates a BUILT builder draft from an explicitly owned source CV parsedJson', async () => {
+    const { service, cvsRepo, storage, cvReview } = build();
+    const sourceDocument = parsedReview.document;
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'source-cv',
+      userId: 'u1',
+      parsedJson: sourceDocument,
+      cvKind: 'UPLOADED',
+      targetRole: 'frontend_developer',
+      language: 'vi',
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const response = await service.createBuilderDraft('u1', {
+      sourceCvId: 'source-cv',
+      title: 'Builder Draft',
+    });
+
+    expect(cvsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'u1',
+        title: 'Builder Draft',
+        cvKind: 'BUILT',
+        parsedJson: sourceDocument,
+        fileUrl: null,
+        parsedText: null,
+        targetRole: 'frontend_developer',
+        language: 'vi',
+      }),
+    );
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+    expect(response.cvKind).toBe('BUILT');
+    expect(response.parsedJson).toEqual(sourceDocument);
+  });
+
+  it('creates a blank BUILT builder draft when no parsed upload exists', async () => {
+    const { service, cvsRepo } = build();
+    cvsRepo.findOne.mockResolvedValue(null);
+
+    const response = await service.createBuilderDraft('u1', { language: 'en' });
+
+    expect(cvsRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'u1', cvKind: 'UPLOADED' }),
+        order: { createdAt: 'DESC' },
+      }),
+    );
+    expect(response.cvKind).toBe('BUILT');
+    expect(response.parsedJson).toEqual(
+      expect.objectContaining({
+        language: 'en',
+        contact: expect.objectContaining({ links: [] }),
+        experience: [],
+      }),
+    );
+  });
+
+  it('autosaves parsedJson only for an owned BUILT CV', async () => {
+    const { service, cvsRepo } = build();
+    const draft = {
+      id: 'draft-1',
+      userId: 'u1',
+      title: 'Draft',
+      parsedJson: null,
+      cvKind: 'BUILT',
+      language: 'en',
+      targetRole: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(draft);
+
+    await service.updateBuilderDraft('u1', 'draft-1', {
+      parsedJson: parsedReview.document,
+      title: 'Updated Draft',
+      targetRole: 'backend_developer',
+    });
+
+    expect(cvsRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'draft-1',
+        parsedJson: parsedReview.document,
+        title: 'Updated Draft',
+        targetRole: 'backend_developer',
+      }),
+    );
+  });
+
+  it('rejects autosave for an uploaded CV', async () => {
+    const { service, cvsRepo } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      cvKind: 'UPLOADED',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(
+      service.updateBuilderDraft('u1', 'cv-1', { parsedJson: parsedReview.document }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('delegates builder section evaluation and rewrite after ownership check', async () => {
+    const { service, cvsRepo, evaluator, rewriter } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'draft-1',
+      userId: 'u1',
+      cvKind: 'BUILT',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const evaluateBody = { section: 'summary' as const, content: { summary: 'Built APIs' } };
+    const rewriteBody = { text: 'Built APIs', mode: 'harvard' as const };
+
+    await service.evaluateBuilderSection('u1', 'draft-1', evaluateBody);
+    await service.rewriteBuilderText('u1', 'draft-1', rewriteBody);
+
+    expect(evaluator.evaluate).toHaveBeenCalledWith(evaluateBody);
+    expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody);
+  });
+
+  it('renders a BUILT CV PDF from parsedJson without storage persistence', async () => {
+    const { service, cvsRepo, pdfRenderer, storage } = build();
+    const draft = {
+      id: 'draft-1',
+      userId: 'u1',
+      title: 'Draft',
+      parsedJson: parsedReview.document,
+      cvKind: 'BUILT',
+      createdAt: now,
+      updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(draft);
+
+    const rendered = await service.renderPdf('u1', 'draft-1');
+
+    expect(pdfRenderer.renderHarvardPdf).toHaveBeenCalledWith(draft);
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(rendered.buffer).toEqual(Buffer.from('%PDF-1.7 rendered'));
+  });
+
+  it('skips parsing and scoring when uploaded PDF has a SkillBridge fingerprint owned by the user', async () => {
+    const { service, cvsRepo, pdfRenderer, storage, cvReview } = build();
+    const ownedCv = {
+      id: 'original-cv',
+      userId: 'u1',
+      title: 'Original',
+      originalFileName: null,
+      fileType: null,
+      fileSize: null,
+      parsedText: null,
+      parsedJson: parsedReview.document,
+      cvKind: 'BUILT',
+      language: 'vi',
+      isOcrOnly: false,
+      atsReadabilityScore: null,
+      targetRole: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
+    cvsRepo.findOne.mockResolvedValue(ownedCv);
+
+    const response = await service.create(
+      'u1',
+      { consentAccepted: true },
+      { ...file, buffer: Buffer.from('%PDF-1.7 generated') },
+    );
+
+    expect(response.id).toBe('original-cv');
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+    expect(cvsRepo.count).not.toHaveBeenCalled();
+  });
+
+  it('enforces 10 real CV uploads per rolling day', async () => {
+    const { service, cvsRepo, storage } = build();
+    cvsRepo.count.mockResolvedValue(10);
+
+    await expect(service.create('u1', { consentAccepted: true }, file)).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'CV_UPLOAD_QUOTA_EXCEEDED' }),
+    });
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it('returns a privacy-policy 404 when the stored file has been cleaned up', async () => {
+    const { service, cvsRepo } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      fileUrl: null,
+      cvKind: 'UPLOADED',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(service.download('u1', 'cv-1')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Original CV file is no longer stored under the privacy retention policy',
+      }),
+    });
+  });
+
+  it('rejects builder APIs for a CV not owned by the user', async () => {
+    const { service, cvsRepo } = build();
+    cvsRepo.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.createBuilderDraft('u1', { sourceCvId: 'someone-else' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
