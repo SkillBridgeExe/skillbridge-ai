@@ -29,6 +29,12 @@ env:
   DB_SSL: 'true'
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   INTERNAL_AUTH_SECRET: ci-cron-secret-not-used-by-this-path
+  # Config validation requires these even outside NODE_ENV=test (the joi `.when` only relaxes
+  # them for 'test'). The crawl/trends CLI never actually uses GCS/email — literals satisfy
+  # boot validation while keeping NODE_ENV=development (so skill normalization behaves like local).
+  GCS_BUCKET: skillbridge-cv
+  RESEND_API_KEY: re_cron_not_used
+  RESEND_FROM_EMAIL: 'SkillBridge <noreply@skillbridge.vn>'
 
 jobs:
   crawl:
