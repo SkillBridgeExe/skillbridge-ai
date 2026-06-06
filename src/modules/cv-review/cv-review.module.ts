@@ -17,6 +17,8 @@ import { BulletAnalyzerService } from './bullet-analyzer.service';
     AtsRuleCheckerService,
     BulletAnalyzerService,
   ],
-  exports: [CvReviewService, CvParserService],
+  // BulletAnalyzerService exported for the cv-builder live evaluator (R1b) — same
+  // deterministic heuristics power both the one-shot diagnosis and per-section checks.
+  exports: [CvReviewService, CvParserService, BulletAnalyzerService],
 })
 export class CvReviewModule {}
