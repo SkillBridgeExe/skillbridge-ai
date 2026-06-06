@@ -58,84 +58,93 @@ export class CvJdMatchService {
       },
     });
 
-    const llmResult = await this.llm.complete(
-      [
-        { role: 'system', content: template.meta.system ?? '' },
-        { role: 'user', content: userPrompt },
-      ],
-      // Lower temperature than before — we want consistent extraction, not creative scoring.
-      // No scoring happens at LLM level anymore.
-      { jsonMode: true, temperature: 0.1, maxOutputTokens: 2500 },
-    );
-
-    await this.tracing.completeAiRequest(aiRequestId, {
-      promptTokens: llmResult.tokenUsage.promptTokens,
-      completionTokens: llmResult.tokenUsage.completionTokens,
-      totalTokens: llmResult.tokenUsage.totalTokens,
-      latencyMs: llmResult.latencyMs,
-      status: 'SUCCESS',
-    });
-
-    const extraction = this.parseLlmExtraction(llmResult.parsedJson);
-
-    // Run deterministic diff — this is where scoring actually happens.
-    const diff = this.skillDiff.diff({
-      cv_skills_raw: extraction.cv_skills_raw,
-      jd_requirements_raw: extraction.jd_requirements_raw,
-      target_role: input.target_role,
-    });
-
-    // Determine source for telemetry / UI
-    let sourceOfRequirements: 'role_rubric' | 'jd_extraction' | 'none' = 'none';
-    if (input.target_role && diff.scoring_breakdown.total_requirements > 0) {
-      sourceOfRequirements = 'role_rubric';
-    } else if (extraction.jd_requirements_raw.length > 0) {
-      sourceOfRequirements = 'jd_extraction';
-    }
-
-    const parsed: CvJdMatchParsedResponse = {
-      overall_score: diff.overall_score,
-      match_ratio: diff.match_ratio,
-      required_coverage: diff.required_coverage,
-      matched_skills: diff.matched_skills,
-      partial_skills: diff.partial_skills,
-      missing_skills: diff.missing_skills,
-      bonus_skills: diff.bonus_skills,
-      unnormalized_cv_skills: diff.unnormalized_cv_skills,
-      unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
-      scoring_breakdown: diff.scoring_breakdown,
-      source_of_requirements: sourceOfRequirements,
-      target_role: input.target_role ?? null,
-    };
-
-    const aiResultId = await this.tracing.saveAiResult({
-      aiRequestId,
-      userId,
-      resultType: 'cv_jd_match',
-      rawResponse: llmResult.rawResponse,
-      parsedResponse: parsed,
-      totalScore: diff.overall_score,
-      tokenUsage: llmResult.tokenUsage.totalTokens,
-    });
-
-    if (diff.unnormalized_cv_skills.length + diff.unnormalized_jd_requirements.length > 0) {
-      this.logger.warn(
-        `Match request ${aiRequestId}: ${diff.unnormalized_cv_skills.length} CV skills + ` +
-          `${diff.unnormalized_jd_requirements.length} JD requirements did not normalize — ` +
-          `consider expanding taxonomy.`,
+    const startedAt = Date.now();
+    try {
+      const llmResult = await this.llm.complete(
+        [
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: userPrompt },
+        ],
+        // Lower temperature — consistent extraction, not creative scoring (scoring is deterministic).
+        { jsonMode: true, temperature: 0.1, maxOutputTokens: 2500 },
       );
-    }
 
-    return {
-      ai_request_id: aiRequestId,
-      ai_result_id: aiResultId,
-      result_type: 'cv_jd_match',
-      parsed_response: parsed,
-      retrieval_log_id: null,
-      retrieved_chunks_count: 0,
-      token_usage: llmResult.tokenUsage.totalTokens,
-      latency_ms: llmResult.latencyMs,
-    };
+      const extraction = this.parseLlmExtraction(llmResult.parsedJson);
+
+      // Run deterministic diff — this is where scoring actually happens.
+      const diff = this.skillDiff.diff({
+        cv_skills_raw: extraction.cv_skills_raw,
+        jd_requirements_raw: extraction.jd_requirements_raw,
+        target_role: input.target_role,
+      });
+
+      // Determine source for telemetry / UI
+      let sourceOfRequirements: 'role_rubric' | 'jd_extraction' | 'none' = 'none';
+      if (input.target_role && diff.scoring_breakdown.total_requirements > 0) {
+        sourceOfRequirements = 'role_rubric';
+      } else if (extraction.jd_requirements_raw.length > 0) {
+        sourceOfRequirements = 'jd_extraction';
+      }
+
+      const parsed: CvJdMatchParsedResponse = {
+        overall_score: diff.overall_score,
+        match_ratio: diff.match_ratio,
+        required_coverage: diff.required_coverage,
+        matched_skills: diff.matched_skills,
+        partial_skills: diff.partial_skills,
+        missing_skills: diff.missing_skills,
+        bonus_skills: diff.bonus_skills,
+        unnormalized_cv_skills: diff.unnormalized_cv_skills,
+        unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
+        scoring_breakdown: diff.scoring_breakdown,
+        source_of_requirements: sourceOfRequirements,
+        target_role: input.target_role ?? null,
+      };
+
+      // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
+      const aiResultId = await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'cv_jd_match',
+        rawResponse: llmResult.rawResponse,
+        parsedResponse: parsed,
+        totalScore: diff.overall_score,
+        tokenUsage: llmResult.tokenUsage.totalTokens,
+      });
+
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: llmResult.tokenUsage.promptTokens,
+        completionTokens: llmResult.tokenUsage.completionTokens,
+        totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
+        latencyMs: llmResult.latencyMs,
+        status: 'SUCCESS',
+      });
+
+      if (diff.unnormalized_cv_skills.length + diff.unnormalized_jd_requirements.length > 0) {
+        this.logger.warn(
+          `Match request ${aiRequestId}: ${diff.unnormalized_cv_skills.length} CV skills + ` +
+            `${diff.unnormalized_jd_requirements.length} JD requirements did not normalize — ` +
+            `consider expanding taxonomy.`,
+        );
+      }
+
+      return {
+        ai_request_id: aiRequestId,
+        ai_result_id: aiResultId,
+        result_type: 'cv_jd_match',
+        parsed_response: parsed,
+        retrieval_log_id: null,
+        retrieved_chunks_count: 0,
+        token_usage: llmResult.tokenUsage.totalTokens,
+        latency_ms: llmResult.latencyMs,
+      };
+    } catch (err) {
+      // LLM/parse/persist failed after the PENDING row was created — mark it FAILED so the
+      // trace never accumulates orphan PENDING rows (mirrors cv-review).
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 
   private parseLlmExtraction(raw: unknown): LlmExtractionOutput {

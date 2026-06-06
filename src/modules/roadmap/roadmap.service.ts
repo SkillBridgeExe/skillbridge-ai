@@ -77,100 +77,108 @@ export class RoadmapService {
       },
     });
 
-    // ─── Step 2: LLM generates structure (NO courses) ───────────────────────
-    const llmResult = await this.llm.complete(
-      [
-        { role: 'system', content: template.meta.system ?? '' },
-        { role: 'user', content: userPrompt },
-      ],
-      // Slightly higher temp than scoring tasks — designing learning paths benefits
-      // from minor creativity (sequencing, phase naming), but still anchored by rubric.
-      { jsonMode: true, temperature: 0.3, maxOutputTokens: 3500 },
-    );
-
-    await this.tracing.completeAiRequest(aiRequestId, {
-      promptTokens: llmResult.tokenUsage.promptTokens,
-      completionTokens: llmResult.tokenUsage.completionTokens,
-      totalTokens: llmResult.tokenUsage.totalTokens,
-      latencyMs: llmResult.latencyMs,
-      status: 'SUCCESS',
-    });
-
-    const structure = this.parseLlmStructure(llmResult.parsedJson);
-
-    // ─── Step 3: sanity-check skill references against the input gap ────────
-    const allInputSkills = new Set([
-      ...input.missing_skills.map((s) => s.skill_canonical_name),
-      ...(input.partial_skills ?? []).map((s) => s.skill_canonical_name),
-    ]);
-
-    const uncoveredSkillsByLlm: Set<string> = new Set();
-    for (const step of structure.steps) {
-      for (const sk of step.skill_canonical_names ?? []) {
-        if (!allInputSkills.has(sk)) uncoveredSkillsByLlm.add(sk);
-      }
-    }
-    if (uncoveredSkillsByLlm.size > 0) {
-      this.logger.warn(
-        `Roadmap LLM referenced skills not in the input gap: ${[...uncoveredSkillsByLlm].join(', ')}. ` +
-          `These will still be matched against catalog but are signal of prompt drift.`,
+    const startedAt = Date.now();
+    try {
+      // ─── Step 2: LLM generates structure (NO courses) ───────────────────────
+      const llmResult = await this.llm.complete(
+        [
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: userPrompt },
+        ],
+        // Slightly higher temp than scoring tasks — designing learning paths benefits
+        // from minor creativity (sequencing, phase naming), but still anchored by rubric.
+        { jsonMode: true, temperature: 0.3, maxOutputTokens: 3500 },
       );
-    }
 
-    // ─── Step 4: CourseMatcher fills real courses per step ──────────────────
-    const allRequests = this.buildMatchRequests(
-      structure,
-      input.missing_skills,
-      input.partial_skills,
-    );
-    const matcherResult = this.courseMatcher.matchCourses(allRequests);
+      const structure = this.parseLlmStructure(llmResult.parsedJson);
 
-    // Index by skill for quick lookup
-    const coursesBySkill = new Map<string, (typeof matcherResult.per_skill)[number]['courses']>();
-    for (const entry of matcherResult.per_skill) {
-      coursesBySkill.set(entry.skill_canonical_name, entry.courses);
-    }
+      // ─── Step 3: sanity-check skill references against the input gap ────────
+      const allInputSkills = new Set([
+        ...input.missing_skills.map((s) => s.skill_canonical_name),
+        ...(input.partial_skills ?? []).map((s) => s.skill_canonical_name),
+      ]);
 
-    const steps: RoadmapStep[] = structure.steps.map((s) => {
-      // Aggregate courses across all skills this step addresses, dedupe by course id, take top 3.
-      const aggregated = (s.skill_canonical_names ?? [])
-        .flatMap((sk) => coursesBySkill.get(sk) ?? [])
-        .filter((c, idx, arr) => arr.findIndex((cc) => cc.id === c.id) === idx)
-        .sort((a, b) => b.match_score - a.match_score)
-        .slice(0, 3);
-      return {
-        ...s,
-        recommended_courses: aggregated,
+      const uncoveredSkillsByLlm: Set<string> = new Set();
+      for (const step of structure.steps) {
+        for (const sk of step.skill_canonical_names ?? []) {
+          if (!allInputSkills.has(sk)) uncoveredSkillsByLlm.add(sk);
+        }
+      }
+      if (uncoveredSkillsByLlm.size > 0) {
+        this.logger.warn(
+          `Roadmap LLM referenced skills not in the input gap: ${[...uncoveredSkillsByLlm].join(', ')}. ` +
+            `These will still be matched against catalog but are signal of prompt drift.`,
+        );
+      }
+
+      // ─── Step 4: CourseMatcher fills real courses per step ──────────────────
+      const allRequests = this.buildMatchRequests(
+        structure,
+        input.missing_skills,
+        input.partial_skills,
+      );
+      const matcherResult = this.courseMatcher.matchCourses(allRequests);
+
+      // Index by skill for quick lookup
+      const coursesBySkill = new Map<string, (typeof matcherResult.per_skill)[number]['courses']>();
+      for (const entry of matcherResult.per_skill) {
+        coursesBySkill.set(entry.skill_canonical_name, entry.courses);
+      }
+
+      const steps: RoadmapStep[] = structure.steps.map((s) => {
+        // Aggregate courses across all skills this step addresses, dedupe by course id, take top 3.
+        const aggregated = (s.skill_canonical_names ?? [])
+          .flatMap((sk) => coursesBySkill.get(sk) ?? [])
+          .filter((c, idx, arr) => arr.findIndex((cc) => cc.id === c.id) === idx)
+          .sort((a, b) => b.match_score - a.match_score)
+          .slice(0, 3);
+        return {
+          ...s,
+          recommended_courses: aggregated,
+        };
+      });
+
+      const parsed: RoadmapParsedResponse = {
+        title: structure.title,
+        total_weeks: structure.total_weeks,
+        phases: structure.phases,
+        steps,
+        ai_summary: structure.ai_summary,
+        ai_advice: structure.ai_advice,
+        uncovered_skills: [...uncoveredSkillsByLlm],
+        skills_without_courses: matcherResult.uncovered_skills,
       };
-    });
 
-    const parsed: RoadmapParsedResponse = {
-      title: structure.title,
-      total_weeks: structure.total_weeks,
-      phases: structure.phases,
-      steps,
-      ai_summary: structure.ai_summary,
-      ai_advice: structure.ai_advice,
-      uncovered_skills: [...uncoveredSkillsByLlm],
-      skills_without_courses: matcherResult.uncovered_skills,
-    };
+      // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
+      await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'roadmap_generate',
+        rawResponse: llmResult.rawResponse,
+        parsedResponse: parsed,
+        tokenUsage: llmResult.tokenUsage.totalTokens,
+      });
 
-    await this.tracing.saveAiResult({
-      aiRequestId,
-      userId,
-      resultType: 'roadmap_generate',
-      rawResponse: llmResult.rawResponse,
-      parsedResponse: parsed,
-      tokenUsage: llmResult.tokenUsage.totalTokens,
-    });
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: llmResult.tokenUsage.promptTokens,
+        completionTokens: llmResult.tokenUsage.completionTokens,
+        totalTokens: llmResult.tokenUsage.totalTokens,
+        estimatedCost: llmResult.estimatedCostUsd,
+        latencyMs: llmResult.latencyMs,
+        status: 'SUCCESS',
+      });
 
-    return {
-      ai_request_id: aiRequestId,
-      parsed_response: parsed,
-      retrieval_log_id: null,
-      retrieved_chunks_count: 0,
-      token_usage: llmResult.tokenUsage.totalTokens,
-    };
+      return {
+        ai_request_id: aiRequestId,
+        parsed_response: parsed,
+        retrieval_log_id: null,
+        retrieved_chunks_count: 0,
+        token_usage: llmResult.tokenUsage.totalTokens,
+      };
+    } catch (err) {
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 
   /**

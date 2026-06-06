@@ -12,6 +12,7 @@ import {
   LlmProviderClient,
 } from './types/llm.types';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { estimateCostUsd } from './llm-pricing';
 
 /**
  * Provider-agnostic LLM facade.
@@ -37,7 +38,17 @@ export class LlmService {
   ): Promise<LlmCompleteResult> {
     const provider = this.resolveProvider(options.provider);
     try {
-      return await provider.complete(messages, options);
+      const result = await provider.complete(messages, options);
+      // Attach a best-effort cost so every call site can persist it (budget telemetry) — one
+      // place to compute, undefined for unpriced models so callers never store a wrong number.
+      return {
+        ...result,
+        estimatedCostUsd: estimateCostUsd(
+          result.modelCode,
+          result.tokenUsage.promptTokens,
+          result.tokenUsage.completionTokens,
+        ),
+      };
     } catch (err) {
       this.logger.error(
         `LLM complete failed (provider=${provider.name}): ${(err as Error).message}`,

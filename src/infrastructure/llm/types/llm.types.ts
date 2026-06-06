@@ -49,6 +49,8 @@ export interface LlmCompleteResult {
   provider: LlmProvider;
   /** Wall-clock latency in milliseconds. */
   latencyMs: number;
+  /** Best-effort USD cost (undefined when the model has no price entry — see llm-pricing.ts). */
+  estimatedCostUsd?: number;
 }
 
 export interface LlmEmbedOptions {
