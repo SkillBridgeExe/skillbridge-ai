@@ -1,8 +1,15 @@
 /**
  * R1b — evaluate-section contract (R1b-cv-builder-spec.md §6, §9.2-9.3).
- * Content shapes mirror the FE builder store (useCvBuilderStore) field-for-field so the
- * FE posts its section state verbatim — no client-side remapping.
+ * Entry shapes mirror the FE builder store (useCvBuilderStore) field-for-field so the FE
+ * posts its section state verbatim — no client-side remapping.
+ *
+ * The Request DTOs carry class-validator decorators because main.ts runs a GLOBAL
+ * ValidationPipe with whitelist+forbidNonWhitelisted — an undecorated DTO would make every
+ * incoming property "non-whitelisted" and 400 the request. `content` is validated only as
+ * an object (@IsObject): its nested union is NOT recursively whitelisted, so the FE's nested
+ * fields pass through intact for the service's defensive per-field reads.
  */
+import { IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export type BuilderSection =
   | 'basic'
@@ -12,6 +19,16 @@ export type BuilderSection =
   | 'projects'
   | 'skills'
   | 'certifications';
+
+export const BUILDER_SECTIONS: BuilderSection[] = [
+  'basic',
+  'summary',
+  'experience',
+  'education',
+  'projects',
+  'skills',
+  'certifications',
+];
 
 export interface BasicContent {
   fullName?: string;
@@ -27,16 +44,18 @@ export interface SummaryContent {
   summary?: string;
 }
 
+/** Mirrors FE store WorkExperience (no isCurrent field on the FE — ongoing = blank endDate). */
 export interface ExperienceEntry {
   position?: string;
   company?: string;
   startDate?: string;
   endDate?: string;
-  isCurrent?: boolean;
   description?: string;
+  responsibilities?: string;
   achievements?: string;
 }
 
+/** Mirrors FE store Education. */
 export interface EducationEntry {
   school?: string;
   major?: string;
@@ -44,9 +63,11 @@ export interface EducationEntry {
   startYear?: string;
   endYear?: string;
   gpa?: string;
+  coursework?: string;
   achievements?: string;
 }
 
+/** Mirrors FE store Project. */
 export interface ProjectEntry {
   name?: string;
   role?: string;
@@ -63,12 +84,12 @@ export interface SkillsContent {
   languages?: string[];
 }
 
+/** Mirrors FE store Certification (uses credentialUrl, no expiryDate). */
 export interface CertificationEntry {
   name?: string;
   organization?: string;
   issueDate?: string;
-  expiryDate?: string;
-  link?: string;
+  credentialUrl?: string;
 }
 
 export type SectionContent =
@@ -81,10 +102,20 @@ export type SectionContent =
   | { entries: CertificationEntry[] };
 
 export class EvaluateSectionRequestDto {
+  @IsIn(BUILDER_SECTIONS)
   section!: BuilderSection;
+
   /** One of the 8 IT role codes — sharpens "missing" hints; optional. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
   role_code?: string;
+
+  @IsOptional()
+  @IsIn(['vi', 'en'])
   language?: 'vi' | 'en';
+
+  @IsObject()
   content!: SectionContent;
 }
 

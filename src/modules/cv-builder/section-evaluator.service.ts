@@ -51,8 +51,13 @@ export class SectionEvaluatorService {
     private readonly taxonomy: SkillTaxonomyService,
   ) {}
 
+  /** FE store default CV language is 'en'; only an explicit 'vi' switches. Single source for both sites. */
+  private resolveLang(language?: string): Lang {
+    return language === 'vi' ? 'vi' : 'en';
+  }
+
   evaluate(req: EvaluateSectionRequestDto): EvaluateSectionResponseDto {
-    const lang: Lang = req.language === 'en' ? 'en' : 'vi';
+    const lang: Lang = this.resolveLang(req.language);
     const empty = this.isEmpty(req.section, req.content);
 
     if (empty) {
@@ -88,12 +93,14 @@ export class SectionEvaluatorService {
       missing.push(...this.roleSkillGaps(req.content as SkillsContent, req.role_code, lang));
     }
 
-    return { score, label: this.label(score, lang), checklist, missing };
+    // nonEmpty=true: a filled-but-all-failing section is "Cần cải thiện", NOT "Chưa có thông tin"
+    // (the empty short-circuit above owns the "no information" label).
+    return { score, label: this.label(score, lang, true), checklist, missing };
   }
 
   // ─── Section dispatch ──────────────────────────────────────────────────────
   private criteriaFor(req: EvaluateSectionRequestDto): Criterion[] {
-    const lang: Lang = req.language === 'en' ? 'en' : 'vi';
+    const lang: Lang = this.resolveLang(req.language);
     switch (req.section) {
       case 'basic':
         return this.basicCriteria(req.content as BasicContent);
@@ -209,8 +216,15 @@ export class SectionEvaluatorService {
 
   // ─── experience ──────────────────────────────────────────────────────────────────
   private experienceCriteria(entries: ExperienceEntry[], lang: Lang): Criterion[] {
-    const filled = entries.filter((e) => e.position || e.company || e.description);
-    const allBullets = filled.flatMap((e) => this.splitBullets(e.description));
+    const filled = entries.filter(
+      (e) => e.position || e.company || e.description || e.responsibilities || e.achievements,
+    );
+    // Bullets may live in description, responsibilities OR achievements (FE store has all three).
+    const allBullets = filled.flatMap((e) =>
+      this.splitBullets(
+        [e.description, e.responsibilities, e.achievements].filter(Boolean).join('\n'),
+      ),
+    );
     const n = allBullets.length;
     const checks = allBullets.map((b) => this.bullets.checkLine(b, lang));
     const verbFirstRatio = n ? checks.filter((c) => c.verbFirst).length / n : 0;
@@ -225,9 +239,7 @@ export class SectionEvaluatorService {
           vi: 'Sắp xếp thời gian đảo ngược (mới → cũ)',
           en: 'Reverse-chronological (newest first)',
         },
-        pass: this.isReverseChrono(
-          filled.map((e) => this.endKey(e.endDate, e.isCurrent, e.startDate)),
-        ),
+        pass: this.isReverseChrono(filled.map((e) => this.endKey(e.endDate, e.startDate))),
         hint: {
           vi: 'Đưa công việc gần nhất lên đầu.',
           en: 'Put the most recent role first.',
@@ -279,8 +291,12 @@ export class SectionEvaluatorService {
   // ─── education ──────────────────────────────────────────────────────────────────
   private educationCriteria(entries: EducationEntry[]): Criterion[] {
     const filled = entries.filter((e) => e.school || e.major);
+    // Label promises "dates" → enforce a year is present (truthy fallback handles ''→startYear).
     const allHaveCore =
-      filled.length > 0 && filled.every((e) => e.school?.trim() && e.major?.trim());
+      filled.length > 0 &&
+      filled.every(
+        (e) => e.school?.trim() && e.major?.trim() && (e.startYear?.trim() || e.endYear?.trim()),
+      );
     return [
       {
         id: 'edu_reverse_chrono',
@@ -288,7 +304,8 @@ export class SectionEvaluatorService {
           vi: 'Sắp xếp thời gian đảo ngược (mới → cũ)',
           en: 'Reverse-chronological (newest first)',
         },
-        pass: this.isReverseChrono(filled.map((e) => this.yearKey(e.endYear ?? e.startYear))),
+        // `||` (not `??`) so an empty-string endYear falls back to startYear (in-progress degree).
+        pass: this.isReverseChrono(filled.map((e) => this.yearKey(e.endYear || e.startYear))),
         hint: { vi: 'Đưa bằng cấp gần nhất lên đầu.', en: 'Put the most recent degree first.' },
       },
       {
@@ -322,7 +339,10 @@ export class SectionEvaluatorService {
   private projectsCriteria(entries: ProjectEntry[], lang: Lang): Criterion[] {
     const filled = entries.filter((p) => p.name);
     const allHaveTech = filled.length > 0 && filled.every((p) => p.tools?.trim());
-    const bulletsByProj = filled.flatMap((p) => this.splitBullets(p.description));
+    // Impact may be in description, contribution OR result (FE store has all three).
+    const bulletsByProj = filled.flatMap((p) =>
+      this.splitBullets([p.description, p.contribution, p.result].filter(Boolean).join('\n')),
+    );
     const checks = bulletsByProj.map((b) => this.bullets.checkLine(b, lang));
     const quantRatio = checks.length
       ? checks.filter((c) => c.quantified).length / checks.length
@@ -527,17 +547,22 @@ export class SectionEvaluatorService {
     switch (section) {
       case 'basic': {
         const c = content as BasicContent;
-        return !(c.fullName || c.email || c.phone || c.location);
+        // .trim() so a whitespace-only field is NOT treated as "non-empty"; include all
+        // contact fields so a links-only draft still routes through normal scoring.
+        return ![c.fullName, c.email, c.phone, c.location, c.linkedin, c.github, c.portfolio].some(
+          (v) => v?.trim(),
+        );
       }
       case 'summary':
         return !(content as SummaryContent).summary?.trim();
       case 'skills': {
+        // languages EXCLUDED on purpose: skillsCriteria does not score languages, so a
+        // languages-only section is effectively empty (avoids a vacuous 67% — review finding).
         const c = content as SkillsContent;
         return (
           (c.technicalSkills?.length ?? 0) +
             (c.tools?.length ?? 0) +
-            (c.softSkills?.length ?? 0) +
-            (c.languages?.length ?? 0) ===
+            (c.softSkills?.length ?? 0) ===
           0
         );
       }
@@ -551,27 +576,35 @@ export class SectionEvaluatorService {
     }
   }
 
-  /** Split a rich-text description into bullet lines (newline or leading marker). */
+  /**
+   * Split a rich-text description into bullet lines. Splits on newlines AND inline bullet
+   * glyphs (• · ▪ ‣) so a pasted single-line "• A • B • C" yields 3 bullets, not 1 (which
+   * would make the ratio thresholds all-or-nothing — review finding).
+   */
   private splitBullets(desc?: string): string[] {
     if (!desc) return [];
     return desc
-      .split(/\r?\n/)
-      .map((l) => l.replace(/^\s*[-•*]\s*/, '').trim())
+      .split(/\r?\n|(?=[•·▪‣])/)
+      .map((l) => l.replace(/^\s*[-•·▪‣*]\s*/, '').trim())
       .filter((l) => l.length > 0);
   }
 
-  /** A monotonically non-increasing sequence of comparable keys = reverse-chronological. */
+  /**
+   * Reverse-chronological = the entries that HAVE a date are non-increasing. Unknown dates
+   * (key 0) are SKIPPED, not treated as oldest — a newest-entry-with-blank-date (common while
+   * editing) must not falsely fail the check (review finding).
+   */
   private isReverseChrono(keys: number[]): boolean {
-    if (keys.length <= 1) return true;
-    for (let i = 1; i < keys.length; i++) {
-      if (keys[i] > keys[i - 1]) return false;
+    const known = keys.filter((k) => k > 0);
+    if (known.length <= 1) return true;
+    for (let i = 1; i < known.length; i++) {
+      if (known[i] > known[i - 1]) return false;
     }
     return true;
   }
 
-  /** Ongoing role sorts highest (now); else parse end date; fallback start; unknown = 0. */
-  private endKey(end?: string, isCurrent?: boolean, start?: string): number {
-    if (isCurrent) return Number.MAX_SAFE_INTEGER;
+  /** End date for ordering; ongoing role (blank end) falls back to start. Unknown = 0 (skipped). */
+  private endKey(end?: string, start?: string): number {
     return this.dateKey(end) || this.dateKey(start);
   }
 
@@ -591,7 +624,8 @@ export class SectionEvaluatorService {
 
   private gpaIsStrong(gpa?: string): boolean {
     if (!gpa) return false;
-    const m = gpa.match(/(\d(?:[.,]\d+)?)\s*(?:\/\s*(\d{1,2}))?/);
+    // \d{1,2} on the integer part so "10/10" / "10" parse as 10 (not "1"); review finding.
+    const m = gpa.match(/(\d{1,2}(?:[.,]\d+)?)\s*(?:\/\s*(\d{1,2}))?/);
     if (!m) return false;
     const val = parseFloat(m[1].replace(',', '.'));
     const scale = m[2] ? parseInt(m[2], 10) : val > 4.5 ? 10 : 4;
@@ -602,9 +636,9 @@ export class SectionEvaluatorService {
     return !!this.taxonomy.lookupByAliasKey(SkillTaxonomyService.normalizeKey(s));
   }
 
-  private label(score: number, lang: Lang): string {
+  private label(score: number, lang: Lang, nonEmpty = false): string {
     if (score >= 80) return lang === 'en' ? 'Very good' : 'Rất tốt';
-    if (score >= 1) return lang === 'en' ? 'Needs improvement' : 'Cần cải thiện';
+    if (score >= 1 || nonEmpty) return lang === 'en' ? 'Needs improvement' : 'Cần cải thiện';
     return lang === 'en' ? 'No information yet' : 'Chưa có thông tin';
   }
 }

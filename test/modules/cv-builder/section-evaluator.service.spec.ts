@@ -127,6 +127,94 @@ describe('SectionEvaluatorService (deterministic, DB-less)', () => {
     expect(f.basic_core).toBe(true);
   });
 
+  it('reverse-chrono: newest entry with blank date (still editing) does NOT falsely fail', () => {
+    const f = flags({
+      section: 'experience',
+      language: 'en',
+      content: {
+        entries: [
+          { position: 'Backend Dev', company: 'New', description: 'Built services.' }, // no date yet
+          {
+            position: 'Old',
+            company: 'A',
+            startDate: '01/2020',
+            endDate: '12/2020',
+            description: 'Did work.',
+          },
+        ],
+      } as never,
+    });
+    expect(f.exp_reverse_chrono).toBe(true);
+  });
+
+  it('gpa 10/10 is recognized as strong (regression: single-digit parse)', () => {
+    const f = flags({
+      section: 'education',
+      language: 'en',
+      content: {
+        entries: [{ school: 'X', major: 'CS', startYear: '2021', endYear: '2025', gpa: '10/10' }],
+      } as never,
+    });
+    expect(f.edu_gpa).toBe(true);
+  });
+
+  it('skills with ONLY languages → empty (score 0), not vacuous 67%', () => {
+    const res = svc.evaluate({
+      section: 'skills',
+      language: 'en',
+      content: { languages: ['English', 'Vietnamese'] } as never,
+    });
+    expect(res.score).toBe(0);
+  });
+
+  it('experience: bullets in responsibilities/achievements are scored (not just description)', () => {
+    const f = flags({
+      section: 'experience',
+      language: 'en',
+      content: {
+        entries: [
+          {
+            position: 'Dev',
+            company: 'X',
+            startDate: '01/2024',
+            responsibilities: 'Optimized the API, reducing latency by 50%.',
+          },
+        ],
+      } as never,
+    });
+    expect(f.exp_verb_first).toBe(true);
+    expect(f.exp_quantified).toBe(true);
+  });
+
+  it('inline-bulleted single line splits into multiple bullets', () => {
+    const f = flags({
+      section: 'experience',
+      language: 'en',
+      content: {
+        entries: [
+          {
+            position: 'Dev',
+            company: 'X',
+            startDate: '01/2024',
+            description: '• Built API • Optimized DB • Led team of 3',
+          },
+        ],
+      } as never,
+    });
+    expect(f.exp_verb_first).toBe(true);
+  });
+
+  it('non-empty section that fails everything → "Cần cải thiện", not "Chưa có thông tin"', () => {
+    const res = svc.evaluate({
+      section: 'summary',
+      // short + first-person + filler + double-space/"!!" typos → all 5 criteria fail → score 0
+      language: 'vi',
+      content: { summary: 'tôi  nhiệt tình!!' } as never,
+    });
+    expect(res.score).toBe(0);
+    expect(res.label).toBe('Cần cải thiện'); // nonEmpty floor, NOT "Chưa có thông tin"
+  });
+
   it('skills: role-rubric gap surfaces missing in-demand skills', () => {
     const res = svc.evaluate({
       section: 'skills',

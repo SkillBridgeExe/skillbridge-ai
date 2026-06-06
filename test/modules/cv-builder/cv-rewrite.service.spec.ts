@@ -63,6 +63,26 @@ describe('CvRewriteService (mocked LLM)', () => {
     expect(res.suggestion).toBe('Led the migration to TypeScript.');
   });
 
+  it('emphasis idioms (24/7, 100%) do NOT trigger false fallback', async () => {
+    const { svc } = build('Monitored production servers 24/7.');
+    const res = await svc.rewrite({ text: 'monitored servers', mode: 'harvard' });
+    expect(res.fallback).toBeFalsy();
+    expect(res.suggestion).toContain('24/7');
+  });
+
+  it('GUARDRAIL: fabricated bare number alongside a dotted version is caught (no separator collision)', async () => {
+    // input has "1.5.0" → digits ["150"]; output invents "150 users" → must be flagged
+    const { svc } = build('Built version 1.5.0 of the parser, serving 150 users.');
+    const res = await svc.rewrite({ text: 'Built version 1.5.0 of the parser', mode: 'harvard' });
+    expect(res.fallback).toBe(true);
+  });
+
+  it('does NOT mangle a boundary-quoted product name', async () => {
+    const { svc } = build('"QuickPay" launched to users');
+    const res = await svc.rewrite({ text: 'launched QuickPay', mode: 'harvard' });
+    expect(res.suggestion).toBe('"QuickPay" launched to users'); // balanced-wrap only, untouched
+  });
+
   it('caches identical requests (one LLM call)', async () => {
     const { svc, llm } = build('Optimized the API.');
     const req = { text: 'made the api better', mode: 'harvard' as const };
