@@ -30,7 +30,14 @@ export interface JobRecommendation {
 
 export interface JobRecommendationResponse {
   cv_id: string;
+  /** Size of the candidate pool considered (active/canonical, role-filtered). */
   pool_size: number;
+  /** Total ranked recommendations available — paginate with limit/offset to "see all". */
+  total: number;
+  /** Page size applied (default 5 for the headline; up to 50). */
+  limit: number;
+  /** Page offset applied (0-based). */
+  offset: number;
   recommendations: JobRecommendation[];
 }
 
@@ -78,10 +85,12 @@ export class JobRecommendationService {
   async recommendForCv(
     userId: string,
     cvId: string,
-    options: { limit?: number; roleCode?: string } = {},
+    options: { limit?: number; offset?: number; roleCode?: string } = {},
   ): Promise<JobRecommendationResponse> {
+    // Default 5 (the headline top-5); cap 50/page so "see all" can paginate without huge payloads.
     // Number(NaN)||5 → a non-numeric ?limit falls back to 5 (not an empty result); 0→1 via Math.max.
-    const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 20);
+    const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 50);
+    const offset = Math.max(Number(options.offset) || 0, 0);
 
     // 1. Ownership + CV skills (persisted by the CV review pipeline).
     const cvRows = await this.db.query<{ id: string }>(
@@ -122,7 +131,14 @@ export class JobRecommendationService {
       [options.roleCode ?? null],
     );
     if (candidates.length === 0 || cvCanonicals.length === 0) {
-      return { cv_id: cvId, pool_size: candidates.length, recommendations: [] };
+      return {
+        cv_id: cvId,
+        pool_size: candidates.length,
+        total: 0,
+        limit,
+        offset,
+        recommendations: [],
+      };
     }
 
     // 3. Signal A — deterministic skill match per candidate (pure code, reproducible).
@@ -183,12 +199,15 @@ export class JobRecommendationService {
       rankB = [];
     }
 
-    // 5. RRF fuse → top N.
+    // 5. RRF fuse → full ranking, then slice the requested page (stable tiebreak by job_id so
+    // page boundaries are reproducible across requests — required for correct pagination).
     const fused = rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]);
-    const ordered = [...fused.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+    const allRanked = [...fused.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const total = allRanked.length;
+    const page = allRanked.slice(offset, offset + limit);
 
     const byId = new Map(candidates.map((c) => [c.id, c]));
-    const recommendations: JobRecommendation[] = ordered.map(([jobId], i) => {
+    const recommendations: JobRecommendation[] = page.map(([jobId], i) => {
       const job = byId.get(jobId)!;
       const diff = diffByJob.get(jobId)!;
       return {
@@ -205,7 +224,8 @@ export class JobRecommendationService {
         posted_at: job.posted_at,
         match_score: diff.overall_score,
         semantic_similarity: simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
-        rank: i + 1,
+        rank: offset + i + 1, // global rank (1 = best), stable across pages
+
         matched_skills: diff.matched_skills.map((s) => s.display_name),
         missing_skills: diff.missing_skills.map((s) => ({
           display_name: s.display_name,
@@ -214,6 +234,6 @@ export class JobRecommendationService {
       };
     });
 
-    return { cv_id: cvId, pool_size: candidates.length, recommendations };
+    return { cv_id: cvId, pool_size: candidates.length, total, limit, offset, recommendations };
   }
 }

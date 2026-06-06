@@ -19,16 +19,20 @@ export class JobsController {
 
   @Get(':cvId/job-recommendations')
   @ApiOperation({
-    summary: 'Top job recommendations for a CV (hybrid: skill-match + embedding, RRF-fused)',
+    summary:
+      'Job recommendations for a CV (hybrid skill-match + embedding, RRF-fused). ' +
+      'Paginated: default top 5; pass ?limit=&offset= (limit≤50) to browse ALL — response carries `total`.',
   })
   recommend(
     @CurrentUser() user: JwtUser,
     @Param('cvId') cvId: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
     @Query('role') role?: string,
   ): Promise<JobRecommendationResponse> {
     return this.reco.recommendForCv(user.userId, cvId, {
       limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
       roleCode: role,
     });
   }
