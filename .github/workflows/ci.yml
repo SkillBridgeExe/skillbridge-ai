@@ -1,0 +1,44 @@
+name: CI
+
+# Gate every push/PR to main: lint + typecheck(build) + the full jest suite
+# (incl. the no-quota deterministic R1 specs). Catches regressions before merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # pnpm via the version pinned in package.json#packageManager (11.3.0).
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      # --trust-lockfile: skip pnpm 11.3's supply-chain re-verification (the lockfile
+      # is committed/trusted) — same flag the Dockerfile uses. pnpm-workspace.yaml
+      # carries allowBuilds so native deps (bcrypt, tesseract.js) compile.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --trust-lockfile
+
+      - name: Lint (no autofix — fail on any error)
+        run: pnpm exec eslint "{src,test}/**/*.ts"
+
+      - name: Typecheck + build
+        run: pnpm run build
+
+      - name: Test (jest)
+        run: pnpm test
