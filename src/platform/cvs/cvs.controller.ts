@@ -6,6 +6,7 @@ import {
   Header,
   Param,
   Post,
+  Put,
   Query,
   Res,
   UploadedFile,
@@ -18,8 +19,10 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
@@ -27,9 +30,18 @@ import { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+import { EvaluateSectionRequestDto } from '../../modules/cv-builder/dto/evaluate-section.dto';
+import { RewriteRequestDto } from '../../modules/cv-builder/dto/rewrite.dto';
+import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
+import {
+  CREATE_BUILDER_BODY_EXAMPLES,
+  EVALUATE_BUILDER_BODY_EXAMPLES,
+  REWRITE_BUILDER_BODY_EXAMPLES,
+  UPDATE_BUILDER_BODY_EXAMPLES,
+} from './openapi/cv-builder-openapi.examples';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -91,6 +103,22 @@ export class CvsController {
     return this.cvs.create(user.userId, dto, file);
   }
 
+  @Post('builder')
+  @ApiOperation({
+    summary: 'Create a CV Builder draft',
+    description:
+      'Creates a BUILT CV row seeded from an owned CV parsed_json, the latest parsed upload, or an empty canonical CV. Does not upload a file or run AI diagnosis.',
+  })
+  @ApiBody({
+    type: CreateBuilderCvDto,
+    description:
+      'All fields are optional. Omit sourceCvId to seed from latest parsed upload or create a blank CV.',
+    examples: CREATE_BUILDER_BODY_EXAMPLES,
+  })
+  createBuilder(@CurrentUser() user: JwtUser, @Body() dto: CreateBuilderCvDto) {
+    return this.cvs.createBuilderDraft(user.userId, dto);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'List uploaded CVs for the current user',
@@ -117,6 +145,98 @@ export class CvsController {
   @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
   get(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.cvs.get(user.userId, id);
+  }
+
+  @Put(':id/builder')
+  @ApiOperation({
+    summary: 'Autosave a CV Builder draft',
+    description: 'Updates parsed_json on an owned BUILT CV row. Does not parse or score.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  @ApiBody({
+    type: UpdateBuilderCvDto,
+    description:
+      'parsedJson is required and must be the full CanonicalCvDocument. title, targetRole, and language are optional.',
+    examples: UPDATE_BUILDER_BODY_EXAMPLES,
+  })
+  updateBuilder(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateBuilderCvDto,
+  ) {
+    return this.cvs.updateBuilderDraft(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/evaluate')
+  @ApiOperation({
+    summary: 'Evaluate one CV Builder section',
+    description:
+      'Checks ownership, then delegates to the internal deterministic section evaluator.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  @ApiBody({
+    type: EvaluateSectionRequestDto,
+    description:
+      'section and content are required. role_code and language are optional. content shape depends on section.',
+    examples: EVALUATE_BUILDER_BODY_EXAMPLES,
+  })
+  evaluateBuilderSection(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: EvaluateSectionRequestDto,
+  ) {
+    return this.cvs.evaluateBuilderSection(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/rewrite')
+  @ApiOperation({
+    summary: 'Rewrite one CV Builder field',
+    description: 'Checks ownership, then delegates to the internal AI rewrite service.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  @ApiBody({
+    type: RewriteRequestDto,
+    description:
+      'text and mode are required. target_lang is required only for translate. instruction is required only for custom.',
+    examples: REWRITE_BUILDER_BODY_EXAMPLES,
+  })
+  rewriteBuilderText(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: RewriteRequestDto,
+  ) {
+    return this.cvs.rewriteBuilderText(user.userId, id, dto);
+  }
+
+  @Post(':id/render-pdf')
+  @Header('Cache-Control', 'private, no-store')
+  @ApiProduces('application/pdf')
+  @ApiOperation({
+    summary: 'Render a CV Builder draft as Harvard PDF',
+    description:
+      'Renders from parsed_json on demand and returns the PDF bytes without GCS storage.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  @ApiOkResponse({
+    description: 'Raw PDF file bytes. This endpoint does not return the JSON response envelope.',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async renderPdf(@CurrentUser() user: JwtUser, @Param('id') id: string, @Res() res: Response) {
+    const rendered = await this.cvs.renderPdf(user.userId, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', rendered.buffer.length.toString());
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${sanitizeFileName(rendered.fileName)}"`,
+    );
+    res.end(rendered.buffer);
   }
 
   @Get(':id/file')
