@@ -75,10 +75,18 @@ export class OpenAiProvider implements LlmProviderClient {
 
     let parsedJson: unknown | undefined;
     if (options.jsonMode) {
+      const finishReason = response.choices[0]?.finish_reason;
+      // Fail loudly (mirror the Gemini provider): an empty or length-truncated body must NOT be
+      // returned as `undefined` and silently coerced to an empty document downstream.
+      if (!text || finishReason === 'length') {
+        throw new Error(
+          `OpenAI returned ${!text ? 'empty' : 'truncated (finish_reason=length)'} JSON output; model=${modelCode}`,
+        );
+      }
       try {
         parsedJson = JSON.parse(text);
       } catch (err) {
-        this.logger.warn(`Failed to parse JSON output: ${(err as Error).message}`);
+        throw new Error(`OpenAI JSON parse failed (${(err as Error).message}); model=${modelCode}`);
       }
     }
 

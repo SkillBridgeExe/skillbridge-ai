@@ -123,13 +123,26 @@ export class CvReviewService {
       // Replace the LLM's action_verbs estimate (+ its rationale & section feedback) with the
       // analyzer's reproducible, injection-resistant result computed from the STRUCTURED document.
       const bulletAnalysis = this.bulletAnalyzer.analyze(document);
-      const routed = this.routeDimension1(llmParsed, bulletAnalysis);
+      // Dim-1 deterministic routing OVERRIDES the LLM, but the analyzer's verb lexicons are EN+VI
+      // only — for any other detected language it would force the floor band on a strong CV. So
+      // route deterministically ONLY for vi/en; otherwise keep the LLM's action_verbs estimate
+      // (the model can actually read the language). Signals are still surfaced for transparency.
+      const dim1Supported = document.language === 'vi' || document.language === 'en';
+      const routed = dim1Supported ? this.routeDimension1(llmParsed, bulletAnalysis) : llmParsed;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
       const llm_normalized = Math.round((routed.llm_total / 80) * 100);
-      const overall_score = Math.round(
-        atsCheck.ats_rule_score * this.RULE_WEIGHT +
-          (routed.llm_total / 80) * 100 * this.LLM_WEIGHT,
+      // Clamp to [0,100] before persistence: total_score is numeric(5,2), and a future weight
+      // mis-tune must surface as a clamped score, not a numeric-overflow 500 after LLM spend.
+      const overall_score = Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            atsCheck.ats_rule_score * this.RULE_WEIGHT +
+              (routed.llm_total / 80) * 100 * this.LLM_WEIGHT,
+          ),
+        ),
       );
       const confidence_score = this.computeConfidence(
         atsCheck.summary.failed,
@@ -158,6 +171,22 @@ export class CvReviewService {
         scoring_weights_version: scoringWeights.version,
       };
 
+      // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
+      // "a SUCCESS ai_request always has an ai_result" holds. If this write fails, the catch
+      // marks the (still-PENDING) row FAILED instead of leaving an orphan SUCCESS with no result.
+      await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'cv_review',
+        // Persist a PII-redacted copy (mask emails + phones, drop contact identity + rule evidence).
+        // The full data is still returned to the (authenticated) caller below — only the trace.
+        rawResponse: this.maskPii(llmResult.text ?? JSON.stringify(llmResult.rawResponse)),
+        parsedResponse: this.redactForTrace(parsedResponse),
+        totalScore: overall_score,
+        confidenceScore: confidence_score,
+        tokenUsage: combinedTokens,
+      });
+
       await this.tracing.completeAiRequest(aiRequestId, {
         promptTokens: llmResult.tokenUsage.promptTokens,
         completionTokens: llmResult.tokenUsage.completionTokens,
@@ -165,19 +194,6 @@ export class CvReviewService {
         latencyMs: llmResult.latencyMs,
         status: 'SUCCESS',
         modelCode: llmResult.modelCode,
-      });
-
-      await this.tracing.saveAiResult({
-        aiRequestId,
-        userId,
-        resultType: 'cv_review',
-        // #9/#13: persist a PII-redacted copy (mask emails + drop contact identity). The full
-        // data is still returned to the (authenticated) caller below — only the trace is redacted.
-        rawResponse: this.maskEmails(llmResult.text ?? JSON.stringify(llmResult.rawResponse)),
-        parsedResponse: this.redactForTrace(parsedResponse),
-        totalScore: overall_score,
-        confidenceScore: confidence_score,
-        tokenUsage: combinedTokens,
       });
 
       return {
@@ -314,23 +330,40 @@ export class CvReviewService {
     return text.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[redacted-email]');
   }
 
+  /** Mask VN / international phone numbers (CV PII) in an arbitrary string. */
+  private maskPhones(text: string): string {
+    return text.replace(/(?:\+?84|0)[\s.\-]?\d(?:[\s.\-]?\d){7,9}/g, '[redacted-phone]');
+  }
+
+  /** Mask all PII (emails + phones) before persisting any string to the trace. */
+  private maskPii(text: string): string {
+    return this.maskPhones(this.maskEmails(text));
+  }
+
   /**
    * #9/#13: redact PII before persisting to ai_results — mask emails everywhere and drop
    * contact identity fields. Date ranges / scores are untouched (no broad number masking).
    */
   private redactForTrace(parsed: CvReviewParsedResponse): CvReviewParsedResponse {
-    const clone = JSON.parse(this.maskEmails(JSON.stringify(parsed))) as CvReviewParsedResponse;
+    const clone = JSON.parse(this.maskPii(JSON.stringify(parsed))) as CvReviewParsedResponse;
     if (clone.document?.contact) {
       clone.document.contact.name = null;
       clone.document.contact.email = null;
       clone.document.contact.phone = null;
       clone.document.contact.location = null;
+      clone.document.contact.links = []; // a portfolio/GitHub URL often embeds the candidate's real name
     }
     for (const extracted of [clone.ats_extracted, clone.parsed_cv]) {
       if (extracted) {
         extracted.name = null;
         extracted.email = null;
         extracted.phone = null;
+      }
+    }
+    // ATS rule evidence quotes the raw matched email/phone verbatim — drop those from the trace.
+    if (clone.ats_check?.rules) {
+      for (const r of clone.ats_check.rules) {
+        if (r.rule_id === 'email_present' || r.rule_id === 'phone_present') r.evidence = undefined;
       }
     }
     return clone;
