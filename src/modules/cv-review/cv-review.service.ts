@@ -7,13 +7,72 @@ import {
   CvReviewParsedResponse,
   CvReviewResponseDto,
   CvReviewSectionIssue,
+  CvSkillExtracted,
+  SkillBreakdownItem,
+  SkillsRelevanceBreakdown,
+  TopSummary,
 } from './dto/cv-review-response.dto';
 import { CvReviewLlmRawOutput, CvReviewParser } from './cv-review.parser';
-import { AtsRuleCheckerService } from './ats-rule-checker.service';
+import { AtsCheckResult, AtsRuleCheckerService } from './ats-rule-checker.service';
+import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
 import scoringWeights from './scoring-weights-v1.json';
+
+// Bilingual action templates for the deterministic top_summary, keyed by ATS rule_id.
+const ATS_ACTION: Record<string, { vi: string; en: string; impact: number }> = {
+  file_format_acceptable: {
+    impact: 95,
+    vi: 'Xuất CV bản text (PDF/DOCX), không dùng ảnh — ATS không đọc được CV ảnh.',
+    en: 'Export a text-based CV (PDF/DOCX), not an image — ATS cannot read image CVs.',
+  },
+  has_section_skills: {
+    impact: 80,
+    vi: 'Bổ sung mục Kỹ năng (≥3 kỹ năng kỹ thuật + công cụ).',
+    en: 'Add a Skills section (≥3 technical skills + tools).',
+  },
+  has_section_experience: {
+    impact: 78,
+    vi: 'Thêm Kinh nghiệm hoặc Dự án có mô tả kết quả.',
+    en: 'Add Experience or Projects with outcome-focused bullets.',
+  },
+  has_section_contact: {
+    impact: 70,
+    vi: 'Thêm thông tin liên hệ (họ tên + email + SĐT) ở đầu CV.',
+    en: 'Add contact info (full name + email + phone) at the top.',
+  },
+  email_present: {
+    impact: 66,
+    vi: 'Thêm email chuyên nghiệp.',
+    en: 'Add a professional email address.',
+  },
+  has_section_education: {
+    impact: 60,
+    vi: 'Thêm mục Học vấn (trường, ngành, thời gian).',
+    en: 'Add an Education section (school, major, dates).',
+  },
+  no_excessive_repetition: {
+    impact: 60,
+    vi: 'Thay cụm "chịu trách nhiệm / tham gia" bằng động từ hành động.',
+    en: 'Replace "responsible for / participated in" with action verbs.',
+  },
+  dates_present: {
+    impact: 58,
+    vi: 'Thêm mốc thời gian (MM/YYYY - MM/YYYY) cho mỗi mục.',
+    en: 'Add date ranges (MM/YYYY - MM/YYYY) to each entry.',
+  },
+  phone_present: {
+    impact: 55,
+    vi: 'Thêm số điện thoại liên hệ.',
+    en: 'Add a contact phone number.',
+  },
+  reasonable_length: {
+    impact: 45,
+    vi: 'Điều chỉnh độ dài CV về ~1 trang, đủ chi tiết.',
+    en: 'Adjust CV length toward ~1 page with enough detail.',
+  },
+};
 
 /**
  * Hybrid CV review:
@@ -48,6 +107,7 @@ export class CvReviewService {
     private readonly cvParser: CvParserService,
     private readonly roleRubric: RoleRubricService,
     private readonly bulletAnalyzer: BulletAnalyzerService,
+    private readonly skillDiff: SkillDiffService,
   ) {
     const sum = this.RULE_WEIGHT + this.LLM_WEIGHT;
     if (Math.abs(sum - 1) > 1e-9) {
@@ -152,6 +212,19 @@ export class CvReviewService {
       // Stage-1 parse tokens are aggregated only into the result-level total below.
       const combinedTokens = llmResult.tokenUsage.totalTokens + parse.tokenUsage;
 
+      // Dim-2 transparency + top-of-page verdict — both DETERMINISTIC (no extra LLM call).
+      const skills_relevance_breakdown = this.buildSkillBreakdown(
+        routed.ats_extracted.skills_extracted,
+        input.target_role,
+      );
+      const top_summary = this.buildTopSummary({
+        overallScore: overall_score,
+        atsCheck,
+        analysis: bulletAnalysis,
+        breakdown: skills_relevance_breakdown,
+        language: document.language,
+      });
+
       const parsedResponse: CvReviewParsedResponse = {
         language: document.language,
         document,
@@ -169,6 +242,8 @@ export class CvReviewService {
         // non-LLM labels). scoring_weights_version pins which weight set produced overall_score.
         action_verbs_analysis: bulletAnalysis,
         scoring_weights_version: scoringWeights.version,
+        skills_relevance_breakdown,
+        top_summary,
       };
 
       // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
@@ -367,5 +442,130 @@ export class CvReviewService {
       }
     }
     return clone;
+  }
+
+  /**
+   * Deterministic Dimension-2 breakdown via SkillDiffService (the SAME engine as CV-JD match —
+   * no new scoring logic). Display-only: it does NOT change the LLM's skills_relevance score yet.
+   * Returns null when there is no seeded rubric for the target role.
+   */
+  private buildSkillBreakdown(
+    skills: CvSkillExtracted[],
+    targetRole?: string,
+  ): SkillsRelevanceBreakdown | null {
+    if (!targetRole || !this.roleRubric.getRubric(targetRole)) return null;
+    const diff = this.skillDiff.diff({
+      cv_skills_raw: skills.map((s) => ({
+        name: s.name,
+        proficiency_hint: s.proficiency_hint,
+        evidence_text: s.evidence_text ?? undefined,
+      })),
+      target_role: targetRole,
+    });
+    const item = (s: {
+      display_name: string;
+      importance: string;
+      required_level: number;
+      cv_level?: number;
+    }): SkillBreakdownItem => ({
+      name: s.display_name,
+      importance: s.importance,
+      required_level: s.required_level,
+      ...(s.cv_level !== undefined ? { cv_level: s.cv_level } : {}),
+    });
+    return {
+      matched: diff.matched_skills.map(item),
+      partial: diff.partial_skills.map(item),
+      missing: diff.missing_skills.map(item),
+    };
+  }
+
+  /**
+   * Deterministic "fix these first" verdict — ranks the highest-impact issues from the ATS
+   * failures, the Dim-1 signals (quantified / verb-first), and the missing role skills, in the
+   * CV's own language. No extra LLM call — pure ranking over data already computed.
+   */
+  private buildTopSummary(ctx: {
+    overallScore: number;
+    atsCheck: AtsCheckResult;
+    analysis: BulletAnalysis;
+    breakdown: SkillsRelevanceBreakdown | null;
+    language: string;
+  }): TopSummary {
+    const vi = ctx.language === 'vi';
+    const pct = (r: number) => `${Math.round(r * 100)}%`;
+    const a = ctx.analysis;
+    const actions: { impact: number; text: string }[] = [];
+
+    if (a.bulletCount > 0 && a.quantifiedRatio < 0.5) {
+      actions.push({
+        impact: 92,
+        text: vi
+          ? `Thêm số liệu vào thành tích (hiện chỉ ${pct(a.quantifiedRatio)} bullet có số) — vd "giảm 40% thời gian tải".`
+          : `Quantify your achievements (only ${pct(a.quantifiedRatio)} of bullets have numbers) — e.g. "cut load time 40%".`,
+      });
+    }
+    if (ctx.breakdown && ctx.breakdown.missing.length > 0) {
+      const names = ctx.breakdown.missing
+        .slice(0, 3)
+        .map((m) => m.name)
+        .join(', ');
+      actions.push({
+        impact: 88,
+        text: vi
+          ? `Bổ sung kỹ năng còn thiếu cho vị trí: ${names}.`
+          : `Add the role's missing skills: ${names}.`,
+      });
+    }
+    if (a.bulletCount > 0 && a.verbFirstRatio < 0.8) {
+      actions.push({
+        impact: 84,
+        text: vi
+          ? `Mở đầu mỗi bullet bằng động từ hành động mạnh (Xây dựng, Tối ưu, Dẫn dắt) — hiện ${pct(a.verbFirstRatio)} đạt.`
+          : `Start each bullet with a strong action verb (Built, Optimized, Led) — only ${pct(a.verbFirstRatio)} do today.`,
+      });
+    }
+    for (const r of ctx.atsCheck.rules) {
+      if (r.status === 'pass') continue;
+      const m = ATS_ACTION[r.rule_id];
+      if (m) {
+        actions.push({
+          impact: r.status === 'fail' ? m.impact : m.impact - 15,
+          text: vi ? m.vi : m.en,
+        });
+      }
+    }
+    if (a.bulletCount > 0 && a.firstPersonRatio > 0) {
+      actions.push({
+        impact: 48,
+        text: vi
+          ? 'Bỏ đại từ ngôi thứ nhất ("tôi/em") trong bullet — dùng chủ ngữ ẩn.'
+          : 'Drop first-person pronouns ("I") from bullets — use the implied subject.',
+      });
+    }
+
+    actions.sort((x, y) => y.impact - x.impact);
+    const prioritized_actions: string[] = [];
+    for (const x of actions) {
+      if (prioritized_actions.length >= 3) break;
+      if (!prioritized_actions.includes(x.text)) prioritized_actions.push(x.text);
+    }
+
+    const band = vi
+      ? ctx.overallScore >= 80
+        ? 'mạnh'
+        : ctx.overallScore >= 60
+          ? 'khá'
+          : 'cần cải thiện'
+      : ctx.overallScore >= 80
+        ? 'strong'
+        : ctx.overallScore >= 60
+          ? 'decent'
+          : 'needs work';
+    const headline = vi
+      ? `CV của bạn đang ở mức ${band} (${ctx.overallScore}/100).${prioritized_actions.length ? ` Ưu tiên: ${prioritized_actions[0]}` : ''}`
+      : `Your CV is ${band} (${ctx.overallScore}/100).${prioritized_actions.length ? ` Top fix: ${prioritized_actions[0]}` : ''}`;
+
+    return { headline, prioritized_actions };
   }
 }
