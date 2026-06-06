@@ -42,6 +42,20 @@ export interface BulletAnalysis extends BulletSignals {
   notes: string[];
 }
 
+/** Per-line flags for ONE bullet/sentence — used by the cv-builder live evaluator (R1b). */
+export interface LineCheck {
+  /** Starts with a strong action verb (and not a weak duty opener). */
+  verbFirst: boolean;
+  /** Contains a quantified result (number/%/$/unit, or bare number + impact cue). */
+  quantified: boolean;
+  /** Opens with a weak/passive/duty phrase ("Responsible for…", "Phụ trách…"). */
+  weakOpener: boolean;
+  /** Uses first-person ("my", "tôi", "em" — VI markers only on vi). */
+  firstPerson: boolean;
+  /** Filler/buzzword occurrences ("hardworking", "nhiệt tình", …). */
+  fillerCount: number;
+}
+
 // ─── Lexicons (lowercased) ───────────────────────────────────────────────────
 // Strong action verbs. EN single-word + VI single/two-word (VI verbs are often 2 words).
 const STRONG_VERBS_EN = new Set([
@@ -362,6 +376,25 @@ export class BulletAnalyzerService {
       actionVerbsScore,
       band: toBand(actionVerbsScore),
       notes: this.notes(verbFirstRatio, quantifiedRatio, weakOpenerRatio, firstPersonRatio, filler),
+    };
+  }
+
+  /**
+   * Per-line check for ONE bullet/sentence (R1b live evaluator). SAME heuristics as
+   * analyze() — single source of truth for the lexicons/regexes. Deterministic.
+   */
+  checkLine(text: string, language: 'vi' | 'en' = 'en'): LineCheck {
+    const b = (text ?? '').trim();
+    const lower = b.toLowerCase();
+    const fpMarkers =
+      language === 'vi' ? [...FIRST_PERSON_EN, ...FIRST_PERSON_VI] : FIRST_PERSON_EN;
+    const weakOpener = this.isWeakOpener(lower);
+    return {
+      weakOpener,
+      verbFirst: !weakOpener && this.isVerbFirst(lower),
+      quantified: this.isQuantified(b),
+      firstPerson: fpMarkers.some((re) => re.test(lower)),
+      fillerCount: this.countFiller(lower),
     };
   }
 
