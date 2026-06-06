@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { DatabaseOrmModule } from './database/database-orm.module';
 import { AuthModule } from './platform/auth/auth.module';
@@ -13,6 +13,7 @@ import configuration from './config/configuration';
 import { configValidationSchema } from './config/validation';
 
 import { InternalAuthGuard } from './common/guards/internal-auth.guard';
+import { UserAwareThrottlerGuard } from './common/guards/user-throttler.guard';
 
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { VectorModule } from './infrastructure/vector/vector.module';
@@ -87,9 +88,10 @@ const PLATFORM_MODULES =
   ],
   providers: [
     // Rate limiting (public-facing) — runs before the auth guards.
+    // User-aware: keys by userId when present, else client IP (see guard for the ordering note).
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: UserAwareThrottlerGuard,
     },
     // Global guard: every /internal/ai/* route requires X-Internal-Auth.
     // Public routes (e.g. /health, /api/auth/*) opt out via @Public() decorator.
