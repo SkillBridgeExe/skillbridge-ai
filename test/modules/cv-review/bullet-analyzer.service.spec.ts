@@ -208,4 +208,65 @@ describe('BulletAnalyzerService', () => {
     const a = svc.analyze(docWith(['Designed a system using REM and EM units across the app']));
     expect(a.firstPersonRatio).toBe(0);
   });
+
+  // ─── review fixes (R1 hardening — 3-lens adversarial review) ─────────────
+
+  it('counts gerund / present-participle openers as verb-first ("Building", "Leading", "Implementing")', () => {
+    const a = svc.analyze(
+      docWith([
+        'Building scalable microservices for the platform',
+        'Leading the migration to TypeScript',
+        'Implementing OAuth2 across the app',
+        'Optimizing slow queries and refactoring the auth module',
+      ]),
+    );
+    expect(a.verbFirstRatio).toBe(1);
+    expect(a.band).not.toBe('beginning');
+  });
+
+  it('counts single-digit / small-team metrics as quantified ("team of 5", "5 engineers", "5 juniors")', () => {
+    expect(
+      svc.analyze(docWith(['Led a team of 5 engineers on the checkout rewrite'])).quantifiedRatio,
+    ).toBe(1);
+    expect(
+      svc.analyze(docWith(['Mentored 5 juniors during the internship program'])).quantifiedRatio,
+    ).toBe(1);
+    expect(svc.analyze(docWith(['Built a team of 4 to ship the MVP'])).quantifiedRatio).toBe(1);
+  });
+
+  it('VI "em"/"mình" only fire as a leading subject pronoun, not on mid-sentence English terms', () => {
+    // Mid-sentence "EM" (Expectation-Maximization / CSS unit) inside a VI CV must NOT flag first-person.
+    const clean = svc.analyze(docWith(['Triển khai mô hình EM cho 5 tập dữ liệu'], 'vi'));
+    expect(clean.firstPersonRatio).toBe(0);
+    // A genuine leading first-person pronoun still IS flagged.
+    const fp = svc.analyze(docWith(['Em phát triển hệ thống cho 5000 người dùng'], 'vi'));
+    expect(fp.firstPersonRatio).toBe(1);
+  });
+
+  it('band aligns with methodology: ≥80% verb-first reaches exemplary ONLY at ≥50% quantified', () => {
+    const lowQuant = svc.analyze(
+      docWith([
+        'Built the onboarding screen',
+        'Designed the data model',
+        'Refactored the auth module',
+        'Reduced API latency by 40%', // 1/4 quantified = 0.25
+      ]),
+    );
+    expect(lowQuant.verbFirstRatio).toBe(1);
+    expect(lowQuant.quantifiedRatio).toBe(0.25);
+    expect(lowQuant.actionVerbsScore).toBe(17); // base 15 + bonus 2 — NOT exemplary
+    expect(lowQuant.band).toBe('accomplished');
+
+    const highQuant = svc.analyze(
+      docWith([
+        'Built the onboarding screen for 2000 users',
+        'Designed the data model cutting query time 30%',
+        'Refactored the auth module',
+        'Reduced API latency by 40%', // 3/4 quantified ≥ 0.5
+      ]),
+    );
+    expect(highQuant.quantifiedRatio).toBeGreaterThanOrEqual(0.5);
+    expect(highQuant.actionVerbsScore).toBe(20);
+    expect(highQuant.band).toBe('exemplary');
+  });
 });

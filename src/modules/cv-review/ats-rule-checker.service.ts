@@ -295,16 +295,21 @@ export class AtsRuleCheckerService {
     let dated = 0;
     for (const e of doc.education) if (e.start || e.end) dated++;
     for (const e of doc.experience) if (e.start || e.end) dated++;
-    if (dated >= 2) {
+    // Student-lenient (consistent with ruleHasExperienceOrProjects, which treats projects as a
+    // valid experience substitute): a real dated entry PLUS projects forms a credible timeline,
+    // so a projects-heavy fresher CV is not unfairly capped. A CV with NO real date still warns,
+    // and one with neither dates nor projects still fails.
+    const hasProjects = doc.projects.length > 0;
+    if (dated >= 2 || (dated >= 1 && hasProjects)) {
       return { rule_id: id, label, status: 'pass', score: 1 };
     }
-    if (dated === 1) {
+    if (dated === 1 || hasProjects) {
       return {
         rule_id: id,
         label,
         status: 'warn',
         score: 0.5,
-        hint: 'Chỉ 1 mục có mốc thời gian. Mỗi vị trí/học vấn cần start-end date rõ ràng.',
+        hint: 'Timeline còn mỏng. Mỗi vị trí/học vấn/dự án nên có mốc "MM/YYYY - MM/YYYY".',
       };
     }
     return {

@@ -114,6 +114,8 @@ const STRONG_VERBS_EN = new Set([
   'maintained',
   'researched',
   'wrote',
+  'code',
+  'coded',
   'redesigned',
   'rebuilt',
   'cut',
@@ -291,9 +293,11 @@ const FIRST_PERSON_EN = [
   /\bi was\b/,
   /\bmyself\b/,
 ];
-// VI markers are applied ONLY to vi-language CVs — bare "em" / "mình" false-fire on English
-// ("em" is a CSS unit / "em-dash"), so gating them on language avoids a wrong note on EN CVs.
-const FIRST_PERSON_VI = [/\btôi\b/, /\bem\b/, /\bmình\b/, /của tôi/, /của em/];
+// Match VI first-person ONLY as a sentence-leading subject pronoun ("Em phát triển…") or in a
+// possessive phrase ("của em"). Bare \bem\b / \bmình\b mid-sentence false-fire on English tech
+// terms that appear inside VI CVs ("EM" = CSS unit / Expectation-Maximization), so they are not
+// matched anywhere except at the start. ("tôi" is unambiguous, kept as a free marker.)
+const FIRST_PERSON_VI = [/\btôi\b/, /của tôi/, /của em/, /của mình/, /^(?:tôi|em|mình)\b/];
 
 // Quantified impact: %, $, "by N", "Nx", "N+", or a number followed by a meaningful unit
 // (EN + VI). Decimals supported (99.9%, 1.5x).
@@ -304,17 +308,20 @@ const QUANT = new RegExp(
     'by\\s+\\d', // by 30
     '\\d+(?:[.,]\\d+)?\\s?x\\b', // 3x / 1.5x
     '\\d+\\+', // 20+
+    '(?:team|group|squad|cohort|nhóm|đội)\\s+(?:of\\s+)?\\d', // "team of 5" / "nhóm 5" — small-count impact
     // Trailing boundary is a Unicode-aware lookahead (NOT \b — JS \b is ASCII-only and would
     // reject VI units ending in a diacritic, e.g. "200 giờ" / "1 tỷ", systematically
     // under-scoring Vietnamese CVs). It still blocks prefix false-matches like "5 marketing"
     // (the bare "m"/"k" units), because the next char there is a letter.
-    '\\b\\d[\\d.,]*\\s*(?:users?|people|persons?|hours?|days?|weeks?|months?|years?|projects?|members?|teams?|customers?|downloads?|requests?|pages?|lines?|commits?|tests?|bugs?|prs?|endpoints?|apis?|features?|tickets?|releases?|screens?|records?|queries|stars?|points?|seconds?|secs?|ms|gb|mb|kb|tb|k|m|million|billion|nghìn|triệu|tỷ|giờ|ngày|tuần|tháng|năm|người|dự án|thành viên|khách hàng|lượt|dòng|bài|lỗi|tính năng|bản ghi|truy vấn|màn hình|điểm|phút|giây|đồng)(?=[^\\p{L}\\d]|$)',
+    '\\b\\d[\\d.,]*\\s*(?:users?|people|persons?|hours?|days?|weeks?|months?|years?|projects?|members?|teams?|customers?|engineers?|developers?|devs?|interns?|juniors?|designers?|testers?|analysts?|clients?|staff|downloads?|requests?|pages?|lines?|commits?|tests?|bugs?|prs?|endpoints?|apis?|features?|tickets?|releases?|screens?|records?|queries|stars?|points?|seconds?|secs?|ms|gb|mb|kb|tb|k|m|million|billion|nghìn|triệu|tỷ|giờ|ngày|tuần|tháng|năm|người|dự án|thành viên|khách hàng|lượt|dòng|bài|lỗi|tính năng|bản ghi|truy vấn|màn hình|điểm|phút|giây|đồng)(?=[^\\p{L}\\d]|$)',
   ].join('|'),
   'iu',
 );
 // Bare numbers (2-6 digits, not a year) only count as impact when the bullet ALSO shows an
 // impact cue — this prevents phone numbers, IDs, room/postal numbers from inflating the score.
-const BARE_NUMBER = /\b\d{2,6}\b/g;
+// 1-6 digits (year-filtered) — a SINGLE-digit count ("led 5 engineers", "reduced 8 bugs") is the
+// most common metric on junior/student CVs; it still only counts as impact behind an impact cue.
+const BARE_NUMBER = /\b\d{1,6}\b/g;
 const YEAR = /^(?:19|20)\d{2}$/;
 const IMPACT_CUE =
   /\b(?:reduc|increas|sav|cut|boost|gr[eo]w|serv|handl|process|improv|rais|lower|achiev|deliver|ship|launch|scal|drop|optimi|reach|grad)/i;
@@ -432,9 +439,11 @@ export class BulletAnalyzerService {
     const w1 = this.firstWords(lower, 1);
     const w2 = this.firstWords(lower, 2);
     const w3 = this.firstWords(lower, 3);
-    // EN verbs are single words (w1); VI verbs are 1-3 words ("tối ưu", "tái cấu trúc").
+    // EN verbs are single words (w1) — matched directly OR via lemma so gerund / present-
+    // participle / past forms also count ("Building"→build, "Leading"→lead, "Migrating"→migrate).
+    // VI verbs are 1-3 words ("tối ưu", "tái cấu trúc").
     return (
-      STRONG_VERBS_EN.has(w1) ||
+      isStrongEnVerb(w1) ||
       STRONG_VERBS_VI.has(w1) ||
       STRONG_VERBS_VI.has(w2) ||
       STRONG_VERBS_VI.has(w3)
@@ -466,9 +475,12 @@ export class BulletAnalyzerService {
     else if (verbFirstRatio >= 0.25) base = 7;
     else base = 3;
 
+    // Bonus aligned with the sourced methodology + the LLM rubric band it sits beside:
+    // the exemplary band (18-20) requires ~50% quantified, so only q≥0.5 adds the full bonus.
+    // A concrete-but-unquantified strong-verb CV is NOT down-scored below 'accomplished'.
     let bonus: number;
     if (quantifiedRatio >= 0.5) bonus = 5;
-    else if (quantifiedRatio >= 0.25) bonus = 3;
+    else if (quantifiedRatio >= 0.25) bonus = 2;
     else if (quantifiedRatio > 0) bonus = 1;
     else bonus = 0;
 
@@ -504,4 +516,30 @@ function toBand(score: number): BulletBand {
   if (score >= 13) return 'accomplished';
   if (score >= 7) return 'developing';
   return 'beginning';
+}
+
+/**
+ * Lemma-normalize an English word so gerund / present-participle / past forms collapse to one
+ * key. This lets a strong-verb set written in base+past forms ALSO match the "-ing"/"-ed"
+ * variants ("building"→build, "migrating"→migrat≡migrated, "optimizing"→optimiz≡optimized) —
+ * gerund-led bullets are a mainstream resume style and must not score as non-verb-first.
+ */
+function enLemma(w: string): string {
+  if (w.length > 5 && w.endsWith('ing')) {
+    const s = w.slice(0, -3);
+    return /(.)\1$/.test(s) ? s.slice(0, -1) : s; // running→run, shipping→ship
+  }
+  if (w.length > 4 && w.endsWith('ied')) return `${w.slice(0, -3)}y`; // studied→study
+  if (w.length > 4 && w.endsWith('ed')) {
+    const s = w.slice(0, -2);
+    return /(.)\1$/.test(s) ? s.slice(0, -1) : s; // optimized→optimiz, planned→plan
+  }
+  return w;
+}
+/** Lemma index of the strong-verb set, built once at module load. */
+const STRONG_LEMMAS_EN = new Set([...STRONG_VERBS_EN].map(enLemma));
+/** A word is a strong EN verb if it matches the set directly OR shares a lemma with it. */
+function isStrongEnVerb(w: string): boolean {
+  if (!w) return false;
+  return STRONG_VERBS_EN.has(w) || STRONG_LEMMAS_EN.has(enLemma(w));
 }
