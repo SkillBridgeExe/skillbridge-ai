@@ -7,8 +7,22 @@ const TRENDS: SkillTrendsResponse = {
   period: '2026-06-07',
   total_active_jobs: 200,
   skills: [
-    { canonical_name: 'security', display_name: 'Security', posting_count: 78, pct_of_postings: 39.3, salary_p50_vnd: 28000000, trend_delta: 2 },
-    { canonical_name: 'python', display_name: 'Python', posting_count: 54, pct_of_postings: 27.0, salary_p50_vnd: 25000000, trend_delta: 0 },
+    {
+      canonical_name: 'security',
+      display_name: 'Security',
+      posting_count: 78,
+      pct_of_postings: 39.3,
+      salary_p50_vnd: 28000000,
+      trend_delta: 2,
+    },
+    {
+      canonical_name: 'python',
+      display_name: 'Python',
+      posting_count: 54,
+      pct_of_postings: 27.0,
+      salary_p50_vnd: 25000000,
+      trend_delta: 0,
+    },
   ],
 };
 
@@ -36,8 +50,22 @@ const FACTS: TrendsInsightFacts = {
   total_active_jobs: 200,
   personalized: true,
   skills: [
-    { skill: 'security', display_name: 'Security', pct_of_postings: 39.3, trend_delta: 2, salary_p50_vnd: 28000000, covered: false },
-    { skill: 'python', display_name: 'Python', pct_of_postings: 27.0, trend_delta: 0, salary_p50_vnd: 25000000, covered: true },
+    {
+      skill: 'security',
+      display_name: 'Security',
+      pct_of_postings: 39.3,
+      trend_delta: 2,
+      salary_p50_vnd: 28000000,
+      covered: false,
+    },
+    {
+      skill: 'python',
+      display_name: 'Python',
+      pct_of_postings: 27.0,
+      trend_delta: 0,
+      salary_p50_vnd: 25000000,
+      covered: true,
+    },
   ],
 };
 

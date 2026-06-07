@@ -17,7 +17,13 @@ import { TrendsController } from './trends/trends.controller';
 @Module({
   imports: [CvJdMatchModule],
   controllers: [JobsController, TrendsController],
-  providers: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService, TrendsInsightService],
+  providers: [
+    JdIngestService,
+    ItviecCrawlerService,
+    JobRecommendationService,
+    SkillDemandService,
+    TrendsInsightService,
+  ],
   exports: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService],
 })
 export class JobsModule {}
