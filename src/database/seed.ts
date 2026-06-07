@@ -40,6 +40,7 @@ interface SkillSeed {
   source?: string | null;
   source_external_id?: string | null;
   aliases?: string[];
+  in_demand?: boolean;
 }
 
 export async function seedDatabase(
@@ -105,6 +106,7 @@ async function seedSkills(skills: Repository<SkillEntity>): Promise<void> {
       source: seed.source ?? null,
       sourceExternalId: seed.source_external_id ?? null,
       aliases: seed.aliases ?? [],
+      inDemand: seed.in_demand ?? false,
     };
 
     // Idempotent re-seed: leave existing skills untouched (consistent with the role/user

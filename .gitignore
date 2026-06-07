@@ -64,5 +64,13 @@ data/jobs-seed.json
 
 # Local embedding-vector cache (eval-semantic re-runs = $0; megabytes of floats, never commit)
 data/.cache/
-    
+
 *.dbml
+
+# Raw O*NET / ESCO datasets (large, CC-BY but re-downloadable) — vendor locally, NEVER commit.
+# The DERIVED data/onet/*.json (IT subset) IS committed (small, the importer output).
+data/onet/*.zip
+data/onet/db_*_text/
+data/onet/**/*.txt
+data/esco/*.zip
+data/esco/*.csv.worktrees/

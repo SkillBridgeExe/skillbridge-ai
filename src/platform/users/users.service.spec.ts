@@ -58,6 +58,7 @@ describe('UsersService', () => {
 
   const reactSkill: SkillEntity = {
     id: 'skill-1',
+    inDemand: false,
     canonicalName: 'react',
     displayName: 'React',
     category: 'frontend_framework',

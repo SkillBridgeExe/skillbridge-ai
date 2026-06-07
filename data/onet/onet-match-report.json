@@ -1,0 +1,739 @@
+{
+  "hot": 122,
+  "aliasable": [
+    {
+      "onet_name": "Apache Hadoop",
+      "onet_id": "onet:2.E.6.d:Apache Hadoop",
+      "matched": "hadoop",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Apache Hive",
+      "onet_id": "onet:2.E.6.d:Apache Hive",
+      "matched": "hadoop",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Apache Kafka",
+      "onet_id": "onet:2.E.7.b:Apache Kafka",
+      "matched": "kafka",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Apache Spark",
+      "onet_id": "onet:2.E.6.m:Apache Spark",
+      "matched": "spark",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Bash",
+      "onet_id": "onet:2.E.13.c:Bash",
+      "matched": "linux",
+      "via": "alias"
+    },
+    {
+      "onet_name": "C#",
+      "onet_id": "onet:2.E.7.e:C#",
+      "matched": "dotnet",
+      "via": "alias"
+    },
+    {
+      "onet_name": "C++",
+      "onet_id": "onet:2.E.7.e:C++",
+      "matched": "cpp",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Django",
+      "onet_id": "onet:2.E.7.h:Django",
+      "matched": "django",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Docker",
+      "onet_id": "onet:2.E.10.a:Docker",
+      "matched": "docker",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Elasticsearch",
+      "onet_id": "onet:2.E.6.d:Elasticsearch",
+      "matched": "elasticsearch",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Figma",
+      "onet_id": "onet:2.E.7.d:Figma",
+      "matched": "figma",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Git",
+      "onet_id": "onet:2.E.5.c:Git",
+      "matched": "git",
+      "via": "exact"
+    },
+    {
+      "onet_name": "GitHub",
+      "onet_id": "onet:2.E.10.a:GitHub",
+      "matched": "git",
+      "via": "alias"
+    },
+    {
+      "onet_name": "GitLab",
+      "onet_id": "onet:2.E.10.a:GitLab",
+      "matched": "git",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Go",
+      "onet_id": "onet:2.E.7.b:Go",
+      "matched": "golang",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Google Angular",
+      "onet_id": "onet:2.E.7.h:Google Angular",
+      "matched": "angular",
+      "via": "alias"
+    },
+    {
+      "onet_name": "GraphQL",
+      "onet_id": "onet:2.E.6.f:GraphQL",
+      "matched": "graphql",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Hibernate ORM",
+      "onet_id": "onet:2.E.6.j:Hibernate ORM",
+      "matched": "orm",
+      "via": "token"
+    },
+    {
+      "onet_name": "JavaScript",
+      "onet_id": "onet:2.E.7.h:JavaScript",
+      "matched": "javascript",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Jenkins CI",
+      "onet_id": "onet:2.E.7.c:Jenkins CI",
+      "matched": "ci_cd",
+      "via": "fuzzy"
+    },
+    {
+      "onet_name": "Kubernetes",
+      "onet_id": "onet:2.E.10.a:Kubernetes",
+      "matched": "kubernetes",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Linux",
+      "onet_id": "onet:2.E.13.c:Linux",
+      "matched": "linux",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Microsoft Power BI",
+      "onet_id": "onet:2.E.6.m:Microsoft Power BI",
+      "matched": "power_bi",
+      "via": "alias"
+    },
+    {
+      "onet_name": "MongoDB",
+      "onet_id": "onet:2.E.6.d:MongoDB",
+      "matched": "nosql",
+      "via": "alias"
+    },
+    {
+      "onet_name": "MySQL",
+      "onet_id": "onet:2.E.6.f:MySQL",
+      "matched": "sql",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Node.js",
+      "onet_id": "onet:2.E.7.h:Node.js",
+      "matched": "node_js",
+      "via": "exact"
+    },
+    {
+      "onet_name": "NoSQL",
+      "onet_id": "onet:2.E.6.d:NoSQL",
+      "matched": "nosql",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Oracle Java",
+      "onet_id": "onet:2.E.7.e:Oracle Java",
+      "matched": "sql",
+      "via": "token"
+    },
+    {
+      "onet_name": "Oracle PL/SQL",
+      "onet_id": "onet:2.E.6.d:Oracle PL/SQL",
+      "matched": "sql",
+      "via": "fuzzy"
+    },
+    {
+      "onet_name": "PHP",
+      "onet_id": "onet:2.E.7.h:PHP",
+      "matched": "php",
+      "via": "exact"
+    },
+    {
+      "onet_name": "PostgreSQL",
+      "onet_id": "onet:2.E.6.j:PostgreSQL",
+      "matched": "sql",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Prometheus",
+      "onet_id": "onet:2.E.6.f:Prometheus",
+      "matched": "monitoring_logging",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Python",
+      "onet_id": "onet:2.E.7.e:Python",
+      "matched": "python",
+      "via": "exact"
+    },
+    {
+      "onet_name": "PyTorch",
+      "onet_id": "onet:2.E.6.f:PyTorch",
+      "matched": "machine_learning",
+      "via": "alias"
+    },
+    {
+      "onet_name": "React",
+      "onet_id": "onet:2.E.7.h:React",
+      "matched": "react",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Redis",
+      "onet_id": "onet:2.E.6.d:Redis",
+      "matched": "nosql",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Ruby",
+      "onet_id": "onet:2.E.7.b:Ruby",
+      "matched": "ruby",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Selenium",
+      "onet_id": "onet:2.E.7.f:Selenium",
+      "matched": "test_automation",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Spring Boot",
+      "onet_id": "onet:2.E.10.a:Spring Boot",
+      "matched": "java",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Spring Framework",
+      "onet_id": "onet:2.E.7.h:Spring Framework",
+      "matched": "java",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Swift",
+      "onet_id": "onet:2.E.7.e:Swift",
+      "matched": "swift",
+      "via": "exact"
+    },
+    {
+      "onet_name": "Tableau",
+      "onet_id": "onet:2.E.6.m:Tableau",
+      "matched": "tableau",
+      "via": "exact"
+    },
+    {
+      "onet_name": "TypeScript",
+      "onet_id": "onet:2.E.7.e:TypeScript",
+      "matched": "typescript",
+      "via": "exact"
+    },
+    {
+      "onet_name": "UNIX",
+      "onet_id": "onet:2.E.13.c:UNIX",
+      "matched": "linux",
+      "via": "alias"
+    },
+    {
+      "onet_name": "Vue.js",
+      "onet_id": "onet:2.E.7.h:Vue.js",
+      "matched": "vue",
+      "via": "exact"
+    }
+  ],
+  "novel": [
+    {
+      "onet_canonical": "ajax",
+      "onet_name": "AJAX",
+      "onet_id": "onet:2.E.7.h:AJAX",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "alteryx_software",
+      "onet_name": "Alteryx software",
+      "onet_id": "onet:2.E.6.m:Alteryx software",
+      "category": "Business intelligence and data analysis software"
+    },
+    {
+      "onet_canonical": "amazon_dynamodb",
+      "onet_name": "Amazon DynamoDB",
+      "onet_id": "onet:2.E.6.d:Amazon DynamoDB",
+      "category": "Data base management system software"
+    },
+    {
+      "onet_canonical": "amazon_elastic_compute_cloud_ec2",
+      "onet_name": "Amazon Elastic Compute Cloud EC2",
+      "onet_id": "onet:2.E.6.f:Amazon Elastic Compute Cloud EC2",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "amazon_redshift",
+      "onet_name": "Amazon Redshift",
+      "onet_id": "onet:2.E.6.f:Amazon Redshift",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "amazon_web_services_aws_cloudformation",
+      "onet_name": "Amazon Web Services AWS CloudFormation",
+      "onet_id": "onet:2.E.11.e:Amazon Web Services AWS CloudFormation",
+      "category": "Cloud-based management software"
+    },
+    {
+      "onet_canonical": "amazon_web_services_aws_software",
+      "onet_name": "Amazon Web Services AWS software",
+      "onet_id": "onet:2.E.6.f:Amazon Web Services AWS software",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "ansible_software",
+      "onet_name": "Ansible software",
+      "onet_id": "onet:2.E.1.i:Ansible software",
+      "category": "Expert system software"
+    },
+    {
+      "onet_canonical": "apache_cassandra",
+      "onet_name": "Apache Cassandra",
+      "onet_id": "onet:2.E.6.d:Apache Cassandra",
+      "category": "Data base management system software"
+    },
+    {
+      "onet_canonical": "apache_maven",
+      "onet_name": "Apache Maven",
+      "onet_id": "onet:2.E.7.b:Apache Maven",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "apache_subversion_svn",
+      "onet_name": "Apache Subversion SVN",
+      "onet_id": "onet:2.E.5.c:Apache Subversion SVN",
+      "category": "File versioning software"
+    },
+    {
+      "onet_canonical": "apache_tomcat",
+      "onet_name": "Apache Tomcat",
+      "onet_id": "onet:2.E.7.h:Apache Tomcat",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "apple_ios",
+      "onet_name": "Apple iOS",
+      "onet_id": "onet:2.E.13.c:Apple iOS",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "apple_macos",
+      "onet_name": "Apple macOS",
+      "onet_id": "onet:2.E.13.c:Apple macOS",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "asana",
+      "onet_name": "Asana",
+      "onet_id": "onet:2.E.16.i:Asana",
+      "category": "Cloud-based data access and sharing software"
+    },
+    {
+      "onet_canonical": "atlassian_bitbucket",
+      "onet_name": "Atlassian Bitbucket",
+      "onet_id": "onet:2.E.10.a:Atlassian Bitbucket",
+      "category": "Application server software"
+    },
+    {
+      "onet_canonical": "atlassian_confluence",
+      "onet_name": "Atlassian Confluence",
+      "onet_id": "onet:2.E.16.i:Atlassian Confluence",
+      "category": "Cloud-based data access and sharing software"
+    },
+    {
+      "onet_canonical": "bootstrap",
+      "onet_name": "Bootstrap",
+      "onet_id": "onet:2.E.7.h:Bootstrap",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "border_gateway_protocol_bgp",
+      "onet_name": "Border Gateway Protocol BGP",
+      "onet_id": "onet:2.E.12.g:Border Gateway Protocol BGP",
+      "category": "Switch or router software"
+    },
+    {
+      "onet_canonical": "c",
+      "onet_name": "C",
+      "onet_id": "onet:2.E.7.b:C",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "cascading_style_sheets_css",
+      "onet_name": "Cascading style sheets CSS",
+      "onet_id": "onet:2.E.7.h:Cascading style sheets CSS",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "chef",
+      "onet_name": "Chef",
+      "onet_id": "onet:2.E.7.a:Chef",
+      "category": "Configuration management software"
+    },
+    {
+      "onet_canonical": "eclipse_ide",
+      "onet_name": "Eclipse IDE",
+      "onet_id": "onet:2.E.7.b:Eclipse IDE",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "extensible_markup_language_xml",
+      "onet_name": "Extensible markup language XML",
+      "onet_id": "onet:2.E.7.c:Extensible markup language XML",
+      "category": "Enterprise application integration software"
+    },
+    {
+      "onet_canonical": "facebook",
+      "onet_name": "Facebook",
+      "onet_id": "onet:2.E.4.g:Facebook",
+      "category": "Web page creation and editing software"
+    },
+    {
+      "onet_canonical": "google_analytics",
+      "onet_name": "Google Analytics",
+      "onet_id": "onet:2.E.6.g:Google Analytics",
+      "category": "Data mining software"
+    },
+    {
+      "onet_canonical": "google_android",
+      "onet_name": "Google Android",
+      "onet_id": "onet:2.E.13.c:Google Android",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "google_looker_analytics",
+      "onet_name": "Google Looker Analytics",
+      "onet_id": "onet:2.E.6.m:Google Looker Analytics",
+      "category": "Business intelligence and data analysis software"
+    },
+    {
+      "onet_canonical": "grafana_labs_grafana_cloud",
+      "onet_name": "Grafana Labs Grafana Cloud",
+      "onet_id": "onet:2.E.7.d:Grafana Labs Grafana Cloud",
+      "category": "Graphical user interface development software"
+    },
+    {
+      "onet_canonical": "hypertext_markup_language_html",
+      "onet_name": "Hypertext markup language HTML",
+      "onet_id": "onet:2.E.7.h:Hypertext markup language HTML",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "ibm_db2",
+      "onet_name": "IBM DB2",
+      "onet_id": "onet:2.E.6.f:IBM DB2",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "ibm_terraform",
+      "onet_name": "IBM Terraform",
+      "onet_id": "onet:2.E.7.a:IBM Terraform",
+      "category": "Configuration management software"
+    },
+    {
+      "onet_canonical": "ibm_websphere_mq",
+      "onet_name": "IBM WebSphere MQ",
+      "onet_id": "onet:2.E.11.e:IBM WebSphere MQ",
+      "category": "Cloud-based management software"
+    },
+    {
+      "onet_canonical": "informatica_software",
+      "onet_name": "Informatica software",
+      "onet_id": "onet:2.E.6.i:Informatica software",
+      "category": "Metadata management software"
+    },
+    {
+      "onet_canonical": "javascript_object_notation_json",
+      "onet_name": "JavaScript Object Notation JSON",
+      "onet_id": "onet:2.E.7.h:JavaScript Object Notation JSON",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "jquery",
+      "onet_name": "jQuery",
+      "onet_id": "onet:2.E.7.h:jQuery",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "junit",
+      "onet_name": "JUnit",
+      "onet_id": "onet:2.E.7.f:JUnit",
+      "category": "Program testing software"
+    },
+    {
+      "onet_canonical": "microsoft_access",
+      "onet_name": "Microsoft Access",
+      "onet_id": "onet:2.E.6.f:Microsoft Access",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "microsoft_active_directory",
+      "onet_name": "Microsoft Active Directory",
+      "onet_id": "onet:2.E.10.d:Microsoft Active Directory",
+      "category": "Internet directory services software"
+    },
+    {
+      "onet_canonical": "microsoft_active_server_pages_asp",
+      "onet_name": "Microsoft Active Server Pages ASP",
+      "onet_id": "onet:2.E.7.h:Microsoft Active Server Pages ASP",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "microsoft_asp_net",
+      "onet_name": "Microsoft ASP.NET",
+      "onet_id": "onet:2.E.7.h:Microsoft ASP.NET",
+      "category": "Web platform development software"
+    },
+    {
+      "onet_canonical": "microsoft_azure_software",
+      "onet_name": "Microsoft Azure software",
+      "onet_id": "onet:2.E.7.b:Microsoft Azure software",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_net_framework",
+      "onet_name": "Microsoft .NET Framework",
+      "onet_id": "onet:2.E.7.b:Microsoft .NET Framework",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_power_automate",
+      "onet_name": "Microsoft Power Automate",
+      "onet_id": "onet:2.E.7.c:Microsoft Power Automate",
+      "category": "Enterprise application integration software"
+    },
+    {
+      "onet_canonical": "microsoft_power_platform_software",
+      "onet_name": "Microsoft Power Platform software",
+      "onet_id": "onet:2.E.7.c:Microsoft Power Platform software",
+      "category": "Enterprise application integration software"
+    },
+    {
+      "onet_canonical": "microsoft_powershell",
+      "onet_name": "Microsoft PowerShell",
+      "onet_id": "onet:2.E.7.b:Microsoft PowerShell",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_sql_server",
+      "onet_name": "Microsoft SQL Server",
+      "onet_id": "onet:2.E.6.f:Microsoft SQL Server",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "microsoft_sql_server_integration_services_ssis",
+      "onet_name": "Microsoft SQL Server Integration Services SSIS",
+      "onet_id": "onet:2.E.7.c:Microsoft SQL Server Integration Services SSIS",
+      "category": "Enterprise application integration software"
+    },
+    {
+      "onet_canonical": "microsoft_sql_server_reporting_services_ssrs",
+      "onet_name": "Microsoft SQL Server Reporting Services SSRS",
+      "onet_id": "onet:2.E.6.e:Microsoft SQL Server Reporting Services SSRS",
+      "category": "Data base reporting software"
+    },
+    {
+      "onet_canonical": "microsoft_team_foundation_server",
+      "onet_name": "Microsoft Team Foundation Server",
+      "onet_id": "onet:2.E.7.b:Microsoft Team Foundation Server",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_teams",
+      "onet_name": "Microsoft Teams",
+      "onet_id": "onet:2.E.7.c:Microsoft Teams",
+      "category": "Enterprise application integration software"
+    },
+    {
+      "onet_canonical": "microsoft_visual_basic",
+      "onet_name": "Microsoft Visual Basic",
+      "onet_id": "onet:2.E.7.b:Microsoft Visual Basic",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_visual_basic_for_applications_vba",
+      "onet_name": "Microsoft Visual Basic for Applications VBA",
+      "onet_id": "onet:2.E.7.b:Microsoft Visual Basic for Applications VBA",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_visual_studio",
+      "onet_name": "Microsoft Visual Studio",
+      "onet_id": "onet:2.E.7.b:Microsoft Visual Studio",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "microsoft_windows",
+      "onet_name": "Microsoft Windows",
+      "onet_id": "onet:2.E.13.c:Microsoft Windows",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "microsoft_windows_server",
+      "onet_name": "Microsoft Windows Server",
+      "onet_id": "onet:2.E.13.c:Microsoft Windows Server",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "oracle_cloud_software",
+      "onet_name": "Oracle Cloud software",
+      "onet_id": "onet:2.E.11.e:Oracle Cloud software",
+      "category": "Cloud-based management software"
+    },
+    {
+      "onet_canonical": "oracle_database",
+      "onet_name": "Oracle Database",
+      "onet_id": "onet:2.E.6.f:Oracle Database",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "oracle_java_2_platform_enterprise_edition_j2ee",
+      "onet_name": "Oracle Java 2 Platform Enterprise Edition J2EE",
+      "onet_id": "onet:2.E.7.b:Oracle Java 2 Platform Enterprise Edition J2EE",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "oracle_sql_developer",
+      "onet_name": "Oracle SQL Developer",
+      "onet_id": "onet:2.E.7.b:Oracle SQL Developer",
+      "category": "Development environment software"
+    },
+    {
+      "onet_canonical": "perl",
+      "onet_name": "Perl",
+      "onet_id": "onet:2.E.7.e:Perl",
+      "category": "Object or component oriented development software"
+    },
+    {
+      "onet_canonical": "puppet",
+      "onet_name": "Puppet",
+      "onet_id": "onet:2.E.7.a:Puppet",
+      "category": "Configuration management software"
+    },
+    {
+      "onet_canonical": "r",
+      "onet_name": "R",
+      "onet_id": "onet:2.E.7.e:R",
+      "category": "Object or component oriented development software"
+    },
+    {
+      "onet_canonical": "red_hat_enterprise_linux",
+      "onet_name": "Red Hat Enterprise Linux",
+      "onet_id": "onet:2.E.13.c:Red Hat Enterprise Linux",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "red_hat_openshift",
+      "onet_name": "Red Hat OpenShift",
+      "onet_id": "onet:2.E.10.a:Red Hat OpenShift",
+      "category": "Application server software"
+    },
+    {
+      "onet_canonical": "scala",
+      "onet_name": "Scala",
+      "onet_id": "onet:2.E.7.e:Scala",
+      "category": "Object or component oriented development software"
+    },
+    {
+      "onet_canonical": "servicenow",
+      "onet_name": "ServiceNow",
+      "onet_id": "onet:2.E.6.f:ServiceNow",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "shell_script",
+      "onet_name": "Shell script",
+      "onet_id": "onet:2.E.13.c:Shell script",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "slack",
+      "onet_name": "Slack",
+      "onet_id": "onet:2.E.16.i:Slack",
+      "category": "Cloud-based data access and sharing software"
+    },
+    {
+      "onet_canonical": "snowflake",
+      "onet_name": "Snowflake",
+      "onet_id": "onet:2.E.6.g:Snowflake",
+      "category": "Data mining software"
+    },
+    {
+      "onet_canonical": "splunk_enterprise",
+      "onet_name": "Splunk Enterprise",
+      "onet_id": "onet:2.E.11.e:Splunk Enterprise",
+      "category": "Cloud-based management software"
+    },
+    {
+      "onet_canonical": "structured_query_language_sql",
+      "onet_name": "Structured query language SQL",
+      "onet_id": "onet:2.E.6.f:Structured query language SQL",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "teradata_database",
+      "onet_name": "Teradata Database",
+      "onet_id": "onet:2.E.6.d:Teradata Database",
+      "category": "Data base management system software"
+    },
+    {
+      "onet_canonical": "transact_sql",
+      "onet_name": "Transact-SQL",
+      "onet_id": "onet:2.E.6.f:Transact-SQL",
+      "category": "Data base user interface and query software"
+    },
+    {
+      "onet_canonical": "unix_shell",
+      "onet_name": "UNIX Shell",
+      "onet_id": "onet:2.E.13.c:UNIX Shell",
+      "category": "Operating system software"
+    },
+    {
+      "onet_canonical": "wordpress",
+      "onet_name": "WordPress",
+      "onet_id": "onet:2.E.4.g:WordPress",
+      "category": "Web page creation and editing software"
+    },
+    {
+      "onet_canonical": "yardi_software",
+      "onet_name": "Yardi software",
+      "onet_id": "onet:2.E.6.f:Yardi software",
+      "category": "Data base user interface and query software"
+    }
+  ]
+}

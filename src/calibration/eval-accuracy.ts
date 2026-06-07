@@ -3,7 +3,7 @@
  * grounded labeled set (`data/eval-cvs.json`), WITHOUT human raters.
  *
  *   pnpm eval:accuracy
- *   EVAL_DELAY_MS=25000 pnpm eval:accuracy   # throttle for free-tier Gemini (20 req/day!)
+ *   EVAL_DELAY_MS=25000 pnpm eval:accuracy   # throttle if the provider rate-limits
  *
  * Each eval CV has an EXPECTED BAND [min,max] per dimension (Fresno State 4-level model;
  * criteria sourced in docs/cv-scoring-methodology.md). The calibration spine reports:
@@ -15,9 +15,14 @@
  * This is a proxy for accuracy, NOT a substitute for human labels.
  *
  * Runs DB-less (NODE_ENV=test → tracing stub) — it measures scoring, not persistence.
- * Needs GEMINI_API_KEY. Each CV = 2 LLM calls (parse + rubric), so N CVs = 2N calls.
+ * Needs OPENAI_API_KEY (provider = LLM_PROVIDER_DEFAULT, default openai — NOT Gemini).
+ * Each CV = 2 LLM calls (parse + rubric), so N CVs = 2N calls.
  */
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
+// SURGICAL override: a stale OS-level OPENAI_API_KEY can shadow .env (known Windows gotcha) —
+// for a billing-relevant eval the .env key is the contract. Force only that one var.
+const dotenvParsed = dotenv.config().parsed ?? {};
+if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENAI_API_KEY;
 import * as fs from 'fs';
 import * as path from 'path';
 import { mae, spearman, mean } from './calibration-stats';
