@@ -33,6 +33,10 @@ export class SkillEntity {
   @Column({ type: 'jsonb', nullable: true })
   aliases!: string[] | null;
 
+  @Index()
+  @Column({ type: 'boolean', name: 'in_demand', default: false })
+  inDemand!: boolean;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
 

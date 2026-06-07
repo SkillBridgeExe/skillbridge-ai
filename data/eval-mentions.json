@@ -287,7 +287,7 @@
       "mention": "MongoDB",
       "lang": "en",
       "expected": [
-        "nosql"
+        "mongodb"
       ],
       "category": "alias",
       "requires": [],
@@ -297,7 +297,7 @@
       "mention": "Redis",
       "lang": "en",
       "expected": [
-        "nosql"
+        "redis"
       ],
       "category": "alias",
       "requires": [],
@@ -447,7 +447,7 @@
       "mention": "mongdb",
       "lang": "en",
       "expected": [
-        "nosql"
+        "mongodb"
       ],
       "category": "fuzzy",
       "requires": [],
@@ -837,7 +837,7 @@
       "mention": "Postgres 16",
       "lang": "en",
       "expected": [
-        "sql"
+        "postgresql"
       ],
       "category": "version",
       "requires": [],
@@ -941,7 +941,8 @@
       "mention": "SQL Server, MySQL",
       "lang": "en",
       "expected": [
-        "sql"
+        "sql_server",
+        "mysql"
       ],
       "category": "compound",
       "requires": [],
@@ -1679,7 +1680,7 @@
       "mention": "PostgreSQL",
       "lang": "en",
       "expected": [
-        "sql"
+        "postgresql"
       ],
       "category": "alias",
       "requires": [],
@@ -1729,7 +1730,7 @@
       "mention": "Postgres",
       "lang": "en",
       "expected": [
-        "sql"
+        "postgresql"
       ],
       "category": "fuzzy",
       "requires": [],
@@ -2268,7 +2269,7 @@
       "mention": "MySQL",
       "lang": "en",
       "expected": [
-        "sql"
+        "mysql"
       ],
       "category": "alias",
       "requires": [],
@@ -2348,7 +2349,7 @@
       "mention": "Mongo DB",
       "lang": "en",
       "expected": [
-        "nosql"
+        "mongodb"
       ],
       "category": "alias",
       "requires": [],
@@ -2368,7 +2369,7 @@
       "mention": "SQL Server",
       "lang": "en",
       "expected": [
-        "sql"
+        "sql_server"
       ],
       "category": "alias",
       "requires": [],
