@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 
 describe('CvsService R1 completion behavior', () => {
@@ -111,6 +111,10 @@ describe('CvsService R1 completion behavior', () => {
         fileName: 'cv-builder.pdf',
       }),
     };
+    // Per-user daily cv_review cap — default no-op; tests override to assert enforcement points.
+    const analysisQuota = {
+      assertWithinDailyLimit: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new CvsService(
       cvsRepo as never,
@@ -125,6 +129,7 @@ describe('CvsService R1 completion behavior', () => {
       evaluator as never,
       rewriter as never,
       pdfRenderer as never,
+      analysisQuota as never,
     );
 
     return {
@@ -140,6 +145,7 @@ describe('CvsService R1 completion behavior', () => {
       evaluator,
       rewriter,
       pdfRenderer,
+      analysisQuota,
     };
   }
 
@@ -468,6 +474,72 @@ describe('CvsService R1 completion behavior', () => {
       response: expect.objectContaining({ errorCode: 'CV_UPLOAD_QUOTA_EXCEEDED' }),
     });
     expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it('blocks upload+scoring when the daily analysis quota is reached — before any storage/row write', async () => {
+    const { service, storage, cvsRepo, analysisQuota } = build();
+    analysisQuota.assertWithinDailyLimit.mockRejectedValue(
+      new HttpException(
+        { errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      ),
+    );
+
+    await expect(service.create('u1', { consentAccepted: true }, file)).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' }),
+    });
+    // enforced AFTER the bypass + upload quota but BEFORE work: nothing stored, no row, no scoring
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(cvsRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('does NOT consume the analysis quota for a generated-PDF re-upload (bypass runs first)', async () => {
+    const { service, cvsRepo, pdfRenderer, analysisQuota } = build();
+    pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'original-cv',
+      userId: 'u1',
+      cvKind: 'BUILT',
+      parsedJson: parsedReview.document,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await service.create(
+      'u1',
+      { consentAccepted: true },
+      {
+        ...file,
+        buffer: Buffer.from('%PDF-1.7 generated'),
+      },
+    );
+
+    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+  });
+
+  it('enforces the analysis quota on re-run diagnosis (shared budget) before calling the model', async () => {
+    const { service, cvsRepo, cvReview, analysisQuota } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    analysisQuota.assertWithinDailyLimit.mockRejectedValue(
+      new HttpException(
+        { errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      ),
+    );
+
+    await expect(service.rerunReview('u1', 'cv-1')).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' }),
+    });
+    expect(cvReview.review).not.toHaveBeenCalled();
   });
 
   it('returns a privacy-policy 404 when the stored file has been cleaned up', async () => {
