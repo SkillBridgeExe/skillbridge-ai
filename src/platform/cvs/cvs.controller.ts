@@ -36,7 +36,6 @@ import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
-import { CvAnalysisQuotaGuard } from './guards/cv-analysis-quota.guard';
 import {
   CREATE_BUILDER_BODY_EXAMPLES,
   EVALUATE_BUILDER_BODY_EXAMPLES,
@@ -55,7 +54,6 @@ export class CvsController {
   constructor(private readonly cvs: CvsService) {}
 
   @Post()
-  @UseGuards(CvAnalysisQuotaGuard)
   @ApiOperation({
     summary: 'Upload a CV and run the first AI diagnosis',
     description:

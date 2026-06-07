@@ -6,7 +6,6 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { PlatformCvReviewRequestDto } from './dto/cv-review-request.dto';
 import { CvsService } from './cvs.service';
-import { CvAnalysisQuotaGuard } from './guards/cv-analysis-quota.guard';
 
 @ApiTags('Diagnosis')
 @ApiBearerAuth()
@@ -17,7 +16,6 @@ export class DiagnosisController {
   constructor(private readonly cvs: CvsService) {}
 
   @Post('cv-review')
-  @UseGuards(CvAnalysisQuotaGuard)
   @ApiOperation({
     summary: 'Re-run AI diagnosis for an existing CV',
     description:

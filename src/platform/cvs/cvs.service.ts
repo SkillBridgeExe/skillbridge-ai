@@ -36,6 +36,7 @@ import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
 import { CvPdfRendererService, RenderedCvPdf } from './cv-pdf-renderer.service';
 import { TextExtractorService } from './text-extractor.service';
+import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_REAL_UPLOADS_PER_DAY = 10;
@@ -67,6 +68,7 @@ export class CvsService {
     private readonly evaluator: SectionEvaluatorService,
     private readonly rewriter: CvRewriteService,
     private readonly pdfRenderer: CvPdfRendererService,
+    private readonly analysisQuota: CvAnalysisQuotaService,
   ) {}
 
   async create(
@@ -92,6 +94,9 @@ export class CvsService {
     }
 
     await this.enforceUploadQuota(userId);
+    // Shared daily cv_review budget — checked AFTER the generated-PDF bypass above (so a builder
+    // re-upload never consumes it) and BEFORE any storage/row write (so a reject leaves no orphan).
+    await this.analysisQuota.assertWithinDailyLimit(userId);
 
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
@@ -272,6 +277,7 @@ export class CvsService {
       });
     }
 
+    await this.analysisQuota.assertWithinDailyLimit(userId);
     const review = await this.reviewCv(userId, cv);
     return this.toResponse(review.cv, review.skills, review.parsed);
   }

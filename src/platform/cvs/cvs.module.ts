@@ -14,7 +14,7 @@ import { CvsRetentionService } from './cv-retention.service';
 import { CvsController } from './cvs.controller';
 import { DiagnosisController } from './diagnosis.controller';
 import { CvsService } from './cvs.service';
-import { CvAnalysisQuotaGuard } from './guards/cv-analysis-quota.guard';
+import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
 import { TextExtractorService } from './text-extractor.service';
 
 @Module({
@@ -38,7 +38,7 @@ import { TextExtractorService } from './text-extractor.service';
     TextExtractorService,
     CvPdfRendererService,
     CvsRetentionService,
-    CvAnalysisQuotaGuard,
+    CvAnalysisQuotaService,
   ],
   exports: [CvsRetentionService],
 })
