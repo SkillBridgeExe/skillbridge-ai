@@ -51,7 +51,8 @@
         "es6",
         "es2015",
         "vanilla js",
-        "Lập trình JavaScript"
+        "Lập trình JavaScript",
+        "ajax"
       ]
     },
     {
@@ -172,7 +173,8 @@
         "asp.net",
         "asp.net core",
         "c#",
-        "csharp"
+        "csharp",
+        ".net framework"
       ]
     },
     {
@@ -240,11 +242,7 @@
       "source": "ONET",
       "source_external_id": "15-1252.00.sql",
       "aliases": [
-        "postgresql",
-        "mysql",
-        "sql server",
         "tsql",
-        "mssql",
         "Ngôn ngữ SQL",
         "oracle",
         "oracle db",
@@ -257,7 +255,6 @@
         "cơ sở dữ liệu quan hệ",
         "co so du lieu quan he",
         "csdl",
-        "postgres",
         "relational databases"
       ]
     },
@@ -268,8 +265,6 @@
       "source": "CUSTOM",
       "source_external_id": null,
       "aliases": [
-        "mongodb",
-        "redis",
         "cassandra",
         "dynamodb",
         "firestore"
@@ -386,7 +381,9 @@
         "hệ điều hành linux",
         "he dieu hanh linux",
         "quản trị hệ thống",
-        "quan tri he thong"
+        "quan tri he thong",
+        "rhel",
+        "red hat enterprise linux"
       ]
     },
     {
@@ -402,7 +399,8 @@
         "lambda",
         "rds",
         "điện toán đám mây",
-        "dien toan dam may"
+        "dien toan dam may",
+        "aws"
       ]
     },
     {
@@ -1679,7 +1677,8 @@
       "aliases": [
         "pyspark",
         "spark sql",
-        "spark streaming"
+        "spark streaming",
+        "apache spark"
       ],
       "role_relevance": [
         {
@@ -1758,7 +1757,8 @@
         "kafka streams",
         "event streaming",
         "message streaming",
-        "distributed event streaming"
+        "distributed event streaming",
+        "apache kafka"
       ],
       "role_relevance": [
         {
@@ -1840,7 +1840,8 @@
         "hdfs",
         "mapreduce",
         "hive",
-        "apache hive"
+        "apache hive",
+        "apache hadoop"
       ],
       "role_relevance": [
         {
@@ -1870,7 +1871,8 @@
         "phát triển android",
         "phat trien android",
         "phát triển ứng dụng android",
-        "phat trien ung dung android"
+        "phat trien ung dung android",
+        "android"
       ],
       "role_relevance": [
         {
@@ -1918,7 +1920,8 @@
         "azure cloud",
         "ms azure",
         "windows azure",
-        "azure devops cloud"
+        "azure devops cloud",
+        "microsoft azure"
       ],
       "role_relevance": [
         {
@@ -2132,6 +2135,222 @@
         }
       ],
       "note": "Object-relational mapping libraries (Prisma/TypeORM/Hibernate/EF...). Added per verifier coverage-gap: eval row ORM otherwise fuzzy-false-hits java."
+    },
+    {
+      "canonical_name": "scala",
+      "display_name": "Scala",
+      "category": "backend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.e:Scala",
+      "aliases": [
+        "scala"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "perl",
+      "display_name": "Perl",
+      "category": "backend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.e:Perl",
+      "aliases": [
+        "perl"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "snowflake",
+      "display_name": "Snowflake",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.g:Snowflake",
+      "aliases": [
+        "snowflake"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "redis",
+      "display_name": "Redis",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.d:Redis",
+      "aliases": [
+        "redis"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "junit",
+      "display_name": "JUnit",
+      "category": "testing",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.f:JUnit",
+      "aliases": [
+        "junit"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "jquery",
+      "display_name": "jQuery",
+      "category": "frontend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.h:jQuery",
+      "aliases": [
+        "jquery"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "bootstrap",
+      "display_name": "Bootstrap",
+      "category": "frontend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.h:Bootstrap",
+      "aliases": [
+        "bootstrap"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "wordpress",
+      "display_name": "WordPress",
+      "category": "frontend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.4.g:WordPress",
+      "aliases": [
+        "wordpress"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "splunk",
+      "display_name": "Splunk",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.11.e:Splunk Enterprise",
+      "aliases": [
+        "splunk"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "puppet",
+      "display_name": "Puppet",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.a:Puppet",
+      "aliases": [
+        "puppet"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "chef",
+      "display_name": "Chef",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.a:Chef",
+      "aliases": [
+        "chef"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "tomcat",
+      "display_name": "Apache Tomcat",
+      "category": "backend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.h:Apache Tomcat",
+      "aliases": [
+        "tomcat",
+        "apache tomcat"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "maven",
+      "display_name": "Apache Maven",
+      "category": "backend",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.b:Apache Maven",
+      "aliases": [
+        "maven",
+        "apache maven"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "sql_server",
+      "display_name": "Microsoft SQL Server",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.f:Microsoft SQL Server",
+      "aliases": [
+        "sql server",
+        "mssql",
+        "ms sql server"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "openshift",
+      "display_name": "Red Hat OpenShift",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.10.a:Red Hat OpenShift",
+      "aliases": [
+        "openshift"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "postgresql",
+      "display_name": "PostgreSQL",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.j:PostgreSQL",
+      "aliases": [
+        "postgres",
+        "postgresql",
+        "postgre sql"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "mysql",
+      "display_name": "MySQL",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.f:MySQL",
+      "aliases": [
+        "mysql"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "mongodb",
+      "display_name": "MongoDB",
+      "category": "database",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.6.d:MongoDB",
+      "aliases": [
+        "mongodb",
+        "mongo"
+      ],
+      "in_demand": true
+    },
+    {
+      "canonical_name": "powershell",
+      "display_name": "PowerShell",
+      "category": "devops",
+      "source": "ONET",
+      "source_external_id": "onet:2.E.7.b:Microsoft PowerShell",
+      "aliases": [
+        "powershell"
+      ],
+      "in_demand": true
     }
   ]
 }

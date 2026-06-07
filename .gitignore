@@ -73,4 +73,4 @@ data/onet/*.zip
 data/onet/db_*_text/
 data/onet/**/*.txt
 data/esco/*.zip
-data/esco/*.csv
+data/esco/*.csv.worktrees/
