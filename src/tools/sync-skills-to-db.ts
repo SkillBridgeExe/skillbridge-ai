@@ -64,7 +64,9 @@ async function main(): Promise<void> {
      ))`,
     [IN_DEMAND_MIN_JOBS],
   );
-  const demandTotal = await dataSource.query(`SELECT count(*)::int n FROM public.skills WHERE in_demand = true`);
+  const demandTotal = await dataSource.query(
+    `SELECT count(*)::int n FROM public.skills WHERE in_demand = true`,
+  );
 
   console.log(`sync: inserted ${inserted}, updated ${updated}, pilot ${pilot.length}`);
   console.log(`in_demand (>=${IN_DEMAND_MIN_JOBS} jobs): total=${demandTotal[0].n}`);
