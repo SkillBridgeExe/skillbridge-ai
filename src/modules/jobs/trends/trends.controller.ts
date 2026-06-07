@@ -3,13 +3,18 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../../../platform/auth/decorators/current-user.decorator';
 import { SkillDemandService, SkillGapResponse, SkillTrendsResponse } from './skill-demand.service';
+import { TrendsInsightService } from './trends-insight.service';
+import { TrendsInsightResponse } from './trends-insight.types';
 
-/** J5 — skill-demand trends + per-CV gap (upskilling suggestions). JWT, same posture as /api/cvs. */
+/** J5 — skill-demand trends + per-CV gap + AI insight. JWT, same posture as /api/cvs. */
 @ApiTags('trends')
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/trends')
 export class TrendsController {
-  constructor(private readonly demand: SkillDemandService) {}
+  constructor(
+    private readonly demand: SkillDemandService,
+    private readonly insight: TrendsInsightService,
+  ) {}
 
   @Get('skills')
   @ApiOperation({ summary: 'Top in-demand skills (latest snapshot; role=all|<role_code>)' })
@@ -34,5 +39,21 @@ export class TrendsController {
       role ?? 'all',
       limit ? parseInt(limit, 10) : undefined,
     );
+  }
+
+  @Get('insight')
+  @ApiOperation({ summary: 'AI "nhận định" over trends (grounded; cv_id optional → personalized)' })
+  insightHandler(
+    @CurrentUser() user: JwtUser,
+    @Query('role') role?: string,
+    @Query('cv_id') cvId?: string,
+    @Query('limit') limit?: string,
+  ): Promise<TrendsInsightResponse> {
+    return this.insight.generate({
+      role_code: role ?? 'all',
+      cv_id: cvId,
+      user_id: user.userId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 }
