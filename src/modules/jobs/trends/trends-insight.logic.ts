@@ -1,5 +1,11 @@
 import { SkillTrendsResponse } from './skill-demand.service';
-import { TrendsInsightFacts, InsightItem, RecommendedSkill, TrendsInsightLlmRaw, TrendsInsightResponse } from './trends-insight.types';
+import {
+  TrendsInsightFacts,
+  InsightItem,
+  RecommendedSkill,
+  TrendsInsightLlmRaw,
+  TrendsInsightResponse,
+} from './trends-insight.types';
 
 /**
  * Distill the deterministic trends response into FACTS. `coveredCanonicals` = the CV's
@@ -26,6 +32,7 @@ export function buildFacts(
 }
 
 const TOP_N_FALLBACK = 3;
+const MAX_INSIGHTS = 5;
 const MAX_RECOMMENDED = 5;
 
 /** Deterministic summary built ONLY from FACTS — used as fallback and when the LLM summary is empty. */
@@ -97,7 +104,9 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
     });
   }
 
-  const recPool = facts.personalized ? facts.skills.filter((s) => s.covered === false) : facts.skills;
+  const recPool = facts.personalized
+    ? facts.skills.filter((s) => s.covered === false)
+    : facts.skills;
   const recAllowed = new Map(recPool.map((s) => [s.skill, s]));
   const recSeen = new Set<string>();
   const recommended_skills: RecommendedSkill[] = [];
@@ -125,7 +134,7 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
     period: facts.period,
     personalized: facts.personalized,
     summary,
-    insights,
+    insights: insights.slice(0, MAX_INSIGHTS),
     recommended_skills: recommended_skills.slice(0, MAX_RECOMMENDED),
     cached: false,
   };
