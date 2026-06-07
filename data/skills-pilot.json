@@ -27,8 +27,8 @@
       "canonical_name": "css",
       "display_name": "CSS",
       "category": "web_fundamentals",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "e5d1f825-60ed-4bdd-872a-e748c387f777",
       "aliases": [
         "css3",
         "cascading stylesheets",
@@ -59,8 +59,8 @@
       "canonical_name": "typescript",
       "display_name": "TypeScript",
       "category": "programming_language",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "867137fb-ff1b-4ca3-99f3-cb6969aa2c68",
       "aliases": [
         "ts",
         "typed javascript"
@@ -262,8 +262,8 @@
       "canonical_name": "nosql",
       "display_name": "NoSQL Databases",
       "category": "database",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "76ef6ed3-1658-4a1a-9593-204d799c6d0c",
       "aliases": [
         "cassandra",
         "dynamodb",
@@ -407,8 +407,8 @@
       "canonical_name": "system_design",
       "display_name": "System Design",
       "category": "architecture",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "fae27053-8924-4bfd-b565-c9fe502044c9",
       "aliases": [
         "architecture design",
         "distributed systems",
@@ -544,8 +544,8 @@
       "canonical_name": "etl",
       "display_name": "ETL / Data Pipelines",
       "category": "data_skill",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "9d0d89be-bffa-4393-b6f6-8d05bea49051",
       "aliases": [
         "extract transform load",
         "data engineering",
@@ -911,8 +911,8 @@
       "canonical_name": "angular",
       "display_name": "Angular",
       "category": "frontend_framework",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "1ffac4ac-fda7-407d-8ed1-ca8f4a8dc146",
       "aliases": [
         "angularjs",
         "angular framework",
@@ -1551,8 +1551,8 @@
       "canonical_name": "computer_vision",
       "display_name": "Computer Vision",
       "category": "ai_ml",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "7b0d5000-00da-4864-b776-6de49a87a669",
       "aliases": [
         "cv",
         "image processing",
@@ -1834,8 +1834,8 @@
       "canonical_name": "hadoop",
       "display_name": "Apache Hadoop",
       "category": "data_tool",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "e46291c7-52b9-4174-bd59-178884861038",
       "aliases": [
         "hdfs",
         "mapreduce",
@@ -2093,8 +2093,8 @@
       "canonical_name": "solidity",
       "display_name": "Solidity",
       "category": "programming_language",
-      "source": "CUSTOM",
-      "source_external_id": null,
+      "source": "ESCO",
+      "source_external_id": "605399ce-4736-4b41-b41e-92ecf2139454",
       "aliases": [
         "solidity lang",
         "ngôn ngữ solidity",
@@ -2351,6 +2351,284 @@
         "powershell"
       ],
       "in_demand": true
+    },
+    {
+      "canonical_name": "data_science",
+      "display_name": "Data Science",
+      "category": "data_skill",
+      "source": "ESCO",
+      "source_external_id": "edebd83d-35f6-4ed5-a940-6c203d178c01",
+      "aliases": [
+        "data science",
+        "data science process"
+      ]
+    },
+    {
+      "canonical_name": "data_mining",
+      "display_name": "Data Mining",
+      "category": "data_skill",
+      "source": "ESCO",
+      "source_external_id": "25f0ea33-b4a2-4f31-b7b4-7d20e827b180",
+      "aliases": [
+        "data mining"
+      ]
+    },
+    {
+      "canonical_name": "business_intelligence",
+      "display_name": "Business Intelligence",
+      "category": "data_skill",
+      "source": "ESCO",
+      "source_external_id": "143769cb-b61e-47d8-a61e-eedfbec1016c",
+      "aliases": [
+        "business intelligence",
+        "business analytics"
+      ]
+    },
+    {
+      "canonical_name": "data_warehouse",
+      "display_name": "Data Warehouse",
+      "category": "data_skill",
+      "source": "ESCO",
+      "source_external_id": "3ec2e4d6-7000-4905-bf1a-c5b1679416de",
+      "aliases": [
+        "data warehouse",
+        "data warehousing"
+      ]
+    },
+    {
+      "canonical_name": "internet_of_things",
+      "display_name": "Internet of Things",
+      "category": "architecture",
+      "source": "ESCO",
+      "source_external_id": "f049d050-12da-4e40-813a-2b5eb6df6b51",
+      "aliases": [
+        "internet of things",
+        "iot"
+      ]
+    },
+    {
+      "canonical_name": "embedded_systems",
+      "display_name": "Embedded Systems",
+      "category": "architecture",
+      "source": "ESCO",
+      "source_external_id": "2180bd8c-86de-4889-8165-adac902eee9d",
+      "aliases": [
+        "embedded systems",
+        "embedded software",
+        "embedded programming"
+      ]
+    },
+    {
+      "canonical_name": "uml",
+      "display_name": "UML",
+      "category": "architecture",
+      "source": "ESCO",
+      "source_external_id": "7193cb6d-8334-494f-86e5-21e6d03a47c3",
+      "aliases": [
+        "uml",
+        "unified modeling language",
+        "unified modelling language"
+      ]
+    },
+    {
+      "canonical_name": "augmented_reality",
+      "display_name": "Augmented Reality",
+      "category": "emerging_tech",
+      "source": "ESCO",
+      "source_external_id": "abdc7ac8-151f-40c6-bc1a-1e9b4b073290",
+      "aliases": [
+        "augmented reality"
+      ]
+    },
+    {
+      "canonical_name": "virtual_reality",
+      "display_name": "Virtual Reality",
+      "category": "emerging_tech",
+      "source": "ESCO",
+      "source_external_id": "5da42cfd-1da8-4e4f-b68e-4f821d005fc5",
+      "aliases": [
+        "virtual reality"
+      ]
+    },
+    {
+      "canonical_name": "robotics",
+      "display_name": "Robotics",
+      "category": "emerging_tech",
+      "source": "ESCO",
+      "source_external_id": "e87ec79a-c9ff-46f5-84fa-7a0f394cdf40",
+      "aliases": [
+        "robotics",
+        "mechatronics"
+      ]
+    },
+    {
+      "canonical_name": "penetration_testing",
+      "display_name": "Penetration Testing",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "0ffdb6ac-03b5-4f1c-bfcc-3d9cb874fdf9",
+      "aliases": [
+        "penetration testing",
+        "pentest",
+        "ethical hacking"
+      ]
+    },
+    {
+      "canonical_name": "computer_forensics",
+      "display_name": "Computer Forensics",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "118a9b27-1c5a-4214-b685-1a4d9e6365ea",
+      "aliases": [
+        "computer forensics",
+        "digital forensics",
+        "forensic it"
+      ]
+    },
+    {
+      "canonical_name": "wireshark",
+      "display_name": "Wireshark",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "8fa510d0-a8a6-4932-a361-00f8442cfe23",
+      "aliases": [
+        "wireshark"
+      ]
+    },
+    {
+      "canonical_name": "metasploit",
+      "display_name": "Metasploit",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "50597e96-9b6a-4736-ac79-dd80f36c0269",
+      "aliases": [
+        "metasploit"
+      ]
+    },
+    {
+      "canonical_name": "kali_linux",
+      "display_name": "Kali Linux",
+      "category": "security",
+      "source": "ESCO",
+      "source_external_id": "625b57ee-29d4-425b-bf99-9fd54dd021fe",
+      "aliases": [
+        "kali linux",
+        "kali"
+      ]
+    },
+    {
+      "canonical_name": "objective_c",
+      "display_name": "Objective-C",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "9973a5a2-7822-4161-99e9-95c781eb63f8",
+      "aliases": [
+        "objective-c",
+        "objective c",
+        "objc"
+      ]
+    },
+    {
+      "canonical_name": "matlab",
+      "display_name": "MATLAB",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "c3a03c5a-c260-4c26-9b9a-873abb396f4d",
+      "aliases": [
+        "matlab"
+      ]
+    },
+    {
+      "canonical_name": "cobol",
+      "display_name": "COBOL",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "def007fa-5fed-4a5f-91a2-b0d7e3db1be1",
+      "aliases": [
+        "cobol"
+      ]
+    },
+    {
+      "canonical_name": "groovy",
+      "display_name": "Groovy",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "52cf3037-ab53-4806-85ed-7fd21ea7f6a1",
+      "aliases": [
+        "groovy",
+        "apache groovy"
+      ]
+    },
+    {
+      "canonical_name": "erlang",
+      "display_name": "Erlang",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "034c29fa-c3ba-45ea-b8f3-bf8e3705e386",
+      "aliases": [
+        "erlang"
+      ]
+    },
+    {
+      "canonical_name": "haskell",
+      "display_name": "Haskell",
+      "category": "programming_language",
+      "source": "ESCO",
+      "source_external_id": "000f1d3d-220f-4789-9c0a-cc742521fb02",
+      "aliases": [
+        "haskell"
+      ]
+    },
+    {
+      "canonical_name": "db2",
+      "display_name": "IBM Db2",
+      "category": "database",
+      "source": "ESCO",
+      "source_external_id": "3cee858e-79e8-4a4b-b99f-93c7f735d58b",
+      "aliases": [
+        "db2",
+        "ibm db2"
+      ]
+    },
+    {
+      "canonical_name": "teradata",
+      "display_name": "Teradata",
+      "category": "database",
+      "source": "ESCO",
+      "source_external_id": "d9eaf831-9348-4330-a83e-b7c099cdc8f6",
+      "aliases": [
+        "teradata"
+      ]
+    },
+    {
+      "canonical_name": "drupal",
+      "display_name": "Drupal",
+      "category": "frontend",
+      "source": "ESCO",
+      "source_external_id": "1de3942b-99d8-41e8-9ef0-fbc9e9f6307b",
+      "aliases": [
+        "drupal"
+      ]
+    },
+    {
+      "canonical_name": "joomla",
+      "display_name": "Joomla",
+      "category": "frontend",
+      "source": "ESCO",
+      "source_external_id": "d2adb565-a865-424d-aeb5-9fbcbf2afe2a",
+      "aliases": [
+        "joomla"
+      ]
+    },
+    {
+      "canonical_name": "vagrant",
+      "display_name": "Vagrant",
+      "category": "devops",
+      "source": "ESCO",
+      "source_external_id": "6b3afb82-c4ea-4f14-be54-a757fb762663",
+      "aliases": [
+        "vagrant"
+      ]
     }
   ]
 }

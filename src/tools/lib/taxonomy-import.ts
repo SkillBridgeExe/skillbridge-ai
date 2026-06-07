@@ -104,6 +104,87 @@ export function parseOnetTechSkills(tsv: string): OnetRow[] {
 }
 
 /**
+ * One ESCO "KnowledgeSkillCompetence" concept from the digital-skills collection.
+ */
+export interface EscoRow {
+  /** Stable ESCO concept URI (also the `source_external_id`). */
+  conceptUri: string;
+  /** ESCO `preferredLabel` (English). */
+  preferredLabel: string;
+  /** snake_case(preferredLabel) — a RAW candidate key; curation may rename it. */
+  canonical_name: string;
+  /** Human-facing name = preferredLabel. */
+  display_name: string;
+  /** = conceptUri (provenance). */
+  source_external_id: string;
+  /** ESCO `skillType`: 'knowledge' (concrete tech/concept) | 'skill/competence' (verb phrase). */
+  skillType: string;
+  /** altLabels ∪ hiddenLabels, newline-split, trimmed, deduped. */
+  aliases: string[];
+  /** ESCO `description` (kept for embedding-fallback matching + human review). */
+  description: string;
+}
+
+const ESCO_PARSE_OPTS = {
+  columns: true,
+  skip_empty_lines: true,
+  relax_quotes: true,
+  bom: true, // ESCO CSVs ship a UTF-8 BOM; without this the first header key is mangled.
+  trim: true,
+} as const;
+
+/**
+ * Build the set of `conceptUri`s that belong to ESCO's Digital Skills collection
+ * (`digitalSkillsCollection_en.csv`). Used to filter the full `skills_en.csv` down
+ * to the digital/IT subset (the collection file itself omits `hiddenLabels`, so we
+ * filter-then-read the richer `skills_en.csv`).
+ */
+export function parseEscoDigitalUris(digitalCsv: string): Set<string> {
+  const records = parse(digitalCsv, ESCO_PARSE_OPTS) as Record<string, string>[];
+  const set = new Set<string>();
+  for (const r of records) {
+    const uri = (r.conceptUri ?? '').trim();
+    if (uri) set.add(uri);
+  }
+  return set;
+}
+
+/**
+ * Parse `skills_en.csv`, keep only `KnowledgeSkillCompetence` rows whose `conceptUri`
+ * is in {@link parseEscoDigitalUris}, and project each to an {@link EscoRow}. Multi-value
+ * label fields (`altLabels`, `hiddenLabels`) are newline-separated within a single quoted
+ * cell → split on `\n`. No IT-narrowing or dedupe-vs-taxonomy here (that is the curation
+ * step's job, mirroring the O*NET flow); this stays a pure projection of the digital subset.
+ */
+export function parseEscoSkills(skillsCsv: string, digitalUris: Set<string>): EscoRow[] {
+  const records = parse(skillsCsv, ESCO_PARSE_OPTS) as Record<string, string>[];
+  const rows: EscoRow[] = [];
+  for (const r of records) {
+    if ((r.conceptType ?? '').trim() !== 'KnowledgeSkillCompetence') continue;
+    const uri = (r.conceptUri ?? '').trim();
+    if (!digitalUris.has(uri)) continue;
+    const preferredLabel = (r.preferredLabel ?? '').trim();
+    if (!preferredLabel) continue;
+
+    const aliases = [...(r.altLabels ?? '').split('\n'), ...(r.hiddenLabels ?? '').split('\n')]
+      .map((a) => a.trim())
+      .filter(Boolean);
+
+    rows.push({
+      conceptUri: uri,
+      preferredLabel,
+      canonical_name: snakeCaseSkill(preferredLabel),
+      display_name: preferredLabel,
+      source_external_id: uri,
+      skillType: (r.skillType ?? '').trim(),
+      aliases: [...new Set(aliases)],
+      description: (r.description ?? '').trim(),
+    });
+  }
+  return rows;
+}
+
+/**
  * snake_case a skill name into a `canonical_name`, mirroring the *style* of
  * {@link SkillTaxonomyService.normalizeKey} (lowercase + trim) but producing an
  * underscore-joined token rather than a punctuation-stripped lookup key.
