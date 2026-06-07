@@ -1,0 +1,913 @@
+{
+  "_note": "ESCO ICT-occupation (ISCO 25xx) → our-role REFERENCE only. Approximate occupation→role mapping; NOT merged into skills-pilot.json role_relevance and NOT used in SkillDiff scoring (X1-safe). Use to inform eval-gated rubric expansion / trends.",
+  "source": "ESCO v1.2.x occupationSkillRelations (CC BY 4.0)",
+  "mapped_occupations": 45,
+  "relation_rows_considered": 3028,
+  "distinct_skill_labels": 697,
+  "roles": {
+    "backend_developer": [
+      {
+        "skill": "embedded_systems",
+        "essential": 3,
+        "optional": 0
+      },
+      {
+        "skill": "blockchain",
+        "essential": 2,
+        "optional": 1
+      },
+      {
+        "skill": "internet_of_things",
+        "essential": 2,
+        "optional": 2
+      },
+      {
+        "skill": "system_design",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "angular",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "ci_cd",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 7
+      },
+      {
+        "skill": "data_analysis",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 12
+      },
+      {
+        "skill": "drupal",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "infrastructure_as_code",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 13
+      },
+      {
+        "skill": "jquery",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "maven",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "nosql",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 7
+      },
+      {
+        "skill": "solidity",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "spark",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "sql",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "statistics",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "tomcat",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 7
+      },
+      {
+        "skill": "uml",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "wordpress",
+        "essential": 0,
+        "optional": 2
+      }
+    ],
+    "qa_tester": [
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "jquery",
+        "essential": 0,
+        "optional": 7
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 1
+      }
+    ],
+    "data_analyst": [
+      {
+        "skill": "business_intelligence",
+        "essential": 2,
+        "optional": 2
+      },
+      {
+        "skill": "data_warehouse",
+        "essential": 2,
+        "optional": 0
+      },
+      {
+        "skill": "data_analysis",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "data_mining",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "data_science",
+        "essential": 1,
+        "optional": 2
+      },
+      {
+        "skill": "etl",
+        "essential": 1,
+        "optional": 4
+      },
+      {
+        "skill": "statistics",
+        "essential": 1,
+        "optional": 1
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "computer_vision",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "database_design",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "db2",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "hadoop",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "jquery",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "mysql",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "postgresql",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "sql",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "sql_server",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "system_design",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "wordpress",
+        "essential": 0,
+        "optional": 1
+      }
+    ],
+    "ai_ml_engineer": [
+      {
+        "skill": "data_science",
+        "essential": 3,
+        "optional": 0
+      },
+      {
+        "skill": "data_mining",
+        "essential": 2,
+        "optional": 0
+      },
+      {
+        "skill": "etl",
+        "essential": 2,
+        "optional": 0
+      },
+      {
+        "skill": "statistics",
+        "essential": 2,
+        "optional": 0
+      },
+      {
+        "skill": "computer_vision",
+        "essential": 1,
+        "optional": 2
+      },
+      {
+        "skill": "data_structures_algorithms",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "machine_learning",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "business_intelligence",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "deep_learning",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "hadoop",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "jquery",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 1
+      }
+    ],
+    "mobile_developer": [
+      {
+        "skill": "internet_of_things",
+        "essential": 2,
+        "optional": 0
+      },
+      {
+        "skill": "embedded_systems",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "augmented_reality",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "infrastructure_as_code",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "joomla",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "maven",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "spark",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "swift",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 2
+      }
+    ],
+    "devops_engineer": [
+      {
+        "skill": "javascript",
+        "essential": 2,
+        "optional": 6
+      },
+      {
+        "skill": "ci_cd",
+        "essential": 1,
+        "optional": 1
+      },
+      {
+        "skill": "security",
+        "essential": 1,
+        "optional": 0
+      },
+      {
+        "skill": "system_design",
+        "essential": 1,
+        "optional": 1
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "database_design",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "db2",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 8
+      },
+      {
+        "skill": "embedded_systems",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "etl",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "infrastructure_as_code",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "internet_of_things",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "jquery",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "maven",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "mysql",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "postgresql",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "sql_server",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "swift",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "tomcat",
+        "essential": 0,
+        "optional": 2
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "vagrant",
+        "essential": 0,
+        "optional": 1
+      }
+    ],
+    "frontend_developer": [
+      {
+        "skill": "joomla",
+        "essential": 1,
+        "optional": 1
+      },
+      {
+        "skill": "augmented_reality",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "ci_cd",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "cobol",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "cpp",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "css",
+        "essential": 0,
+        "optional": 6
+      },
+      {
+        "skill": "dotnet",
+        "essential": 0,
+        "optional": 8
+      },
+      {
+        "skill": "drupal",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "erlang",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "groovy",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "haskell",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "infrastructure_as_code",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "internet_of_things",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "javascript",
+        "essential": 0,
+        "optional": 10
+      },
+      {
+        "skill": "matlab",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "maven",
+        "essential": 0,
+        "optional": 3
+      },
+      {
+        "skill": "nlp",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "nosql",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "objective_c",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "perl",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "php",
+        "essential": 0,
+        "optional": 5
+      },
+      {
+        "skill": "scala",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "spark",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "typescript",
+        "essential": 0,
+        "optional": 4
+      },
+      {
+        "skill": "vagrant",
+        "essential": 0,
+        "optional": 1
+      },
+      {
+        "skill": "wordpress",
+        "essential": 0,
+        "optional": 2
+      }
+    ]
+  }
+}
