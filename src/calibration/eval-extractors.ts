@@ -33,7 +33,10 @@ async function main(): Promise<void> {
     console.log(`No corpus dir. Create ${dir} and drop CV PDFs (esp. 2-column), then re-run.`);
     return;
   }
-  const pdfs = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.pdf')).sort();
+  const pdfs = fs
+    .readdirSync(dir)
+    .filter((f) => f.toLowerCase().endsWith('.pdf'))
+    .sort();
   if (pdfs.length === 0) {
     console.log(`No PDFs in ${dir} — drop CV PDFs (esp. 2-column) and re-run.`);
     return;
