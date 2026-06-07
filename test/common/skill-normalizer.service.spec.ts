@@ -30,7 +30,7 @@ describe('SkillNormalizerService stage-0', () => {
 
   it('dedupes compound parts that resolve to the same canonical', () => {
     expect(canonicals('Node.js và Express')).toEqual(['node_js']);
-    expect(canonicals('SQL Server, MySQL')).toEqual(['sql']);
+    expect(canonicals('GitHub, GitLab')).toEqual(['git']);
     expect(canonicals('Jest và Cypress')).toEqual(['frontend_testing']);
   });
 
