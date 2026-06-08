@@ -7,7 +7,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export const BASELINE_DIMS = ['action_verbs', 'skills_relevance', 'experience', 'education'] as const;
+export const BASELINE_DIMS = [
+  'action_verbs',
+  'skills_relevance',
+  'experience',
+  'education',
+] as const;
 export type BaselineDim = (typeof BASELINE_DIMS)[number];
 
 /** Current run, normalized for comparison. within-band + per-dim are 0–100; spearman is 0–1. */
@@ -46,7 +51,9 @@ export function compareToBaseline(
   const failures: string[] = [];
 
   if (current.overallWithinBandPct < m.absFloorPct)
-    failures.push(`FLOOR overall within-band: ${current.overallWithinBandPct}% < ${m.absFloorPct}%`);
+    failures.push(
+      `FLOOR overall within-band: ${current.overallWithinBandPct}% < ${m.absFloorPct}%`,
+    );
   if (current.spearman < m.absSpearmanFloor)
     failures.push(`FLOOR Spearman: ${current.spearman} < ${m.absSpearmanFloor}`);
 
@@ -79,7 +86,11 @@ export function toBaseline(
     generated: meta.generated,
     model: meta.model,
     scoring_weights_version: meta.scoring_weights_version,
-    overall: { within_band_pct: current.overallWithinBandPct, spearman: current.spearman, mae: meta.mae },
+    overall: {
+      within_band_pct: current.overallWithinBandPct,
+      spearman: current.spearman,
+      mae: meta.mae,
+    },
     per_dim: { ...current.perDimWithinBandPct },
   };
 }
