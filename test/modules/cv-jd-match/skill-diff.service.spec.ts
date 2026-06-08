@@ -130,3 +130,34 @@ describe('SkillDiffService step-5 formula', () => {
     expect(res.bonus_skills.map((b) => b.canonical_name)).toContain('redux');
   });
 });
+
+describe('SkillDiffService — JD vs rubric precedence', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('uses the JD requirements (not the role rubric) when both a JD and target_role are given', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'ReactJS' }, { name: 'Git' }],
+      jd_requirements_raw: [
+        { name: 'React', importance_hint: 'REQUIRED' },
+        { name: 'Git', importance_hint: 'REQUIRED' },
+      ],
+      target_role: 'frontend_developer', // rubric has 12 skills — must NOT be used here
+    });
+
+    // The JD lists 2 skills; the frontend rubric lists 12. The JD must win.
+    expect(res.scoring_breakdown.total_requirements).toBe(2);
+    const reqNames = [...res.matched_skills, ...res.partial_skills, ...res.missing_skills]
+      .map((s) => s.canonical_name)
+      .sort();
+    expect(reqNames).toEqual(['git', 'react']);
+  });
+});
