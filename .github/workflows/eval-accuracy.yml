@@ -1,0 +1,28 @@
+name: eval-accuracy
+
+# Manual R1 accuracy regression gate (LLM-backed → costs $, so workflow_dispatch ONLY, never per-push).
+# Run before merging changes to scoring / taxonomy / prompts. Fails the run on regression vs
+# data/eval-baseline.json. Secret required: OPENAI_API_KEY.
+on:
+  workflow_dispatch:
+
+env:
+  # eval:accuracy forces NODE_ENV=test itself (DB-less; joi relaxes GCS/RESEND for 'test').
+  # DATABASE_URL is provided but unused (test mode skips the connection) so AppModule config boots.
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DB_SSL: 'true'
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+jobs:
+  eval-accuracy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --trust-lockfile
+      - name: R1 accuracy vs baseline (fails on regression)
+        run: pnpm eval:accuracy
