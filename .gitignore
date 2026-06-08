@@ -75,3 +75,6 @@ data/onet/**/*.txt
 data/esco/*.zip
 data/esco/*.csv
 # The DERIVED data/esco/*.json (IT subset + role-skill map) IS committed (small, importer output).
+
+# Eval CV corpus (PII) + derived extractor report — local-only, never commit.
+data/eval-cvs-pdf/

@@ -40,7 +40,8 @@
     "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts",
     "cv-files:cleanup": "ts-node -r tsconfig-paths/register src/tools/cleanup-cv-files.ts",
     "import:onet": "ts-node src/tools/import-onet-tech-skills.ts",
-    "import:esco": "ts-node src/tools/import-esco-it.ts"
+    "import:esco": "ts-node src/tools/import-esco-it.ts",
+    "eval:extractors": "ts-node -r tsconfig-paths/register src/calibration/eval-extractors.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
@@ -108,7 +109,8 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "unpdf": "^1.6.2"
   },
   "jest": {
     "moduleFileExtensions": [
