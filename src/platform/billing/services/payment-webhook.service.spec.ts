@@ -78,6 +78,23 @@ describe('PaymentWebhookService', () => {
     expect(result).toEqual({ ok: true, processed: true });
   });
 
+  it('replays an existing unprocessed webhook through verification and settlement', async () => {
+    const { service, webhookEvents, provider, settlement } = setup();
+    webhookEvents.findOne.mockResolvedValue({
+      verified: true,
+      processed: false,
+      rawPayload: { data: { orderCode: 123, paymentLinkId: 'plink-1', reference: 'ref-1' } },
+    });
+
+    const result = await service.handleWebhook('PAYOS', { data: { orderCode: 123 } });
+
+    expect(provider.verifyWebhook).toHaveBeenCalledWith({
+      data: { orderCode: 123, paymentLinkId: 'plink-1', reference: 'ref-1' },
+    });
+    expect(settlement.settlePaidPayment).toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, processed: true });
+  });
+
   it('rejects invalid provider webhook signatures', async () => {
     const { service, webhookEvents, provider } = setup();
     webhookEvents.findOne.mockResolvedValue(null);
