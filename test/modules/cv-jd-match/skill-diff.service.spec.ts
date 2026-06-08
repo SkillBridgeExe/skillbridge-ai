@@ -160,4 +160,35 @@ describe('SkillDiffService — JD vs rubric precedence', () => {
       .sort();
     expect(reqNames).toEqual(['git', 'react']);
   });
+
+  it('reports requirements_source = jd_extraction when the JD wins', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'ReactJS' }],
+      jd_requirements_raw: [{ name: 'React', importance_hint: 'REQUIRED' }],
+      target_role: 'frontend_developer',
+    });
+    expect(res.requirements_source).toBe('jd_extraction');
+  });
+
+  it('falls back to the role rubric when the JD normalizes to zero requirements', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'ReactJS' }],
+      jd_requirements_raw: [{ name: 'zzz-not-a-real-skill-xyz' }],
+      target_role: 'frontend_developer',
+    });
+    expect(res.requirements_source).toBe('role_rubric');
+    expect(res.scoring_breakdown.total_requirements).toBe(12); // frontend rubric size
+    expect(res.unnormalized_jd_requirements.map((u) => u.raw_input)).toContain(
+      'zzz-not-a-real-skill-xyz',
+    );
+  });
+
+  it('still uses the rubric when no JD is provided (regression)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'ReactJS' }],
+      target_role: 'frontend_developer',
+    });
+    expect(res.requirements_source).toBe('role_rubric');
+    expect(res.scoring_breakdown.total_requirements).toBe(12);
+  });
 });

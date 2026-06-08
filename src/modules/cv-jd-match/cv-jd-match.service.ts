@@ -78,13 +78,8 @@ export class CvJdMatchService {
         target_role: input.target_role,
       });
 
-      // Determine source for telemetry / UI
-      let sourceOfRequirements: 'role_rubric' | 'jd_extraction' | 'none' = 'none';
-      if (input.target_role && diff.scoring_breakdown.total_requirements > 0) {
-        sourceOfRequirements = 'role_rubric';
-      } else if (extraction.jd_requirements_raw.length > 0) {
-        sourceOfRequirements = 'jd_extraction';
-      }
+      // Source is decided inside the diff (JD wins over rubric) — read it, don't re-derive.
+      const sourceOfRequirements = diff.requirements_source;
 
       const parsed: CvJdMatchParsedResponse = {
         overall_score: diff.overall_score,

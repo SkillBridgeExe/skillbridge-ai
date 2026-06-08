@@ -110,6 +110,8 @@ export interface DiffResult {
    *   overall           = min(raw, capBase + capSlope × required_coverage)
    */
   overall_score: number;
+  /** Which source the required-skills set came from (telemetry / UI honesty). */
+  requirements_source: 'jd_extraction' | 'role_rubric' | 'none';
   /** Breakdown for transparency / audit. */
   scoring_breakdown: {
     total_requirements: number;
@@ -142,8 +144,8 @@ const DEFAULT_IMPORTANCE: Importance = 'REQUIRED';
  * Flow:
  *   1. Normalize raw CV skills + raw JD requirements via SkillNormalizerService
  *      (LLM-extracted free-text → canonical taxonomy IDs).
- *   2. Build "required_skills" set: either from role rubric (target_role) OR from
- *      JD extraction (jd_requirements_raw). Rubric takes precedence if both given.
+ *   2. Build "required_skills" set: a provided JD (jd_requirements_raw) takes PRECEDENCE;
+ *      the role rubric (target_role) is the fallback when there is no usable JD.
  *   3. For each required skill: matched | partial | missing based on cv level vs required.
  *   4. Compute scores (match_ratio + weighted overall_score).
  *
@@ -195,7 +197,7 @@ export class SkillDiffService {
     }
 
     // Build required-skills list
-    const { requirements, unnormalizedJd } = this.buildRequirements(args);
+    const { requirements, unnormalizedJd, source } = this.buildRequirements(args);
 
     // Compute diff
     const matched: MatchedSkill[] = [];
@@ -293,6 +295,7 @@ export class SkillDiffService {
       match_ratio,
       required_coverage: round3(required_coverage),
       overall_score,
+      requirements_source: source,
       scoring_breakdown: {
         total_requirements: totalReqs,
         matched_count: matched.length,
@@ -309,47 +312,61 @@ export class SkillDiffService {
   }
 
   /**
-   * Build the "required skills" list. Strategy:
-   *   - If target_role rubric exists → use rubric (preferred — vetted by HR).
-   *   - Else if jd_requirements_raw provided → normalize them, apply defaults.
-   *   - Else → empty (caller gets 0 overall_score, all missing).
-   *
-   * Returns both the requirement list and any JD requirements that failed to normalize.
+   * Build the "required skills" list.
+   *   1. A provided JD that yields ≥1 normalizable requirement WINS — a pasted JD is the user
+   *      explicitly asking "match me to THIS posting"; it must not be silently overridden by the
+   *      generic role rubric (root cause B — 2026-06-08 match-consistency spec).
+   *   2. Else fall back to the role rubric (vetted by HR) when target_role has one.
+   *   3. Else empty (caller gets 0 overall_score, all-missing).
    */
   private buildRequirements(args: {
     jd_requirements_raw?: RawJdRequirement[];
     target_role?: string | null;
-  }): { requirements: RoleSkillRequirement[]; unnormalizedJd: UnnormalizedSkill[] } {
-    const unnormalizedJd: UnnormalizedSkill[] = [];
+  }): {
+    requirements: RoleSkillRequirement[];
+    unnormalizedJd: UnnormalizedSkill[];
+    source: 'jd_extraction' | 'role_rubric' | 'none';
+  } {
+    const { requirements: jdReqs, unnormalizedJd } = this.normalizeJdRequirements(
+      args.jd_requirements_raw ?? [],
+    );
+    if (jdReqs.length > 0) {
+      return { requirements: jdReqs, unnormalizedJd, source: 'jd_extraction' };
+    }
 
     if (args.target_role) {
       const rubric = this.rubrics.getRubric(args.target_role);
       if (rubric) {
-        return { requirements: rubric.skills, unnormalizedJd: [] };
+        return { requirements: rubric.skills, unnormalizedJd, source: 'role_rubric' };
       }
       this.logger.warn(
-        `No rubric found for target_role "${args.target_role}". Falling back to JD requirements.`,
+        `No rubric for target_role "${args.target_role}" and no usable JD requirements — empty requirement set.`,
       );
     }
 
-    if (!args.jd_requirements_raw || args.jd_requirements_raw.length === 0) {
-      return { requirements: [], unnormalizedJd: [] };
-    }
+    return { requirements: [], unnormalizedJd, source: 'none' };
+  }
 
-    // Normalize JD requirements — full stage-0 (normalizeMention) so a JD line written as a
-    // compound ("React + Redux") or umbrella phrase contributes every skill it names (review
-    // finding: JD side previously bypassed stage-0). Equal weights are computed over the
-    // RESOLVED canonical set, deduped first-occurrence (level/importance hints of the first
-    // mention win).
+  /**
+   * Normalize LLM-extracted JD requirements → canonical requirement list. Full stage-0
+   * (normalizeMention) so a compound/umbrella JD line contributes every skill it names.
+   * Equal weights over the resolved canonical set, deduped first-occurrence (first mention's
+   * level/importance hints win).
+   */
+  private normalizeJdRequirements(raw: RawJdRequirement[]): {
+    requirements: RoleSkillRequirement[];
+    unnormalizedJd: UnnormalizedSkill[];
+  } {
+    const unnormalizedJd: UnnormalizedSkill[] = [];
     const resolved = new Map<string, { level: number; importance: Importance }>();
-    for (const raw of args.jd_requirements_raw) {
+    for (const r of raw) {
       const results = this.normalizer
-        .normalizeMention(raw.name)
-        .filter((r) => r.canonical_name !== null);
+        .normalizeMention(r.name)
+        .filter((n) => n.canonical_name !== null);
       if (results.length === 0) {
         unnormalizedJd.push({
-          raw_input: raw.name,
-          evidence_text: raw.evidence_text,
+          raw_input: r.name,
+          evidence_text: r.evidence_text,
           reason: 'not_in_taxonomy',
         });
         continue;
@@ -358,22 +375,22 @@ export class SkillDiffService {
         const canonical = n.canonical_name as string;
         if (!resolved.has(canonical)) {
           resolved.set(canonical, {
-            level: this.proficiencyToLevel(raw.required_level_hint),
-            importance: this.toImportance(raw.importance_hint),
+            level: this.proficiencyToLevel(r.required_level_hint),
+            importance: this.toImportance(r.importance_hint),
           });
         }
       }
     }
-
     const equalWeight = resolved.size > 0 ? round3(1 / resolved.size) : 0;
-    const reqs: RoleSkillRequirement[] = [...resolved.entries()].map(([canonical, meta]) => ({
-      skill_canonical_name: canonical,
-      required_level: meta.level,
-      importance: meta.importance,
-      weight: equalWeight,
-    }));
-
-    return { requirements: reqs, unnormalizedJd };
+    const requirements: RoleSkillRequirement[] = [...resolved.entries()].map(
+      ([canonical, meta]) => ({
+        skill_canonical_name: canonical,
+        required_level: meta.level,
+        importance: meta.importance,
+        weight: equalWeight,
+      }),
+    );
+    return { requirements, unnormalizedJd };
   }
 
   private proficiencyToLevel(hint?: string): number {
