@@ -27,20 +27,17 @@ export class PaymentWebhookService {
     const eventHash = hashPayload(provider, body);
     const existing = await this.webhookEvents.findOne({ where: { eventHash } });
     if (existing) {
-      if (!existing.verified) {
-        throw new BadRequestException({
-          errorCode: ERROR_CODES.PAYMENT_WEBHOOK_INVALID,
-          message: 'Invalid payment webhook',
-        });
+      if (existing.processed) {
+        return { ok: true, processed: existing.processed };
       }
-      return { ok: true, processed: existing.processed };
+      return this.processWebhookEvent(provider, existing, existing.rawPayload);
     }
 
     const raw = body as {
       signature?: string;
       data?: { orderCode?: number; reference?: string; paymentLinkId?: string };
     };
-    let event = await this.webhookEvents.save(
+    const event = await this.webhookEvents.save(
       this.webhookEvents.create({
         provider,
         eventHash,
@@ -52,12 +49,22 @@ export class PaymentWebhookService {
       }),
     );
 
+    return this.processWebhookEvent(provider, event, body);
+  }
+
+  private async processWebhookEvent(
+    provider: string,
+    event: PaymentWebhookEventEntity,
+    payload: unknown,
+  ): Promise<{ ok: true; processed: boolean }> {
     try {
-      const verified = await this.providers.get(provider).verifyWebhook(body);
+      const verified = await this.providers.get(provider).verifyWebhook(payload);
       event.verified = true;
       event.orderCode = String(verified.orderCode);
       event.reference = verified.reference;
       event.paymentLinkId = verified.paymentLinkId;
+
+      event = await this.webhookEvents.save(event);
 
       if (verified.status === 'PAID') {
         await this.settlement.settlePaidPayment(verified);
