@@ -26,6 +26,15 @@ if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENA
 import * as fs from 'fs';
 import * as path from 'path';
 import { mae, spearman, mean } from './calibration-stats';
+import {
+  compareToBaseline,
+  loadBaseline,
+  writeBaseline,
+  toBaseline,
+  EvalSummary,
+  BaselineMargins,
+} from './eval-baseline';
+import scoringWeights from '../modules/cv-review/scoring-weights-v1.json';
 
 // Force DB-less scoring mode BEFORE AppModule is imported.
 process.env.NODE_ENV = 'test';
@@ -78,6 +87,7 @@ async function main(): Promise<void> {
   const predOverall: number[] = [];
   const expOverall: number[] = []; // monotonic proxy = sum of dim band midpoints
   const fails: string[] = [];
+  let modelCode = '';
 
   for (const cv of cvs) {
     const res = await cvReview.review('eval', {
@@ -86,6 +96,7 @@ async function main(): Promise<void> {
       prompt_template_code: PROMPT_CODE,
       target_role: cv.target_role,
     });
+    modelCode = res.model_code;
     const dims = res.parsed_response.llm_score_dimensions as Record<Dim, number>;
 
     for (const d of DIMS) {
@@ -147,11 +158,49 @@ async function main(): Promise<void> {
     console.log(fails.join('\n'));
   }
 
-  const pass = rate >= ACCEPT_RATE && rho >= SPEARMAN_MIN;
+  // ─── Baseline regression gate ───────────────────────────────────────────────
+  // Normalize this run, then either CAPTURE a new baseline (intentional) or COMPARE
+  // against the committed one. Absolute floor (ACCEPT_RATE/SPEARMAN_MIN) is the backstop.
+  const summary: EvalSummary = {
+    overallWithinBandPct: Math.round(rate * 100),
+    spearman: rho,
+    perDimWithinBandPct: DIMS.reduce(
+      (acc, d) => ({ ...acc, [d]: Math.round((perDim[d].inBand / N) * 100) }),
+      {} as EvalSummary['perDimWithinBandPct'],
+    ),
+  };
+
+  if (process.env.EVAL_UPDATE_BASELINE === '1') {
+    writeBaseline(
+      toBaseline(summary, {
+        generated: new Date().toISOString().slice(0, 10),
+        model: modelCode || 'unknown',
+        scoring_weights_version: scoringWeights.version,
+        mae: overallMae,
+      }),
+    );
+    console.log('\nBaseline UPDATED → data/eval-baseline.json (intentional capture)\n');
+    process.exit(0);
+  }
+
+  const baseline = loadBaseline();
+  const margins: BaselineMargins = {
+    overall: Number(process.env.OVERALL_MARGIN ?? 5),
+    spearman: Number(process.env.SPEARMAN_MARGIN ?? 0.05),
+    dim: Number(process.env.DIM_MARGIN ?? 10),
+    absFloorPct: Math.round(ACCEPT_RATE * 100),
+    absSpearmanFloor: SPEARMAN_MIN,
+  };
+  const cmp = compareToBaseline(summary, baseline, margins);
+  if (!baseline)
+    console.log(
+      '\n(no data/eval-baseline.json — absolute floor only; run `EVAL_UPDATE_BASELINE=1 pnpm eval:accuracy` to capture)',
+    );
+  if (cmp.failures.length) console.log('\nGate failures:\n  ' + cmp.failures.join('\n  '));
   console.log(
-    `\nVerdict: ${pass ? 'PASS ✅' : 'FAIL ❌'} (within-band ${Math.round(rate * 100)}% / target ${Math.round(ACCEPT_RATE * 100)}%, Spearman ${rho} / min ${SPEARMAN_MIN})\n`,
+    `\nVerdict: ${cmp.pass ? 'PASS ✅' : 'FAIL ❌'} (within-band ${summary.overallWithinBandPct}%, Spearman ${rho}${baseline ? ` vs baseline ${baseline.overall.within_band_pct}%/${baseline.overall.spearman}` : ''})\n`,
   );
-  process.exit(pass ? 0 : 1);
+  process.exit(cmp.pass ? 0 : 1);
 }
 
 main().catch((err) => {
