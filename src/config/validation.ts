@@ -56,6 +56,16 @@ export const configValidationSchema = Joi.object({
   // PDF rendering. Optional; when omitted Puppeteer uses its bundled/default browser.
   PUPPETEER_EXECUTABLE_PATH: Joi.string().allow('').optional(),
 
+  // payOS. Optional at boot so non-billing environments can run; billing flows require these.
+  PAYMENT_PROVIDER: Joi.string().default('PAYOS'),
+  PAYOS_CLIENT_ID: Joi.string().allow('').optional(),
+  PAYOS_API_KEY: Joi.string().allow('').optional(),
+  PAYOS_CHECKSUM_KEY: Joi.string().allow('').optional(),
+  PAYOS_RETURN_URL: Joi.string().uri().allow('').optional(),
+  PAYOS_CANCEL_URL: Joi.string().uri().allow('').optional(),
+  PAYOS_WEBHOOK_URL: Joi.string().uri().allow('').optional(),
+  PAYOS_PARTNER_CODE: Joi.string().allow('').optional(),
+
   // Vector — PINNED to 1024: the migration hardcodes skill_embeddings vector(1024), and a
   // mismatched env (e.g. a stale 768 from the old default) would silently kill the semantic
   // tier at query time (pgvector cast error → best-effort catch). Fail fast at boot instead.
