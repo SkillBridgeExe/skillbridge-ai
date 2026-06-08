@@ -2,12 +2,15 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../../../platform/auth/decorators/current-user.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import { SkillDemandService, SkillGapResponse, SkillTrendsResponse } from './skill-demand.service';
 import { TrendsInsightService } from './trends-insight.service';
 import { TrendsInsightResponse } from './trends-insight.types';
 
-/** J5 — skill-demand trends + per-CV gap + AI insight. JWT, same posture as /api/cvs. */
+/** J5 — skill-demand trends + per-CV gap + AI insight. JWT, same posture as /api/cvs.
+ * @Public() bypasses the global X-Internal-Auth guard; @UseGuards(jwt) still enforces the user. */
 @ApiTags('trends')
+@Public()
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/trends')
 export class TrendsController {
