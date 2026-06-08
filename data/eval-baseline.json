@@ -1,0 +1,16 @@
+{
+  "generated": "2026-06-08",
+  "model": "gpt-5.4-mini",
+  "scoring_weights_version": "scoring-weights-v1",
+  "overall": {
+    "within_band_pct": 94,
+    "spearman": 0.98,
+    "mae": 1.67
+  },
+  "per_dim": {
+    "action_verbs": 85,
+    "skills_relevance": 92,
+    "experience": 100,
+    "education": 100
+  }
+}
