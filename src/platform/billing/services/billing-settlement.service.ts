@@ -31,22 +31,25 @@ export class BillingSettlementService {
     paymentLinkId: string | null,
   ): Promise<void> {
     if (order.status === 'PAID') return;
-    order.status = 'PAID';
-    order.paidAt = new Date();
+    order.paidAt = order.paidAt ?? new Date();
     order.paymentLinkId = order.paymentLinkId ?? paymentLinkId;
-    await this.orders.save(order);
 
     if (order.purpose === 'SUBSCRIPTION') {
       await this.activateSubscription(order);
-      return;
-    }
-    if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
+    } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
       await this.updateMentorBookingAfterPayment(order);
     }
+
+    order.status = 'PAID';
+    await this.orders.save(order);
   }
 
   private async activateSubscription(order: PaymentOrderEntity): Promise<void> {
     if (!order.planCode) return;
+    const existingSubscription = await this.subscriptions.findOne({
+      where: { sourcePaymentOrderId: order.id },
+    });
+    if (existingSubscription) return;
     await this.subscriptions.update(
       { userId: order.userId, status: 'ACTIVE' },
       { status: 'EXPIRED' },
@@ -68,10 +71,12 @@ export class BillingSettlementService {
     const booking = await this.mentorBookings.findOne({ where: { id: order.targetId! } });
     if (!booking) return;
     if (order.purpose === 'MENTOR_DEPOSIT') {
+      if (booking.depositPaymentOrderId === order.id) return;
       booking.status = 'AWAITING_MENTOR_ACCEPT';
       booking.depositPaymentOrderId = order.id;
     }
     if (order.purpose === 'MENTOR_REMAINING') {
+      if (booking.remainingPaymentOrderId === order.id) return;
       booking.status = 'PAID';
       booking.remainingPaymentOrderId = order.id;
     }
