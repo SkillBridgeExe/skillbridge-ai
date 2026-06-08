@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../../platform/auth/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import {
   JobRecommendationResponse,
   JobRecommendationService,
@@ -9,9 +10,11 @@ import {
 
 /**
  * User-facing job recommendations (J4). Mirrors the cvs.controller auth posture:
- * JWT-guarded /api route; ownership of the CV is enforced in the service.
+ * @Public() bypasses the global X-Internal-Auth guard; @UseGuards(jwt) still enforces the
+ * user session, and ownership of the CV is enforced in the service.
  */
 @ApiTags('jobs')
+@Public()
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/cvs')
 export class JobsController {
