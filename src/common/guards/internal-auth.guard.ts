@@ -46,9 +46,6 @@ export class InternalAuthGuard implements CanActivate {
 
 function isInternalAiRoute(request: Request): boolean {
   const path =
-    request.path ??
-    request.originalUrl?.split('?')[0] ??
-    request.url?.split('?')[0] ??
-    '';
+    request.path ?? request.originalUrl?.split('?')[0] ?? request.url?.split('?')[0] ?? '';
   return path === '/internal/ai' || path.startsWith('/internal/ai/');
 }
