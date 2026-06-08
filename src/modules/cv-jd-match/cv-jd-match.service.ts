@@ -19,8 +19,8 @@ interface LlmExtractionOutput {
  *
  *   2. SkillDiffService runs deterministic diff:
  *      - Normalize raw skills against taxonomy.
- *      - Source of "required skills" = role rubric (if target_role given) OR
- *        normalized JD requirements (fallback).
+ *      - Source of "required skills" = a provided JD (PRECEDENCE); the role rubric is
+ *        the fallback when target_role has one and there's no usable JD.
  *      - Compute matched / partial / missing arrays.
  *      - Compute weighted overall_score.
  *
