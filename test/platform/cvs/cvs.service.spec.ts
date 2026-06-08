@@ -114,6 +114,11 @@ describe('CvsService R1 completion behavior', () => {
     // Per-user daily cv_review cap — default no-op; tests override to assert enforcement points.
     const analysisQuota = {
       assertWithinDailyLimit: jest.fn().mockResolvedValue(undefined),
+      recordSuccessfulAnalysis: jest.fn().mockResolvedValue(undefined),
+    };
+    const entitlements = {
+      assertCanUse: jest.fn().mockResolvedValue(undefined),
+      recordUsage: jest.fn().mockResolvedValue(undefined),
     };
 
     const service = new CvsService(
@@ -130,6 +135,7 @@ describe('CvsService R1 completion behavior', () => {
       rewriter as never,
       pdfRenderer as never,
       analysisQuota as never,
+      entitlements as never,
     );
 
     return {
@@ -146,6 +152,7 @@ describe('CvsService R1 completion behavior', () => {
       rewriter,
       pdfRenderer,
       analysisQuota,
+      entitlements,
     };
   }
 
@@ -392,8 +399,8 @@ describe('CvsService R1 completion behavior', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('delegates builder section evaluation and rewrite after ownership check', async () => {
-    const { service, cvsRepo, evaluator, rewriter } = build();
+  it('delegates builder section evaluation and rewrite after ownership and entitlement checks', async () => {
+    const { service, cvsRepo, evaluator, rewriter, entitlements } = build();
     cvsRepo.findOne.mockResolvedValue({
       id: 'draft-1',
       userId: 'u1',
@@ -409,7 +416,12 @@ describe('CvsService R1 completion behavior', () => {
     await service.rewriteBuilderText('u1', 'draft-1', rewriteBody);
 
     expect(evaluator.evaluate).toHaveBeenCalledWith(evaluateBody);
+    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_rewrite');
     expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody);
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_rewrite', {
+      sourceType: 'cv',
+      sourceId: 'draft-1',
+    });
   });
 
   it('renders a BUILT CV PDF from parsedJson without storage persistence', async () => {

@@ -18,6 +18,7 @@ import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
+import { EntitlementsService } from '../billing/entitlements.service';
 import {
   DownloadedFile,
   GcsStorageService,
@@ -69,6 +70,7 @@ export class CvsService {
     private readonly rewriter: CvRewriteService,
     private readonly pdfRenderer: CvPdfRendererService,
     private readonly analysisQuota: CvAnalysisQuotaService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   async create(
@@ -131,6 +133,7 @@ export class CvsService {
 
       const review = await this.reviewCv(userId, cv, targetRole ?? undefined);
       cv = review.cv;
+      await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
 
       return this.toResponse(cv, review.skills, review.parsed);
     } catch (error) {
@@ -253,7 +256,13 @@ export class CvsService {
     dto: RewriteRequestDto,
   ): Promise<RewriteResponseDto> {
     await this.findOwnedCv(userId, cvId);
-    return this.rewriter.rewrite(dto);
+    await this.entitlements.assertCanUse(userId, 'cv_builder_rewrite');
+    const response = await this.rewriter.rewrite(dto);
+    await this.entitlements.recordUsage(userId, 'cv_builder_rewrite', {
+      sourceType: 'cv',
+      sourceId: cvId,
+    });
+    return response;
   }
 
   async renderPdf(userId: string, cvId: string): Promise<RenderedCvPdf> {
@@ -279,6 +288,7 @@ export class CvsService {
 
     await this.analysisQuota.assertWithinDailyLimit(userId);
     const review = await this.reviewCv(userId, cv);
+    await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
     return this.toResponse(review.cv, review.skills, review.parsed);
   }
 

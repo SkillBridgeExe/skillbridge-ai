@@ -9,6 +9,7 @@ import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
 import { CvReviewModule } from '../../modules/cv-review/cv-review.module';
 import { TracingModule } from '../../modules/tracing/tracing.module';
+import { BillingModule } from '../billing/billing.module';
 import { CvPdfRendererService } from './cv-pdf-renderer.service';
 import { CvsRetentionService } from './cv-retention.service';
 import { CvsController } from './cvs.controller';
@@ -29,7 +30,8 @@ import { TextExtractorService } from './text-extractor.service';
     StorageModule,
     CvReviewModule,
     CvBuilderModule,
-    // Self-sufficient DI for CvAnalysisQuotaGuard (TracingService); @Global, so idempotent.
+    BillingModule,
+    // Self-sufficient DI for CV analysis usage counting; @Global, so idempotent.
     TracingModule,
   ],
   controllers: [CvsController, DiagnosisController],
