@@ -49,6 +49,17 @@ export default () => ({
     projectId: process.env.GCS_PROJECT_ID ?? '',
   },
 
+  payos: {
+    provider: process.env.PAYMENT_PROVIDER ?? 'PAYOS',
+    clientId: process.env.PAYOS_CLIENT_ID ?? '',
+    apiKey: process.env.PAYOS_API_KEY ?? '',
+    checksumKey: process.env.PAYOS_CHECKSUM_KEY ?? '',
+    returnUrl: process.env.PAYOS_RETURN_URL ?? '',
+    cancelUrl: process.env.PAYOS_CANCEL_URL ?? '',
+    webhookUrl: process.env.PAYOS_WEBHOOK_URL ?? '',
+    partnerCode: process.env.PAYOS_PARTNER_CODE ?? '',
+  },
+
   vector: {
     // MUST match the pgvector column width (skill_embeddings vector(1024)) AND the
     // `dimensions` param sent to OpenAI — the dimension contract (blueprint risk list).
