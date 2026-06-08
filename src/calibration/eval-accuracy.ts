@@ -35,6 +35,7 @@ import {
   BaselineMargins,
 } from './eval-baseline';
 import scoringWeights from '../modules/cv-review/scoring-weights-v1.json';
+import { withRetry } from './retry';
 
 // Force DB-less scoring mode BEFORE AppModule is imported.
 process.env.NODE_ENV = 'test';
@@ -87,15 +88,34 @@ async function main(): Promise<void> {
   const predOverall: number[] = [];
   const expOverall: number[] = []; // monotonic proxy = sum of dim band midpoints
   const fails: string[] = [];
+  const skipped: string[] = [];
+  // Transient LLM malformation (e.g. a bad `ats_extracted`) is retried per-CV; a CV that still
+  // fails after retries is SKIPPED (excluded from the denominator) rather than aborting the run.
+  const RETRY = Number(process.env.EVAL_RETRY_ATTEMPTS ?? 2);
   let modelCode = '';
 
   for (const cv of cvs) {
-    const res = await cvReview.review('eval', {
-      cv_id: cv.id,
-      parsed_text: cv.parsed_text,
-      prompt_template_code: PROMPT_CODE,
-      target_role: cv.target_role,
-    });
+    let res: Awaited<ReturnType<typeof cvReview.review>>;
+    try {
+      res = await withRetry(
+        () =>
+          cvReview.review('eval', {
+            cv_id: cv.id,
+            parsed_text: cv.parsed_text,
+            prompt_template_code: PROMPT_CODE,
+            target_role: cv.target_role,
+          }),
+        RETRY,
+        (e, n) =>
+          console.warn(
+            `  ${cv.id}: transient failure, retry ${n}/${RETRY} — ${(e as Error).message}`,
+          ),
+      );
+    } catch (e) {
+      console.warn(`  ${cv.id}: SKIPPED after ${RETRY} retries — ${(e as Error).message}`);
+      skipped.push(cv.id);
+      continue;
+    }
     modelCode = res.model_code;
     const dims = res.parsed_response.llm_score_dimensions as Record<Dim, number>;
 
@@ -124,7 +144,13 @@ async function main(): Promise<void> {
 
   await app.close();
 
-  const N = cvs.length;
+  // Denominator = CVs actually scored (skipped ones are EXCLUDED, not counted out-of-band) so a
+  // transient infra blip doesn't depress the metrics. predOverall/expOverall already omit skips.
+  const N = cvs.length - skipped.length;
+  if (N === 0) {
+    console.error(`\nAll ${cvs.length} CVs failed to score after retries — cannot evaluate.`);
+    process.exit(1);
+  }
   let totIn = 0;
   let totNear = 0;
   let totCount = 0;
@@ -192,15 +218,24 @@ async function main(): Promise<void> {
     absSpearmanFloor: SPEARMAN_MIN,
   };
   const cmp = compareToBaseline(summary, baseline, margins);
+  // Too many skipped CVs = the eval is too unstable to trust this run → fail (distinct from a
+  // genuine score regression). One transient skip is tolerated; a flood is not.
+  const maxSkipped = Number(process.env.EVAL_MAX_SKIPPED ?? 2);
+  const tooManySkipped = skipped.length > maxSkipped;
+  if (skipped.length)
+    console.log(
+      `\nSkipped ${skipped.length}/${cvs.length} CV(s) after retries: ${skipped.join(', ')}${tooManySkipped ? ` (> ${maxSkipped} → run too unstable, failing)` : ''}`,
+    );
   if (!baseline)
     console.log(
       '\n(no data/eval-baseline.json — absolute floor only; run `EVAL_UPDATE_BASELINE=1 pnpm eval:accuracy` to capture)',
     );
   if (cmp.failures.length) console.log('\nGate failures:\n  ' + cmp.failures.join('\n  '));
+  const pass = cmp.pass && !tooManySkipped;
   console.log(
-    `\nVerdict: ${cmp.pass ? 'PASS ✅' : 'FAIL ❌'} (within-band ${summary.overallWithinBandPct}%, Spearman ${rho}${baseline ? ` vs baseline ${baseline.overall.within_band_pct}%/${baseline.overall.spearman}` : ''})\n`,
+    `\nVerdict: ${pass ? 'PASS ✅' : 'FAIL ❌'} (within-band ${summary.overallWithinBandPct}% over ${N} scored, Spearman ${rho}${baseline ? ` vs baseline ${baseline.overall.within_band_pct}%/${baseline.overall.spearman}` : ''})\n`,
   );
-  process.exit(cmp.pass ? 0 : 1);
+  process.exit(pass ? 0 : 1);
 }
 
 main().catch((err) => {
