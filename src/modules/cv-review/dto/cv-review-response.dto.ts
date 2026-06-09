@@ -1,6 +1,6 @@
 import { AtsCheckResult } from '../ats-rule-checker.service';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
-import { BulletAnalysis } from '../bullet-analyzer.service';
+import { BulletAnalysis, BulletFeedbackItem } from '../bullet-analyzer.service';
 
 export interface CvReviewSectionIssue {
   severity: 'info' | 'warning' | 'error';
@@ -57,6 +57,7 @@ export interface SkillBreakdownItem {
   required_level: number;
   /** Present for matched/partial (the CV's inferred level). */
   cv_level?: number;
+  skill_type?: 'hard' | 'soft';
 }
 
 /** Deterministic Dimension-2 breakdown vs the role rubric — display-only, does NOT change the score. */
@@ -105,6 +106,10 @@ export interface CvReviewParsedResponse {
   scoring_weights_version: string;
   /** Deterministic matched/partial/missing vs the role rubric — null when no seeded rubric for the role. */
   skills_relevance_breakdown: SkillsRelevanceBreakdown | null;
+  /** Per-bullet deterministic feedback (line-by-line). Empty array if no bullets. */
+  bullet_feedback: BulletFeedbackItem[];
+  /** Distinct cliché/buzzword phrases found in the CV. */
+  buzzwords_detected: string[];
   /** Deterministic headline + top-3 prioritized fixes, computed from scores/signals (no LLM call). */
   top_summary: TopSummary;
 }

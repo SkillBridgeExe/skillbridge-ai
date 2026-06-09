@@ -243,6 +243,31 @@ describe('BulletAnalyzerService', () => {
     expect(fp.firstPersonRatio).toBe(1);
   });
 
+  // ─── analyzeBullets — per-bullet deterministic feedback (Task 2) ─────────
+
+  it('analyzeBullets flags a weak-opener bullet with a tip + section', () => {
+    const doc = docWith(['Responsible for fixing bugs'], 'en');
+    const out = svc.analyzeBullets(doc);
+    expect(out).toHaveLength(1);
+    expect(out[0].section).toBe('experience');
+    expect(out[0].weakOpener).toBe(true);
+    expect(out[0].tips.length).toBeGreaterThan(0);
+  });
+
+  it('analyzeBullets returns [] when there are no bullets', () => {
+    const doc = { ...emptyCanonicalCv('en') };
+    expect(svc.analyzeBullets(doc)).toEqual([]);
+  });
+
+  // ─── detectBuzzwords — distinct cliché phrases (Task 3) ──────────────────
+
+  it('detectBuzzwords finds cliché phrases in the CV (distinct, case-insensitive)', () => {
+    const doc = docWith(['Hardworking team player, responsible for tasks'], 'en');
+    const found = svc.detectBuzzwords(doc);
+    expect(found).toEqual(expect.arrayContaining(['hardworking', 'team player']));
+    expect(new Set(found).size).toBe(found.length); // distinct
+  });
+
   it('band aligns with methodology: ≥80% verb-first reaches exemplary ONLY at ≥50% quantified', () => {
     const lowQuant = svc.analyze(
       docWith([

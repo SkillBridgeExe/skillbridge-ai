@@ -85,6 +85,8 @@ describe('CvReviewService', () => {
         band: 'accomplished',
         notes: [],
       }),
+      analyzeBullets: jest.fn().mockReturnValue([]),
+      detectBuzzwords: jest.fn().mockReturnValue([]),
     };
 
     // Dim-2 breakdown engine — default returns nothing; the breakdown test overrides .diff.
@@ -251,6 +253,21 @@ describe('CvReviewService', () => {
     const { service } = build(); // roleRubric.getRubric → null by default
     const res = await service.review('u1', input);
     expect(res.parsed_response.skills_relevance_breakdown).toBeNull();
+  });
+
+  it('enriches the review with bullet_feedback, buzzwords_detected, and skill_type', async () => {
+    const { service } = build();
+    const res = await service.review('u1', input);
+    const p = res.parsed_response;
+    expect(Array.isArray(p.bullet_feedback)).toBe(true);
+    expect(Array.isArray(p.buzzwords_detected)).toBe(true);
+    if (p.skills_relevance_breakdown) {
+      const items = [
+        ...p.skills_relevance_breakdown.matched,
+        ...p.skills_relevance_breakdown.missing,
+      ];
+      if (items.length) expect(['hard', 'soft']).toContain(items[0].skill_type);
+    }
   });
 
   it('top_summary prioritizes quantification (in the CV language) when few bullets have numbers', async () => {

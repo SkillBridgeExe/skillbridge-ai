@@ -243,6 +243,8 @@ export class CvReviewService {
         action_verbs_analysis: bulletAnalysis,
         scoring_weights_version: scoringWeights.version,
         skills_relevance_breakdown,
+        bullet_feedback: this.bulletAnalyzer.analyzeBullets(document),
+        buzzwords_detected: this.bulletAnalyzer.detectBuzzwords(document),
         top_summary,
       };
 
@@ -468,11 +470,13 @@ export class CvReviewService {
       importance: string;
       required_level: number;
       cv_level?: number;
+      skill_type?: 'hard' | 'soft';
     }): SkillBreakdownItem => ({
       name: s.display_name,
       importance: s.importance,
       required_level: s.required_level,
       ...(s.cv_level !== undefined ? { cv_level: s.cv_level } : {}),
+      ...(s.skill_type ? { skill_type: s.skill_type } : {}),
     });
     return {
       matched: diff.matched_skills.map(item),
