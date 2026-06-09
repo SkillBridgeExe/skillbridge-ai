@@ -1,14 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
-import { DataSource, EntityTarget, Repository } from 'typeorm';
+import { DataSource, EntityManager, EntityTarget, Repository } from 'typeorm';
 import { MentorBookingEntity } from '../../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
 import { BillingSettlementService } from './billing-settlement.service';
 
-type RepoMock<T extends object> = Pick<
-  Repository<T>,
-  'create' | 'findOne' | 'save' | 'update'
-> & {
+type RepoMock<T extends object> = Pick<Repository<T>, 'create' | 'findOne' | 'save' | 'update'> & {
   create: jest.Mock;
   findOne: jest.Mock;
   save: jest.Mock;
@@ -33,19 +30,20 @@ function setup() {
     [UserSubscriptionEntity, subscriptions],
     [MentorBookingEntity, mentorBookings],
   ]);
+  const manager = {
+    getRepository: jest.fn((entity: EntityTarget<unknown>) => repos.get(entity)),
+  } as unknown as EntityManager;
   const dataSource = {
-    transaction: jest.fn(async (work: (manager: { getRepository: Function }) => Promise<unknown>) =>
-      work({
-        getRepository: (entity: EntityTarget<unknown>) => repos.get(entity),
-      }),
+    transaction: jest.fn(
+      async <T>(work: (manager: EntityManager) => Promise<T>): Promise<T> => work(manager),
     ),
   } as unknown as DataSource;
-  const service = new (BillingSettlementService as any)(
-    orders,
-    subscriptions,
-    mentorBookings,
+  const service = new BillingSettlementService(
+    orders as unknown as Repository<PaymentOrderEntity>,
+    subscriptions as unknown as Repository<UserSubscriptionEntity>,
+    mentorBookings as unknown as Repository<MentorBookingEntity>,
     dataSource,
-  ) as BillingSettlementService;
+  );
   return { service, orders, subscriptions, mentorBookings, dataSource };
 }
 

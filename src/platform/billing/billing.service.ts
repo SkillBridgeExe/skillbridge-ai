@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
-import { PaymentOrderEntity, PaymentOrderStatus } from '../../database/entities/payment-order.entity';
+import {
+  PaymentOrderEntity,
+  PaymentOrderStatus,
+} from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
 import {
@@ -138,6 +141,8 @@ export class BillingService {
   }
 }
 
-function isTerminalNonPaidStatus(status: string): status is Exclude<PaymentOrderStatus, 'PENDING' | 'PAID'> {
+function isTerminalNonPaidStatus(
+  status: string,
+): status is Exclude<PaymentOrderStatus, 'PENDING' | 'PAID'> {
   return status === 'CANCELLED' || status === 'EXPIRED' || status === 'FAILED';
 }

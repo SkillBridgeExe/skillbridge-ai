@@ -72,7 +72,11 @@ export class BillingSettlementService {
         message: 'Payment currency does not match the local order',
       });
     }
-    if (order.paymentLinkId && payment.paymentLinkId && order.paymentLinkId !== payment.paymentLinkId) {
+    if (
+      order.paymentLinkId &&
+      payment.paymentLinkId &&
+      order.paymentLinkId !== payment.paymentLinkId
+    ) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
         message: 'Payment link does not match the local order',
@@ -89,10 +93,7 @@ export class BillingSettlementService {
       where: { sourcePaymentOrderId: order.id },
     });
     if (existingSubscription) return;
-    await subscriptions.update(
-      { userId: order.userId, status: 'ACTIVE' },
-      { status: 'EXPIRED' },
-    );
+    await subscriptions.update({ userId: order.userId, status: 'ACTIVE' }, { status: 'EXPIRED' });
     const periodStart = new Date();
     await subscriptions.save(
       subscriptions.create({

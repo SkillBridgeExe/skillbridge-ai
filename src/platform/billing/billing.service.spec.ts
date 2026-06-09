@@ -3,6 +3,7 @@ import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
+import { PaymentProviderPort } from './payment-providers/payment-provider.port';
 import { PaymentProviderRegistry } from './payment-providers/payment-provider.registry';
 import { BillingService } from './billing.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
@@ -39,15 +40,17 @@ describe('BillingService reconcileOrder', () => {
       createPaymentLink: jest.fn(),
       verifyWebhook: jest.fn(),
       getPaymentStatus: jest.fn(),
-    };
-    const providers = { get: jest.fn().mockReturnValue(provider) } as unknown as PaymentProviderRegistry;
+    } as unknown as jest.Mocked<PaymentProviderPort>;
+    const providers = {
+      get: jest.fn().mockReturnValue(provider),
+    } as unknown as PaymentProviderRegistry;
     const settlement = {
       settlePaidPayment: jest.fn().mockResolvedValue({ processed: true }),
     } as unknown as BillingSettlementService;
-    const service = new (BillingService as any)(
-      plans,
-      features,
-      orders,
+    const service = new BillingService(
+      plans as unknown as Repository<BillingPlanEntity>,
+      features as unknown as Repository<PlanFeatureEntity>,
+      orders as unknown as Repository<PaymentOrderEntity>,
       entitlements,
       checkout,
       webhooks,
@@ -88,7 +91,7 @@ describe('BillingService reconcileOrder', () => {
       raw: {},
     });
 
-    const result = await (service as any).reconcileOrder('user-1', 123);
+    const result = await service.reconcileOrder('user-1', 123);
 
     expect(provider.getPaymentStatus).toHaveBeenCalledWith({ orderCode: 123 });
     expect(settlement.settlePaidPayment).toHaveBeenCalledWith(
@@ -132,7 +135,7 @@ describe('BillingService reconcileOrder', () => {
       raw: {},
     });
 
-    const result = await (service as any).reconcileOrder('user-1', 123);
+    const result = await service.reconcileOrder('user-1', 123);
 
     expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ orderCode: 123, status: 'PENDING' }));
@@ -169,7 +172,7 @@ describe('BillingService reconcileOrder', () => {
       raw: {},
     });
 
-    const result = await (service as any).reconcileOrder('user-1', 123);
+    const result = await service.reconcileOrder('user-1', 123);
 
     expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
     expect(orders.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'CANCELLED' }));
