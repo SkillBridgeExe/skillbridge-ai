@@ -5,6 +5,13 @@ import { LlmService } from '../../../infrastructure/llm/llm.service';
 import { SkillDiffService, DiffResult } from '../../cv-jd-match/skill-diff.service';
 import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.service';
 import { rrfFuse } from './rrf';
+import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
+import {
+  deriveCvSeniority,
+  computeExperienceFit,
+  ExperienceFit,
+  CvSeniority,
+} from '../../../common/services/seniority';
 
 export interface JobRecommendation {
   job_id: string;
@@ -29,6 +36,7 @@ export interface JobRecommendation {
   missing_skills: Array<{ display_name: string; importance: string }>;
   /** Same breakdown the score was computed from — lets the FE detail match the card exactly. */
   scoring_breakdown: DiffResult['scoring_breakdown'];
+  experience_fit: ExperienceFit;
 }
 
 export interface JobRecommendationResponse {
@@ -96,13 +104,16 @@ export class JobRecommendationService {
     const offset = Math.max(Number(options.offset) || 0, 0);
 
     // 1. Ownership + CV skills (persisted by the CV review pipeline).
-    const cvRows = await this.db.query<{ id: string }>(
-      `SELECT id FROM public.cvs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    const cvRows = await this.db.query<{ id: string; parsed_json: CanonicalCvDocument | null }>(
+      `SELECT id, parsed_json FROM public.cvs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
       [cvId, userId],
     );
     if (cvRows.length === 0) {
       throw new NotFoundException({ code: 'CV_NOT_FOUND', message: 'CV not found' });
     }
+    const cvSeniority: CvSeniority | null = cvRows[0].parsed_json
+      ? deriveCvSeniority(cvRows[0].parsed_json)
+      : null;
     const cvSkillRows = await this.db.query<{ canonical_name: string }>(
       `SELECT s.canonical_name
          FROM public.cv_skills cs JOIN public.skills s ON s.id = cs.skill_id
@@ -216,6 +227,7 @@ export class JobRecommendationService {
         diffByJob.get(jobId)!,
         offset + i + 1,
         simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
+        computeExperienceFit(cvSeniority, byId.get(jobId)!.experience_level),
       ),
     );
 
@@ -229,6 +241,7 @@ export function buildJobRecommendation(
   diff: DiffResult,
   rank: number,
   semanticSimilarity: number | null,
+  experienceFit: ExperienceFit,
 ): JobRecommendation {
   return {
     job_id: job.id,
@@ -256,5 +269,6 @@ export function buildJobRecommendation(
       importance: s.importance,
     })),
     scoring_breakdown: diff.scoring_breakdown,
+    experience_fit: experienceFit,
   };
 }
