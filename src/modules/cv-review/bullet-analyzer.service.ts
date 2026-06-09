@@ -42,6 +42,17 @@ export interface BulletAnalysis extends BulletSignals {
   notes: string[];
 }
 
+export interface BulletFeedbackItem {
+  text: string;
+  section: 'experience' | 'projects' | 'activities';
+  verbFirst: boolean;
+  quantified: boolean;
+  weakOpener: boolean;
+  firstPerson: boolean;
+  fillerCount: number;
+  tips: string[];
+}
+
 /** Per-line flags for ONE bullet/sentence — used by the cv-builder live evaluator (R1b). */
 export interface LineCheck {
   /** Starts with a strong action verb (and not a weak duty opener). */
@@ -403,6 +414,61 @@ export class BulletAnalyzerService {
       firstPerson: fpMarkers.some((re) => re.test(lower)),
       fillerCount: this.countFiller(lower),
     };
+  }
+
+  /** Per-bullet deterministic feedback (R1 explainability). Reuses checkLine(); no LLM. */
+  analyzeBullets(document: CanonicalCvDocument): BulletFeedbackItem[] {
+    const lang: 'vi' | 'en' = document.language === 'vi' ? 'vi' : 'en';
+    const sections: Array<
+      ['experience' | 'projects' | 'activities', Array<{ bullets?: string[] }>]
+    > = [
+      ['experience', document.experience ?? []],
+      ['projects', document.projects ?? []],
+      ['activities', document.activities ?? []],
+    ];
+    const out: BulletFeedbackItem[] = [];
+    for (const [section, entries] of sections) {
+      for (const entry of entries) {
+        for (const raw of entry.bullets ?? []) {
+          const text = (raw ?? '').trim();
+          if (!text) continue;
+          const c = this.checkLine(text, lang);
+          out.push({ text, section, ...c, tips: this.bulletTips(c, lang) });
+        }
+      }
+    }
+    return out;
+  }
+
+  private bulletTips(c: LineCheck, lang: 'vi' | 'en'): string[] {
+    const tips: string[] = [];
+    if (c.weakOpener)
+      tips.push(
+        lang === 'vi'
+          ? 'Mở đầu bằng động từ hành động mạnh thay vì cụm bị động/nhiệm vụ.'
+          : 'Open with a strong action verb, not a duty/passive phrase.',
+      );
+    else if (!c.verbFirst)
+      tips.push(
+        lang === 'vi' ? 'Bắt đầu câu bằng một động từ hành động.' : 'Start with an action verb.',
+      );
+    if (!c.quantified)
+      tips.push(
+        lang === 'vi'
+          ? 'Thêm số liệu/kết quả cụ thể (số, %, thời gian) nếu có.'
+          : 'Add a concrete metric (number, %, time) where real.',
+      );
+    if (c.firstPerson)
+      tips.push(
+        lang === 'vi'
+          ? "Bỏ ngôi thứ nhất ('tôi/em'); dùng chủ ngữ ngầm."
+          : 'Drop first-person; use an implied subject.',
+      );
+    if (c.fillerCount > 0)
+      tips.push(
+        lang === 'vi' ? 'Bỏ từ sáo rỗng/buzzword.' : 'Remove filler/buzzwords.',
+      );
+    return tips;
   }
 
   private harvestBullets(doc: CanonicalCvDocument): string[] {
