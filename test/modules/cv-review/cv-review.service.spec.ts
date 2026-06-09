@@ -92,6 +92,10 @@ describe('CvReviewService', () => {
     // Dim-2 breakdown engine — default returns nothing; the breakdown test overrides .diff.
     const skillDiff = { diff: jest.fn() };
 
+    // Evidence Ledger deps — lightweight mocks (no taxonomy init needed in this unit spec).
+    const scanner = { scan: jest.fn().mockReturnValue([]) };
+    const normalizer = { getByCanonical: jest.fn().mockReturnValue(undefined) };
+
     const service = new CvReviewService(
       llm as never,
       prompts as never,
@@ -102,6 +106,8 @@ describe('CvReviewService', () => {
       roleRubric as never,
       bulletAnalyzer as never,
       skillDiff as never,
+      scanner as never,
+      normalizer as never,
     );
     return {
       service,
@@ -114,6 +120,8 @@ describe('CvReviewService', () => {
       roleRubric,
       bulletAnalyzer,
       skillDiff,
+      scanner,
+      normalizer,
     };
   }
 
@@ -288,5 +296,15 @@ describe('CvReviewService', () => {
     expect(ts.prioritized_actions.length).toBeGreaterThan(0);
     expect(ts.prioritized_actions[0]).toMatch(/số liệu/); // vi CV → vi action
     expect(ts.headline).toContain('/100');
+  });
+
+  it('attaches evidence_ledger to the parsed response (display-only, structure always present)', async () => {
+    const { service } = build();
+    const res = await service.review('u1', input);
+    // Evidence ledger is attached (display-only). Structure always present.
+    const ledger = res.parsed_response.evidence_ledger;
+    expect(ledger).toBeDefined();
+    expect(Array.isArray(ledger!.items)).toBe(true);
+    expect(Array.isArray(ledger!.evidence_gap)).toBe(true);
   });
 });
