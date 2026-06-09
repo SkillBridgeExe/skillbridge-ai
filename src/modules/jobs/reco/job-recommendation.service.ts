@@ -5,6 +5,14 @@ import { LlmService } from '../../../infrastructure/llm/llm.service';
 import { SkillDiffService, DiffResult } from '../../cv-jd-match/skill-diff.service';
 import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.service';
 import { rrfFuse } from './rrf';
+import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
+import {
+  deriveCvSeniority,
+  computeExperienceFit,
+  experienceNudge,
+  ExperienceFit,
+  CvSeniority,
+} from '../../../common/services/seniority';
 
 export interface JobRecommendation {
   job_id: string;
@@ -29,6 +37,7 @@ export interface JobRecommendation {
   missing_skills: Array<{ display_name: string; importance: string }>;
   /** Same breakdown the score was computed from — lets the FE detail match the card exactly. */
   scoring_breakdown: DiffResult['scoring_breakdown'];
+  experience_fit: ExperienceFit;
 }
 
 export interface JobRecommendationResponse {
@@ -57,6 +66,17 @@ interface CandidateJobRow {
   source_url: string | null;
   posted_at: string | null;
   skills: Array<{ canonical: string; importance: string }>;
+}
+
+/** Tie-breaker re-rank: adjusted = rrf + experienceNudge(fit); sort desc, stable by id.
+ *  The nudge is ~one RRF rank-step, so only near-ties reorder — a clear skill-winner is never displaced. */
+export function rerankByExperience(
+  fused: Map<string, number>,
+  fitByJob: Map<string, ExperienceFit>,
+): Array<[string, number]> {
+  return [...fused.entries()]
+    .map(([id, score]): [string, number] => [id, score + experienceNudge(fitByJob.get(id))])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
 /**
@@ -96,13 +116,16 @@ export class JobRecommendationService {
     const offset = Math.max(Number(options.offset) || 0, 0);
 
     // 1. Ownership + CV skills (persisted by the CV review pipeline).
-    const cvRows = await this.db.query<{ id: string }>(
-      `SELECT id FROM public.cvs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    const cvRows = await this.db.query<{ id: string; parsed_json: CanonicalCvDocument | null }>(
+      `SELECT id, parsed_json FROM public.cvs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
       [cvId, userId],
     );
     if (cvRows.length === 0) {
       throw new NotFoundException({ code: 'CV_NOT_FOUND', message: 'CV not found' });
     }
+    const cvSeniority: CvSeniority | null = cvRows[0].parsed_json
+      ? deriveCvSeniority(cvRows[0].parsed_json)
+      : null;
     const cvSkillRows = await this.db.query<{ canonical_name: string }>(
       `SELECT s.canonical_name
          FROM public.cv_skills cs JOIN public.skills s ON s.id = cs.skill_id
@@ -202,10 +225,15 @@ export class JobRecommendationService {
       rankB = [];
     }
 
-    // 5. RRF fuse → full ranking, then slice the requested page (stable tiebreak by job_id so
-    // page boundaries are reproducible across requests — required for correct pagination).
+    // 5. RRF fuse → soft tie-breaker re-rank by experience fit → slice the requested page.
+    // fitByJob pre-computes experience fit for all candidates so rerankByExperience can apply
+    // the nudge in O(n) without re-deriving per job. Stable tiebreak by job_id keeps pagination
+    // reproducible across requests.
+    const fitByJob = new Map<string, ExperienceFit>(
+      candidates.map((c) => [c.id, computeExperienceFit(cvSeniority, c.experience_level)]),
+    );
     const fused = rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]);
-    const allRanked = [...fused.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const allRanked = rerankByExperience(fused, fitByJob);
     const total = allRanked.length;
     const page = allRanked.slice(offset, offset + limit);
 
@@ -216,6 +244,7 @@ export class JobRecommendationService {
         diffByJob.get(jobId)!,
         offset + i + 1,
         simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
+        fitByJob.get(jobId)!,
       ),
     );
 
@@ -229,6 +258,7 @@ export function buildJobRecommendation(
   diff: DiffResult,
   rank: number,
   semanticSimilarity: number | null,
+  experienceFit: ExperienceFit,
 ): JobRecommendation {
   return {
     job_id: job.id,
@@ -256,5 +286,6 @@ export function buildJobRecommendation(
       importance: s.importance,
     })),
     scoring_breakdown: diff.scoring_breakdown,
+    experience_fit: experienceFit,
   };
 }
