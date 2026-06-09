@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
-import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
+import {
+  PaymentOrderEntity,
+  PaymentOrderStatus,
+} from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
 import {
@@ -12,7 +15,9 @@ import {
   OrderStatusResponseDto,
   SubscriptionResponseDto,
 } from './dto/billing.dto';
+import { PaymentProviderRegistry } from './payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './services/billing-checkout.service';
+import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
 
 @Injectable()
@@ -24,6 +29,8 @@ export class BillingService {
     private readonly entitlements: EntitlementsService,
     private readonly checkout: BillingCheckoutService,
     private readonly webhooks: PaymentWebhookService,
+    private readonly providers: PaymentProviderRegistry,
+    private readonly settlement: BillingSettlementService,
   ) {}
 
   async listPlans(): Promise<BillingPlanDto[]> {
@@ -68,6 +75,24 @@ export class BillingService {
     return this.toOrderResponse(order);
   }
 
+  async reconcileOrder(userId: string, orderCode: number): Promise<OrderStatusResponseDto> {
+    const order = await this.findOrderForUser(userId, orderCode);
+    if (order.status !== 'PENDING') {
+      return this.toOrderResponse(order);
+    }
+    const provider = this.providers.get(order.provider);
+    const snapshot = await provider.getPaymentStatus({ orderCode: Number(order.orderCode) });
+    if (snapshot.status === 'PAID') {
+      await this.settlement.settlePaidPayment(snapshot);
+    } else if (isTerminalNonPaidStatus(snapshot.status)) {
+      order.status = snapshot.status;
+      order.paymentLinkId = order.paymentLinkId ?? snapshot.paymentLinkId;
+      await this.orders.save(order);
+    }
+    const refreshed = await this.findOrderForUser(userId, orderCode);
+    return this.toOrderResponse(refreshed);
+  }
+
   async getSubscription(userId: string): Promise<SubscriptionResponseDto> {
     return this.entitlements.getCurrentEntitlements(userId);
   }
@@ -87,6 +112,17 @@ export class BillingService {
     return this.webhooks.handleWebhook(provider, body);
   }
 
+  private async findOrderForUser(userId: string, orderCode: number): Promise<PaymentOrderEntity> {
+    const order = await this.orders.findOne({ where: { userId, orderCode: String(orderCode) } });
+    if (!order) {
+      throw new NotFoundException({
+        errorCode: ERROR_CODES.PAYMENT_ORDER_NOT_FOUND,
+        message: 'Payment order not found',
+      });
+    }
+    return order;
+  }
+
   private toOrderResponse(order: PaymentOrderEntity): OrderStatusResponseDto {
     return {
       orderId: order.id,
@@ -103,4 +139,10 @@ export class BillingService {
       createdAt: order.createdAt.toISOString(),
     };
   }
+}
+
+function isTerminalNonPaidStatus(
+  status: string,
+): status is Exclude<PaymentOrderStatus, 'PENDING' | 'PAID'> {
+  return status === 'CANCELLED' || status === 'EXPIRED' || status === 'FAILED';
 }

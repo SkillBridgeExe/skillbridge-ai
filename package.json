@@ -39,6 +39,7 @@
     "jobs:crawl": "ts-node -r tsconfig-paths/register src/tools/crawl-jobs.ts",
     "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts",
     "cv-files:cleanup": "ts-node -r tsconfig-paths/register src/tools/cleanup-cv-files.ts",
+    "payos:webhook:confirm": "ts-node -r tsconfig-paths/register src/tools/confirm-payos-webhook.ts",
     "import:onet": "ts-node src/tools/import-onet-tech-skills.ts",
     "import:esco": "ts-node src/tools/import-esco-it.ts",
     "eval:extractors": "ts-node -r tsconfig-paths/register src/calibration/eval-extractors.ts"

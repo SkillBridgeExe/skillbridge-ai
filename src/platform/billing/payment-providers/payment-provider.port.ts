@@ -18,17 +18,26 @@ export interface PaymentCheckoutResult {
   expiresAt: Date | null;
 }
 
+export interface PaymentStatusRequest {
+  orderCode: number;
+}
+
 export interface VerifiedPaymentWebhook {
   provider: PaymentProviderCode;
   orderCode: number;
   paymentLinkId: string | null;
   reference: string | null;
   status: VerifiedPaymentStatus;
+  amountVnd: number | null;
+  currency: string | null;
   raw: unknown;
 }
+
+export type PaymentStatusSnapshot = VerifiedPaymentWebhook;
 
 export interface PaymentProviderPort {
   code: PaymentProviderCode;
   createPaymentLink(input: PaymentCheckoutRequest): Promise<PaymentCheckoutResult>;
   verifyWebhook(input: unknown): Promise<VerifiedPaymentWebhook>;
+  getPaymentStatus(input: PaymentStatusRequest): Promise<PaymentStatusSnapshot>;
 }

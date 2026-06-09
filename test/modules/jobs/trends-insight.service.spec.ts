@@ -1,5 +1,7 @@
 import { TrendsInsightService } from '../../../src/modules/jobs/trends/trends-insight.service';
 
+type TrendsInsightDeps = ConstructorParameters<typeof TrendsInsightService>;
+
 function deps() {
   const demand = {
     getTrends: jest.fn().mockResolvedValue({
@@ -48,11 +50,11 @@ function deps() {
   };
   const db = { query: jest.fn() };
   const svc = new TrendsInsightService(
-    demand as any,
-    llm as any,
-    prompts as any,
-    tracing as any,
-    db as any,
+    demand as unknown as TrendsInsightDeps[0],
+    llm as unknown as TrendsInsightDeps[1],
+    prompts as unknown as TrendsInsightDeps[2],
+    tracing as unknown as TrendsInsightDeps[3],
+    db as unknown as TrendsInsightDeps[4],
   );
   return { svc, demand, llm, prompts, tracing, db };
 }

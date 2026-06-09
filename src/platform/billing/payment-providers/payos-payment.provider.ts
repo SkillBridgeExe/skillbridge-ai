@@ -4,6 +4,8 @@ import { PayOS, Webhook, WebhookData } from '@payos/node';
 import {
   PaymentCheckoutRequest,
   PaymentCheckoutResult,
+  PaymentStatusRequest,
+  PaymentStatusSnapshot,
   PaymentProviderPort,
   VerifiedPaymentStatus,
   VerifiedPaymentWebhook,
@@ -57,7 +59,24 @@ export class PayosPaymentProvider implements PaymentProviderPort {
       paymentLinkId: data.paymentLinkId ?? null,
       reference: data.reference ?? null,
       status: toVerifiedStatus(webhook, data),
+      amountVnd: data.amount ?? null,
+      currency: data.currency ?? null,
       raw: input,
+    };
+  }
+
+  async getPaymentStatus(input: PaymentStatusRequest): Promise<PaymentStatusSnapshot> {
+    const link = await this.requireClient().paymentRequests.get(input.orderCode);
+    const linkWithCurrency = link as typeof link & { currency?: string };
+    return {
+      provider: this.code,
+      orderCode: link.orderCode,
+      paymentLinkId: link.id ?? null,
+      reference: link.transactions?.[0]?.reference ?? null,
+      status: toSnapshotStatus(link.status),
+      amountVnd: link.amount ?? null,
+      currency: linkWithCurrency.currency ?? 'VND',
+      raw: link,
     };
   }
 
@@ -78,4 +97,19 @@ export class PayosPaymentProvider implements PaymentProviderPort {
 function toVerifiedStatus(webhook: Webhook, data: WebhookData): VerifiedPaymentStatus {
   if (webhook.success && data.code === '00') return 'PAID';
   return 'PENDING';
+}
+
+function toSnapshotStatus(status: string): VerifiedPaymentStatus {
+  switch (status) {
+    case 'PAID':
+      return 'PAID';
+    case 'CANCELLED':
+      return 'CANCELLED';
+    case 'EXPIRED':
+      return 'EXPIRED';
+    case 'FAILED':
+      return 'FAILED';
+    default:
+      return 'PENDING';
+  }
 }

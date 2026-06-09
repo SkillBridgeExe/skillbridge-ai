@@ -1,8 +1,15 @@
 import { HttpException } from '@nestjs/common';
+import { Repository } from 'typeorm';
+import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
+import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
+import { UsageEventEntity } from '../../database/entities/usage-event.entity';
+import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
 import { EntitlementsService } from './entitlements.service';
 
-function repo<T>(partial: Partial<Record<keyof any, jest.Mock>>): T {
-  return partial as T;
+function repo<T extends object>(
+  partial: Partial<Record<keyof Repository<T>, jest.Mock>>,
+): Repository<T> {
+  return partial as unknown as Repository<T>;
 }
 
 function usageRepo(rows: Array<{ featureKey: string; count: string }>) {
@@ -24,16 +31,18 @@ function usageRepo(rows: Array<{ featureKey: string; count: string }>) {
 describe('EntitlementsService', () => {
   it('allows usage below a positive monthly limit', async () => {
     const service = new EntitlementsService(
-      repo({ findOne: jest.fn().mockResolvedValue({ code: 'FREE' }) }),
-      repo({
+      repo<BillingPlanEntity>({ findOne: jest.fn().mockResolvedValue({ code: 'FREE' }) }),
+      repo<PlanFeatureEntity>({
         find: jest
           .fn()
           .mockResolvedValue([
             { planCode: 'FREE', featureKey: 'cv_review', limitValue: 3, period: 'MONTHLY' },
           ]),
       }),
-      repo({ findOne: jest.fn().mockResolvedValue(null) }),
-      usageRepo([{ featureKey: 'cv_review', count: '2' }]) as never,
+      repo<UserSubscriptionEntity>({ findOne: jest.fn().mockResolvedValue(null) }),
+      usageRepo([
+        { featureKey: 'cv_review', count: '2' },
+      ]) as unknown as Repository<UsageEventEntity>,
     );
 
     await expect(service.assertCanUse('user-1', 'cv_review')).resolves.toBeUndefined();
@@ -41,8 +50,8 @@ describe('EntitlementsService', () => {
 
   it('blocks a feature with limit 0', async () => {
     const service = new EntitlementsService(
-      repo({ findOne: jest.fn().mockResolvedValue({ code: 'FREE' }) }),
-      repo({
+      repo<BillingPlanEntity>({ findOne: jest.fn().mockResolvedValue({ code: 'FREE' }) }),
+      repo<PlanFeatureEntity>({
         find: jest.fn().mockResolvedValue([
           {
             planCode: 'FREE',
@@ -52,8 +61,8 @@ describe('EntitlementsService', () => {
           },
         ]),
       }),
-      repo({ findOne: jest.fn().mockResolvedValue(null) }),
-      usageRepo([]) as never,
+      repo<UserSubscriptionEntity>({ findOne: jest.fn().mockResolvedValue(null) }),
+      usageRepo([]) as unknown as Repository<UsageEventEntity>,
     );
 
     await expect(service.assertCanUse('user-1', 'cv_builder_rewrite')).rejects.toBeInstanceOf(
@@ -63,15 +72,15 @@ describe('EntitlementsService', () => {
 
   it('allows unlimited usage when limit is -1', async () => {
     const service = new EntitlementsService(
-      repo({ findOne: jest.fn().mockResolvedValue({ code: 'PREMIUM' }) }),
-      repo({
+      repo<BillingPlanEntity>({ findOne: jest.fn().mockResolvedValue({ code: 'PREMIUM' }) }),
+      repo<PlanFeatureEntity>({
         find: jest
           .fn()
           .mockResolvedValue([
             { planCode: 'PREMIUM', featureKey: 'cv_review', limitValue: -1, period: 'MONTHLY' },
           ]),
       }),
-      repo({
+      repo<UserSubscriptionEntity>({
         findOne: jest.fn().mockResolvedValue({
           id: 'sub-1',
           planCode: 'PREMIUM',
@@ -80,7 +89,9 @@ describe('EntitlementsService', () => {
           currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
         }),
       }),
-      usageRepo([{ featureKey: 'cv_review', count: '999' }]) as never,
+      usageRepo([
+        { featureKey: 'cv_review', count: '999' },
+      ]) as unknown as Repository<UsageEventEntity>,
     );
 
     await expect(service.assertCanUse('user-1', 'cv_review')).resolves.toBeUndefined();
