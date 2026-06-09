@@ -6,6 +6,7 @@ import {
   PartialSkill,
   UnnormalizedSkill,
 } from '../skill-diff.service';
+import { InferredSkill } from '../skill-graph';
 
 export interface KeywordFrequency {
   canonical_name: string;
@@ -54,6 +55,13 @@ export interface CvJdMatchParsedResponse {
 
   /** Breakdown for transparency / audit — referenced from DiffResult so it can't drift. */
   scoring_breakdown: DiffResult['scoring_breakdown'];
+
+  /**
+   * Display-only Inferred-layer suggestions (skill-graph: e.g. JS→React) the candidate should
+   * showcase. NEVER affects any score. Optional so the platform reconstruction site needs no
+   * change (additive, cross-lane-safe — same pattern as keyword_frequency).
+   */
+  inferred_skills?: InferredSkill[];
 
   /** Indicates which source was used for "required skills". */
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';

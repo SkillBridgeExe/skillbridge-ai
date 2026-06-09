@@ -110,6 +110,7 @@ export class CvJdMatchService {
         unnormalized_cv_skills: diff.unnormalized_cv_skills,
         unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
         scoring_breakdown: diff.scoring_breakdown,
+        inferred_skills: diff.inferred_skills,
         source_of_requirements: sourceOfRequirements,
         target_role: input.target_role ?? null,
       };
