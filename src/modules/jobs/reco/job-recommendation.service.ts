@@ -9,6 +9,7 @@ import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
 import {
   deriveCvSeniority,
   computeExperienceFit,
+  experienceNudge,
   ExperienceFit,
   CvSeniority,
 } from '../../../common/services/seniority';
@@ -65,6 +66,17 @@ interface CandidateJobRow {
   source_url: string | null;
   posted_at: string | null;
   skills: Array<{ canonical: string; importance: string }>;
+}
+
+/** Tie-breaker re-rank: adjusted = rrf + experienceNudge(fit); sort desc, stable by id.
+ *  The nudge is ~one RRF rank-step, so only near-ties reorder — a clear skill-winner is never displaced. */
+export function rerankByExperience(
+  fused: Map<string, number>,
+  fitByJob: Map<string, ExperienceFit>,
+): Array<[string, number]> {
+  return [...fused.entries()]
+    .map(([id, score]): [string, number] => [id, score + experienceNudge(fitByJob.get(id))])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
 /**
@@ -213,10 +225,15 @@ export class JobRecommendationService {
       rankB = [];
     }
 
-    // 5. RRF fuse → full ranking, then slice the requested page (stable tiebreak by job_id so
-    // page boundaries are reproducible across requests — required for correct pagination).
+    // 5. RRF fuse → soft tie-breaker re-rank by experience fit → slice the requested page.
+    // fitByJob pre-computes experience fit for all candidates so rerankByExperience can apply
+    // the nudge in O(n) without re-deriving per job. Stable tiebreak by job_id keeps pagination
+    // reproducible across requests.
+    const fitByJob = new Map<string, ExperienceFit>(
+      candidates.map((c) => [c.id, computeExperienceFit(cvSeniority, c.experience_level)]),
+    );
     const fused = rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]);
-    const allRanked = [...fused.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const allRanked = rerankByExperience(fused, fitByJob);
     const total = allRanked.length;
     const page = allRanked.slice(offset, offset + limit);
 
@@ -227,7 +244,7 @@ export class JobRecommendationService {
         diffByJob.get(jobId)!,
         offset + i + 1,
         simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
-        computeExperienceFit(cvSeniority, byId.get(jobId)!.experience_level),
+        fitByJob.get(jobId)!,
       ),
     );
 
