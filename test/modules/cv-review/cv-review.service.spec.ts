@@ -262,7 +262,10 @@ describe('CvReviewService', () => {
     expect(Array.isArray(p.bullet_feedback)).toBe(true);
     expect(Array.isArray(p.buzzwords_detected)).toBe(true);
     if (p.skills_relevance_breakdown) {
-      const items = [...p.skills_relevance_breakdown.matched, ...p.skills_relevance_breakdown.missing];
+      const items = [
+        ...p.skills_relevance_breakdown.matched,
+        ...p.skills_relevance_breakdown.missing,
+      ];
       if (items.length) expect(['hard', 'soft']).toContain(items[0].skill_type);
     }
   });

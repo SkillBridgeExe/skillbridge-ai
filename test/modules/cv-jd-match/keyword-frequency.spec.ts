@@ -3,7 +3,9 @@ import { ScannedSkill } from '../../../src/common/services/skill-text-scanner.se
 
 describe('buildKeywordFrequency', () => {
   it('counts CV vs JD occurrences over the requirement set (0 when absent, deduped)', () => {
-    const cvScan: ScannedSkill[] = [{ canonical_name: 'react', matched_text: 'React', occurrences: 3 }];
+    const cvScan: ScannedSkill[] = [
+      { canonical_name: 'react', matched_text: 'React', occurrences: 3 },
+    ];
     const jdScan: ScannedSkill[] = [
       { canonical_name: 'react', matched_text: 'React', occurrences: 5 },
       { canonical_name: 'git', matched_text: 'Git', occurrences: 2 },

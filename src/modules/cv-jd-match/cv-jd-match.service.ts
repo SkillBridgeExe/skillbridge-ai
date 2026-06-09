@@ -3,8 +3,15 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { CvJdMatchRequestDto } from './dto/cv-jd-match-request.dto';
-import { CvJdMatchParsedResponse, CvJdMatchResponseDto, KeywordFrequency } from './dto/cv-jd-match-response.dto';
-import { ScannedSkill, SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
+import {
+  CvJdMatchParsedResponse,
+  CvJdMatchResponseDto,
+  KeywordFrequency,
+} from './dto/cv-jd-match-response.dto';
+import {
+  ScannedSkill,
+  SkillTextScannerService,
+} from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
 
 interface LlmExtractionOutput {

@@ -475,9 +475,7 @@ export class BulletAnalyzerService {
           : 'Drop first-person; use an implied subject.',
       );
     if (c.fillerCount > 0)
-      tips.push(
-        lang === 'vi' ? 'Bỏ từ sáo rỗng/buzzword.' : 'Remove filler/buzzwords.',
-      );
+      tips.push(lang === 'vi' ? 'Bỏ từ sáo rỗng/buzzword.' : 'Remove filler/buzzwords.');
     return tips;
   }
 
