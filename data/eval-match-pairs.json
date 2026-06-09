@@ -758,6 +758,18 @@
       ],
       "rationale": "EDGE (6) da-strong-no-tools: strong fundamentals but no BI tools / no Python stack. Matches (all REQUIRED): sql(5>=4)=1(w0.20), excel(5>=4)=1(w0.15), data_visualization(4>=3)=1(w0.10), statistics via 'thống kê'(4>=3)=1(w0.10), communication(4>=4)=1(w0.05), problem_solving(4>=4)=1(w0.04), critical_thinking(4>=3)=1(w0.02). Missing (all PREFERRED): python(w0.10), pandas(w0.10), tableau(w0.07), power_bi(w0.07). achieved=0.66, wsum=1.0 -> current_formula_score=66. Required-coverage = 7/7 = 1.0 (every REQUIRED skill fully met). Expert: this is actually a HIRABLE analyst — SQL+Excel+stats+dataviz mastery is the real job; Python/Tableau/Power BI are ramp-up-able tooling. A fair counselor rates this near or slightly ABOVE the formula's 66 because 100% required coverage matters more than missing optional tools. Band [60,78] brackets 66 with upward lean. Mild divergence in the opposite direction from the stuffing/pref-only cases: shows step-5 should reward full required-coverage, not just raw weighted sum. 'thống kê'->statistics via VN alias.",
       "current_formula_score": 76
+    },
+    {
+      "id": "match-jd-overrides-rubric",
+      "target_role": "frontend_developer",
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "cv_skills": [{ "name": "ReactJS", "proficiency_hint": "ADVANCED" }],
+      "expected_overall": [98, 100],
+      "expected_required_coverage": [1, 1],
+      "current_formula_score": 100,
+      "rationale": "JD asks only for React @INTERMEDIATE; CV has React @ADVANCED -> single required met -> 100. Proves a provided JD overrides the 12-skill frontend rubric (root cause B). BEFORE the JD-first fix this scored against the rubric (React is 1 of 12, ~18) and was out-of-band."
     }
   ]
 }

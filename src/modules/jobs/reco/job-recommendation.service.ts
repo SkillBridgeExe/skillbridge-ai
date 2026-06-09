@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
 import { LlmService } from '../../../infrastructure/llm/llm.service';
-import { SkillDiffService } from '../../cv-jd-match/skill-diff.service';
+import { SkillDiffService, DiffResult } from '../../cv-jd-match/skill-diff.service';
 import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.service';
 import { rrfFuse } from './rrf';
 
@@ -25,7 +25,10 @@ export interface JobRecommendation {
   /** RRF-fused rank position (1 = best). */
   rank: number;
   matched_skills: string[];
+  partial_skills: Array<{ display_name: string; importance: string; gap_levels: number }>;
   missing_skills: Array<{ display_name: string; importance: string }>;
+  /** Same breakdown the score was computed from — lets the FE detail match the card exactly. */
+  scoring_breakdown: DiffResult['scoring_breakdown'];
 }
 
 export interface JobRecommendationResponse {
@@ -207,33 +210,51 @@ export class JobRecommendationService {
     const page = allRanked.slice(offset, offset + limit);
 
     const byId = new Map(candidates.map((c) => [c.id, c]));
-    const recommendations: JobRecommendation[] = page.map(([jobId], i) => {
-      const job = byId.get(jobId)!;
-      const diff = diffByJob.get(jobId)!;
-      return {
-        job_id: jobId,
-        title: job.title,
-        company_name: job.company_name,
-        location: job.location,
-        role_code: job.role_code,
-        experience_level: job.experience_level,
-        salary_min: job.salary_min ? Number(job.salary_min) : null,
-        salary_max: job.salary_max ? Number(job.salary_max) : null,
-        currency: job.currency,
-        source_url: job.source_url,
-        posted_at: job.posted_at,
-        match_score: diff.overall_score,
-        semantic_similarity: simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
-        rank: offset + i + 1, // global rank (1 = best), stable across pages
-
-        matched_skills: diff.matched_skills.map((s) => s.display_name),
-        missing_skills: diff.missing_skills.map((s) => ({
-          display_name: s.display_name,
-          importance: s.importance,
-        })),
-      };
-    });
+    const recommendations: JobRecommendation[] = page.map(([jobId], i) =>
+      buildJobRecommendation(
+        byId.get(jobId)!,
+        diffByJob.get(jobId)!,
+        offset + i + 1,
+        simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
+      ),
+    );
 
     return { cv_id: cvId, pool_size: candidates.length, total, limit, offset, recommendations };
   }
+}
+
+/** Pure mapper: candidate row + its diff → API shape. Card and FE detail use the SAME diff. */
+export function buildJobRecommendation(
+  job: CandidateJobRow,
+  diff: DiffResult,
+  rank: number,
+  semanticSimilarity: number | null,
+): JobRecommendation {
+  return {
+    job_id: job.id,
+    title: job.title,
+    company_name: job.company_name,
+    location: job.location,
+    role_code: job.role_code,
+    experience_level: job.experience_level,
+    salary_min: job.salary_min ? Number(job.salary_min) : null,
+    salary_max: job.salary_max ? Number(job.salary_max) : null,
+    currency: job.currency,
+    source_url: job.source_url,
+    posted_at: job.posted_at,
+    match_score: diff.overall_score,
+    semantic_similarity: semanticSimilarity,
+    rank,
+    matched_skills: diff.matched_skills.map((s) => s.display_name),
+    partial_skills: diff.partial_skills.map((s) => ({
+      display_name: s.display_name,
+      importance: s.importance,
+      gap_levels: s.gap_levels,
+    })),
+    missing_skills: diff.missing_skills.map((s) => ({
+      display_name: s.display_name,
+      importance: s.importance,
+    })),
+    scoring_breakdown: diff.scoring_breakdown,
+  };
 }

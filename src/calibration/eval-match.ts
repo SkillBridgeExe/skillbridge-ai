@@ -31,6 +31,7 @@ interface MatchPair {
   id: string;
   target_role: string;
   cv_skills: Array<{ name: string; proficiency_hint: string }>;
+  jd_requirements?: Array<{ name: string; importance_hint?: string; required_level_hint?: string }>;
   expected_overall: [number, number];
   expected_required_coverage?: [number, number];
   current_formula_score?: number;
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
     const res: DiffResult = diffSvc.diff({
       cv_skills_raw: pair.cv_skills as RawCvSkill[],
       target_role: pair.target_role,
+      ...(pair.jd_requirements ? { jd_requirements_raw: pair.jd_requirements } : {}),
     });
     const score = res.overall_score;
     const ok = inBand(score, pair.expected_overall);
