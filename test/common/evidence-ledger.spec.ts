@@ -19,7 +19,16 @@ function docWith(partial: Partial<CanonicalCvDocument>): CanonicalCvDocument {
 describe('buildEvidenceLedger (pure)', () => {
   it('marks a skill in a dated experience bullet as demonstrated, with recency', () => {
     const doc = docWith({
-      experience: [{ org: 'Acme', role: 'Dev', start: '2022', end: '2024', location: null, bullets: ['Built a React dashboard'] }],
+      experience: [
+        {
+          org: 'Acme',
+          role: 'Dev',
+          start: '2022',
+          end: '2024',
+          location: null,
+          bullets: ['Built a React dashboard'],
+        },
+      ],
     });
     const led = buildEvidenceLedger(doc, stubScan, id, 2026);
     const react = led.items.find((i) => i.skill_canonical === 'react')!;
@@ -45,7 +54,16 @@ describe('buildEvidenceLedger (pure)', () => {
 
   it('prefers demonstrated when a skill is both shown and listed (no double, not a gap)', () => {
     const doc = docWith({
-      experience: [{ org: 'Acme', role: null, start: null, end: '2023', location: null, bullets: ['Shipped React app'] }],
+      experience: [
+        {
+          org: 'Acme',
+          role: null,
+          start: null,
+          end: '2023',
+          location: null,
+          bullets: ['Shipped React app'],
+        },
+      ],
       skills: { technical: ['React'], soft: [], languages: [], tools: [] },
     });
     const led = buildEvidenceLedger(doc, stubScan, id, 2026);
@@ -57,13 +75,25 @@ describe('buildEvidenceLedger (pure)', () => {
 
   it('resolves "Present"/"Hiện tại" end dates to nowYear', () => {
     const doc = docWith({
-      experience: [{ org: 'Acme', role: null, start: '2024', end: 'Present', location: null, bullets: ['React work'] }],
+      experience: [
+        {
+          org: 'Acme',
+          role: null,
+          start: '2024',
+          end: 'Present',
+          location: null,
+          bullets: ['React work'],
+        },
+      ],
     });
     expect(buildEvidenceLedger(doc, stubScan, id, 2026).items[0].most_recent_year).toBe(2026);
   });
 
   it('returns empty ledger for an empty CV', () => {
-    expect(buildEvidenceLedger(emptyCanonicalCv('en'), stubScan, id, 2026)).toEqual({ items: [], evidence_gap: [] });
+    expect(buildEvidenceLedger(emptyCanonicalCv('en'), stubScan, id, 2026)).toEqual({
+      items: [],
+      evidence_gap: [],
+    });
   });
 
   it('integration: real scanner finds a demonstrated skill in a bullet', async () => {
@@ -72,9 +102,23 @@ describe('buildEvidenceLedger (pure)', () => {
     const scanner = new SkillTextScannerService(taxonomy);
     scanner.onModuleInit();
     const doc = docWith({
-      experience: [{ org: 'Acme', role: 'Frontend', start: '2023', end: '2025', location: null, bullets: ['Built UIs with ReactJS and TypeScript'] }],
+      experience: [
+        {
+          org: 'Acme',
+          role: 'Frontend',
+          start: '2023',
+          end: '2025',
+          location: null,
+          bullets: ['Built UIs with ReactJS and TypeScript'],
+        },
+      ],
     });
-    const led = buildEvidenceLedger(doc, (t) => scanner.scan(t), (c) => c, 2026);
+    const led = buildEvidenceLedger(
+      doc,
+      (t) => scanner.scan(t),
+      (c) => c,
+      2026,
+    );
     expect(led.items.find((i) => i.skill_canonical === 'react')?.strength).toBe('demonstrated');
   });
 });

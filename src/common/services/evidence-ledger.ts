@@ -21,8 +21,16 @@ export interface EvidenceLedger {
   evidence_gap: string[];
 }
 
-const DEMONSTRATED_KINDS: ReadonlySet<EvidenceKind> = new Set(['experience', 'project', 'activity']);
-const STRENGTH_RANK: Record<EvidenceStrength, number> = { demonstrated: 0, mentioned: 1, listed_only: 2 };
+const DEMONSTRATED_KINDS: ReadonlySet<EvidenceKind> = new Set([
+  'experience',
+  'project',
+  'activity',
+]);
+const STRENGTH_RANK: Record<EvidenceStrength, number> = {
+  demonstrated: 0,
+  mentioned: 1,
+  listed_only: 2,
+};
 
 /** Last 4-digit year in a free-text date; "Present"/"Hiện tại"/"now" → nowYear; else null.
  *  Local helper (NOT imported from seniority.ts — that lives on the unmerged #34 branch). */
@@ -74,7 +82,8 @@ function sectionsOf(doc: CanonicalCvDocument, nowYear: number): Section[] {
     ...(doc.skills?.tools ?? []),
     ...(doc.skills?.soft ?? []),
   ].join(', ');
-  if (listed.trim()) out.push({ kind: 'skills_list', ref: 'Skills', recency_year: null, text: listed });
+  if (listed.trim())
+    out.push({ kind: 'skills_list', ref: 'Skills', recency_year: null, text: listed });
   return out;
 }
 
@@ -122,6 +131,8 @@ export function buildEvidenceLedger(
       STRENGTH_RANK[a.strength] - STRENGTH_RANK[b.strength] ||
       a.display_name.localeCompare(b.display_name),
   );
-  const evidence_gap = items.filter((i) => i.strength === 'listed_only').map((i) => i.skill_canonical);
+  const evidence_gap = items
+    .filter((i) => i.strength === 'listed_only')
+    .map((i) => i.skill_canonical);
   return { items, evidence_gap };
 }
