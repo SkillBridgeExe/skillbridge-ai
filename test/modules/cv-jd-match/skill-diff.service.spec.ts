@@ -203,4 +203,19 @@ describe('SkillDiffService — JD vs rubric precedence', () => {
     expect(react?.skill_type).toBe('hard'); // category frontend_framework
     expect(comm?.skill_type).toBe('soft'); // category soft_skill
   });
+
+  it('weights a specialized (hard) JD skill above a common (soft) one', () => {
+    const res = diff.diff({
+      cv_skills_raw: [], // both missing → both appear in missing_skills with their weights
+      jd_requirements_raw: [
+        { name: 'React', importance_hint: 'REQUIRED' },
+        { name: 'Communication', importance_hint: 'REQUIRED' },
+      ],
+    });
+    const react = res.missing_skills.find((s) => s.canonical_name === 'react');
+    const comm = res.missing_skills.find((s) => s.canonical_name === 'communication');
+    expect(react).toBeDefined();
+    expect(comm).toBeDefined();
+    expect(react!.weight).toBeGreaterThan(comm!.weight);
+  });
 });
