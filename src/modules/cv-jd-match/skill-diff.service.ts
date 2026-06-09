@@ -5,6 +5,7 @@ import {
   RoleSkillRequirement,
   Importance,
 } from '../../common/services/role-rubric.service';
+import { inferSkills, loadSkillEdges, InferredSkill } from './skill-graph';
 
 export type ProficiencyHint = 'BEGINNER' | 'NOVICE' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
 
@@ -127,6 +128,8 @@ export interface DiffResult {
     raw_weighted_score: number;
     cap_applied: boolean;
   };
+  /** Display-only Inferred-layer suggestions (skill-graph). NEVER affects any score. */
+  inferred_skills?: InferredSkill[];
 }
 
 const PROFICIENCY_TO_LEVEL: Record<ProficiencyHint, number> = {
@@ -294,6 +297,20 @@ export class SkillDiffService {
     const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
     const overall_score = Math.round(Math.min(raw, cap));
 
+    // Inferred layer (display-only, post-score — touches NO scoring math).
+    const cvCanonicals = [...cvSkillsByCanonical.keys()];
+    // Exclude skills the CV already has AND skills already named as requirements-but-missing
+    // (those surface as explicit gaps in missing_skills — don't double-count them as "inferred").
+    const excludeSet = new Set<string>([...cvCanonicals, ...missing.map((m) => m.canonical_name)]);
+    const inferred_skills = inferSkills(
+      loadSkillEdges(),
+      cvCanonicals,
+      args.target_role ?? null,
+      excludeSet,
+      (c) => this.normalizer.getByCanonical(c)?.display_name ?? c,
+      'vi',
+    );
+
     return {
       matched_skills: matched,
       partial_skills: partial,
@@ -317,6 +334,7 @@ export class SkillDiffService {
         raw_weighted_score: round3(raw),
         cap_applied: cap < raw,
       },
+      inferred_skills,
     };
   }
 

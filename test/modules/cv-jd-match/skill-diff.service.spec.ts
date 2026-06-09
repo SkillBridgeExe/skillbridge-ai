@@ -204,3 +204,49 @@ describe('SkillDiffService — JD vs rubric precedence', () => {
     expect(comm?.skill_type).toBe('soft'); // category soft_skill
   });
 });
+
+describe('SkillDiffService — inferred_skills (display-only Inferred layer)', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('infers an ecosystem skill the JD does not name (JS → React), not re-suggesting CV skills', () => {
+    // JD requires only javascript (CV has it → matched, nothing missing). React is NOT a named
+    // requirement, so it surfaces as an Inferred suggestion — the "JD needs JS, infer React" case.
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'JavaScript', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: [{ name: 'JavaScript', importance_hint: 'REQUIRED' }],
+      target_role: 'frontend_developer',
+    });
+    const inferred = res.inferred_skills?.map((s) => s.canonical_name) ?? [];
+    expect(inferred).toContain('react');
+    const react = res.inferred_skills!.find((s) => s.canonical_name === 'react')!;
+    expect(react.inferred_from).toBe('javascript');
+    expect(react.confidence).toBeGreaterThanOrEqual(0.5);
+    expect(react.reason.length).toBeGreaterThan(0);
+    // never re-suggests a skill the CV already has
+    expect(inferred).not.toContain('javascript');
+  });
+
+  it('does NOT double-count: a required-but-missing skill stays a gap, not an inferred suggestion', () => {
+    // rubric path: react is REQUIRED for frontend_developer, so a JS-only CV is MISSING react.
+    // It must appear as the explicit gap, and NOT also as a soft inferred suggestion.
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'JavaScript', proficiency_hint: 'ADVANCED' }],
+      target_role: 'frontend_developer',
+    });
+    const missing = res.missing_skills.map((s) => s.canonical_name);
+    const inferred = res.inferred_skills?.map((s) => s.canonical_name) ?? [];
+    expect(missing).toContain('react'); // the explicit gap (REQUIRED, weight 0.18)
+    expect(inferred).not.toContain('react'); // ...so not double-counted as inferred
+    // overall_score stays a sane number (X1-safe; the eval:match 0-drift gate is the full proof)
+    expect(typeof res.overall_score).toBe('number');
+  });
+});
