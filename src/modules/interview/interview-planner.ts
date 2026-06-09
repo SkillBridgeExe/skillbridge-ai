@@ -32,30 +32,40 @@ const T: Record<
   }
 > = {
   vi: {
-    gapReason: (s) => `Vị trí yêu cầu ${s} nhưng CV chưa thể hiện — kiểm tra nền tảng và kiến thức lân cận.`,
+    gapReason: (s) =>
+      `Vị trí yêu cầu ${s} nhưng CV chưa thể hiện — kiểm tra nền tảng và kiến thức lân cận.`,
     gapQ: (s) =>
       `Vị trí này thường dùng ${s}, nhưng CV của bạn chưa thể hiện nó. Bạn đã từng tìm hiểu hoặc dùng công nghệ tương tự chưa? Nếu cần học ${s}, bạn sẽ bắt đầu thế nào?`,
-    depthReason: (s, cv, req) => `CV thể hiện ${s} ở mức ${cv}/5, vị trí cần mức ${req}/5 — đo độ sâu thực tế.`,
+    depthReason: (s, cv, req) =>
+      `CV thể hiện ${s} ở mức ${cv}/5, vị trí cần mức ${req}/5 — đo độ sâu thực tế.`,
     depthQ: (s) =>
       `Hãy mô tả một vấn đề cụ thể bạn đã xử lý bằng ${s}: bối cảnh, quyết định kỹ thuật của bạn, và kết quả.`,
-    evidenceReason: (s) => `CV liệt kê ${s} nhưng chưa có dự án hay bullet nào chứng minh — luyện kể một ví dụ thật.`,
+    evidenceReason: (s) =>
+      `CV liệt kê ${s} nhưng chưa có dự án hay bullet nào chứng minh — luyện kể một ví dụ thật.`,
     evidenceQ: (s) =>
       `CV của bạn liệt kê ${s} nhưng chưa có ví dụ cụ thể. Hãy kể một lần bạn thực sự dùng ${s}: bạn đã làm gì, và kết quả ra sao?`,
-    strengthReason: (s) => `${s} là điểm mạnh có bằng chứng trong CV — luyện trình bày nó thật ấn tượng.`,
-    strengthQ: (s) => `${s} là điểm mạnh của bạn. Hãy kể thành tích bạn tự hào nhất với ${s} và tác động của nó.`,
+    strengthReason: (s) =>
+      `${s} là điểm mạnh có bằng chứng trong CV — luyện trình bày nó thật ấn tượng.`,
+    strengthQ: (s) =>
+      `${s} là điểm mạnh của bạn. Hãy kể thành tích bạn tự hào nhất với ${s} và tác động của nó.`,
   },
   en: {
-    gapReason: (s) => `The role requires ${s} but the CV doesn't show it — probe fundamentals and adjacent knowledge.`,
+    gapReason: (s) =>
+      `The role requires ${s} but the CV doesn't show it — probe fundamentals and adjacent knowledge.`,
     gapQ: (s) =>
       `This role commonly uses ${s}, which your CV doesn't show yet. Have you explored it or used something similar? If you had to learn ${s}, how would you start?`,
-    depthReason: (s, cv, req) => `The CV shows ${s} at level ${cv}/5; the role needs ${req}/5 — probe real depth.`,
+    depthReason: (s, cv, req) =>
+      `The CV shows ${s} at level ${cv}/5; the role needs ${req}/5 — probe real depth.`,
     depthQ: (s) =>
       `Describe a concrete problem you solved with ${s}: the context, the technical decisions you made, and the outcome.`,
-    evidenceReason: (s) => `The CV lists ${s} but no project or bullet demonstrates it — practice telling a real example.`,
+    evidenceReason: (s) =>
+      `The CV lists ${s} but no project or bullet demonstrates it — practice telling a real example.`,
     evidenceQ: (s) =>
       `Your CV lists ${s} but shows no concrete example. Tell me about a time you actually used ${s}: what did you do, and what was the result?`,
-    strengthReason: (s) => `${s} is an evidenced strength on the CV — practice presenting it impressively.`,
-    strengthQ: (s) => `${s} is your strength. Tell me about the achievement with ${s} you're most proud of, and its impact.`,
+    strengthReason: (s) =>
+      `${s} is an evidenced strength on the CV — practice presenting it impressively.`,
+    strengthQ: (s) =>
+      `${s} is your strength. Tell me about the achievement with ${s} you're most proud of, and its impact.`,
   },
 };
 
@@ -137,8 +147,8 @@ export function buildInterviewPlan(
     .filter((m) => !taken.has(m.canonical_name))
     .sort(
       (a, b) =>
-        Number((demonstrated?.has(b.canonical_name) ?? false)) -
-          Number((demonstrated?.has(a.canonical_name) ?? false)) ||
+        Number(demonstrated?.has(b.canonical_name) ?? false) -
+          Number(demonstrated?.has(a.canonical_name) ?? false) ||
         b.weight - a.weight ||
         a.canonical_name.localeCompare(b.canonical_name),
     );

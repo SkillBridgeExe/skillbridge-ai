@@ -104,7 +104,11 @@ describe('InterviewPlanService', () => {
     const llmMock = jest.fn().mockResolvedValue({
       parsedJson: {
         items: [
-          { skill: 'javascript', question: 'LLM question about JS', good_answer_hints: ['hint1', 'hint2'] },
+          {
+            skill: 'javascript',
+            question: 'LLM question about JS',
+            good_answer_hints: ['hint1', 'hint2'],
+          },
           { skill: 'react', question: 'LLM question about React', good_answer_hints: ['hint A'] },
         ],
       },

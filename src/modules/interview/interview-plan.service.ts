@@ -55,9 +55,7 @@ export class InterviewPlanService {
     const ledger = input.review.evidence_ledger;
     const demonstrated = ledger
       ? new Set(
-          ledger.items
-            .filter((i) => i.strength === 'demonstrated')
-            .map((i) => i.skill_canonical),
+          ledger.items.filter((i) => i.strength === 'demonstrated').map((i) => i.skill_canonical),
         )
       : null;
     const plan = buildInterviewPlan(diff, ledger?.evidence_gap ?? null, demonstrated, lang);
