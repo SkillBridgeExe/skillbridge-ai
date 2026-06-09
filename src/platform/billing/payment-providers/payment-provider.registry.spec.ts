@@ -8,6 +8,7 @@ function provider(code: string): PaymentProviderPort {
     code,
     createPaymentLink: jest.fn(),
     verifyWebhook: jest.fn(),
+    getPaymentStatus: jest.fn(),
   };
 }
 

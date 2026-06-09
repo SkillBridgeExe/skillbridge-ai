@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { ERROR_CODES } from '../../../common/constants/error-codes';
 import { MentorBookingEntity } from '../../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
@@ -15,48 +16,86 @@ export class BillingSettlementService {
     private readonly subscriptions: Repository<UserSubscriptionEntity>,
     @InjectRepository(MentorBookingEntity)
     private readonly mentorBookings: Repository<MentorBookingEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async settlePaidPayment(payment: VerifiedPaymentWebhook): Promise<{ processed: boolean }> {
-    const order = await this.orders.findOne({
-      where: { provider: payment.provider, orderCode: String(payment.orderCode) },
+    return this.dataSource.transaction(async (manager) => {
+      const orders = manager.getRepository(PaymentOrderEntity);
+      const subscriptions = manager.getRepository(UserSubscriptionEntity);
+      const mentorBookings = manager.getRepository(MentorBookingEntity);
+      const order = await orders.findOne({
+        where: { provider: payment.provider, orderCode: String(payment.orderCode) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!order) return { processed: true };
+      await this.markOrderPaid(order, payment, orders, subscriptions, mentorBookings);
+      return { processed: true };
     });
-    if (!order) return { processed: true };
-    await this.markOrderPaid(order, payment.paymentLinkId);
-    return { processed: true };
   }
 
   private async markOrderPaid(
     order: PaymentOrderEntity,
-    paymentLinkId: string | null,
+    payment: VerifiedPaymentWebhook,
+    orders: Repository<PaymentOrderEntity>,
+    subscriptions: Repository<UserSubscriptionEntity>,
+    mentorBookings: Repository<MentorBookingEntity>,
   ): Promise<void> {
     if (order.status === 'PAID') return;
+    this.assertPaymentMatchesOrder(order, payment);
     order.paidAt = order.paidAt ?? new Date();
-    order.paymentLinkId = order.paymentLinkId ?? paymentLinkId;
+    order.paymentLinkId = order.paymentLinkId ?? payment.paymentLinkId;
 
     if (order.purpose === 'SUBSCRIPTION') {
-      await this.activateSubscription(order);
+      await this.activateSubscription(order, subscriptions);
     } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
-      await this.updateMentorBookingAfterPayment(order);
+      await this.updateMentorBookingAfterPayment(order, mentorBookings);
     }
 
     order.status = 'PAID';
-    await this.orders.save(order);
+    await orders.save(order);
   }
 
-  private async activateSubscription(order: PaymentOrderEntity): Promise<void> {
+  private assertPaymentMatchesOrder(
+    order: PaymentOrderEntity,
+    payment: VerifiedPaymentWebhook,
+  ): void {
+    if (payment.amountVnd !== null && order.amountVnd !== payment.amountVnd) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        message: 'Payment amount does not match the local order',
+      });
+    }
+    if (payment.currency && order.currency !== payment.currency) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        message: 'Payment currency does not match the local order',
+      });
+    }
+    if (order.paymentLinkId && payment.paymentLinkId && order.paymentLinkId !== payment.paymentLinkId) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        message: 'Payment link does not match the local order',
+      });
+    }
+  }
+
+  private async activateSubscription(
+    order: PaymentOrderEntity,
+    subscriptions: Repository<UserSubscriptionEntity>,
+  ): Promise<void> {
     if (!order.planCode) return;
-    const existingSubscription = await this.subscriptions.findOne({
+    const existingSubscription = await subscriptions.findOne({
       where: { sourcePaymentOrderId: order.id },
     });
     if (existingSubscription) return;
-    await this.subscriptions.update(
+    await subscriptions.update(
       { userId: order.userId, status: 'ACTIVE' },
       { status: 'EXPIRED' },
     );
     const periodStart = new Date();
-    await this.subscriptions.save(
-      this.subscriptions.create({
+    await subscriptions.save(
+      subscriptions.create({
         userId: order.userId,
         planCode: order.planCode,
         status: 'ACTIVE',
@@ -67,19 +106,20 @@ export class BillingSettlementService {
     );
   }
 
-  private async updateMentorBookingAfterPayment(order: PaymentOrderEntity): Promise<void> {
-    const booking = await this.mentorBookings.findOne({ where: { id: order.targetId! } });
+  private async updateMentorBookingAfterPayment(
+    order: PaymentOrderEntity,
+    mentorBookings: Repository<MentorBookingEntity>,
+  ): Promise<void> {
+    const booking = await mentorBookings.findOne({ where: { id: order.targetId! } });
     if (!booking) return;
     if (order.purpose === 'MENTOR_DEPOSIT') {
-      if (booking.depositPaymentOrderId === order.id) return;
       booking.status = 'AWAITING_MENTOR_ACCEPT';
       booking.depositPaymentOrderId = order.id;
     }
     if (order.purpose === 'MENTOR_REMAINING') {
-      if (booking.remainingPaymentOrderId === order.id) return;
       booking.status = 'PAID';
       booking.remainingPaymentOrderId = order.id;
     }
-    await this.mentorBookings.save(booking);
+    await mentorBookings.save(booking);
   }
 }

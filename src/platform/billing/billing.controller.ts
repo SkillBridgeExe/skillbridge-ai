@@ -48,6 +48,15 @@ export class BillingController {
     return this.billing.getOrder(user.userId, Number(orderCode));
   }
 
+  @Post('orders/:orderCode/reconcile')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Reconcile a pending payment order with the payment provider' })
+  @ApiParam({ name: 'orderCode', description: 'payOS orderCode' })
+  reconcileOrder(@CurrentUser() user: JwtUser, @Param('orderCode') orderCode: string) {
+    return this.billing.reconcileOrder(user.userId, Number(orderCode));
+  }
+
   @Get('me/subscription')
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
