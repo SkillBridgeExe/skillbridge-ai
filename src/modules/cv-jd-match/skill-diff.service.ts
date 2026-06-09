@@ -31,6 +31,7 @@ export interface MatchedSkill {
   required_level: number;
   importance: Importance;
   weight: number;
+  skill_type: 'hard' | 'soft';
 }
 
 export interface PartialSkill extends MatchedSkill {
@@ -45,6 +46,7 @@ export interface MissingSkill {
   required_level: number;
   importance: Importance;
   weight: number;
+  skill_type: 'hard' | 'soft';
   /** required_level - 0. Always equals required_level (kept for symmetry with PartialSkill). */
   gap_levels: number;
 }
@@ -215,6 +217,10 @@ export class SkillDiffService {
       const displayName =
         this.normalizer.getByCanonical(req.skill_canonical_name)?.display_name ??
         req.skill_canonical_name;
+      const skill_type: 'hard' | 'soft' =
+        this.normalizer.getByCanonical(req.skill_canonical_name)?.category === 'soft_skill'
+          ? 'soft'
+          : 'hard';
 
       // Step 5: importance drives the math, not just the UI label.
       const effectiveWeight = req.weight * tuning.importanceMultiplier[req.importance];
@@ -229,6 +235,7 @@ export class SkillDiffService {
           required_level: req.required_level,
           importance: req.importance,
           weight: req.weight,
+          skill_type,
           gap_levels: req.required_level,
         });
         // match_strength = 0, achieved_weight += 0
@@ -244,6 +251,7 @@ export class SkillDiffService {
           required_level: req.required_level,
           importance: req.importance,
           weight: req.weight,
+          skill_type,
         });
         achievedWeight += effectiveWeight;
         if (req.importance === 'REQUIRED') requiredMet += 1;
@@ -258,6 +266,7 @@ export class SkillDiffService {
           required_level: req.required_level,
           importance: req.importance,
           weight: req.weight,
+          skill_type,
           gap_levels: req.required_level - cvHit.level,
         });
         achievedWeight +=

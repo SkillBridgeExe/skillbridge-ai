@@ -191,4 +191,16 @@ describe('SkillDiffService — JD vs rubric precedence', () => {
     expect(res.requirements_source).toBe('role_rubric');
     expect(res.scoring_breakdown.total_requirements).toBe(12);
   });
+
+  it('tags each requirement skill as hard or soft (skill_type)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'frontend_developer',
+    });
+    const all = [...res.matched_skills, ...res.partial_skills, ...res.missing_skills];
+    const react = all.find((s) => s.canonical_name === 'react');
+    const comm = all.find((s) => s.canonical_name === 'communication');
+    expect(react?.skill_type).toBe('hard'); // category frontend_framework
+    expect(comm?.skill_type).toBe('soft'); // category soft_skill
+  });
 });
