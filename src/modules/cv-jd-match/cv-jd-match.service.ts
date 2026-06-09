@@ -3,7 +3,8 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { CvJdMatchRequestDto } from './dto/cv-jd-match-request.dto';
-import { CvJdMatchParsedResponse, CvJdMatchResponseDto } from './dto/cv-jd-match-response.dto';
+import { CvJdMatchParsedResponse, CvJdMatchResponseDto, KeywordFrequency } from './dto/cv-jd-match-response.dto';
+import { ScannedSkill, SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
 
 interface LlmExtractionOutput {
@@ -36,6 +37,7 @@ export class CvJdMatchService {
     private readonly prompts: PromptsService,
     private readonly tracing: TracingService,
     private readonly skillDiff: SkillDiffService,
+    private readonly scanner: SkillTextScannerService,
   ) {}
 
   async match(userId: string, input: CvJdMatchRequestDto): Promise<CvJdMatchResponseDto> {
@@ -81,6 +83,14 @@ export class CvJdMatchService {
       // Source is decided inside the diff (JD wins over rubric) — read it, don't re-derive.
       const sourceOfRequirements = diff.requirements_source;
 
+      const cvScan = this.scanner.scan(input.cv_text);
+      const jdScan = this.scanner.scan(input.jd_text ?? '');
+      const keyword_frequency = buildKeywordFrequency(
+        [...diff.matched_skills, ...diff.partial_skills, ...diff.missing_skills],
+        cvScan,
+        jdScan,
+      );
+
       const parsed: CvJdMatchParsedResponse = {
         overall_score: diff.overall_score,
         match_ratio: diff.match_ratio,
@@ -89,6 +99,7 @@ export class CvJdMatchService {
         partial_skills: diff.partial_skills,
         missing_skills: diff.missing_skills,
         bonus_skills: diff.bonus_skills,
+        keyword_frequency,
         unnormalized_cv_skills: diff.unnormalized_cv_skills,
         unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
         scoring_breakdown: diff.scoring_breakdown,
@@ -153,4 +164,27 @@ export class CvJdMatchService {
       : [];
     return { cv_skills_raw: cv, jd_requirements_raw: jd };
   }
+}
+
+/** Pure: occurrence counts (CV vs JD) for the requirement∪matched skill set. Deduped by canonical. */
+export function buildKeywordFrequency(
+  reqSkills: Array<{ canonical_name: string; display_name: string }>,
+  cvScan: ScannedSkill[],
+  jdScan: ScannedSkill[],
+): KeywordFrequency[] {
+  const cv = new Map(cvScan.map((s) => [s.canonical_name, s.occurrences]));
+  const jd = new Map(jdScan.map((s) => [s.canonical_name, s.occurrences]));
+  const seen = new Set<string>();
+  const out: KeywordFrequency[] = [];
+  for (const s of reqSkills) {
+    if (seen.has(s.canonical_name)) continue;
+    seen.add(s.canonical_name);
+    out.push({
+      canonical_name: s.canonical_name,
+      display_name: s.display_name,
+      cv_count: cv.get(s.canonical_name) ?? 0,
+      jd_count: jd.get(s.canonical_name) ?? 0,
+    });
+  }
+  return out;
 }

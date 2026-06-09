@@ -7,6 +7,13 @@ import {
   UnnormalizedSkill,
 } from '../skill-diff.service';
 
+export interface KeywordFrequency {
+  canonical_name: string;
+  display_name: string;
+  cv_count: number;
+  jd_count: number;
+}
+
 /**
  * Response from the refactored CV-JD match flow.
  *
@@ -29,6 +36,13 @@ export interface CvJdMatchParsedResponse {
   missing_skills: MissingSkill[];
   /** CV skills the role doesn't require — strengths to display, never subtracted. */
   bonus_skills: BonusSkill[];
+
+  /**
+   * Deterministic occurrence counts per skill (CV vs JD) for the requirement∪matched set.
+   * Optional: live matches always set it; matches reconstructed from older persisted rows may omit it
+   * (kept optional so the platform reconstruction site needs no change — additive, cross-lane-safe).
+   */
+  keyword_frequency?: KeywordFrequency[];
 
   /** Fraction of REQUIRED skills met (0-1). Explains the coverage cap on overall_score. */
   required_coverage: number;
