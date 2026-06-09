@@ -416,6 +416,16 @@ export class BulletAnalyzerService {
     };
   }
 
+  /** Distinct cliché/buzzword phrases present in the CV's bullets (deterministic; reuses filler lexicon). */
+  detectBuzzwords(document: CanonicalCvDocument): string[] {
+    const haystack = this.harvestBullets(document).join(' \n ').toLowerCase();
+    const found = new Set<string>();
+    for (const phrase of [...FILLER_EN, ...FILLER_VI]) {
+      if (haystack.includes(phrase)) found.add(phrase);
+    }
+    return [...found];
+  }
+
   /** Per-bullet deterministic feedback (R1 explainability). Reuses checkLine(); no LLM. */
   analyzeBullets(document: CanonicalCvDocument): BulletFeedbackItem[] {
     const lang: 'vi' | 'en' = document.language === 'vi' ? 'vi' : 'en';

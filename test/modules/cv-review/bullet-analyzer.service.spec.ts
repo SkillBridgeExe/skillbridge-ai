@@ -259,6 +259,15 @@ describe('BulletAnalyzerService', () => {
     expect(svc.analyzeBullets(doc)).toEqual([]);
   });
 
+  // ─── detectBuzzwords — distinct cliché phrases (Task 3) ──────────────────
+
+  it('detectBuzzwords finds cliché phrases in the CV (distinct, case-insensitive)', () => {
+    const doc = docWith(['Hardworking team player, responsible for tasks'], 'en');
+    const found = svc.detectBuzzwords(doc);
+    expect(found).toEqual(expect.arrayContaining(['hardworking', 'team player']));
+    expect(new Set(found).size).toBe(found.length); // distinct
+  });
+
   it('band aligns with methodology: ≥80% verb-first reaches exemplary ONLY at ≥50% quantified', () => {
     const lowQuant = svc.analyze(
       docWith([
