@@ -770,6 +770,19 @@
       "expected_required_coverage": [1, 1],
       "current_formula_score": 100,
       "rationale": "JD asks only for React @INTERMEDIATE; CV has React @ADVANCED -> single required met -> 100. Proves a provided JD overrides the 12-skill frontend rubric (root cause B). BEFORE the JD-first fix this scored against the rubric (React is 1 of 12, ~18) and was out-of-band."
+    },
+    {
+      "id": "match-jd-type-weight-hard-over-soft",
+      "target_role": "frontend_developer",
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Communication", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "cv_skills": [{ "name": "ReactJS", "proficiency_hint": "ADVANCED" }],
+      "expected_overall": [62, 72],
+      "expected_required_coverage": [0.5, 0.5],
+      "current_formula_score": 67,
+      "rationale": "JD wants React(hard)+Communication(soft) both REQUIRED; CV has React, missing Communication. Type-weighting: React 0.667 > Communication 0.333 -> raw ~66.7, coverage 0.5, cap 72.5 -> ~67. BEFORE type-weighting (equal 0.5/0.5) this scored 50 -> proves the change."
     }
   ]
 }

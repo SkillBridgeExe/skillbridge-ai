@@ -390,15 +390,25 @@ export class SkillDiffService {
         }
       }
     }
-    const equalWeight = resolved.size > 0 ? round3(1 / resolved.size) : 0;
-    const requirements: RoleSkillRequirement[] = [...resolved.entries()].map(
-      ([canonical, meta]) => ({
-        skill_canonical_name: canonical,
-        required_level: meta.level,
-        importance: meta.importance,
-        weight: equalWeight,
-      }),
-    );
+    // Skill-type weighting (JD-extraction path only): specialized (hard) skills weigh more than
+    // common (soft) ones, instead of pure equal-weight. Normalized so weights sum ~1 (keeps
+    // overall_score on its 0-100 scale). Rubric path is untouched (curated weights).
+    const TYPE_WEIGHT = { hard: 1, soft: 0.5 } as const;
+    const based = [...resolved.entries()].map(([canonical, meta]) => ({
+      canonical,
+      meta,
+      base:
+        this.normalizer.getByCanonical(canonical)?.category === 'soft_skill'
+          ? TYPE_WEIGHT.soft
+          : TYPE_WEIGHT.hard,
+    }));
+    const totalBase = based.reduce((s, b) => s + b.base, 0);
+    const requirements: RoleSkillRequirement[] = based.map(({ canonical, meta, base }) => ({
+      skill_canonical_name: canonical,
+      required_level: meta.level,
+      importance: meta.importance,
+      weight: totalBase > 0 ? round3(base / totalBase) : 0,
+    }));
     return { requirements, unnormalizedJd };
   }
 
