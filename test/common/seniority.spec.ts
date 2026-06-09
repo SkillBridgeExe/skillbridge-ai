@@ -5,11 +5,16 @@ import {
   experienceNudge,
 } from '../../src/common/services/seniority';
 
-const doc = (over: Partial<CanonicalCvDocument>): CanonicalCvDocument => ({ ...emptyCanonicalCv('en'), ...over });
+const doc = (over: Partial<CanonicalCvDocument>): CanonicalCvDocument => ({
+  ...emptyCanonicalCv('en'),
+  ...over,
+});
 
 describe('deriveCvSeniority', () => {
   it('projects-only CV → fresher, high confidence', () => {
-    const s = deriveCvSeniority(doc({ projects: [{ name: 'P', role: null, tech: [], bullets: ['x'], link: null }] }));
+    const s = deriveCvSeniority(
+      doc({ projects: [{ name: 'P', role: null, tech: [], bullets: ['x'], link: null }] }),
+    );
     expect(s.bucket).toBe('fresher');
     expect(s.confidence).toBe('high');
   });
@@ -18,7 +23,11 @@ describe('deriveCvSeniority', () => {
   });
   it('one ~1-year job → junior', () => {
     const s = deriveCvSeniority(
-      doc({ experience: [{ org: 'A', role: 'Dev', start: '01/2023', end: '12/2023', location: null, bullets: [] }] }),
+      doc({
+        experience: [
+          { org: 'A', role: 'Dev', start: '01/2023', end: '12/2023', location: null, bullets: [] },
+        ],
+      }),
       2024,
     );
     expect(s.bucket).toBe('junior');
@@ -26,14 +35,29 @@ describe('deriveCvSeniority', () => {
   });
   it('~5 years total → senior', () => {
     const s = deriveCvSeniority(
-      doc({ experience: [{ org: 'A', role: 'Dev', start: '2019', end: 'Present', location: null, bullets: [] }] }),
+      doc({
+        experience: [
+          { org: 'A', role: 'Dev', start: '2019', end: 'Present', location: null, bullets: [] },
+        ],
+      }),
       2024,
     );
     expect(s.bucket).toBe('senior');
   });
   it('unparseable dates → low confidence, count fallback (1 entry → junior)', () => {
     const s = deriveCvSeniority(
-      doc({ experience: [{ org: 'A', role: 'Dev', start: 'a while ago', end: 'recently', location: null, bullets: [] }] }),
+      doc({
+        experience: [
+          {
+            org: 'A',
+            role: 'Dev',
+            start: 'a while ago',
+            end: 'recently',
+            location: null,
+            bullets: [],
+          },
+        ],
+      }),
     );
     expect(s.confidence).toBe('low');
     expect(s.bucket).toBe('junior');
@@ -41,7 +65,12 @@ describe('deriveCvSeniority', () => {
 });
 
 describe('computeExperienceFit', () => {
-  const sen = (bucket: any) => ({ bucket, est_years: null, confidence: 'high' as const, signals: [] });
+  const sen = (bucket: any) => ({
+    bucket,
+    est_years: null,
+    confidence: 'high' as const,
+    signals: [],
+  });
   it('fresher vs SENIOR → stretch', () => {
     expect(computeExperienceFit(sen('fresher'), 'SENIOR').verdict).toBe('stretch');
   });
@@ -59,10 +88,17 @@ describe('computeExperienceFit', () => {
 
 describe('experienceNudge', () => {
   it('fits positive, stretch negative, unknown zero; confidence scales magnitude', () => {
-    const f = (verdict: any, confidence: any = 'high') => ({ cv_seniority: 'mid' as const, job_level: 'MIDDLE', verdict, confidence });
+    const f = (verdict: any, confidence: any = 'high') => ({
+      cv_seniority: 'mid' as const,
+      job_level: 'MIDDLE',
+      verdict,
+      confidence,
+    });
     expect(experienceNudge(f('fits'))).toBeGreaterThan(0);
     expect(experienceNudge(f('stretch'))).toBeLessThan(0);
     expect(experienceNudge(f('unknown'))).toBe(0);
-    expect(Math.abs(experienceNudge(f('fits', 'low')))).toBeLessThan(Math.abs(experienceNudge(f('fits', 'high'))));
+    expect(Math.abs(experienceNudge(f('fits', 'low')))).toBeLessThan(
+      Math.abs(experienceNudge(f('fits', 'high'))),
+    );
   });
 });
