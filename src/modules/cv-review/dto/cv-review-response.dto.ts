@@ -1,6 +1,7 @@
 import { AtsCheckResult } from '../ats-rule-checker.service';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
 import { BulletAnalysis, BulletFeedbackItem } from '../bullet-analyzer.service';
+import { EvidenceLedger } from '../../../common/services/evidence-ledger';
 
 export interface CvReviewSectionIssue {
   severity: 'info' | 'warning' | 'error';
@@ -112,6 +113,9 @@ export interface CvReviewParsedResponse {
   buzzwords_detected: string[];
   /** Deterministic headline + top-3 prioritized fixes, computed from scores/signals (no LLM call). */
   top_summary: TopSummary;
+  /** Display-only: where each CV skill is evidenced (bullet/project/listed) + recency + honest
+   *  strength. NEVER affects any score. evidence_gap = skills only listed, never shown. */
+  evidence_ledger?: EvidenceLedger;
 }
 
 export interface CvReviewResponseDto {

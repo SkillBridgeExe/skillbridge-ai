@@ -18,6 +18,9 @@ import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
+import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
+import { buildEvidenceLedger } from '../../common/services/evidence-ledger';
 import scoringWeights from './scoring-weights-v1.json';
 
 // Bilingual action templates for the deterministic top_summary, keyed by ATS rule_id.
@@ -108,6 +111,8 @@ export class CvReviewService {
     private readonly roleRubric: RoleRubricService,
     private readonly bulletAnalyzer: BulletAnalyzerService,
     private readonly skillDiff: SkillDiffService,
+    private readonly scanner: SkillTextScannerService,
+    private readonly normalizer: SkillNormalizerService,
   ) {
     const sum = this.RULE_WEIGHT + this.LLM_WEIGHT;
     if (Math.abs(sum - 1) > 1e-9) {
@@ -225,6 +230,15 @@ export class CvReviewService {
         language: document.language,
       });
 
+      // Evidence Ledger (display-only, deterministic — touches NO score). Where each CV skill
+      // is evidenced + recency + honest strength; evidence_gap = listed-but-never-shown.
+      const evidence_ledger = buildEvidenceLedger(
+        document,
+        (t) => this.scanner.scan(t),
+        (c) => this.normalizer.getByCanonical(c)?.display_name ?? c,
+        new Date().getFullYear(),
+      );
+
       const parsedResponse: CvReviewParsedResponse = {
         language: document.language,
         document,
@@ -246,6 +260,7 @@ export class CvReviewService {
         bullet_feedback: this.bulletAnalyzer.analyzeBullets(document),
         buzzwords_detected: this.bulletAnalyzer.detectBuzzwords(document),
         top_summary,
+        evidence_ledger,
       };
 
       // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
