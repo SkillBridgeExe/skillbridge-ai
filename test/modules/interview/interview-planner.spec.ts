@@ -38,7 +38,7 @@ describe('buildInterviewPlan (pure)', () => {
     const d = richDiff();
     const missingReq = d.missing_skills
       .filter((m) => m.importance === 'REQUIRED')
-      .sort((a, b) => b.weight - a.weight);
+      .sort((a, b) => b.weight - a.weight || a.canonical_name.localeCompare(b.canonical_name));
     expect(gaps[0].skill_canonical).toBe(missingReq[0].canonical_name);
   });
 
