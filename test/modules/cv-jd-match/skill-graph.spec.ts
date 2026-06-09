@@ -1,4 +1,8 @@
-import { inferSkills, loadSkillEdges, SkillEdge } from '../../../src/modules/cv-jd-match/skill-graph';
+import {
+  inferSkills,
+  loadSkillEdges,
+  SkillEdge,
+} from '../../../src/modules/cv-jd-match/skill-graph';
 import { SkillTaxonomyService } from '../../../src/common/services/skill-taxonomy.service';
 import { SkillNormalizerService } from '../../../src/common/services/skill-normalizer.service';
 import { RoleRubricService } from '../../../src/common/services/role-rubric.service';
@@ -7,13 +11,43 @@ import { RoleRubricService } from '../../../src/common/services/role-rubric.serv
 const id = (c: string) => c;
 
 const FIXTURE: SkillEdge[] = [
-  { from: 'javascript', to: 'react', type: 'ecosystem', confidence: 0.6, roles: ['frontend_developer'] },
-  { from: 'typescript', to: 'react', type: 'ecosystem', confidence: 0.55, roles: ['frontend_developer'] },
-  { from: 'javascript', to: 'node_js', type: 'ecosystem', confidence: 0.5, roles: ['backend_developer'] },
+  {
+    from: 'javascript',
+    to: 'react',
+    type: 'ecosystem',
+    confidence: 0.6,
+    roles: ['frontend_developer'],
+  },
+  {
+    from: 'typescript',
+    to: 'react',
+    type: 'ecosystem',
+    confidence: 0.55,
+    roles: ['frontend_developer'],
+  },
+  {
+    from: 'javascript',
+    to: 'node_js',
+    type: 'ecosystem',
+    confidence: 0.5,
+    roles: ['backend_developer'],
+  },
   { from: 'python', to: 'pandas', type: 'ecosystem', confidence: 0.6, roles: ['data_analyst'] },
   { from: 'python', to: 'numpy', type: 'ecosystem', confidence: 0.5, roles: ['data_analyst'] },
-  { from: 'python', to: 'django', type: 'ecosystem', confidence: 0.5, roles: ['backend_developer'] },
-  { from: 'python', to: 'flask', type: 'ecosystem', confidence: 0.45, roles: ['backend_developer'] }, // < floor
+  {
+    from: 'python',
+    to: 'django',
+    type: 'ecosystem',
+    confidence: 0.5,
+    roles: ['backend_developer'],
+  },
+  {
+    from: 'python',
+    to: 'flask',
+    type: 'ecosystem',
+    confidence: 0.45,
+    roles: ['backend_developer'],
+  }, // < floor
   { from: 'docker', to: 'kubernetes', type: 'ecosystem', confidence: 0.5, roles: ['*'] },
 ];
 
@@ -49,7 +83,13 @@ describe('inferSkills (pure)', () => {
 
   it('dedups by target, keeping the highest-confidence source', () => {
     // both javascript(0.6) and typescript(0.55) → react; expect ONE react at 0.6
-    const out = inferSkills(FIXTURE, ['javascript', 'typescript'], 'frontend_developer', new Set(), id);
+    const out = inferSkills(
+      FIXTURE,
+      ['javascript', 'typescript'],
+      'frontend_developer',
+      new Set(),
+      id,
+    );
     const reacts = out.filter((s) => s.canonical_name === 'react');
     expect(reacts).toHaveLength(1);
     expect(reacts[0].confidence).toBe(0.6);
@@ -58,8 +98,11 @@ describe('inferSkills (pure)', () => {
 
   it('caps at MAX_INFERRED (5), highest-confidence first', () => {
     const many: SkillEdge[] = Array.from({ length: 8 }, (_, i) => ({
-      from: 'python', to: `skill_${i}`, type: 'ecosystem' as const,
-      confidence: 0.5 + i * 0.05, roles: ['data_analyst'],
+      from: 'python',
+      to: `skill_${i}`,
+      type: 'ecosystem' as const,
+      confidence: 0.5 + i * 0.05,
+      roles: ['data_analyst'],
     }));
     const out = inferSkills(many, ['python'], 'data_analyst', new Set(), id);
     expect(out).toHaveLength(5);
@@ -67,9 +110,16 @@ describe('inferSkills (pure)', () => {
   });
 
   it('emits honest, structured fields + a localized reason', () => {
-    const vi = inferSkills(FIXTURE, ['javascript'], 'frontend_developer', new Set(), (c) => c.toUpperCase());
+    const vi = inferSkills(FIXTURE, ['javascript'], 'frontend_developer', new Set(), (c) =>
+      c.toUpperCase(),
+    );
     const react = vi.find((s) => s.canonical_name === 'react')!;
-    expect(react).toMatchObject({ canonical_name: 'react', inferred_from: 'javascript', edge_type: 'ecosystem', confidence: 0.6 });
+    expect(react).toMatchObject({
+      canonical_name: 'react',
+      inferred_from: 'javascript',
+      edge_type: 'ecosystem',
+      confidence: 0.6,
+    });
     expect(react.display_name).toBe('REACT'); // resolver applied
     expect(react.reason.length).toBeGreaterThan(0);
     const en = inferSkills(FIXTURE, ['javascript'], 'frontend_developer', new Set(), id, 'en');
