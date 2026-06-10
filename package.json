@@ -42,7 +42,8 @@
     "payos:webhook:confirm": "ts-node -r tsconfig-paths/register src/tools/confirm-payos-webhook.ts",
     "import:onet": "ts-node src/tools/import-onet-tech-skills.ts",
     "import:esco": "ts-node src/tools/import-esco-it.ts",
-    "eval:extractors": "ts-node -r tsconfig-paths/register src/calibration/eval-extractors.ts"
+    "eval:extractors": "ts-node -r tsconfig-paths/register src/calibration/eval-extractors.ts",
+    "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",
