@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../../platform/billing/billing.module';
 import { CvJdMatchModule } from '../cv-jd-match/cv-jd-match.module';
 import { JdIngestService } from './ingest/jd-ingest.service';
 import { ItviecCrawlerService } from './crawl/itviec-crawler.service';
@@ -16,7 +17,7 @@ import { TrendsController } from './trends/trends.controller';
  * Snapshots refresh via `pnpm trends:refresh` from an EXTERNAL daily trigger.
  */
 @Module({
-  imports: [CvJdMatchModule],
+  imports: [CvJdMatchModule, BillingModule],
   controllers: [JobsController, TrendsController],
   providers: [
     JdIngestService,
