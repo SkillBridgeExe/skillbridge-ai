@@ -91,7 +91,10 @@ describe('CvRewriteService (mocked LLM)', () => {
 
   it('emphasis idioms (24/7, 100%) do NOT trigger false fallback', async () => {
     const { svc } = build('Monitored production servers 24/7.');
-    const res = await svc.rewrite({ text: 'monitored servers', mode: 'harvard' });
+    const res = await svc.rewrite({
+      text: 'monitored on-call production servers',
+      mode: 'harvard',
+    });
     expect(res.fallback).toBeFalsy();
     expect(res.suggestion).toContain('24/7');
   });
@@ -105,7 +108,10 @@ describe('CvRewriteService (mocked LLM)', () => {
 
   it('does NOT mangle a boundary-quoted product name', async () => {
     const { svc } = build('"QuickPay" launched to users');
-    const res = await svc.rewrite({ text: 'launched QuickPay', mode: 'harvard' });
+    const res = await svc.rewrite({
+      text: 'launched QuickPay product for consumers',
+      mode: 'harvard',
+    });
     expect(res.suggestion).toBe('"QuickPay" launched to users'); // balanced-wrap only, untouched
   });
 
@@ -131,8 +137,8 @@ describe('CvRewriteService (mocked LLM)', () => {
     });
 
     it('cache miss → completeAiRequest called with totalTokens from LLM result', async () => {
-      const { svc, tracing } = build('Led the project.');
-      await svc.rewrite({ text: 'managed the project', mode: 'harvard' });
+      const { svc, tracing } = build('Led the backend project.');
+      await svc.rewrite({ text: 'managed the backend project deliverables', mode: 'harvard' });
       expect(tracing.completeAiRequest).toHaveBeenCalledTimes(1);
       expect(tracing.completeAiRequest).toHaveBeenCalledWith(
         'req-1',
@@ -151,7 +157,7 @@ describe('CvRewriteService (mocked LLM)', () => {
 
     it('cache hit → startAiRequest called exactly ONCE across two identical calls', async () => {
       const { svc, tracing } = build('Optimized the API.');
-      const req = { text: 'improved the api', mode: 'harvard' as const };
+      const req = { text: 'improved the api for mobile clients', mode: 'harvard' as const };
       await svc.rewrite(req);
       await svc.rewrite(req); // cache hit
       expect(tracing.startAiRequest).toHaveBeenCalledTimes(1);
@@ -162,21 +168,24 @@ describe('CvRewriteService (mocked LLM)', () => {
       const prompts = makePrompts();
       const tracing = makeTracing();
       const svc = new CvRewriteService(llm as never, prompts as never, tracing as never);
-      await expect(svc.rewrite({ text: 'did things', mode: 'harvard' })).rejects.toThrow(
-        'LLM timeout',
-      );
+      await expect(
+        svc.rewrite({ text: 'did important infrastructure things here', mode: 'harvard' }),
+      ).rejects.toThrow('LLM timeout');
       expect(tracing.markFailed).toHaveBeenCalledTimes(1);
     });
 
     it('userId=null is accepted (anonymous call, platform path)', async () => {
       const { svc, tracing } = build('Result.');
-      await svc.rewrite({ text: 'some text', mode: 'harvard' }, null);
+      await svc.rewrite({ text: 'some meaningful technical text here', mode: 'harvard' }, null);
       expect(tracing.startAiRequest).toHaveBeenCalledTimes(1);
     });
 
     it('userId passed through to startAiRequest', async () => {
       const { svc, tracing } = build('Result.');
-      await svc.rewrite({ text: 'some text', mode: 'harvard' }, 'user-abc');
+      await svc.rewrite(
+        { text: 'some meaningful technical text here', mode: 'harvard' },
+        'user-abc',
+      );
       expect(tracing.startAiRequest).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-abc' }),
       );
@@ -206,7 +215,10 @@ describe('CvRewriteService (mocked LLM)', () => {
     it('invented number 3.141 (no trailing zeros) is still caught', async () => {
       // input has no 3.141; output invents it → must fallback
       const { svc } = build('Achieved a score of 3.141');
-      const res = await svc.rewrite({ text: 'got a good score', mode: 'harvard' });
+      const res = await svc.rewrite({
+        text: 'achieved an excellent performance score',
+        mode: 'harvard',
+      });
       expect(res.fallback).toBe(true);
     });
 
@@ -214,6 +226,35 @@ describe('CvRewriteService (mocked LLM)', () => {
       const { svc } = build('Optimized the build pipeline, cutting time by 40%.');
       const res = await svc.rewrite({ text: 'Worked on the build pipeline', mode: 'harvard' });
       expect(res.fallback).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // input-quality gate (Change 1 — garbage must not reach the LLM or burn quota)
+  // ---------------------------------------------------------------------------
+  describe('input-quality gate', () => {
+    it('"aa" (harvard) → rejects with code INSUFFICIENT_CONTEXT and llm.complete is NEVER called', async () => {
+      const { svc, llm } = build('x');
+      await expect(svc.rewrite({ text: 'aa', mode: 'harvard' })).rejects.toMatchObject({
+        response: { code: 'INSUFFICIENT_CONTEXT' },
+      });
+      expect(llm.complete).not.toHaveBeenCalled();
+    });
+
+    it('"aa" (translate) → rejects with INSUFFICIENT_CONTEXT before LLM', async () => {
+      const { svc, llm } = build('x');
+      await expect(
+        svc.rewrite({ text: 'aa', mode: 'translate', target_lang: 'en' }),
+      ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_CONTEXT' } });
+      expect(llm.complete).not.toHaveBeenCalled();
+    });
+
+    it('"aa" (custom) → rejects with INSUFFICIENT_CONTEXT before LLM', async () => {
+      const { svc, llm } = build('x');
+      await expect(
+        svc.rewrite({ text: 'aa', mode: 'custom', instruction: 'improve it' }),
+      ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_CONTEXT' } });
+      expect(llm.complete).not.toHaveBeenCalled();
     });
   });
 
@@ -229,14 +270,14 @@ describe('CvRewriteService (mocked LLM)', () => {
 
     it('tailor without tailor_action → BadRequest NO_TAILOR_ACTION', async () => {
       await expect(
-        svc.rewrite({ text: 'built dashboards', mode: 'tailor' } as never),
+        svc.rewrite({ text: 'built dashboards for internal ops teams', mode: 'tailor' } as never),
       ).rejects.toMatchObject({ response: { code: 'NO_TAILOR_ACTION' } });
     });
 
     it('tailor emphasize: server-built instruction reaches the prompt; suggestion returned', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('Built React dashboards for ops teams'));
       const res = await svc.rewrite({
-        text: 'built dashboards for ops teams',
+        text: 'built dashboards for internal ops teams',
         mode: 'tailor',
         tailor_action: { action_type: 'emphasize', skill_display: 'React' },
       } as never);
@@ -251,17 +292,17 @@ describe('CvRewriteService (mocked LLM)', () => {
     it('tailor still trips the invented-number guard (falls back to original)', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('Built React dashboards improving latency 37%'));
       const res = await svc.rewrite({
-        text: 'built dashboards',
+        text: 'built dashboards for internal ops teams',
         mode: 'tailor',
         tailor_action: { action_type: 'emphasize', skill_display: 'React' },
       } as never);
       expect(res.fallback).toBe(true);
-      expect(res.suggestion).toBe('built dashboards');
+      expect(res.suggestion).toBe('built dashboards for internal ops teams');
     });
 
     it('different tailor_actions on the same text are cached separately (two LLM calls)', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('ok output'));
-      const base = { text: 'built dashboards', mode: 'tailor' } as const;
+      const base = { text: 'built dashboards for internal ops teams', mode: 'tailor' } as const;
       await svc.rewrite({
         ...base,
         tailor_action: { action_type: 'emphasize', skill_display: 'React' },

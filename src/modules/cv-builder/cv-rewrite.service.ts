@@ -4,6 +4,7 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { RewriteRequestDto, RewriteResponseDto, TailorActionInputDto } from './dto/rewrite.dto';
+import { assessRewriteInput } from './rewrite-input-gate';
 
 const PROMPT_CODE = 'cv_rewrite_v1';
 /** Cache entries are tiny; cap protects memory under a busy session. */
@@ -80,6 +81,18 @@ export class CvRewriteService {
       throw new BadRequestException({
         code: 'NO_TAILOR_ACTION',
         message: 'tailor_action required for tailor',
+      });
+    }
+
+    // Deterministic input-quality gate: garbage must never reach the LLM (cost) nor consume
+    // the user's quota (platform records usage only after success — a gate rejection here is free).
+    const verdict = assessRewriteInput(text);
+    if (!verdict.ok) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_CONTEXT',
+        message:
+          'Cần nội dung thật (bạn đã làm gì, công nghệ nào, kết quả ra sao) trước khi AI có thể viết lại. / ' +
+          'Provide real content (what you did, which tech, what outcome) before AI can rewrite.',
       });
     }
 
