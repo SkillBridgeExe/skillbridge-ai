@@ -123,7 +123,13 @@ async function main(): Promise<void> {
     const llm = new LlmService(cfg, new GeminiProvider(cfg), new OpenAiProvider(cfg));
     const prompts = new PromptsService(new TemplateRenderer());
     await prompts.onModuleInit();
-    const rewriter = new CvRewriteService(llm, prompts);
+    // Tracing is not needed in the eval harness (no DB); pass a no-op stub.
+    const noopTracing = {
+      startAiRequest: () => Promise.resolve('eval-noop'),
+      completeAiRequest: () => Promise.resolve(),
+      markFailed: () => Promise.resolve(),
+    };
+    const rewriter = new CvRewriteService(llm, prompts, noopTracing as never);
 
     for (const c of data.rewrite_cases) {
       try {
