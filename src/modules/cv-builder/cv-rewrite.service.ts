@@ -4,6 +4,7 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { RewriteRequestDto, RewriteResponseDto, TailorActionInputDto } from './dto/rewrite.dto';
+import { assessRewriteInput } from './rewrite-input-gate';
 
 const PROMPT_CODE = 'cv_rewrite_v1';
 /** Cache entries are tiny; cap protects memory under a busy session. */
@@ -83,6 +84,18 @@ export class CvRewriteService {
       });
     }
 
+    // Deterministic input-quality gate: garbage must never reach the LLM (cost) nor consume
+    // the user's quota (platform records usage only after success — a gate rejection here is free).
+    const verdict = assessRewriteInput(text);
+    if (!verdict.ok) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_CONTEXT',
+        message:
+          'Cần nội dung thật (bạn đã làm gì, công nghệ nào, kết quả ra sao) trước khi AI có thể viết lại. / ' +
+          'Provide real content (what you did, which tech, what outcome) before AI can rewrite.',
+      });
+    }
+
     const instruction =
       req.mode === 'tailor' && req.tailor_action
         ? buildTailorInstruction(req.tailor_action)
@@ -134,6 +147,27 @@ export class CvRewriteService {
       let suggestion = this.clean(result.text);
       let fallback = false;
 
+      // ON-TOPIC guard: the prompt instructs the model to answer the literal sentinel OFF_TOPIC
+      // for non-CV input (weather, chat, lyrics…). Map it to a deterministic 400 so the FE can
+      // guide the user. The trace is completed as SUCCESS first — the LLM call really happened
+      // and its cost must stay visible; the catch below re-throws BadRequest WITHOUT markFailed.
+      if (/^OFF[\s_-]?TOPIC[.!]?$/i.test(suggestion)) {
+        await this.tracing.completeAiRequest(aiRequestId, {
+          promptTokens: result.tokenUsage.promptTokens,
+          completionTokens: result.tokenUsage.completionTokens,
+          totalTokens: result.tokenUsage.totalTokens,
+          estimatedCost: result.estimatedCostUsd,
+          latencyMs: result.latencyMs,
+          status: 'SUCCESS',
+        });
+        throw new BadRequestException({
+          code: 'OFF_TOPIC',
+          message:
+            'Nội dung chưa phải nội dung CV (kinh nghiệm, dự án, kỹ năng, kết quả). Hãy mô tả việc bạn đã làm. / ' +
+            "The text doesn't look like CV content (experience, project, skills, outcomes). Describe what you actually did.",
+        });
+      }
+
       // Guardrail: translate may legitimately keep all numbers; harvard/custom must not INVENT one.
       if (req.mode !== 'translate' && this.inventedNumber(text, suggestion)) {
         this.logger.warn(
@@ -164,6 +198,9 @@ export class CvRewriteService {
       this.remember(key, out);
       return out;
     } catch (err) {
+      // OFF_TOPIC (BadRequest) is a SUCCESSFUL call whose trace is already completed above —
+      // only genuine LLM/infra failures get a FAILED row.
+      if (err instanceof BadRequestException) throw err;
       await this.tracing.markFailed(aiRequestId, startedAt, err);
       throw err;
     }
