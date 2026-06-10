@@ -16,9 +16,10 @@
  * Corpus: eval-cvs.json (13 CVs) + calibration-cvs.json (4 CVs, if shape-compatible).
  * System scores: the SAME scoring path as eval-accuracy (CvReviewService, DB-less).
  * Judges (BLIND — never see the system score or expected bands):
- *   J1 hiring-manager  — Gemini
- *   J2 career-advisor  — OpenAI
- *   J3 senior-engineer — Gemini
+ *   J1 hiring-manager  — OpenAI, temp 0.0
+ *   J2 career-advisor  — OpenAI, temp 0.2
+ *   J3 senior-engineer — OpenAI, temp 0.4
+ *   (All-OpenAI: Gemini free tier 20 req/day can't serve the panel — see HONESTY_LINE.)
  *
  * Output: console table + data/calibration-llm-panel-report.json
  * Exit: 0 when the harness itself succeeds; 1 only on harness errors.
@@ -42,11 +43,12 @@ process.env.NODE_ENV = 'test';
 
 // ─── HONESTY constant — reused in console + JSON output ──────────────────────
 const HONESTY_LINE =
-  'LLM-judge panel agreement study — NOT human calibration. Judges are LLMs ' +
-  '(cross-provider: Gemini judging an OpenAI-scored system) which reduces but does NOT ' +
-  'eliminate shared-model bias. The 94% within-band accuracy claim remains a PROXY until ' +
-  'Grounding-B (3 human raters × 30-50 CVs) runs. Use this report for consistency checks ' +
-  'and outlier triage only.';
+  'LLM-judge panel agreement study — NOT human calibration. All three judges run on the ' +
+  'SAME provider (OpenAI) as the scoring system (Gemini free tier: 20 req/day — unusable for ' +
+  'a 51-call panel), so shared-model bias is NOT mitigated; diversity comes from personas + ' +
+  'temperatures only. The 94% within-band accuracy claim remains a PROXY until Grounding-B ' +
+  '(3 human raters × 30-50 CVs) runs. Use this report for consistency checks and outlier ' +
+  'triage only.';
 
 // ─── Rubric text — kept in a const so the human protocol reuses the SAME wording ──────────────
 export const RUBRIC =
@@ -60,23 +62,29 @@ interface JudgeConfig {
   id: string;
   persona: string;
   provider: LlmProvider;
+  temperature: number;
 }
 
+// All-OpenAI: Gemini free tier (20 req/day) cannot serve a 51-call panel — see HONESTY_LINE.
+// Diversity = persona framing + temperature; this measures CONSISTENCY, not independent validity.
 const JUDGES: JudgeConfig[] = [
   {
     id: 'hiring-manager',
     persona: 'trưởng nhóm tuyển dụng IT khó tính tại VN',
-    provider: 'gemini',
+    provider: 'openai',
+    temperature: 0.0,
   },
   {
     id: 'career-advisor',
     persona: 'cố vấn nghề nghiệp đại học, thiên coaching',
     provider: 'openai',
+    temperature: 0.2,
   },
   {
     id: 'senior-engineer',
     persona: 'kỹ sư senior phỏng vấn ứng viên',
-    provider: 'gemini',
+    provider: 'openai',
+    temperature: 0.4,
   },
 ];
 
@@ -191,7 +199,7 @@ async function callJudge(
         ],
         {
           provider: judge.provider,
-          temperature: 0.2,
+          temperature: judge.temperature,
           jsonMode: true,
           maxOutputTokens: 512,
         },
