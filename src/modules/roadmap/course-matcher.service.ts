@@ -58,7 +58,8 @@ export interface CourseMatcherResult {
  *
  * Replaces the previous "LLM suggests resource keywords" approach which led to
  * hallucinated course names that didn't exist. This service:
- *   1. Loads the catalog (pilot: local mock JSON; production: HTTP fetch from .NET).
+ *   1. Loads the CURATED catalog (data/course-catalog.json — real, well-known courses;
+ *      every URL live-fetch-verified at curation time; integrity-tested against the taxonomy).
  *   2. For each missing/partial skill, finds all courses tagged with that skill.
  *   3. Scores each course using a fixed formula (rating + VN bonus + free bonus + level fit + coverage).
  *   4. Returns top N per skill (default 3).
@@ -72,9 +73,9 @@ export interface CourseMatcherResult {
  *
  * NO LLM CALLS HERE. Pure SQL-style lookup + math. Same input → same ranking.
  *
- * Production migration: replace `loadFromLocalFile()` with HTTP call to
- *   GET /internal/v1/courses/search?skill_ids=react,javascript
- * on the .NET service. Cache result for 1 minute (catalog doesn't change often).
+ * `rating` in the catalog is an EDITORIAL reputation score (4.0-4.8), not user reviews —
+ * documented in the catalog's _note. Future: move the catalog to a DB table when a course
+ * CMS exists (the JSON file is the source of truth until then).
  */
 @Injectable()
 export class CourseMatcherService implements OnModuleInit {
@@ -89,12 +90,10 @@ export class CourseMatcherService implements OnModuleInit {
   private readonly TOP_N_PER_SKILL = 3;
 
   async onModuleInit(): Promise<void> {
-    // PILOT: load from local mock JSON. PRODUCTION: replace with HTTP fetch + cache.
-    const filePath = path.join(process.cwd(), 'data', 'course-catalog-mock.json');
+    const filePath = path.join(process.cwd(), 'data', 'course-catalog.json');
     if (!fs.existsSync(filePath)) {
       this.logger.warn(
-        `Course catalog not found at ${filePath}. CourseMatcherService will return empty results ` +
-          `until .NET /internal/v1/courses/search is wired up.`,
+        `Course catalog not found at ${filePath}. CourseMatcherService will return empty results.`,
       );
       return;
     }
@@ -105,11 +104,11 @@ export class CourseMatcherService implements OnModuleInit {
       this.catalog = json.courses ?? [];
       this.buildIndex();
       this.logger.log(
-        `Loaded ${this.catalog.length} courses (mock catalog). Skill coverage: ${this.skillIndex.size} unique skills.`,
+        `Loaded ${this.catalog.length} curated courses. Skill coverage: ${this.skillIndex.size} unique skills.`,
       );
     } catch (err) {
       this.logger.error(
-        `Failed to load course-catalog-mock.json: ${(err as Error).message}. Catalog will be empty.`,
+        `Failed to load course-catalog.json: ${(err as Error).message}. Catalog will be empty.`,
       );
     }
   }
