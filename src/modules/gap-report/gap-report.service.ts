@@ -3,18 +3,25 @@ import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
 import { TailorChecklistService } from '../cv-jd-match/tailor-checklist.service';
 import { TailorAction } from '../cv-jd-match/tailor-checklist';
-import { JdMarketPositionService } from '../jobs/trends/jd-market-position.service';
+import {
+  JdMarketPositionDto,
+  JdMarketPositionService,
+} from '../jobs/trends/jd-market-position.service';
 import { ImpliedSkill } from '../jobs/trends/jd-market-position';
 import { deriveCvSeniority } from '../../common/services/seniority';
 import { buildGapReportCore, GapReportCore } from './gap-report';
 
 export interface SkillBridgeGapReport extends GapReportCore {
+  /** Distilled trend GAPS (implied & not covered) — the downstream signal (roadmap/interview). */
   market_trend_gaps: ImpliedSkill[] | null;
   recommended_actions: TailorAction[];
   generated_with_ledger: boolean;
   market:
     | { available: true; role_code: string; period: string }
     | { available: false; reason: 'NO_ROLE' | 'NO_SNAPSHOT' };
+  /** Full positioning DTO (per-requirement niche/standard/common + implied incl. covered) —
+   *  the W12 "đọc vị JD" display block; market_trend_gaps above is its distilled subset. */
+  jd_market_position: JdMarketPositionDto;
 }
 
 /**
@@ -53,6 +60,7 @@ export class GapReportService {
       market: marketDto.available
         ? { available: true, role_code: marketDto.role_code, period: marketDto.period }
         : { available: false, reason: marketDto.reason },
+      jd_market_position: marketDto,
     };
   }
 }
