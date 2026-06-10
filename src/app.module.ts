@@ -34,6 +34,7 @@ import { RoadmapModule } from './modules/roadmap/roadmap.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { CvBuilderModule } from './modules/cv-builder/cv-builder.module';
 import { GithubEvidenceModule } from './modules/github-evidence/github-evidence.module';
+import { GapReportModule } from './modules/gap-report/gap-report.module';
 
 // Platform modules need the DB → skip in the e2e env (NODE_ENV=test, no Postgres).
 const PLATFORM_MODULES =
@@ -87,6 +88,7 @@ const PLATFORM_MODULES =
     JobsModule,
     CvBuilderModule,
     GithubEvidenceModule,
+    GapReportModule,
 
     // Platform context (auth/users) — loaded only outside test (needs DB)
     ...PLATFORM_MODULES,
