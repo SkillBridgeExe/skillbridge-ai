@@ -48,6 +48,37 @@ describe('CvRewriteService (mocked LLM)', () => {
     await expect(svc.rewrite({ text: '  ', mode: 'harvard' })).rejects.toThrow();
   });
 
+  describe('ON-TOPIC guard (prompt sentinel)', () => {
+    it('maps the OFF_TOPIC sentinel to a 400, completes the trace as SUCCESS, never markFailed, never caches', async () => {
+      const { svc, llm, tracing } = build('OFF_TOPIC');
+      const req = {
+        text: 'hôm nay trời đẹp quá nên mình đi chơi công viên',
+        mode: 'harvard',
+      } as never;
+      await expect(svc.rewrite(req)).rejects.toMatchObject({
+        response: { code: 'OFF_TOPIC' },
+      });
+      // The LLM call really happened and cost money → SUCCESS trace, not FAILED.
+      expect(tracing.completeAiRequest).toHaveBeenCalledTimes(1);
+      expect(tracing.markFailed).not.toHaveBeenCalled();
+      // Not cached: a second identical call hits the LLM again (verdicts are not RewriteResponses).
+      await expect(svc.rewrite(req)).rejects.toMatchObject({
+        response: { code: 'OFF_TOPIC' },
+      });
+      expect(llm.complete).toHaveBeenCalledTimes(2);
+    });
+
+    it('tolerates sentinel formatting variants (off-topic. / OFF TOPIC)', async () => {
+      const { svc } = build('off-topic.');
+      await expect(
+        svc.rewrite({
+          text: 'bài hát này hay quá mọi người cùng nghe nhé',
+          mode: 'harvard',
+        } as never),
+      ).rejects.toMatchObject({ response: { code: 'OFF_TOPIC' } });
+    });
+  });
+
   it('translate requires target_lang', async () => {
     const { svc } = build('x');
     await expect(svc.rewrite({ text: 'abc', mode: 'translate' })).rejects.toThrow();
