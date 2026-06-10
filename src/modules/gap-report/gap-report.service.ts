@@ -49,9 +49,7 @@ export class GapReportService {
       ...core,
       recommended_actions: checklist.actions,
       generated_with_ledger: checklist.generated_with_ledger,
-      market_trend_gaps: marketDto.available
-        ? marketDto.implied.filter((i) => !i.covered)
-        : null,
+      market_trend_gaps: marketDto.available ? marketDto.implied.filter((i) => !i.covered) : null,
       market: marketDto.available
         ? { available: true, role_code: marketDto.role_code, period: marketDto.period }
         : { available: false, reason: marketDto.reason },

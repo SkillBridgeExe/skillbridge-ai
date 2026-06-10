@@ -2,9 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { GapReportService } from '../../../src/modules/gap-report/gap-report.service';
 import { TailorChecklistService } from '../../../src/modules/cv-jd-match/tailor-checklist.service';
 import { JdMarketPositionService } from '../../../src/modules/jobs/trends/jd-market-position.service';
-import {
-  CvJdMatchParsedResponse,
-} from '../../../src/modules/cv-jd-match/dto/cv-jd-match-response.dto';
+import { CvJdMatchParsedResponse } from '../../../src/modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { CvReviewParsedResponse } from '../../../src/modules/cv-review/dto/cv-review-response.dto';
 import { TailorAction } from '../../../src/modules/cv-jd-match/tailor-checklist';
 import { ImpliedSkill } from '../../../src/modules/jobs/trends/jd-market-position';
@@ -21,16 +19,28 @@ const baseMatch = (): CvJdMatchParsedResponse =>
     unnormalized_cv_skills: [],
     unnormalized_jd_requirements: [],
     scoring_breakdown: {
-      total_requirements: 0, matched_count: 0, partial_count: 0, missing_count: 0,
-      weight_sum: 0, achieved_weight: 0, required_total: 0, required_met: 0,
-      raw_weighted_score: 0, cap_applied: false,
+      total_requirements: 0,
+      matched_count: 0,
+      partial_count: 0,
+      missing_count: 0,
+      weight_sum: 0,
+      achieved_weight: 0,
+      required_total: 0,
+      required_met: 0,
+      raw_weighted_score: 0,
+      cap_applied: false,
     },
     source_of_requirements: 'jd_extraction',
     target_role: 'backend_developer',
   }) as CvJdMatchParsedResponse;
 
 const action = (p: string): TailorAction =>
-  ({ priority: p, action: `do ${p}`, reason: 'test', category: 'keyword' }) as unknown as TailorAction;
+  ({
+    priority: p,
+    action: `do ${p}`,
+    reason: 'test',
+    category: 'keyword',
+  }) as unknown as TailorAction;
 
 const impliedSkill = (c: string, covered: boolean): ImpliedSkill => ({
   skill_canonical: c,
@@ -84,7 +94,11 @@ describe('GapReportService', () => {
     expect(report.recommended_actions[0]).toMatchObject({ priority: 'P0' });
     expect(report.market_trend_gaps).toHaveLength(1);
     expect(report.market_trend_gaps![0].skill_canonical).toBe('kubernetes');
-    expect(report.market).toEqual({ available: true, role_code: 'backend_developer', period: '2026-Q2' });
+    expect(report.market).toEqual({
+      available: true,
+      role_code: 'backend_developer',
+      period: '2026-Q2',
+    });
     expect(report.overall_score).toBe(72);
     expect(report.target_role).toBe('backend_developer');
     expect(report.explicit_gaps).toEqual([]);

@@ -16,49 +16,89 @@ import { EvidenceLedger } from '../../../src/common/services/evidence-ledger';
 import { CvSeniority } from '../../../src/common/services/seniority';
 
 const matched = (c: string, w = 0.2, cv = 4, req = 3): MatchedSkill => ({
-  skill_id: c, canonical_name: c, display_name: c.toUpperCase(),
-  cv_level: cv, required_level: req, importance: 'REQUIRED', weight: w, skill_type: 'hard',
+  skill_id: c,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  cv_level: cv,
+  required_level: req,
+  importance: 'REQUIRED',
+  weight: w,
+  skill_type: 'hard',
 });
 const partial = (c: string, cv: number, req: number): PartialSkill => ({
-  ...matched(c, 0.2, cv, req), gap_levels: req - cv,
+  ...matched(c, 0.2, cv, req),
+  gap_levels: req - cv,
 });
 const missing = (c: string, imp: 'REQUIRED' | 'PREFERRED' = 'REQUIRED'): MissingSkill => ({
-  skill_id: c, canonical_name: c, display_name: c.toUpperCase(),
-  required_level: 3, importance: imp, weight: 0.2, skill_type: 'hard', gap_levels: 3,
+  skill_id: c,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  required_level: 3,
+  importance: imp,
+  weight: 0.2,
+  skill_type: 'hard',
+  gap_levels: 3,
 });
-const bonus = (c: string): BonusSkill => ({ canonical_name: c, display_name: c.toUpperCase(), cv_level: 3 }) as BonusSkill;
+const bonus = (c: string): BonusSkill =>
+  ({ canonical_name: c, display_name: c.toUpperCase(), cv_level: 3 }) as BonusSkill;
 const kf = (c: string, cvN: number, jdN: number): KeywordFrequency => ({
-  canonical_name: c, display_name: c.toUpperCase(), cv_count: cvN, jd_count: jdN,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  cv_count: cvN,
+  jd_count: jdN,
 });
 const baseMatch = (over: Partial<CvJdMatchParsedResponse>): CvJdMatchParsedResponse =>
   ({
-    overall_score: 61, match_ratio: 50, required_coverage: 0.5,
-    matched_skills: [], partial_skills: [], missing_skills: [], bonus_skills: [],
-    unnormalized_cv_skills: [], unnormalized_jd_requirements: [],
+    overall_score: 61,
+    match_ratio: 50,
+    required_coverage: 0.5,
+    matched_skills: [],
+    partial_skills: [],
+    missing_skills: [],
+    bonus_skills: [],
+    unnormalized_cv_skills: [],
+    unnormalized_jd_requirements: [],
     scoring_breakdown: {
-      total_requirements: 0, matched_count: 0, partial_count: 0, missing_count: 0,
-      weight_sum: 0, achieved_weight: 0, required_total: 0, required_met: 0,
-      raw_weighted_score: 0, cap_applied: false,
+      total_requirements: 0,
+      matched_count: 0,
+      partial_count: 0,
+      missing_count: 0,
+      weight_sum: 0,
+      achieved_weight: 0,
+      required_total: 0,
+      required_met: 0,
+      raw_weighted_score: 0,
+      cap_applied: false,
     },
-    source_of_requirements: 'jd_extraction', target_role: 'frontend_developer',
+    source_of_requirements: 'jd_extraction',
+    target_role: 'frontend_developer',
     ...over,
   }) as CvJdMatchParsedResponse;
 const ledgerOf = (gap: string[], demonstrated: string[]): EvidenceLedger => ({
   evidence_gap: gap,
   items: [
     ...gap.map((c) => ({
-      skill_canonical: c, display_name: c.toUpperCase(),
+      skill_canonical: c,
+      display_name: c.toUpperCase(),
       sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null }],
-      strength: 'listed_only' as const, most_recent_year: null,
+      strength: 'listed_only' as const,
+      most_recent_year: null,
     })),
     ...demonstrated.map((c) => ({
-      skill_canonical: c, display_name: c.toUpperCase(),
+      skill_canonical: c,
+      display_name: c.toUpperCase(),
       sources: [{ kind: 'experience' as const, ref: 'Acme', recency_year: 2026 }],
-      strength: 'demonstrated' as const, most_recent_year: 2026,
+      strength: 'demonstrated' as const,
+      most_recent_year: 2026,
     })),
   ],
 });
-const seniority: CvSeniority = { bucket: 'fresher', est_years: null, confidence: 'high', signals: ['0 work entries', '1 project'] };
+const seniority: CvSeniority = {
+  bucket: 'fresher',
+  est_years: null,
+  confidence: 'high',
+  signals: ['0 work entries', '1 project'],
+};
 
 describe('buildGapReportCore (pure)', () => {
   it('echoes explicit/proficiency gaps verbatim and never recomputes the score', () => {
@@ -114,7 +154,12 @@ describe('buildGapReportCore (pure)', () => {
   });
 
   it('ledger null → evidence_gaps [] and demonstrated [] (generated_with_ledger handled by service)', () => {
-    const core = buildGapReportCore(baseMatch({ matched_skills: [matched('x')] }), null, null, 'vi');
+    const core = buildGapReportCore(
+      baseMatch({ matched_skills: [matched('x')] }),
+      null,
+      null,
+      'vi',
+    );
     expect(core.evidence_gaps).toEqual([]);
     expect(core.strengths.demonstrated).toEqual([]);
   });
@@ -130,14 +175,22 @@ describe('toRoadmapSkillRequirements (the P0 roadmap-trust fix)', () => {
     const out = toRoadmapSkillRequirements(core);
     expect(out.missing_skills).toEqual([
       {
-        skill_canonical_name: 'html', display_name: 'HTML',
-        required_level: 3, current_level: 0, importance: 'REQUIRED', weight: 0.2,
+        skill_canonical_name: 'html',
+        display_name: 'HTML',
+        required_level: 3,
+        current_level: 0,
+        importance: 'REQUIRED',
+        weight: 0.2,
       },
     ]);
     expect(out.partial_skills).toEqual([
       {
-        skill_canonical_name: 'react', display_name: 'REACT',
-        required_level: 4, current_level: 2, importance: 'REQUIRED', weight: 0.2,
+        skill_canonical_name: 'react',
+        display_name: 'REACT',
+        required_level: 4,
+        current_level: 2,
+        importance: 'REQUIRED',
+        weight: 0.2,
       },
     ]);
   });
