@@ -16,7 +16,7 @@ import {
  *   - /answer: produce next question + per-question scoring
  *   - /end:    aggregate full-session scoring + AI feedback
  *
- * The .NET BFF owns the DB lifecycle (interview_sessions, interview_questions).
+ * The platform layer (NestJS, src/platform) owns the DB lifecycle (interview_sessions, interview_questions).
  * This service writes only to ai_requests / ai_results.
  */
 @Injectable()
