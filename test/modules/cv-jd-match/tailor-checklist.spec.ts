@@ -1,4 +1,7 @@
-import { buildTailorChecklist, TailorAction } from '../../../src/modules/cv-jd-match/tailor-checklist';
+import {
+  buildTailorChecklist,
+  TailorAction,
+} from '../../../src/modules/cv-jd-match/tailor-checklist';
 import {
   MatchedSkill,
   MissingSkill,
@@ -11,44 +14,82 @@ import {
 import { EvidenceLedger } from '../../../src/common/services/evidence-ledger';
 
 const matched = (c: string, w: number, cv = 4, req = 3): MatchedSkill => ({
-  skill_id: c, canonical_name: c, display_name: c.toUpperCase(),
-  cv_level: cv, required_level: req, importance: 'REQUIRED', weight: w, skill_type: 'hard',
+  skill_id: c,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  cv_level: cv,
+  required_level: req,
+  importance: 'REQUIRED',
+  weight: w,
+  skill_type: 'hard',
 });
 const partial = (c: string, w: number, cv: number, req: number): PartialSkill => ({
-  ...matched(c, w, cv, req), gap_levels: req - cv,
+  ...matched(c, w, cv, req),
+  gap_levels: req - cv,
 });
-const missing = (c: string, w: number, imp: 'REQUIRED' | 'PREFERRED' = 'REQUIRED'): MissingSkill => ({
-  skill_id: c, canonical_name: c, display_name: c.toUpperCase(),
-  required_level: 3, importance: imp, weight: w, skill_type: 'hard', gap_levels: 3,
+const missing = (
+  c: string,
+  w: number,
+  imp: 'REQUIRED' | 'PREFERRED' = 'REQUIRED',
+): MissingSkill => ({
+  skill_id: c,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  required_level: 3,
+  importance: imp,
+  weight: w,
+  skill_type: 'hard',
+  gap_levels: 3,
 });
 const kf = (c: string, cv_count: number, jd_count: number): KeywordFrequency => ({
-  canonical_name: c, display_name: c.toUpperCase(), cv_count, jd_count,
+  canonical_name: c,
+  display_name: c.toUpperCase(),
+  cv_count,
+  jd_count,
 });
 const baseMatch = (over: Partial<CvJdMatchParsedResponse>): CvJdMatchParsedResponse =>
   ({
-    overall_score: 50, match_ratio: 50, required_coverage: 0.5,
-    matched_skills: [], partial_skills: [], missing_skills: [], bonus_skills: [],
-    unnormalized_cv_skills: [], unnormalized_jd_requirements: [],
+    overall_score: 50,
+    match_ratio: 50,
+    required_coverage: 0.5,
+    matched_skills: [],
+    partial_skills: [],
+    missing_skills: [],
+    bonus_skills: [],
+    unnormalized_cv_skills: [],
+    unnormalized_jd_requirements: [],
     scoring_breakdown: {
-      total_requirements: 0, matched_count: 0, partial_count: 0, missing_count: 0,
-      weight_sum: 0, achieved_weight: 0, required_total: 0, required_met: 0,
-      raw_weighted_score: 0, cap_applied: false,
+      total_requirements: 0,
+      matched_count: 0,
+      partial_count: 0,
+      missing_count: 0,
+      weight_sum: 0,
+      achieved_weight: 0,
+      required_total: 0,
+      required_met: 0,
+      raw_weighted_score: 0,
+      cap_applied: false,
     },
-    source_of_requirements: 'jd_extraction', target_role: null,
+    source_of_requirements: 'jd_extraction',
+    target_role: null,
     ...over,
   }) as CvJdMatchParsedResponse;
 const ledgerOf = (gap: string[], demonstrated: Array<[string, string]>): EvidenceLedger => ({
   evidence_gap: gap,
   items: [
     ...gap.map((c) => ({
-      skill_canonical: c, display_name: c.toUpperCase(),
+      skill_canonical: c,
+      display_name: c.toUpperCase(),
       sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null }],
-      strength: 'listed_only' as const, most_recent_year: null,
+      strength: 'listed_only' as const,
+      most_recent_year: null,
     })),
     ...demonstrated.map(([c, ref]) => ({
-      skill_canonical: c, display_name: c.toUpperCase(),
+      skill_canonical: c,
+      display_name: c.toUpperCase(),
       sources: [{ kind: 'project' as const, ref, recency_year: null }],
-      strength: 'demonstrated' as const, most_recent_year: null,
+      strength: 'demonstrated' as const,
+      most_recent_year: null,
     })),
   ],
 });
@@ -56,9 +97,17 @@ const ledgerOf = (gap: string[], demonstrated: Array<[string, string]>): Evidenc
 describe('buildTailorChecklist (pure)', () => {
   it('missing_required: REQUIRED only, weight desc, max 3, honest why, not rewrite-eligible', () => {
     const m = baseMatch({
-      missing_skills: [missing('a', 0.1), missing('b', 0.3), missing('c', 0.2), missing('d', 0.25), missing('e', 0.4, 'PREFERRED')],
+      missing_skills: [
+        missing('a', 0.1),
+        missing('b', 0.3),
+        missing('c', 0.2),
+        missing('d', 0.25),
+        missing('e', 0.4, 'PREFERRED'),
+      ],
     });
-    const out = buildTailorChecklist(m, null, 'vi').filter((x) => x.action_type === 'missing_required');
+    const out = buildTailorChecklist(m, null, 'vi').filter(
+      (x) => x.action_type === 'missing_required',
+    );
     expect(out.map((x) => x.skill_canonical)).toEqual(['b', 'd', 'c']); // weight desc, max 3, no PREFERRED
     for (const x of out) {
       expect(x.rewrite_eligible).toBe(false);

@@ -10,7 +10,9 @@ const CACHE_MAX = 2000;
 
 /** Deterministic tailor instruction — server-built from a checklist item, never user free-text.
  *  Only evidence-backed actions reach here (the checklist gates rewrite_eligible). */
-export function buildTailorInstruction(a: Pick<TailorActionInputDto, 'action_type' | 'skill_display' | 'required_level'>): string {
+export function buildTailorInstruction(
+  a: Pick<TailorActionInputDto, 'action_type' | 'skill_display' | 'required_level'>,
+): string {
   if (a.action_type === 'emphasize') {
     return (
       `Rework the text to explicitly foreground the skill "${a.skill_display}" — it is VERIFIED ` +

@@ -140,8 +140,14 @@ describe('CvRewriteService (mocked LLM)', () => {
     it('different tailor_actions on the same text are cached separately (two LLM calls)', async () => {
       llm.complete.mockResolvedValue({ text: 'ok output' });
       const base = { text: 'built dashboards', mode: 'tailor' } as const;
-      await svc.rewrite({ ...base, tailor_action: { action_type: 'emphasize', skill_display: 'React' } } as never);
-      await svc.rewrite({ ...base, tailor_action: { action_type: 'emphasize', skill_display: 'Docker' } } as never);
+      await svc.rewrite({
+        ...base,
+        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
+      } as never);
+      await svc.rewrite({
+        ...base,
+        tailor_action: { action_type: 'emphasize', skill_display: 'Docker' },
+      } as never);
       expect(llm.complete).toHaveBeenCalledTimes(2);
     });
   });
