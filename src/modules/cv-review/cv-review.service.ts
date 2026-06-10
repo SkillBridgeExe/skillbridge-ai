@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
@@ -21,6 +21,7 @@ import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service
 import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { buildEvidenceLedger } from '../../common/services/evidence-ledger';
+import { assessTextQuality } from '../../common/services/text-quality';
 import scoringWeights from './scoring-weights-v1.json';
 
 // Bilingual action templates for the deterministic top_summary, keyed by ATS rule_id.
@@ -124,6 +125,24 @@ export class CvReviewService {
 
   async review(userId: string, input: CvReviewRequestDto): Promise<CvReviewResponseDto> {
     const startedAt = Date.now();
+
+    // ─── Step 0: content gate — a file with no readable CV content (blank scan, OCR noise,
+    // junk upload) must never reach the TWO LLM stages below: it would burn cost, consume the
+    // user's daily quota, and return nonsense scores. Thresholds are deliberately extreme
+    // (a real one-page CV has hundreds of meaningful tokens) so thin-but-real CVs still pass.
+    const quality = assessTextQuality(input.parsed_text ?? '', {
+      minMeaningfulTokens: 15,
+      minMeaningfulChars: 80,
+    });
+    if (!quality.ok) {
+      throw new BadRequestException({
+        code: 'CV_CONTENT_INSUFFICIENT',
+        message:
+          'File chưa có nội dung CV đọc được (có thể là bản scan chưa hỗ trợ OCR hoặc file trống). ' +
+          'Hãy upload CV dạng text/PDF có chữ thật. / The file has no readable CV content ' +
+          '(possibly an unsupported scan or an empty file). Upload a CV with real text.',
+      });
+    }
 
     // ─── Step 1: parse raw text → CanonicalCvDocument (Stage 1, LLM extract) ─
     // Stage 1 + the deterministic ATS check run BEFORE the ai_request row is created, so a
