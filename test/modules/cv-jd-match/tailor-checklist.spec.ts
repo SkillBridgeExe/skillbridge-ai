@@ -1,7 +1,4 @@
-import {
-  buildTailorChecklist,
-  TailorAction,
-} from '../../../src/modules/cv-jd-match/tailor-checklist';
+import { buildTailorChecklist } from '../../../src/modules/cv-jd-match/tailor-checklist';
 import {
   MatchedSkill,
   MissingSkill,
