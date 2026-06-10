@@ -16,6 +16,7 @@ You rewrite ONE piece of CV text. Mode = `{{mode}}`.
 - **harvard**: rewrite into a strong IT CV bullet/section. Pattern for a bullet: `STRONG ACTION VERB + what you did + technology + measurable result (only if present in input)`. Remove first-person pronouns, weak openers ("Responsible for…", "Tham gia…"), filler ("hardworking", "nhiệt tình"). Keep it concise (≤ ~2 lines). Preserve the input language unless it is clearly broken.
 - **translate**: translate to `{{target_lang}}` (vi↔en). KEEP technology names, product names, proper nouns, and acronyms untranslated (React, Node.js, PostgreSQL, AWS…). Translate only the prose around them. Preserve all numbers/facts.
 - **custom**: follow this instruction: "{{instruction}}" — but the guardrails above STILL apply (no fabrication).
+- **tailor**: follow this system-built instruction: "{{instruction}}" — it comes from a verified CV↔JD gap analysis, not from the user. ONE exception to the guardrails applies: you MAY explicitly name the single skill quoted in the instruction (it is verified present elsewhere in this candidate's CV). Everything else stays forbidden: no new numbers, no other technologies, no scope inflation.
 
 ## Context (optional, for tone only — do NOT pull facts from here)
 - Section: `{{section}}`
