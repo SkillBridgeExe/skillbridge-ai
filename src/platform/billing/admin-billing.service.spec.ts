@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import { BillingFeatureKey, BillingFeaturePeriod } from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
@@ -54,7 +55,12 @@ describe('AdminBillingService', () => {
       Promise.resolve({ id: 'plan-id', createdAt: new Date(), updatedAt: null, ...input }),
     );
     features.find.mockResolvedValue([
-      { planCode: 'PRO', featureKey: 'cv_review', limitValue: 50, period: 'MONTHLY' },
+      {
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 50,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
     ]);
 
     const result = await service.createPlan({
@@ -63,14 +69,18 @@ describe('AdminBillingService', () => {
       category: 'SUBSCRIPTION',
       interval: 'MONTHLY',
       priceVnd: 129000,
-      features: [{ featureKey: 'cv_review', limitValue: 50 }],
+      features: [{ featureKey: BillingFeatureKey.CV_REVIEW, limitValue: 50 }],
     });
 
     expect(plans.save).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'PRO', priceVnd: 129000, isActive: true }),
     );
     expect(features.save).toHaveBeenCalledWith([
-      expect.objectContaining({ planCode: 'PRO', featureKey: 'cv_review', limitValue: 50 }),
+      expect.objectContaining({
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 50,
+      }),
     ]);
     expect(result.code).toBe('PRO');
   });
@@ -82,8 +92,8 @@ describe('AdminBillingService', () => {
     await expect(
       service.replacePlanFeatures('PRO', {
         features: [
-          { featureKey: 'cv_review', limitValue: 10 },
-          { featureKey: 'cv_review', limitValue: 20 },
+          { featureKey: BillingFeatureKey.CV_REVIEW, limitValue: 10 },
+          { featureKey: BillingFeatureKey.CV_REVIEW, limitValue: 20 },
         ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);

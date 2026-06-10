@@ -1,4 +1,8 @@
 import { IsDateString, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+} from '../../../common/constants/billing.constants';
 import { PaymentOrderPurpose } from '../../../database/entities/payment-order.entity';
 
 export class CreateCheckoutDto {
@@ -27,9 +31,9 @@ export class CreateCheckoutDto {
 }
 
 export interface PlanFeatureDto {
-  featureKey: string;
+  featureKey: BillingFeatureKey;
   limit: number;
-  period: string;
+  period: BillingFeaturePeriod;
 }
 
 export interface BillingPlanDto {
@@ -69,12 +73,14 @@ export interface OrderStatusResponseDto {
 }
 
 export interface EntitlementFeatureDto {
-  featureKey: string;
+  featureKey: BillingFeatureKey;
   limit: number;
+  period: BillingFeaturePeriod;
   used: number;
   remaining: number | null;
   unlimited: boolean;
   allowed: boolean;
+  resetsAt: string;
 }
 
 export interface SubscriptionResponseDto {

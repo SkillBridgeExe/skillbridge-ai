@@ -6,20 +6,14 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import {
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+  BILLING_FEATURE_KEYS,
+  DEFAULT_BILLING_FEATURE_PERIOD,
+} from '../../common/constants/billing.constants';
 
-export const BILLING_FEATURE_KEYS = [
-  'cv_review',
-  'cv_upload',
-  'cv_builder_create',
-  'cv_builder_rewrite',
-  'cv_builder_render_pdf',
-  'cv_jd_match',
-  'job_recommendation',
-  'interview_session',
-  'roadmap_generate',
-] as const;
-
-export type BillingFeatureKey = (typeof BILLING_FEATURE_KEYS)[number];
+export { BillingFeatureKey, BillingFeaturePeriod, BILLING_FEATURE_KEYS };
 
 @Entity('plan_features')
 @Index('idx_plan_features_plan_feature_unique', ['planCode', 'featureKey'], { unique: true })
@@ -38,8 +32,8 @@ export class PlanFeatureEntity {
   @Column({ type: 'integer', name: 'limit_value' })
   limitValue!: number;
 
-  @Column({ type: 'varchar', default: 'MONTHLY' })
-  period!: 'MONTHLY';
+  @Column({ type: 'varchar', default: DEFAULT_BILLING_FEATURE_PERIOD })
+  period!: BillingFeaturePeriod;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;

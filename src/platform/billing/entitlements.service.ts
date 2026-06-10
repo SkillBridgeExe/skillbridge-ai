@@ -1,15 +1,18 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
+import {
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+  BillingPlanCode,
+  UNLIMITED_BILLING_LIMIT,
+} from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
-import { BillingFeatureKey } from '../../database/entities/plan-feature.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UsageEventEntity } from '../../database/entities/usage-event.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
 import { EntitlementFeatureDto, SubscriptionResponseDto } from './dto/billing.dto';
-
-const FREE_PLAN_CODE = 'FREE';
 
 @Injectable()
 export class EntitlementsService {
@@ -61,21 +64,32 @@ export class EntitlementsService {
 
   async getCurrentEntitlements(userId: string): Promise<SubscriptionResponseDto> {
     const subscription = await this.findActiveSubscription(userId);
-    const planCode = subscription?.planCode ?? FREE_PLAN_CODE;
+    const planCode = subscription?.planCode ?? BillingPlanCode.FREE;
     const plan = await this.plans.findOne({ where: { code: planCode, isActive: true } });
     const currentPeriodStart = subscription?.currentPeriodStart ?? startOfCurrentMonthIct();
     const currentPeriodEnd = subscription?.currentPeriodEnd ?? addMonths(currentPeriodStart, 1);
     const features = await this.features.find({ where: { planCode } });
-    const usage = await this.countUsage(userId, currentPeriodStart, currentPeriodEnd);
+    const usageByFeature = new Map<string, { used: number; resetsAt: Date }>();
+    for (const feature of features) {
+      const window = this.featureWindow(feature.period, currentPeriodStart, currentPeriodEnd);
+      const used = await this.countFeatureUsage(
+        userId,
+        feature.featureKey,
+        window.periodStart,
+        window.periodEnd,
+      );
+      usageByFeature.set(feature.featureKey, { used, resetsAt: window.periodEnd });
+    }
 
     return {
-      planCode: plan?.code ?? FREE_PLAN_CODE,
-      status: subscription?.status ?? 'FREE',
+      planCode: plan?.code ?? BillingPlanCode.FREE,
+      status: subscription?.status ?? BillingPlanCode.FREE,
       currentPeriodStart: currentPeriodStart.toISOString(),
       currentPeriodEnd: currentPeriodEnd.toISOString(),
-      features: features.map((feature) =>
-        this.toFeatureDto(feature, usage.get(feature.featureKey) ?? 0),
-      ),
+      features: features.map((feature) => {
+        const usage = usageByFeature.get(feature.featureKey);
+        return this.toFeatureDto(feature, usage?.used ?? 0, usage?.resetsAt ?? currentPeriodEnd);
+      }),
     };
   }
 
@@ -95,35 +109,61 @@ export class EntitlementsService {
     });
   }
 
-  private async countUsage(
+  private async countFeatureUsage(
     userId: string,
+    featureKey: BillingFeatureKey,
     periodStart: Date,
     periodEnd: Date,
-  ): Promise<Map<string, number>> {
+  ): Promise<number> {
     const rows = await this.usageEvents
       .createQueryBuilder('usage')
       .select('usage.feature_key', 'featureKey')
       .addSelect('COUNT(*)', 'count')
       .where('usage.user_id = :userId', { userId })
+      .andWhere('usage.feature_key = :featureKey', { featureKey })
       .andWhere('usage.used_at >= :periodStart', { periodStart })
       .andWhere('usage.used_at < :periodEnd', { periodEnd })
       .groupBy('usage.feature_key')
       .getRawMany<{ featureKey: string; count: string }>();
-    return new Map(rows.map((row) => [row.featureKey, Number(row.count)]));
+    return Number(rows[0]?.count ?? 0);
   }
 
-  private toFeatureDto(feature: PlanFeatureEntity, used: number): EntitlementFeatureDto {
-    const unlimited = feature.limitValue === -1;
+  private featureWindow(
+    period: BillingFeaturePeriod,
+    monthlyPeriodStart: Date,
+    monthlyPeriodEnd: Date,
+  ): { periodStart: Date; periodEnd: Date } {
+    if (period === BillingFeaturePeriod.DAILY) {
+      const periodStart = startOfCurrentDayIct();
+      return { periodStart, periodEnd: addDays(periodStart, 1) };
+    }
+    return { periodStart: monthlyPeriodStart, periodEnd: monthlyPeriodEnd };
+  }
+
+  private toFeatureDto(
+    feature: PlanFeatureEntity,
+    used: number,
+    resetsAt: Date,
+  ): EntitlementFeatureDto {
+    const unlimited = feature.limitValue === UNLIMITED_BILLING_LIMIT;
     const remaining = unlimited ? null : Math.max(feature.limitValue - used, 0);
     return {
       featureKey: feature.featureKey,
       limit: feature.limitValue,
+      period: feature.period,
       used,
       remaining,
       unlimited,
       allowed: unlimited || feature.limitValue > used,
+      resetsAt: resetsAt.toISOString(),
     };
   }
+}
+
+function startOfCurrentDayIct(): Date {
+  const ict = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  ict.setUTCHours(0, 0, 0, 0);
+  return new Date(ict.getTime() - 7 * 60 * 60 * 1000);
 }
 
 function startOfCurrentMonthIct(): Date {
@@ -135,6 +175,18 @@ function startOfCurrentMonthIct(): Date {
 
 export function addMonths(date: Date, count: number): Date {
   const next = new Date(date);
+  const originalDay = next.getUTCDate();
+  next.setUTCDate(1);
   next.setUTCMonth(next.getUTCMonth() + count);
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  next.setUTCDate(Math.min(originalDay, lastDayOfTargetMonth));
+  return next;
+}
+
+function addDays(date: Date, count: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + count);
   return next;
 }
