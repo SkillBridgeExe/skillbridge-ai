@@ -6,7 +6,10 @@ import { CvMatchEntity } from '../../../src/database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../../src/database/entities/cv-match-score.entity';
 import { JobDescriptionEntity } from '../../../src/database/entities/job-description.entity';
 import { IS_PUBLIC_KEY } from '../../../src/platform/auth/decorators/public.decorator';
-import { CvMatchesController } from '../../../src/platform/cv-matches/cv-matches.controller';
+import {
+  CvMatchReportsController,
+  CvMatchesController,
+} from '../../../src/platform/cv-matches/cv-matches.controller';
 import { CvMatchesService } from '../../../src/platform/cv-matches/cv-matches.service';
 
 describe('CV match OpenAPI docs', () => {
@@ -14,7 +17,7 @@ describe('CV match OpenAPI docs', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [CvMatchesController],
+      controllers: [CvMatchesController, CvMatchReportsController],
       providers: [
         {
           provide: CvMatchesService,
@@ -22,6 +25,7 @@ describe('CV match OpenAPI docs', () => {
             createMatch: jest.fn(),
             listMatches: jest.fn(),
             getMatch: jest.fn(),
+            getGapReport: jest.fn(),
           },
         },
       ],
@@ -45,6 +49,7 @@ describe('CV match OpenAPI docs', () => {
     expect(document.paths['/api/cvs/{cvId}/match/file']?.post).toBeDefined();
     expect(document.paths['/api/cvs/{cvId}/matches']?.get).toBeDefined();
     expect(document.paths['/api/cvs/{cvId}/matches/{matchId}']?.get).toBeDefined();
+    expect(document.paths['/api/cv-matches/{matchId}/gap-report']?.get).toBeDefined();
 
     const requestBody = document.paths['/api/cvs/{cvId}/match']?.post?.requestBody;
     const content = requestBody && 'content' in requestBody ? requestBody.content : undefined;
@@ -76,6 +81,7 @@ describe('CV match OpenAPI docs', () => {
 
   it('marks CV match endpoints public to bypass internal auth while keeping bearer docs', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvMatchesController)).toBe(true);
+    expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvMatchReportsController)).toBe(true);
   });
 
   it('keeps JD match persistence indexes aligned with migration intent', () => {

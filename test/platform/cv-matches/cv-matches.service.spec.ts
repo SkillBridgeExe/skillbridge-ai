@@ -76,6 +76,23 @@ describe('CvMatchesService', () => {
         latency_ms: 450,
       }),
     };
+    const entitlements = {
+      assertCanUse: jest.fn().mockResolvedValue(undefined),
+      recordUsage: jest.fn().mockResolvedValue(undefined),
+    };
+    const gapReport = {
+      build: jest.fn().mockResolvedValue({
+        target_role: 'frontend_developer',
+        language: 'vi',
+        explicit_gaps: [],
+        proficiency_gaps: [],
+        evidence_gaps: [],
+        recommended_actions: [],
+      }),
+    };
+    const platformCvs = {
+      getLatestReview: jest.fn().mockResolvedValue({ evidence_ledger: null }),
+    };
 
     const service = new CvMatchesService(
       cvsRepo as never,
@@ -84,13 +101,28 @@ describe('CvMatchesService', () => {
       scoresRepo as never,
       extractor as never,
       matcher as never,
+      entitlements as never,
+      gapReport as never,
+      platformCvs as never,
     );
 
-    return { service, cvsRepo, jobDescriptionsRepo, matchesRepo, scoresRepo, extractor, matcher };
+    return {
+      service,
+      cvsRepo,
+      jobDescriptionsRepo,
+      matchesRepo,
+      scoresRepo,
+      extractor,
+      matcher,
+      entitlements,
+      gapReport,
+      platformCvs,
+    };
   }
 
   it('persists a pasted JD match and score breakdown for an owned CV', async () => {
-    const { service, jobDescriptionsRepo, matchesRepo, scoresRepo, matcher } = build();
+    const { service, jobDescriptionsRepo, matchesRepo, scoresRepo, matcher, entitlements } =
+      build();
 
     const response = await service.createMatch('user-1', 'cv-1', {
       jdText: 'We need React and TypeScript experience.',
@@ -147,6 +179,26 @@ describe('CvMatchesService', () => {
         parsedResponse,
       }),
     );
+    expect(entitlements.assertCanUse).toHaveBeenCalledWith('user-1', 'cv_jd_match');
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('user-1', 'cv_jd_match', {
+      sourceType: 'cv_match',
+      sourceId: 'match-1',
+    });
+  });
+
+  it('does not persist JD or call matcher when CV/JD match quota is denied', async () => {
+    const { service, jobDescriptionsRepo, matcher, entitlements } = build();
+    entitlements.assertCanUse.mockRejectedValue(new Error('quota denied'));
+
+    await expect(
+      service.createMatch('user-1', 'cv-1', {
+        jdText: 'We need React and TypeScript experience.',
+      }),
+    ).rejects.toThrow('quota denied');
+
+    expect(jobDescriptionsRepo.save).not.toHaveBeenCalled();
+    expect(matcher.match).not.toHaveBeenCalled();
+    expect(entitlements.recordUsage).not.toHaveBeenCalled();
   });
 
   it('uses uploaded JD text and the CV target role when no override is provided', async () => {
@@ -197,5 +249,48 @@ describe('CvMatchesService', () => {
     await expect(
       service.createMatch('user-1', 'cv-1', { jdText: 'We need React.' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('builds a unified gap report for a match owned through its CV', async () => {
+    const { service, matchesRepo, cvsRepo, gapReport, platformCvs } = build();
+    matchesRepo.findOne.mockResolvedValue({
+      id: 'match-1',
+      cvId: 'cv-1',
+      overallScore: '82.00',
+      semanticScore: '70.00',
+      ruleEngineScore: '80.00',
+      strengths: parsedResponse.matched_skills,
+      weaknesses: [...parsedResponse.partial_skills, ...parsedResponse.missing_skills],
+      suggestions: {
+        missing_skills: parsedResponse.missing_skills,
+        partial_skills: parsedResponse.partial_skills,
+        bonus_skills: parsedResponse.bonus_skills,
+        scoring_breakdown: parsedResponse.scoring_breakdown,
+      },
+    });
+
+    const response = await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(cvsRepo.findOne).toHaveBeenCalledWith({
+      where: { id: 'cv-1', userId: 'user-1', deletedAt: expect.anything() },
+    });
+    expect(platformCvs.getLatestReview).toHaveBeenCalledWith('user-1', 'cv-1');
+    expect(gapReport.build).toHaveBeenCalledWith({
+      match: expect.objectContaining({ overall_score: 82 }),
+      review: { evidence_ledger: null },
+      lang: 'vi',
+    });
+    expect(response).toEqual(expect.objectContaining({ target_role: 'frontend_developer' }));
+  });
+
+  it('returns 404 for gap report when the match is missing', async () => {
+    const { service, matchesRepo, gapReport } = build();
+    matchesRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.getGapReport('user-1', 'missing', 'vi')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    expect(gapReport.build).not.toHaveBeenCalled();
   });
 });
