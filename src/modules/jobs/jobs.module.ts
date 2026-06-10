@@ -5,6 +5,7 @@ import { ItviecCrawlerService } from './crawl/itviec-crawler.service';
 import { JobRecommendationService } from './reco/job-recommendation.service';
 import { SkillDemandService } from './trends/skill-demand.service';
 import { TrendsInsightService } from './trends/trends-insight.service';
+import { JdMarketPositionService } from './trends/jd-market-position.service';
 import { JobsController } from './jobs.controller';
 import { TrendsController } from './trends/trends.controller';
 
@@ -23,7 +24,14 @@ import { TrendsController } from './trends/trends.controller';
     JobRecommendationService,
     SkillDemandService,
     TrendsInsightService,
+    JdMarketPositionService,
   ],
-  exports: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService],
+  exports: [
+    JdIngestService,
+    ItviecCrawlerService,
+    JobRecommendationService,
+    SkillDemandService,
+    JdMarketPositionService,
+  ],
 })
 export class JobsModule {}
