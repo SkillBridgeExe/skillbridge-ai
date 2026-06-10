@@ -29,6 +29,8 @@ describe('CV OpenAPI docs', () => {
             evaluateBuilderSection: jest.fn(),
             rewriteBuilderText: jest.fn(),
             renderPdf: jest.fn(),
+            getInterviewPlan: jest.fn(),
+            getGithubEvidence: jest.fn(),
           },
         },
       ],
@@ -97,6 +99,8 @@ describe('CV OpenAPI docs', () => {
     expect(document.paths['/api/cvs/{id}/builder/evaluate']?.post).toBeDefined();
     expect(document.paths['/api/cvs/{id}/builder/rewrite']?.post).toBeDefined();
     expect(document.paths['/api/cvs/{id}/render-pdf']?.post).toBeDefined();
+    expect(document.paths['/api/cvs/{id}/interview-plan']?.get).toBeDefined();
+    expect(document.paths['/api/cvs/{id}/github-evidence']?.get).toBeDefined();
   });
 
   it('documents builder request fields, examples, and binary PDF response for Scalar', () => {

@@ -1,4 +1,5 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { BillingFeatureKey } from '../../../src/common/constants/billing.constants';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 
 describe('CvsService R1 completion behavior', () => {
@@ -54,6 +55,7 @@ describe('CvsService R1 completion behavior', () => {
     const cvsRepo = {
       create: jest.fn((input) => ({ ...input, createdAt: now, updatedAt: now })),
       save: jest.fn(async (input) => ({
+        id: input.id ?? 'saved-cv',
         ...input,
         createdAt: input.createdAt ?? now,
         updatedAt: now,
@@ -120,6 +122,18 @@ describe('CvsService R1 completion behavior', () => {
       assertCanUse: jest.fn().mockResolvedValue(undefined),
       recordUsage: jest.fn().mockResolvedValue(undefined),
     };
+    const interviewPlan = {
+      generatePlan: jest.fn().mockResolvedValue({
+        target_role: 'frontend_developer',
+        language: 'vi',
+        items: [],
+        llm_enhanced: false,
+        token_usage: 0,
+      }),
+    };
+    const githubEvidence = {
+      build: jest.fn().mockResolvedValue({ available: false, reason: 'CONSENT_REQUIRED' }),
+    };
 
     const service = new CvsService(
       cvsRepo as never,
@@ -136,6 +150,8 @@ describe('CvsService R1 completion behavior', () => {
       pdfRenderer as never,
       analysisQuota as never,
       entitlements as never,
+      interviewPlan as never,
+      githubEvidence as never,
     );
 
     return {
@@ -153,6 +169,8 @@ describe('CvsService R1 completion behavior', () => {
       pdfRenderer,
       analysisQuota,
       entitlements,
+      interviewPlan,
+      githubEvidence,
     };
   }
 
@@ -239,6 +257,7 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.review).toEqual(parsedReview);
     expect(aiResults.manager.query).toHaveBeenCalledWith(expect.stringContaining('ai_results'), [
       'u1',
+      BillingFeatureKey.CV_REVIEW,
       'cv-1',
     ]);
   });
@@ -329,6 +348,20 @@ describe('CvsService R1 completion behavior', () => {
     expect(cvReview.review).not.toHaveBeenCalled();
     expect(response.cvKind).toBe('BUILT');
     expect(response.parsedJson).toEqual(sourceDocument);
+  });
+
+  it('enforces and records the builder create quota around successful draft creation', async () => {
+    const { service, cvsRepo, entitlements } = build();
+    cvsRepo.findOne.mockResolvedValue(null);
+
+    const response = await service.createBuilderDraft('u1', { language: 'en' });
+
+    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_create');
+    expect(response.id).toBe('saved-cv');
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_create', {
+      sourceType: 'cv',
+      sourceId: 'saved-cv',
+    });
   });
 
   it('creates a blank BUILT builder draft when no parsed upload exists', async () => {
@@ -425,7 +458,7 @@ describe('CvsService R1 completion behavior', () => {
   });
 
   it('renders a BUILT CV PDF from parsedJson without storage persistence', async () => {
-    const { service, cvsRepo, pdfRenderer, storage } = build();
+    const { service, cvsRepo, pdfRenderer, storage, entitlements } = build();
     const draft = {
       id: 'draft-1',
       userId: 'u1',
@@ -439,7 +472,12 @@ describe('CvsService R1 completion behavior', () => {
 
     const rendered = await service.renderPdf('u1', 'draft-1');
 
+    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_render_pdf');
     expect(pdfRenderer.renderHarvardPdf).toHaveBeenCalledWith(draft);
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_render_pdf', {
+      sourceType: 'cv',
+      sourceId: 'draft-1',
+    });
     expect(storage.upload).not.toHaveBeenCalled();
     expect(rendered.buffer).toEqual(Buffer.from('%PDF-1.7 rendered'));
   });
@@ -527,6 +565,158 @@ describe('CvsService R1 completion behavior', () => {
     );
 
     expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+  });
+
+  it('does NOT consume the analysis quota for duplicate file content owned by the user', async () => {
+    const { service, cvsRepo, storage, cvReview, analysisQuota } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'existing-cv',
+      userId: 'u1',
+      title: 'Existing',
+      originalFileName: 'sample.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      isOcrOnly: false,
+      atsReadabilityScore: '80.00',
+      targetRole: 'frontend_developer',
+      contentHash: 'existing-hash',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const response = await service.create('u1', { consentAccepted: true }, file);
+
+    expect(response.id).toBe('existing-cv');
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+  });
+
+  it('returns a matching persisted review without consuming analysis quota or calling the model', async () => {
+    const { service, cvsRepo, cvReview, analysisQuota, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+
+    const response = await service.rerunReview('u1', 'cv-1');
+
+    expect(response.review).toEqual(parsedReview);
+    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+  });
+
+  it('analyzes a BUILT CV by rendering parsedJson to plain text when parsedText is missing', async () => {
+    const { service, cvsRepo, cvReview } = build();
+    const builtDocument = {
+      ...parsedReview.document,
+      summary: 'Built REST APIs with NestJS and PostgreSQL.',
+    };
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'draft-1',
+      userId: 'u1',
+      parsedText: null,
+      parsedJson: builtDocument,
+      cvKind: 'BUILT',
+      fileType: null,
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await service.rerunReview('u1', 'draft-1');
+
+    expect(cvReview.review).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({
+        cv_id: 'draft-1',
+        parsed_text: expect.stringContaining('Built REST APIs'),
+        target_role: 'backend_developer',
+      }),
+    );
+  });
+
+  it('generates an interview plan from the latest review and records interview quota', async () => {
+    const { service, cvsRepo, aiResults, entitlements, interviewPlan } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      cvKind: 'UPLOADED',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+
+    const response = await service.getInterviewPlan('u1', 'cv-1', 'frontend_developer', 'en');
+
+    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'interview_session');
+    expect(interviewPlan.generatePlan).toHaveBeenCalledWith('u1', {
+      review: parsedReview,
+      target_role: 'frontend_developer',
+      lang: 'en',
+    });
+    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'interview_session', {
+      sourceType: 'cv',
+      sourceId: 'cv-1',
+    });
+    expect(response.target_role).toBe('frontend_developer');
+  });
+
+  it('returns 404 for interview plan when the CV has no persisted review', async () => {
+    const { service, cvsRepo, aiResults, entitlements, interviewPlan } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      cvKind: 'UPLOADED',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([]);
+
+    await expect(
+      service.getInterviewPlan('u1', 'cv-1', 'frontend_developer', 'vi'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(entitlements.assertCanUse).not.toHaveBeenCalledWith('u1', 'interview_session');
+    expect(interviewPlan.generatePlan).not.toHaveBeenCalled();
+  });
+
+  it('builds GitHub evidence for an owned CV with the latest review when available', async () => {
+    const { service, cvsRepo, aiResults, githubEvidence } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      cvKind: 'UPLOADED',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+    githubEvidence.build.mockResolvedValue({ available: true, username: 'octo' });
+
+    const response = await service.getGithubEvidence('u1', 'cv-1', 'octo', true, 'vi');
+
+    expect(githubEvidence.build).toHaveBeenCalledWith({
+      username: 'octo',
+      consent: true,
+      review: parsedReview,
+      lang: 'vi',
+    });
+    expect(response).toEqual({ available: true, username: 'octo' });
   });
 
   it('enforces the analysis quota on re-run diagnosis (shared budget) before calling the model', async () => {

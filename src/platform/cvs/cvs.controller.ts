@@ -147,6 +147,46 @@ export class CvsController {
     return this.cvs.get(user.userId, id);
   }
 
+  @Get(':id/interview-plan')
+  @ApiOperation({
+    summary: 'Generate a gap-targeted interview preparation plan for a diagnosed CV',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'role', required: true, example: 'frontend_developer' })
+  @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  interviewPlan(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Query('role') role?: string,
+    @Query('lang') lang?: string,
+  ) {
+    return this.cvs.getInterviewPlan(user.userId, id, role, normalizeLang(lang));
+  }
+
+  @Get(':id/github-evidence')
+  @ApiOperation({
+    summary: 'Analyze public GitHub repository evidence for a CV with explicit user consent',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'username', required: false, example: 'octocat' })
+  @ApiQuery({ name: 'consent', required: false, example: true })
+  @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  githubEvidence(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Query('username') username?: string,
+    @Query('consent') consent?: string,
+    @Query('lang') lang?: string,
+  ) {
+    return this.cvs.getGithubEvidence(
+      user.userId,
+      id,
+      username ?? '',
+      consent === 'true',
+      normalizeLang(lang),
+    );
+  }
+
   @Put(':id/builder')
   @ApiOperation({
     summary: 'Autosave a CV Builder draft',
@@ -274,4 +314,8 @@ export class CvsController {
 
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/["\\\r\n]/g, '_');
+}
+
+function normalizeLang(value: string | undefined): 'vi' | 'en' {
+  return value === 'en' ? 'en' : 'vi';
 }

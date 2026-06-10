@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { EntitlementsService } from '../billing/entitlements.service';
-
-const CV_REVIEW_FEATURE = 'cv_review';
 
 /**
  * Billing-aware quota gate for CV analysis.
@@ -15,12 +14,12 @@ export class CvAnalysisQuotaService {
 
   async assertWithinDailyLimit(userId: string): Promise<void> {
     if (!userId) return;
-    await this.entitlements.assertCanUse(userId, CV_REVIEW_FEATURE);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_REVIEW);
   }
 
   async recordSuccessfulAnalysis(userId: string, cvId: string): Promise<void> {
     if (!userId) return;
-    await this.entitlements.recordUsage(userId, CV_REVIEW_FEATURE, {
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_REVIEW, {
       sourceType: 'cv',
       sourceId: cvId,
     });
