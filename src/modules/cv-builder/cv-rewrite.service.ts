@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
+import { TracingService } from '../tracing/tracing.service';
 import { RewriteRequestDto, RewriteResponseDto, TailorActionInputDto } from './dto/rewrite.dto';
 
 const PROMPT_CODE = 'cv_rewrite_v1';
@@ -47,9 +48,18 @@ export class CvRewriteService {
   constructor(
     private readonly llm: LlmService,
     private readonly prompts: PromptsService,
+    private readonly tracing: TracingService,
   ) {}
 
-  async rewrite(req: RewriteRequestDto): Promise<RewriteResponseDto> {
+  /**
+   * Rewrite a CV field with AI.
+   *
+   * @param req   - The rewrite request (mode, text, options).
+   * @param userId - Optional user id for tracing. Pass null for anonymous/platform calls.
+   *                 The platform layer (`/api/cvs/:id/builder/rewrite`) MUST pass the real
+   *                 userId so cost/token/latency is attributed correctly.
+   */
+  async rewrite(req: RewriteRequestDto, userId: string | null = null): Promise<RewriteResponseDto> {
     const text = (req.text ?? '').trim();
     if (text.length === 0) {
       throw new BadRequestException({ code: 'EMPTY_TEXT', message: 'text is required' });
@@ -80,8 +90,10 @@ export class CvRewriteService {
 
     const key = this.cacheKey(req, text, instruction);
     const hit = this.cache.get(key);
+    // Cache hit → return immediately. No tracing row: there is no LLM call, so no cost to record.
     if (hit) return hit;
 
+    const template = this.prompts.get(PROMPT_CODE);
     const userPrompt = this.prompts.render(PROMPT_CODE, {
       text,
       mode: req.mode,
@@ -90,37 +102,71 @@ export class CvRewriteService {
       role_code: req.role_code ?? '(none)',
       section: req.section ?? '(none)',
     });
-    const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
+    const system = template.meta.system ?? '';
 
-    const result = await this.llm.complete(
-      [
-        { role: 'system', content: system },
-        { role: 'user', content: userPrompt },
-      ],
-      // 1024 gives a summary/translate rewrite clear headroom (512 could truncate a paragraph).
-      { provider: 'openai', temperature: 0.3, maxOutputTokens: 1024 },
-    );
+    // PRIVACY: requestPayload must NOT contain the raw CV text or instruction — lengths/modes only.
+    // userId='' means anonymous/platform (X-User-Id header absent); stored as-is for tracing.
+    const aiRequestId = await this.tracing.startAiRequest({
+      userId: userId ?? '',
+      modelCode: '',
+      promptTemplateCode: template.code,
+      promptTemplateVersion: template.version,
+      requestType: 'cv_rewrite',
+      requestPayload: {
+        mode: req.mode,
+        section: req.section ?? null,
+        target_lang: req.target_lang ?? null,
+        text_length: text.length,
+      },
+    });
 
-    let suggestion = this.clean(result.text);
-    let fallback = false;
-
-    // Guardrail: translate may legitimately keep all numbers; harvard/custom must not INVENT one.
-    if (req.mode !== 'translate' && this.inventedNumber(text, suggestion)) {
-      this.logger.warn(
-        `cv_rewrite produced a number absent from the input (mode=${req.mode}) — falling back to original.`,
+    const startedAt = Date.now();
+    try {
+      const result = await this.llm.complete(
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: userPrompt },
+        ],
+        // 1024 gives a summary/translate rewrite clear headroom (512 could truncate a paragraph).
+        { provider: 'openai', temperature: 0.3, maxOutputTokens: 1024 },
       );
-      suggestion = text;
-      fallback = true;
-    }
-    // Empty / refusal → fall back to original rather than blank the field.
-    if (suggestion.length === 0) {
-      suggestion = text;
-      fallback = true;
-    }
 
-    const out: RewriteResponseDto = { suggestion, fallback };
-    this.remember(key, out);
-    return out;
+      let suggestion = this.clean(result.text);
+      let fallback = false;
+
+      // Guardrail: translate may legitimately keep all numbers; harvard/custom must not INVENT one.
+      if (req.mode !== 'translate' && this.inventedNumber(text, suggestion)) {
+        this.logger.warn(
+          `cv_rewrite produced a number absent from the input (mode=${req.mode}) — falling back to original.`,
+        );
+        suggestion = text;
+        fallback = true;
+      }
+      // Empty / refusal → fall back to original rather than blank the field.
+      if (suggestion.length === 0) {
+        suggestion = text;
+        fallback = true;
+      }
+
+      // No saveAiResult: the rewrite suggestion is ephemeral (not persisted to the CV until the
+      // user accepts it). Tracing the request covers cost/token/latency visibility without
+      // duplicating storage. Precedent: interview `answer` flow.
+      await this.tracing.completeAiRequest(aiRequestId, {
+        promptTokens: result.tokenUsage.promptTokens,
+        completionTokens: result.tokenUsage.completionTokens,
+        totalTokens: result.tokenUsage.totalTokens,
+        estimatedCost: result.estimatedCostUsd,
+        latencyMs: result.latencyMs,
+        status: 'SUCCESS',
+      });
+
+      const out: RewriteResponseDto = { suggestion, fallback };
+      this.remember(key, out);
+      return out;
+    } catch (err) {
+      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      throw err;
+    }
   }
 
   /**
@@ -138,15 +184,27 @@ export class CvRewriteService {
 
   /**
    * Returns true if `out` contains a number NOT present in `input` — the hallucinated-metric
-   * signature. Normalizes thousands commas + trailing period ONLY (keeps internal dots so a
-   * version/IP "1.5.0" is distinct from "150", and "3.5" from "35"); idiomatic emphasis
-   * (24/7, 100%, 365) is not a CV metric and is ignored to avoid false fallbacks (review).
+   * signature. Normalizes:
+   *   - thousands commas ("5,000" → "5000")
+   *   - trailing period ("50." → "50")
+   *   - trailing zeros after a decimal point ("3.500" → "3.5", "100.0" → "100")
+   *   - dangling dot after zero-strip ("100." → "100")
+   * This prevents false positives when the model reformats a decimal (e.g. "3.5" → "3.500")
+   * without inventing a new value. Internal dots are preserved so "1.5.0" stays "1.5.0"
+   * (distinct from "150"). Idiomatic emphasis (24/7, 100%, 365) is excluded entirely to avoid
+   * false fallbacks on common phrases.
    */
   private inventedNumber(input: string, out: string): boolean {
     const EMPHASIS = /\b24\/7\b|\b100\s?%|\b365\b/g;
     const digits = (s: string): string[] =>
       (s.replace(EMPHASIS, ' ').match(/\d[\d.,]*/g) ?? [])
-        .map((n) => n.replace(/,/g, '').replace(/\.+$/, ''))
+        .map((n) =>
+          n
+            .replace(/,/g, '')
+            .replace(/\.+$/, '')
+            .replace(/(\.\d*?)0+$/, '$1')
+            .replace(/\.$/, ''),
+        )
         .filter(Boolean);
     const inSet = new Set(digits(input));
     return digits(out).some((n) => !inSet.has(n));

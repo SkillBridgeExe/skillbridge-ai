@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { InternalUser } from '../../common/decorators/internal-user.decorator';
 import { EvaluateSectionRequestDto, EvaluateSectionResponseDto } from './dto/evaluate-section.dto';
 import { RewriteRequestDto, RewriteResponseDto } from './dto/rewrite.dto';
 import { SectionEvaluatorService } from './section-evaluator.service';
@@ -28,7 +29,10 @@ export class CvBuilderController {
   @ApiOperation({
     summary: 'AI rewrite one field (harvard/translate/custom) — no fabrication guardrail',
   })
-  rewrite(@Body() body: RewriteRequestDto): Promise<RewriteResponseDto> {
-    return this.rewriter.rewrite(body);
+  rewrite(
+    @Body() body: RewriteRequestDto,
+    @InternalUser() userId: string,
+  ): Promise<RewriteResponseDto> {
+    return this.rewriter.rewrite(body, userId);
   }
 }
