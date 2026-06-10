@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
@@ -13,6 +13,7 @@ import {
   SkillTextScannerService,
 } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
+import { assessTextQuality } from '../../common/services/text-quality';
 
 interface LlmExtractionOutput {
   cv_skills_raw: RawCvSkill[];
@@ -48,6 +49,26 @@ export class CvJdMatchService {
   ) {}
 
   async match(userId: string, input: CvJdMatchRequestDto): Promise<CvJdMatchResponseDto> {
+    // Content gate: a pasted "JD" that is junk ("aa", "test test") must never reach the
+    // extraction LLM — burning cost and silently degrading to the rubric would confuse the
+    // user ("why is my score against generic requirements?"). Absent/empty JD stays legal
+    // (rubric fallback is the designed path); only PROVIDED-but-garbage JDs are rejected.
+    const jdText = input.jd_text?.trim();
+    if (jdText) {
+      const quality = assessTextQuality(jdText, {
+        minMeaningfulTokens: 6,
+        minMeaningfulChars: 40,
+      });
+      if (!quality.ok) {
+        throw new BadRequestException({
+          code: 'JD_CONTENT_INSUFFICIENT',
+          message:
+            'Nội dung JD quá ngắn hoặc không phải mô tả công việc — hãy dán JD thật (yêu cầu, kỹ năng, mô tả). / ' +
+            'The pasted JD is too thin or not a job description — paste the real JD (requirements, skills, description).',
+        });
+      }
+    }
+
     const template = this.prompts.get(input.scoring_template_code);
     const userPrompt = this.prompts.render(input.scoring_template_code, {
       cv_text: input.cv_text,

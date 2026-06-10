@@ -125,12 +125,26 @@ describe('CvReviewService', () => {
     };
   }
 
+  // Realistic-length CV text: the Step-0 content gate (CV_CONTENT_INSUFFICIENT) requires
+  // >=15 meaningful tokens or >=80 meaningful chars — a real CV always clears it.
   const input = {
     cv_id: 'c1',
-    parsed_text: 'raw cv text',
+    parsed_text:
+      'Nguyễn Văn A — Frontend Developer. Kinh nghiệm: thực tập sinh tại FPT Software, ' +
+      'xây dựng giao diện quản trị nội bộ với ReactJS và TypeScript, tối ưu hiệu năng render. ' +
+      'Dự án: Web bán hàng EcomViet (React, Redux). Kỹ năng: HTML, CSS, JavaScript, Git.',
     prompt_template_code: 'cv_review_v1',
     target_role: 'Frontend',
   } as never;
+
+  it('Step-0 gate: junk/blank-scan parsed_text is rejected BEFORE any LLM stage', async () => {
+    const { service, llm, cvParser } = build();
+    await expect(
+      service.review('u1', { ...(input as object), parsed_text: 'aa aa aa' } as never),
+    ).rejects.toMatchObject({ response: { code: 'CV_CONTENT_INSUFFICIENT' } });
+    expect(cvParser.parse).not.toHaveBeenCalled(); // Stage-1 LLM never reached
+    expect(llm.complete).not.toHaveBeenCalled(); // Stage-3 LLM never reached
+  });
 
   it('composes overall = ats×0.4 + (llm_total/80×100)×0.6', async () => {
     const { service } = build();
@@ -150,8 +164,8 @@ describe('CvReviewService', () => {
     expect(typeof vars.cv).toBe('string');
     expect(vars.cv as string).toContain('"language": "vi"');
     expect(vars.cv as string).toContain('contact');
-    // raw text retained as reference
-    expect(vars.cv_text).toBe('raw cv text');
+    // raw text retained as reference (the realistic fixture text)
+    expect(vars.cv_text).toContain('Frontend Developer');
   });
 
   it('surfaces the auto-detected language in the response', async () => {
