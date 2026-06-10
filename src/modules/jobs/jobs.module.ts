@@ -26,6 +26,12 @@ import { TrendsController } from './trends/trends.controller';
     TrendsInsightService,
     JdMarketPositionService,
   ],
-  exports: [JdIngestService, ItviecCrawlerService, JobRecommendationService, SkillDemandService, JdMarketPositionService],
+  exports: [
+    JdIngestService,
+    ItviecCrawlerService,
+    JobRecommendationService,
+    SkillDemandService,
+    JdMarketPositionService,
+  ],
 })
 export class JobsModule {}

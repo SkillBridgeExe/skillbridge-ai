@@ -38,8 +38,10 @@ const T = {
       `Chỉ ${pct}% tin role này trong pool yêu cầu ${s} — yêu cầu khá đặc thù của công ty; đáng tìm hiểu kỹ sản phẩm/stack của họ trước khi phỏng vấn.`,
     nicheAbsent: (s: string) =>
       `${s} hiếm thấy trong tin tuyển dụng role này mà hệ thống theo dõi (pool) — yêu cầu rất đặc thù; đáng hỏi kỹ khi phỏng vấn.`,
-    standard: (s: string, pct: number) => `${pct}% tin role này yêu cầu ${s} — chuẩn mặt bằng thị trường.`,
-    common: (s: string, pct: number) => `${s} xuất hiện trong ${pct}% tin role này — mức phổ biến trung bình.`,
+    standard: (s: string, pct: number) =>
+      `${pct}% tin role này yêu cầu ${s} — chuẩn mặt bằng thị trường.`,
+    common: (s: string, pct: number) =>
+      `${s} xuất hiện trong ${pct}% tin role này — mức phổ biến trung bình.`,
     impliedCovered: (s: string, pct: number) =>
       `JD không nhắc ${s} nhưng ${pct}% tin role này cần — CV bạn đã có, cứ tự tin thể hiện.`,
     impliedMissing: (s: string, pct: number) =>
@@ -50,8 +52,10 @@ const T = {
       `Only ${pct}% of tracked postings for this role require ${s} — a company-specific ask; research their product/stack before the interview.`,
     nicheAbsent: (s: string) =>
       `${s} barely appears in the postings we track for this role — a very company-specific ask; probe it in the interview.`,
-    standard: (s: string, pct: number) => `${pct}% of postings for this role require ${s} — the market standard.`,
-    common: (s: string, pct: number) => `${s} appears in ${pct}% of postings for this role — moderately common.`,
+    standard: (s: string, pct: number) =>
+      `${pct}% of postings for this role require ${s} — the market standard.`,
+    common: (s: string, pct: number) =>
+      `${s} appears in ${pct}% of postings for this role — moderately common.`,
     impliedCovered: (s: string, pct: number) =>
       `The JD never names ${s}, but ${pct}% of postings for this role want it — your CV already has it; show it confidently.`,
     impliedMissing: (s: string, pct: number) =>
@@ -112,7 +116,9 @@ export function buildJdMarketPosition(
   jd_skills.sort(
     (a, b) =>
       POSITION_RANK[a.position] - POSITION_RANK[b.position] ||
-      (a.position === 'niche' ? a.pct_of_postings - b.pct_of_postings : b.pct_of_postings - a.pct_of_postings) ||
+      (a.position === 'niche'
+        ? a.pct_of_postings - b.pct_of_postings
+        : b.pct_of_postings - a.pct_of_postings) ||
       a.skill_canonical.localeCompare(b.skill_canonical),
   );
 
