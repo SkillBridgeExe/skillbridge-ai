@@ -10,6 +10,10 @@ describe('CvRewriteService (mocked LLM)', () => {
     get: jest.fn().mockReturnValue({ meta: { system: 'sys' } }),
   });
   const makeLlm = (text: string) => ({ complete: jest.fn().mockResolvedValue({ text }) });
+  // Shared mutable mocks used by the tailor describe block
+  let svc: CvRewriteService;
+  let llm: { complete: jest.Mock };
+  let prompts: ReturnType<typeof makePrompts>;
 
   const build = (llmText: string) => {
     const llm = makeLlm(llmText);
@@ -89,5 +93,62 @@ describe('CvRewriteService (mocked LLM)', () => {
     await svc.rewrite(req);
     await svc.rewrite(req);
     expect(llm.complete).toHaveBeenCalledTimes(1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // tailor mode
+  // ---------------------------------------------------------------------------
+  describe('tailor mode', () => {
+    beforeEach(() => {
+      llm = { complete: jest.fn() };
+      prompts = makePrompts();
+      svc = new CvRewriteService(llm as never, prompts as never);
+    });
+
+    it('tailor without tailor_action → BadRequest NO_TAILOR_ACTION', async () => {
+      await expect(
+        svc.rewrite({ text: 'built dashboards', mode: 'tailor' } as never),
+      ).rejects.toMatchObject({ response: { code: 'NO_TAILOR_ACTION' } });
+    });
+
+    it('tailor emphasize: server-built instruction reaches the prompt; suggestion returned', async () => {
+      llm.complete.mockResolvedValue({ text: 'Built React dashboards for ops teams' });
+      const res = await svc.rewrite({
+        text: 'built dashboards for ops teams',
+        mode: 'tailor',
+        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
+      } as never);
+      expect(res.suggestion).toBe('Built React dashboards for ops teams');
+      expect(res.fallback).toBeFalsy();
+      const rendered = prompts.render.mock.calls.at(-1)![1] as Record<string, string>;
+      expect(rendered.instruction).toContain('"React"');
+      expect(rendered.instruction).toContain('VERIFIED');
+      expect(rendered.mode).toBe('tailor');
+    });
+
+    it('tailor still trips the invented-number guard (falls back to original)', async () => {
+      llm.complete.mockResolvedValue({ text: 'Built React dashboards improving latency 37%' });
+      const res = await svc.rewrite({
+        text: 'built dashboards',
+        mode: 'tailor',
+        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
+      } as never);
+      expect(res.fallback).toBe(true);
+      expect(res.suggestion).toBe('built dashboards');
+    });
+
+    it('different tailor_actions on the same text are cached separately (two LLM calls)', async () => {
+      llm.complete.mockResolvedValue({ text: 'ok output' });
+      const base = { text: 'built dashboards', mode: 'tailor' } as const;
+      await svc.rewrite({
+        ...base,
+        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
+      } as never);
+      await svc.rewrite({
+        ...base,
+        tailor_action: { action_type: 'emphasize', skill_display: 'Docker' },
+      } as never);
+      expect(llm.complete).toHaveBeenCalledTimes(2);
+    });
   });
 });

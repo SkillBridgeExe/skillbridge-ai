@@ -3,10 +3,48 @@
  * Decorated for the global ValidationPipe (whitelist+forbidNonWhitelisted) — see evaluate DTO note.
  */
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { BUILDER_SECTIONS, BuilderSection } from './evaluate-section.dto';
 
-export type RewriteMode = 'harvard' | 'translate' | 'custom';
+export type RewriteMode = 'harvard' | 'translate' | 'custom' | 'tailor';
+
+export class TailorActionInputDto {
+  @ApiProperty({ enum: ['emphasize', 'deepen_wording'] })
+  @IsIn(['emphasize', 'deepen_wording'])
+  action_type!: 'emphasize' | 'deepen_wording';
+
+  /** Display name of the skill — verified evidence-backed by the tailor checklist. */
+  @ApiProperty({ example: 'React', maxLength: 64 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  skill_display!: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 5 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  cv_level?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 5 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  required_level?: number;
+}
 
 export class RewriteRequestDto {
   /** The single field text the user is editing (a bullet, summary, etc.). */
@@ -21,12 +59,12 @@ export class RewriteRequestDto {
   text!: string;
 
   @ApiProperty({
-    enum: ['harvard', 'translate', 'custom'],
+    enum: ['harvard', 'translate', 'custom', 'tailor'],
     example: 'harvard',
     description:
-      'Required rewrite mode. harvard improves CV wording, translate changes language, custom follows instruction.',
+      'Required rewrite mode. harvard improves CV wording, translate changes language, custom follows instruction, tailor follows a server-built instruction from a verified gap analysis.',
   })
-  @IsIn(['harvard', 'translate', 'custom'])
+  @IsIn(['harvard', 'translate', 'custom', 'tailor'])
   mode!: RewriteMode;
 
   /** Required for mode='translate' — the language to translate INTO. */
@@ -69,6 +107,13 @@ export class RewriteRequestDto {
   @IsOptional()
   @IsIn(BUILDER_SECTIONS)
   section?: BuilderSection;
+
+  /** Required for mode='tailor' — the checklist item; the INSTRUCTION is built server-side. */
+  @ApiPropertyOptional({ type: TailorActionInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TailorActionInputDto)
+  tailor_action?: TailorActionInputDto;
 }
 
 export class RewriteResponseDto {

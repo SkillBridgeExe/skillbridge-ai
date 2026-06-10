@@ -155,12 +155,15 @@ describe('CV OpenAPI docs', () => {
         required: ['text', 'mode'],
         properties: expect.objectContaining({
           text: expect.objectContaining({ description: expect.stringContaining('Required') }),
-          mode: expect.objectContaining({ enum: ['harvard', 'translate', 'custom'] }),
+          mode: expect.objectContaining({ enum: ['harvard', 'translate', 'custom', 'tailor'] }),
           target_lang: expect.objectContaining({
             description: expect.stringContaining('mode=translate'),
           }),
           instruction: expect.objectContaining({
             description: expect.stringContaining('mode=custom'),
+          }),
+          tailor_action: expect.objectContaining({
+            $ref: '#/components/schemas/TailorActionInputDto',
           }),
         }),
       }),
