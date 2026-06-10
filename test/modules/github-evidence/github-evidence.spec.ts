@@ -15,7 +15,7 @@ const repo = (over: Partial<GithubRepo>): GithubRepo => ({
 });
 
 // Stub callbacks — keep the pure fn independent of the real taxonomy.
-const KNOWN = new Set(['typescript', 'react', 'docker', 'python']);
+const KNOWN = new Set(['typescript', 'react', 'docker', 'python', 'java', 'sql', 'kafka']);
 const normalize = (raw: string): string | null => {
   const k = raw.trim().toLowerCase().replace(/\s+/g, '_');
   return KNOWN.has(k) ? k : null;
@@ -29,11 +29,21 @@ const display = (c: string) => c.toUpperCase();
 describe('buildGithubEvidence (pure)', () => {
   it('maps language + topics + name/description, dedups within a repo, excludes forks', () => {
     const repos = [
-      repo({ name: 'react-shop', language: 'TypeScript', topics: ['react'], description: 'docker deploy' }),
+      repo({
+        name: 'react-shop',
+        language: 'TypeScript',
+        topics: ['react'],
+        description: 'docker deploy',
+      }),
       repo({ name: 'stolen-fork', fork: true, language: 'Python' }), // MUST be ignored
     ];
     const { corroborated, github_only, analyzed_repo_count } = buildGithubEvidence(
-      repos, new Set(['react']), normalize, scan, display, 'vi',
+      repos,
+      new Set(['react']),
+      normalize,
+      scan,
+      display,
+      'vi',
     );
     expect(analyzed_repo_count).toBe(1); // fork excluded
     expect(github_only.map((s) => s.skill_canonical).sort()).toEqual(['docker', 'typescript']);
@@ -61,7 +71,12 @@ describe('buildGithubEvidence (pure)', () => {
 
   it('null cvCanonicals (no review/ledger) → everything lands in github_only', () => {
     const { corroborated, github_only } = buildGithubEvidence(
-      [repo({ language: 'TypeScript' })], null, normalize, scan, display, 'vi',
+      [repo({ language: 'TypeScript' })],
+      null,
+      normalize,
+      scan,
+      display,
+      'vi',
     );
     expect(corroborated).toEqual([]);
     expect(github_only.map((s) => s.skill_canonical)).toEqual(['typescript']);
@@ -87,5 +102,22 @@ describe('buildGithubEvidence (pure)', () => {
     expect(vi.corroborated[0].why.toLowerCase()).not.toContain('verified');
     const en = buildGithubEvidence(repos, null, normalize, scan, display, 'en');
     expect(en.github_only[0].why).toMatch(/consider adding|CV/i);
+  });
+
+  it('actually enforces the github_only cap of 5 with 7 distinct skills', () => {
+    const langs = ['TypeScript', 'React', 'Docker', 'Python', 'Java', 'Sql', 'Kafka'];
+    const repos = langs.map((l, i) =>
+      repo({ name: `r${i}`, language: l, pushed_at: `202${i % 7}-01-01T00:00:00Z` }),
+    );
+    const { github_only, corroborated } = buildGithubEvidence(
+      repos,
+      null,
+      normalize,
+      scan,
+      display,
+      'vi',
+    );
+    expect(corroborated).toEqual([]);
+    expect(github_only).toHaveLength(5); // GITHUB_ONLY_CAP enforced, 2 dropped
   });
 });

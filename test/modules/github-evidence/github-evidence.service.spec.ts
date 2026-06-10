@@ -3,7 +3,12 @@
  *  - "GithubClientService" describe: mock global.fetch, real ConfigService mock.
  *  - "GithubEvidenceService" describe: mock client, REAL SkillNormalizerService + SkillTextScannerService.
  */
-import { GithubClientService, GithubFetchError, GithubRateLimitError, GithubUserNotFoundError } from '../../../src/modules/github-evidence/github-client.service';
+import {
+  GithubClientService,
+  GithubFetchError,
+  GithubRateLimitError,
+  GithubUserNotFoundError,
+} from '../../../src/modules/github-evidence/github-client.service';
 import { GithubEvidenceService } from '../../../src/modules/github-evidence/github-evidence.service';
 import { CvReviewParsedResponse } from '../../../src/modules/cv-review/dto/cv-review-response.dto';
 import { SkillTaxonomyService } from '../../../src/common/services/skill-taxonomy.service';
@@ -198,7 +203,15 @@ describe('GithubEvidenceService', () => {
     // Minimal CvReviewParsedResponse cast — only evidence_ledger.items is used.
     const review = {
       evidence_ledger: {
-        items: [{ skill_canonical: 'react', display_name: 'React', strength: 'demonstrated', source_refs: [], in_skills_section: true }],
+        items: [
+          {
+            skill_canonical: 'react',
+            display_name: 'React',
+            strength: 'demonstrated',
+            source_refs: [],
+            in_skills_section: true,
+          },
+        ],
         evidence_gap: [],
       },
     } as unknown as CvReviewParsedResponse;
@@ -230,7 +243,12 @@ describe('GithubEvidenceService', () => {
       },
     ]);
 
-    const result = await service.build({ username: 'someone', consent: true, review: null, lang: 'vi' });
+    const result = await service.build({
+      username: 'someone',
+      consent: true,
+      review: null,
+      lang: 'vi',
+    });
 
     expect(result.available).toBe(true);
     if (result.available) {

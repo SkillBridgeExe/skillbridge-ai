@@ -46,7 +46,8 @@ export class GithubClientService {
       clearTimeout(timer);
     }
     if (res.status === 404) throw new GithubUserNotFoundError(username);
-    if (res.status === 403 || res.status === 429) throw new GithubRateLimitError(String(res.status));
+    if (res.status === 403 || res.status === 429)
+      throw new GithubRateLimitError(String(res.status));
     if (!res.ok) throw new GithubFetchError(`github status ${res.status}`);
 
     const raw = (await res.json()) as Array<Record<string, unknown>>;
@@ -55,7 +56,9 @@ export class GithubClientService {
       html_url: String(r.html_url ?? ''),
       fork: Boolean(r.fork),
       language: typeof r.language === 'string' ? r.language : null,
-      topics: Array.isArray(r.topics) ? (r.topics as string[]).filter((t) => typeof t === 'string') : [],
+      topics: Array.isArray(r.topics)
+        ? (r.topics as string[]).filter((t) => typeof t === 'string')
+        : [],
       description: typeof r.description === 'string' ? r.description : null,
       pushed_at: typeof r.pushed_at === 'string' ? r.pushed_at : null,
     }));

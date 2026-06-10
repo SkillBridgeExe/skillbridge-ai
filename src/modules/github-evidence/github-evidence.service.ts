@@ -23,7 +23,12 @@ export type GithubEvidenceDto =
     }
   | {
       available: false;
-      reason: 'CONSENT_REQUIRED' | 'INVALID_USERNAME' | 'USER_NOT_FOUND' | 'RATE_LIMITED' | 'FETCH_FAILED';
+      reason:
+        | 'CONSENT_REQUIRED'
+        | 'INVALID_USERNAME'
+        | 'USER_NOT_FOUND'
+        | 'RATE_LIMITED'
+        | 'FETCH_FAILED';
     };
 
 /**
@@ -56,7 +61,8 @@ export class GithubEvidenceService {
     try {
       repos = await this.client.fetchPublicRepos(username);
     } catch (err) {
-      if (err instanceof GithubUserNotFoundError) return { available: false, reason: 'USER_NOT_FOUND' };
+      if (err instanceof GithubUserNotFoundError)
+        return { available: false, reason: 'USER_NOT_FOUND' };
       if (err instanceof GithubRateLimitError) return { available: false, reason: 'RATE_LIMITED' };
       this.logger.warn(`github evidence fetch failed for a user: ${String(err)}`);
       return { available: false, reason: 'FETCH_FAILED' };
@@ -74,7 +80,9 @@ export class GithubEvidenceService {
       (c) => this.normalizer.getByCanonical(c)?.display_name ?? c,
       input.lang ?? 'vi',
     );
-    this.logger.log(`github evidence: ${analyzed_repo_count} repos analyzed for cv join=${cvCanonicals !== null}`);
+    this.logger.log(
+      `github evidence: ${analyzed_repo_count} repos analyzed for cv join=${cvCanonicals !== null}`,
+    );
     return {
       available: true,
       username,

@@ -68,7 +68,10 @@ export function buildGithubEvidence(
   analyzed_repo_count: number;
 } {
   const t = T[lang];
-  const byCanonical = new Map<string, Array<{ name: string; url: string; pushed_year: number | null }>>();
+  const byCanonical = new Map<
+    string,
+    Array<{ name: string; url: string; pushed_year: number | null }>
+  >();
   let analyzed = 0;
 
   for (const r of repos) {
