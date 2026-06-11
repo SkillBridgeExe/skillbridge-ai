@@ -125,3 +125,45 @@ export function spearman(a: number[], b: number[]): number {
   if (n < 2) return 0;
   return pearson(ranks(a.slice(0, n)), ranks(b.slice(0, n)));
 }
+
+// ─── Two-series agreement (panel/external-reference comparisons) ──────────────
+
+export interface AgreementStats {
+  /** Number of ids present on BOTH sides (the joined sample). */
+  n: number;
+  spearman: number;
+  mae: number;
+  within_15_count: number;
+  within_15_pct: number;
+}
+
+/**
+ * Agreement between two score series joined by id (ids missing on either side are
+ * skipped). Used for system-vs-external-judge and panel-vs-external comparisons —
+ * pure so the panel harness stays testable without LLM calls.
+ */
+export function scoreAgreement(
+  a: Array<{ id: string; score: number }>,
+  b: Array<{ id: string; score: number }>,
+): AgreementStats {
+  const bById = new Map(b.map((x) => [x.id, x.score]));
+  const pairsA: number[] = [];
+  const pairsB: number[] = [];
+  for (const x of a) {
+    const other = bById.get(x.id);
+    if (other === undefined) continue;
+    pairsA.push(x.score);
+    pairsB.push(other);
+  }
+  if (pairsA.length < 2) {
+    return { n: 0, spearman: 0, mae: 0, within_15_count: 0, within_15_pct: 0 };
+  }
+  const within = pairsA.filter((v, i) => Math.abs(v - pairsB[i]) <= 15).length;
+  return {
+    n: pairsA.length,
+    spearman: spearman(pairsA, pairsB),
+    mae: mae(pairsA, pairsB),
+    within_15_count: within,
+    within_15_pct: round2((within / pairsA.length) * 100),
+  };
+}
