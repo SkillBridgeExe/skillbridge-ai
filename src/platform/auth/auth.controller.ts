@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
@@ -14,7 +15,10 @@ const REFRESH_COOKIE = 'skillbridge_refresh_token';
 @ApiTags('Auth')
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -62,7 +66,7 @@ export class AuthController {
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.cookies?.[REFRESH_COOKIE]);
-    res.clearCookie(REFRESH_COOKIE);
+    res.clearCookie(REFRESH_COOKIE, this.refreshCookieOptions());
     return { loggedOut: true };
   }
 
@@ -75,11 +79,18 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string) {
+    const refreshTtlSeconds = this.config.get<number>('JWT_REFRESH_TTL') ?? 604800;
     res.cookie(REFRESH_COOKIE, token, {
+      ...this.refreshCookieOptions(),
+      maxAge: refreshTtlSeconds * 1000,
+    });
+  }
+
+  private refreshCookieOptions() {
+    return {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    } as const;
   }
 }
