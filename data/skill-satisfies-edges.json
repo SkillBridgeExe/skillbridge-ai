@@ -1,0 +1,7 @@
+[
+  { "child": "sql_server", "parent": "sql", "note": "Dùng được SQL Server nghĩa là dùng được SQL" },
+  { "child": "postgresql", "parent": "sql", "note": "Dùng được PostgreSQL nghĩa là dùng được SQL" },
+  { "child": "mysql", "parent": "sql", "note": "Dùng được MySQL nghĩa là dùng được SQL" },
+  { "child": "mongodb", "parent": "nosql", "note": "MongoDB là NoSQL store" },
+  { "child": "redis", "parent": "caching", "note": "Dùng Redis thực tế = nắm caching cơ bản" }
+]

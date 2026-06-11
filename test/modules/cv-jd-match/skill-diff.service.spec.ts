@@ -265,3 +265,85 @@ describe('SkillDiffService — inferred_skills (display-only Inferred layer)', (
     expect(typeof res.overall_score).toBe('number');
   });
 });
+
+/**
+ * Satisfies credit: a curated child skill (sql_server) counts toward its parent
+ * requirement (sql) at the child's own level. Live repro 2026-06-11: a real .NET CV
+ * listing "SQL Server" was scored MISSING gap-4 on the rubric's `sql` requirement.
+ */
+describe('SkillDiffService — satisfies credit (child counts as parent)', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  const jdSql4 = [{ name: 'SQL', importance_hint: 'REQUIRED', required_level_hint: 'ADVANCED' }];
+
+  it('sql_server L4 satisfies a sql L4 requirement as MATCHED with satisfied_by', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'SQL Server', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: jdSql4,
+      target_role: 'backend_developer',
+    });
+    const sql = res.matched_skills.find((s) => s.canonical_name === 'sql');
+    expect(sql).toBeDefined();
+    expect(sql?.satisfied_by).toBe('sql_server');
+    expect(res.missing_skills.find((s) => s.canonical_name === 'sql')).toBeUndefined();
+  });
+
+  it('sql_server L3 vs sql L4 lands PARTIAL gap-1 with satisfied_by — not missing gap-4', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'SQL Server', proficiency_hint: 'INTERMEDIATE' }],
+      jd_requirements_raw: jdSql4,
+      target_role: 'backend_developer',
+    });
+    const sql = res.partial_skills.find((s) => s.canonical_name === 'sql');
+    expect(sql).toBeDefined();
+    expect(sql?.cv_level).toBe(3);
+    expect(sql?.gap_levels).toBe(1);
+    expect(sql?.satisfied_by).toBe('sql_server');
+    expect(res.missing_skills.find((s) => s.canonical_name === 'sql')).toBeUndefined();
+  });
+
+  it('exact parent WINS over satisfies (no satisfied_by when the CV has sql itself)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'SQL', proficiency_hint: 'ADVANCED' },
+        { name: 'SQL Server', proficiency_hint: 'BEGINNER' },
+      ],
+      jd_requirements_raw: jdSql4,
+      target_role: 'backend_developer',
+    });
+    const sql = res.matched_skills.find((s) => s.canonical_name === 'sql');
+    expect(sql?.cv_level).toBe(4);
+    expect(sql?.satisfied_by).toBeUndefined();
+  });
+
+  it('a child used to satisfy a requirement is EXCLUDED from bonus (no double-display)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'SQL Server', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: jdSql4,
+      target_role: 'backend_developer',
+    });
+    expect(res.bonus_skills.find((b) => b.canonical_name === 'sql_server')).toBeUndefined();
+  });
+
+  it('an unused child stays in bonus as before', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'SQL', proficiency_hint: 'ADVANCED' },
+        { name: 'Redis', proficiency_hint: 'BEGINNER' },
+      ],
+      // JD chỉ đòi sql → redis không bị dùng làm satisfies (caching không được đòi)
+      jd_requirements_raw: jdSql4,
+      target_role: 'backend_developer',
+    });
+    expect(res.bonus_skills.find((b) => b.canonical_name === 'redis')).toBeDefined();
+  });
+});

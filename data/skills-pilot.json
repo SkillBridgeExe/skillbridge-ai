@@ -220,6 +220,8 @@
         "rest",
         "http api",
         "api design",
+        "restful api design",
+        "rest apis",
         "thiết kế api"
       ]
     },
@@ -301,7 +303,10 @@
         "oauth2",
         "session auth",
         "rbac",
-        "xác thực"
+        "xác thực",
+        "jwt authentication",
+        "google oauth",
+        "google oauth 2.0"
       ]
     },
     {
@@ -363,7 +368,10 @@
         "devops",
         "triển khai ci/cd",
         "trien khai ci/cd",
-        "continuous delivery"
+        "continuous delivery",
+        "ci/cd pipelines",
+        "ci/cd pipeline",
+        "cicd"
       ]
     },
     {
@@ -2121,6 +2129,8 @@
         "typeorm",
         "hibernate",
         "entity framework",
+        "entity framework core",
+        "ef core",
         "sqlalchemy",
         "eloquent"
       ],

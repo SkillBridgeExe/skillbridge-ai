@@ -118,4 +118,18 @@ describe('SkillNormalizerService stage-0', () => {
     expect(js?.matched_via).toBe('exact');
     expect(js?.confidence).toBe(1.0);
   });
+
+  // Live-verified misses 2026-06-11 (prod E2E): phrase variants failed the whole-phrase
+  // lookup and the token fallback rejects non-qualifier neighbors ('authentication',
+  // 'design', 'core'...). Each row below was dropped as not_in_taxonomy on a real CV/JD.
+  it.each([
+    ['JWT Authentication', 'authentication_authorization'],
+    ['Google OAuth 2.0', 'authentication_authorization'],
+    ['Entity Framework Core', 'orm'],
+    ['EF Core', 'orm'],
+    ['RESTful API design', 'rest_api'],
+    ['CI/CD pipelines', 'ci_cd'],
+  ])('normalizes the live-miss phrase "%s" → %s', (raw, canonical) => {
+    expect(canonicals(raw)).toContain(canonical);
+  });
 });

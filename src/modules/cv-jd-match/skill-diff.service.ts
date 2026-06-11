@@ -6,6 +6,7 @@ import {
   Importance,
 } from '../../common/services/role-rubric.service';
 import { inferSkills, loadSkillEdges, InferredSkill } from './skill-graph';
+import { findSatisfying, loadSatisfiesEdges } from './skill-satisfies';
 
 export type ProficiencyHint = 'BEGINNER' | 'NOVICE' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
 
@@ -33,6 +34,11 @@ export interface MatchedSkill {
   importance: Importance;
   weight: number;
   skill_type: 'hard' | 'soft';
+  /**
+   * Canonical of the CHILD skill that satisfied this requirement via a curated
+   * satisfies-edge (sql_server for sql). Absent = direct match on the requirement itself.
+   */
+  satisfied_by?: string;
 }
 
 export interface PartialSkill extends MatchedSkill {
@@ -215,8 +221,27 @@ export class SkillDiffService {
     let requiredTotal = 0;
     let requiredMet = 0;
 
+    // Children consumed as satisfies-credit — excluded from bonus to avoid double-display
+    // (sql matched "via SQL Server" + SQL Server again in bonus would read as double-counting).
+    const satisfiedChildren = new Set<string>();
+
     for (const req of requirements) {
-      const cvHit = cvSkillsByCanonical.get(req.skill_canonical_name);
+      // Exact hit on the requirement canonical wins; only on a miss do we consult the
+      // curated satisfies-edges (child counts as parent at the CHILD's own level).
+      let cvHit = cvSkillsByCanonical.get(req.skill_canonical_name);
+      let satisfiedBy: string | undefined;
+      if (!cvHit) {
+        const viaChild = findSatisfying(
+          req.skill_canonical_name,
+          cvSkillsByCanonical,
+          loadSatisfiesEdges(),
+        );
+        if (viaChild) {
+          cvHit = cvSkillsByCanonical.get(viaChild.child);
+          satisfiedBy = viaChild.child;
+          satisfiedChildren.add(viaChild.child);
+        }
+      }
       const displayName =
         this.normalizer.getByCanonical(req.skill_canonical_name)?.display_name ??
         req.skill_canonical_name;
@@ -255,6 +280,7 @@ export class SkillDiffService {
           importance: req.importance,
           weight: req.weight,
           skill_type,
+          ...(satisfiedBy ? { satisfied_by: satisfiedBy } : {}),
         });
         achievedWeight += effectiveWeight;
         if (req.importance === 'REQUIRED') requiredMet += 1;
@@ -271,6 +297,7 @@ export class SkillDiffService {
           weight: req.weight,
           skill_type,
           gap_levels: req.required_level - cvHit.level,
+          ...(satisfiedBy ? { satisfied_by: satisfiedBy } : {}),
         });
         achievedWeight +=
           effectiveWeight * Math.pow(cvHit.level / req.required_level, tuning.partialExponent);
@@ -281,7 +308,7 @@ export class SkillDiffService {
     const requiredNames = new Set(requirements.map((r) => r.skill_canonical_name));
     const bonus: BonusSkill[] = [];
     for (const [canonical, hit] of cvSkillsByCanonical) {
-      if (requiredNames.has(canonical)) continue;
+      if (requiredNames.has(canonical) || satisfiedChildren.has(canonical)) continue;
       bonus.push({
         canonical_name: canonical,
         display_name: this.normalizer.getByCanonical(canonical)?.display_name ?? canonical,
