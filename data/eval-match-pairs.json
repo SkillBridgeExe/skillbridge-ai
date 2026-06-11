@@ -763,11 +763,26 @@
       "id": "match-jd-overrides-rubric",
       "target_role": "frontend_developer",
       "jd_requirements": [
-        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+        {
+          "name": "React",
+          "importance_hint": "REQUIRED",
+          "required_level_hint": "INTERMEDIATE"
+        }
       ],
-      "cv_skills": [{ "name": "ReactJS", "proficiency_hint": "ADVANCED" }],
-      "expected_overall": [98, 100],
-      "expected_required_coverage": [1, 1],
+      "cv_skills": [
+        {
+          "name": "ReactJS",
+          "proficiency_hint": "ADVANCED"
+        }
+      ],
+      "expected_overall": [
+        98,
+        100
+      ],
+      "expected_required_coverage": [
+        1,
+        1
+      ],
       "current_formula_score": 100,
       "rationale": "JD asks only for React @INTERMEDIATE; CV has React @ADVANCED -> single required met -> 100. Proves a provided JD overrides the 12-skill frontend rubric (root cause B). BEFORE the JD-first fix this scored against the rubric (React is 1 of 12, ~18) and was out-of-band."
     },
@@ -775,14 +790,101 @@
       "id": "match-jd-type-weight-hard-over-soft",
       "target_role": "frontend_developer",
       "jd_requirements": [
-        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
-        { "name": "Communication", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+        {
+          "name": "React",
+          "importance_hint": "REQUIRED",
+          "required_level_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Communication",
+          "importance_hint": "REQUIRED",
+          "required_level_hint": "INTERMEDIATE"
+        }
       ],
-      "cv_skills": [{ "name": "ReactJS", "proficiency_hint": "ADVANCED" }],
-      "expected_overall": [62, 72],
-      "expected_required_coverage": [0.5, 0.5],
+      "cv_skills": [
+        {
+          "name": "ReactJS",
+          "proficiency_hint": "ADVANCED"
+        }
+      ],
+      "expected_overall": [
+        62,
+        72
+      ],
+      "expected_required_coverage": [
+        0.5,
+        0.5
+      ],
       "current_formula_score": 67,
       "rationale": "JD wants React(hard)+Communication(soft) both REQUIRED; CV has React, missing Communication. Type-weighting: React 0.667 > Communication 0.333 -> raw ~66.7, coverage 0.5, cap 72.5 -> ~67. BEFORE type-weighting (equal 0.5/0.5) this scored 50 -> proves the change."
+    },
+    {
+      "id": "match-be-dotnet-rubric",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        {
+          "name": ".NET",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "ASP.NET Core",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Entity Framework Core",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "SQL Server",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "MongoDB",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "Redis",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "JWT Authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "RESTful API design",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Docker",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Microservices",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Teamwork",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        46,
+        62
+      ],
+      "expected_required_coverage": [
+        0.3,
+        0.6
+      ],
+      "rationale": "Live prod E2E 2026-06-11: CV .NET fresher that bi 26 diem vs backend rubric vi sql_server khong duoc credit cho req sql, JWT/EF-Core/RESTful-API truot alias het. Voi honest credit phai ve mid-band: chac dotnet/sql(via sql_server)/auth/rest_api/git/microservices ~L3 vs rubric L3-4; yeu docker/linux/api_testing/database_design. KHONG duoc high-band: van la fresher CV vs rubric mid-level. Band [46,62] pre-registered truoc khi do. Measured 2026-06-11 post-fix: 50 (pre-fix code: 13).",
+      "current_formula_score": 50
     }
   ]
 }
