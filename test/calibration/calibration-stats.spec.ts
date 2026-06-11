@@ -6,6 +6,7 @@ import {
   mae,
   spearman,
   pearson,
+  scoreAgreement,
 } from '../../src/calibration/calibration-stats';
 
 describe('calibration-stats', () => {
@@ -74,5 +75,36 @@ describe('calibration-stats', () => {
 
   it('mae throws on length mismatch (paired arrays)', () => {
     expect(() => mae([1, 2], [1])).toThrow(/mismatch/);
+  });
+
+  describe('scoreAgreement (id-joined two-series agreement)', () => {
+    it('joins by id, skips ids missing on either side, computes spearman/mae/within-15', () => {
+      const sys = [
+        { id: 'a', score: 80 },
+        { id: 'b', score: 50 },
+        { id: 'c', score: 20 },
+        { id: 'only-sys', score: 99 },
+      ];
+      const ext = [
+        { id: 'a', score: 86 }, // |Δ|=6  ≤15
+        { id: 'b', score: 70 }, // |Δ|=20 >15
+        { id: 'c', score: 15 }, // |Δ|=5  ≤15
+        { id: 'only-ext', score: 1 },
+      ];
+      const r = scoreAgreement(sys, ext);
+      expect(r.n).toBe(3);
+      expect(r.spearman).toBe(1); // same ordering 80>50>20 vs 86>70>15
+      expect(r.mae).toBe(10.33); // (6+20+5)/3
+      expect(r.within_15_count).toBe(2);
+      expect(r.within_15_pct).toBe(66.67);
+    });
+
+    it('returns a zeroed result when fewer than 2 ids overlap', () => {
+      const r = scoreAgreement([{ id: 'x', score: 10 }], [{ id: 'y', score: 20 }]);
+      expect(r.n).toBe(0);
+      expect(r.spearman).toBe(0);
+      expect(r.mae).toBe(0);
+      expect(r.within_15_pct).toBe(0);
+    });
   });
 });

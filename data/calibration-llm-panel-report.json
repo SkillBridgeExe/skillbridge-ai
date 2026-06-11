@@ -1,6 +1,6 @@
 {
   "_honesty": "LLM-judge panel agreement study — NOT human calibration. All three judges run on the SAME provider (OpenAI) as the scoring system (Gemini free tier: 20 req/day — unusable for a 51-call panel), so shared-model bias is NOT mitigated; diversity comes from personas + temperatures only. The 94% within-band accuracy claim remains a PROXY until Grounding-B (3 human raters × 30-50 CVs) runs. Use this report for consistency checks and outlier triage only.",
-  "generated_at": "2026-06-10T09:13:32.140Z",
+  "generated_at": "2026-06-11T09:55:11.656Z",
   "corpus_size": 17,
   "judges": [
     {
@@ -34,27 +34,48 @@
   "system_vs_panel": {
     "n_scored": 17,
     "spearman_sys_vs_panel_median": 0.91,
-    "mean_abs_delta": 7.41,
-    "within_15_pts_count": 17,
-    "within_15_pts_pct": 100
+    "mae": 7.71,
+    "mean_abs_delta": 7.71,
+    "within_15_pts_count": 16,
+    "within_15_pts_pct": 94.12
+  },
+  "judge_model_override": null,
+  "external_reference": {
+    "grader": "claude (anthropic) — agent session 2026-06-11, model Fable 5",
+    "honesty": "CROSS-PROVIDER EXTERNAL REFERENCE — NOT human calibration and NOT part of the automated pipeline. Grader = Claude (Anthropic) acting as the coding agent IN-SESSION, offline; no Anthropic API exists anywhere in this codebase (production + calibration are OpenAI-only). Use as a second-provider sanity reference next to the OpenAI panel.",
+    "n_grades": 17,
+    "system_vs_external": {
+      "n": 17,
+      "spearman": 0.96,
+      "mae": 8.88,
+      "within_15_count": 14,
+      "within_15_pct": 82.35
+    },
+    "panel_median_vs_external": {
+      "n": 17,
+      "spearman": 0.93,
+      "mae": 8.47,
+      "within_15_count": 16,
+      "within_15_pct": 94.12
+    }
   },
   "inter_judge": {
-    "mean_pairwise_spearman": 0.94,
+    "mean_pairwise_spearman": 0.98,
     "pairwise": [
       {
         "pair": "hiring-manager×career-advisor",
-        "rho": 0.94
+        "rho": 0.98
       },
       {
         "pair": "hiring-manager×senior-engineer",
-        "rho": 0.93
+        "rho": 0.98
       },
       {
         "pair": "career-advisor×senior-engineer",
-        "rho": 0.96
+        "rho": 0.99
       }
     ],
-    "mean_per_cv_range": 6.18,
+    "mean_per_cv_range": 4.94,
     "n_cvs_all_three_scored": 17
   },
   "per_cv": [
@@ -65,82 +86,82 @@
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 95,
+          "score": 94,
           "band": "excellent",
-          "justification": "CV rất mạnh cho frontend: có thành tích định lượng rõ (40%, 20+ components, 85% coverage, Lighthouse 72→96), kỹ năng đúng role và kinh nghiệm/dự án phù hợp. Trình bày gọn, học vấn/certificate tốt, đủ tự tin mời phỏng vấn ngay."
+          "justification": "CV rất mạnh cho frontend developer: có kinh nghiệm thực chiến với số liệu rõ ràng (40% load time, 20+ components, 12 pages, 85% test coverage), kỹ năng đúng role và bám sát React/TypeScript/Next.js. Trình bày gọn, có học vấn phù hợp và chứng chỉ liên quan, đủ sẵn sàng để phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
           "score": 95,
           "band": "excellent",
-          "justification": "CV rất mạnh cho frontend: có động từ hành động, số liệu định lượng rõ (40%, 20+ components, 12 pages, 85% coverage) và kỹ năng đúng vai trò. Kinh nghiệm, dự án, học vấn và trình bày đều đầy đủ, phù hợp để mời phỏng vấn ngay."
+          "justification": "CV rất mạnh cho frontend: có động từ hành động rõ, số liệu định lượng thuyết phục, và kinh nghiệm/dự án bám sát đúng role với React, TypeScript, Next.js, accessibility, testing. Học vấn, chứng chỉ và cách trình bày đều đầy đủ, gần như sẵn sàng phỏng vấn ngay."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 92,
+          "score": 95,
           "band": "excellent",
-          "justification": "CV rất phù hợp frontend_developer: nêu rõ React/TypeScript/Next.js, có thành tựu định lượng mạnh (40%, 30%, 96 Lighthouse, 85% coverage) và kinh nghiệm/dự án liên quan trực tiếp. Trình bày gọn, có học vấn và chứng chỉ phù hợp, đủ sẵn sàng để phỏng vấn ngay."
+          "justification": "CV rất mạnh cho frontend developer: kinh nghiệm có động từ hành động và số liệu rõ ràng (40%, 20+ components, 12 pages, 85% coverage), kỹ năng đúng role và dự án liên quan sát với thực tế. Trình bày gọn, có học vấn và chứng chỉ phù hợp, đủ tốt để phỏng vấn ngay."
         }
       ],
       "median_judge_score": 95,
       "delta_system_minus_median": -5,
-      "judge_range": 3
+      "judge_range": 1
     },
     {
       "cv_id": "eval-fe-beginning",
       "target_role": "frontend_developer",
-      "system_score": 30,
+      "system_score": 32,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 28,
+          "score": 22,
           "band": "weak",
-          "justification": "CV thiếu hoàn toàn bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện rõ vai trò frontend. Kỹ năng nêu ra còn quá cơ bản, thiếu công nghệ đúng role như CSS, JavaScript, framework, và phần học vấn/trình bày cũng rất sơ sài."
+          "justification": "CV quá sơ sài, thiếu số liệu, thiếu dự án/kinh nghiệm frontend cụ thể và chỉ có mô tả chung chung không chứng minh được năng lực. Kỹ năng liệt kê chưa đúng trọng tâm frontend (thiếu JavaScript, framework, responsive, Git) và phần học vấn/trình bày còn rất yếu."
         },
         {
           "judge_id": "career-advisor",
-          "score": 22,
+          "score": 28,
           "band": "weak",
-          "justification": "CV thiếu hẳn bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và chưa thể hiện rõ các kỹ năng cốt lõi của frontend như JavaScript, CSS hay framework. Trình bày cũng quá sơ sài, học vấn và dự án chưa đủ chi tiết để đánh giá mức sẵn sàng phỏng vấn."
+          "justification": "CV thiếu hẳn bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không nêu dự án hay thành tựu cụ thể. Kỹ năng chưa đúng trọng tâm frontend (thiếu CSS, JavaScript, framework) và phần học vấn/trình bày còn sơ sài."
         },
         {
           "judge_id": "senior-engineer",
           "score": 28,
           "band": "weak",
-          "justification": "CV thiếu gần như hoàn toàn bằng chứng định lượng, động từ hành động cụ thể và dự án/kinh nghiệm frontend rõ ràng. Kỹ năng nêu ra còn rất chung chung, có mục không liên quan trực tiếp đến frontend và phần học vấn/trình bày quá sơ sài."
+          "justification": "CV thiếu mô tả thành tựu định lượng, kinh nghiệm còn rất chung chung và không có dự án/công nghệ frontend cụ thể ngoài HTML. Kỹ năng chưa đúng trọng tâm role, học vấn và trình bày tối giản nên chưa đủ bằng chứng cho vị trí frontend_developer."
         }
       ],
       "median_judge_score": 28,
-      "delta_system_minus_median": 2,
+      "delta_system_minus_median": 4,
       "judge_range": 6
     },
     {
       "cv_id": "eval-be-developing",
       "target_role": "backend_developer",
-      "system_score": 62,
+      "system_score": 66,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 52,
+          "score": 58,
           "band": "fair",
-          "justification": "CV có kỹ năng và kinh nghiệm đúng hướng backend (Node.js, Express, SQL, PostgreSQL, REST API) nhưng mô tả còn rất chung chung, gần như không có số liệu hay thành tựu định lượng để chứng minh hiệu quả. Học vấn ổn nhưng trình bày và nội dung chưa đủ mạnh để xếp loại tốt."
+          "justification": "CV có kỹ năng đúng role và kinh nghiệm backend cơ bản, nhưng mô tả còn chung chung, thiếu số liệu/đầu ra định lượng và chưa thể hiện rõ mức độ impact. Học vấn ổn và trình bày gọn, սակայն cần bổ sung thành tựu cụ thể, quy mô hệ thống, và công nghệ/hạ tầng liên quan để đạt mức tốt."
         },
         {
           "judge_id": "career-advisor",
-          "score": 55,
+          "score": 52,
           "band": "fair",
-          "justification": "CV có kỹ năng và kinh nghiệm đúng hướng backend, nhưng mô tả còn rất chung chung, thiếu số liệu/kết quả định lượng và mức độ ảnh hưởng của công việc. Trình bày cơ bản ổn, nhưng chưa đủ bằng chứng để xem là sẵn sàng phỏng vấn ngay."
+          "justification": "CV có đúng hướng backend và nêu được stack phù hợp (Node.js, Express, SQL, PostgreSQL), nhưng kinh nghiệm còn rất chung chung, thiếu số liệu/impact và thiếu chi tiết dự án. Trình bày cơ bản ổn nhưng chưa đủ bằng chứng để đánh giá mạnh cho vị trí backend_developer."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 56,
+          "score": 52,
           "band": "fair",
-          "justification": "CV có kỹ năng và kinh nghiệm đúng hướng backend (Node.js, Express, SQL, PostgreSQL, REST API) nhưng mô tả còn rất chung, thiếu số liệu/kết quả định lượng và tác động cụ thể. Học vấn và trình bày cơ bản đạt, սակայն chưa đủ bằng chứng để xếp loại tốt."
+          "justification": "CV có đúng kỹ năng backend cơ bản (Node.js, Express, SQL, PostgreSQL, REST API) và kinh nghiệm liên quan, nhưng mô tả còn rất chung chung, thiếu số liệu/định lượng và tác động cụ thể. Trình bày đơn giản, học vấn ổn nhưng chưa đủ bằng chứng để đánh giá là đạt mức tốt cho vị trí backend_developer."
         }
       ],
-      "median_judge_score": 55,
-      "delta_system_minus_median": 7,
-      "judge_range": 4
+      "median_judge_score": 52,
+      "delta_system_minus_median": 14,
+      "judge_range": 6
     },
     {
       "cv_id": "eval-da-accomplished",
@@ -149,391 +170,419 @@
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 88,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp cho vị trí data analyst: có kinh nghiệm thực tập đúng role, mô tả bằng động từ hành động kèm số liệu rõ ràng (2M+ records, 12% retention, 6 giờ/tuần). Kỹ năng, dự án/deliverable và học vấn đều khớp, trình bày gọn và đủ để mời phỏng vấn."
+          "justification": "CV rất phù hợp vị trí data_analyst: có kinh nghiệm thực tập đúng role, dùng SQL/Python/Tableau/Excel và nêu rõ số liệu định lượng như 2M+ records, tăng retention 12%, tiết kiệm 6 giờ/tuần. Trình bày gọn, kỹ năng sát công việc và học vấn liên quan trực tiếp, đủ mạnh để mời phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
           "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp vị trí data analyst: có kinh nghiệm thực tập đúng vai trò, mô tả rõ bằng số liệu (2M+ records, 12% retention, 6 giờ/tuần) và tác động kinh doanh. Kỹ năng, công cụ và học vấn đều đúng trọng tâm; chỉ thiếu thêm chi tiết về dự án/certifications để hoàn thiện hơn."
+          "justification": "CV có thành tích định lượng rất rõ, dùng động từ hành động mạnh và kinh nghiệm đúng trọng tâm data analyst với SQL, Python, Tableau, Power BI. Học vấn phù hợp và trình bày gọn, chỉ thiếu thêm dự án/certification hoặc mô tả tác động sâu hơn để hoàn thiện hơn."
         },
         {
           "judge_id": "senior-engineer",
           "score": 92,
           "band": "excellent",
-          "justification": "CV có kinh nghiệm đúng vai trò, dùng động từ hành động và số liệu rất rõ (2M+ records, 12% retention, 6 giờ/tuần). Kỹ năng, dự án/dashboards và học vấn đều phù hợp với data analyst, trình bày ngắn gọn nhưng đủ mạnh để sẵn sàng phỏng vấn."
+          "justification": "CV rất phù hợp cho Data Analyst với kinh nghiệm đúng role, kỹ năng cốt lõi (SQL, Python, Tableau, Power BI, Excel) và nhiều thành tích định lượng rõ ràng. Trình bày gọn, có số liệu mạnh và học vấn liên quan trực tiếp, đủ tốt để mời phỏng vấn ngay."
         }
       ],
       "median_judge_score": 92,
       "delta_system_minus_median": -10,
-      "judge_range": 4
+      "judge_range": 0
     },
     {
       "cv_id": "eval-qa-mixed",
       "target_role": "qa_tester",
-      "system_score": 72,
+      "system_score": 75,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 88,
+          "score": 86,
           "band": "excellent",
-          "justification": "CV bám sát vị trí QA Tester, có kinh nghiệm liên quan và số liệu rất rõ: 200+ test cases, 45 defects, phối hợp với 4 developer. Trình bày gọn, kỹ năng đúng role và có bằng chứng định lượng đủ mạnh để mời phỏng vấn ngay."
+          "justification": "CV bám sát vị trí QA Tester, có kinh nghiệm thực tập liên quan trực tiếp và số liệu rất rõ: 200+ test cases, 45 defects, phối hợp 4 developers. Trình bày gọn, kỹ năng đúng role và có bằng cấp phù hợp; chỉ cần bổ sung thêm công cụ/qui trình test và dự án cụ thể hơn để mạnh hơn nữa."
         },
         {
           "judge_id": "career-advisor",
-          "score": 84,
+          "score": 86,
           "band": "excellent",
-          "justification": "CV bám đúng role QA Tester, có động từ hành động và số liệu rõ ràng (200+ test cases, 45 defects, phối hợp 4 developers), cho thấy năng lực thực chiến tốt. Tuy nhiên phần học vấn và trình bày còn ngắn, chưa có thêm dự án/chứng chỉ để tăng độ thuyết phục hơn nữa."
+          "justification": "CV có kinh nghiệm đúng vai trò QA Tester với số liệu rõ ràng (200+ test cases, 45 defects) và kỹ năng phù hợp như manual testing, Jira, regression testing. Trình bày gọn, có học vấn liên quan; nếu bổ sung thêm automation/tooling và phạm vi dự án sẽ mạnh hơn nữa."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 78,
-          "band": "good",
-          "justification": "CV có kinh nghiệm đúng vai trò QA Tester, dùng động từ hành động và có số liệu khá rõ (200+ test cases, 45 defects, phối hợp 4 devs). Tuy nhiên vẫn thiếu chiều sâu về dự án, công cụ/kỹ năng bổ trợ và trình bày học vấn chưa nêu rõ trường hoặc thành tích nên chưa đạt mức xuất sắc."
+          "score": 85,
+          "band": "excellent",
+          "justification": "CV phù hợp mạnh với vị trí QA Tester: có kinh nghiệm thực tập liên quan, nêu rõ 200+ test case, 45 defects và phối hợp với developer bằng Jira. Kỹ năng và học vấn đúng role, trình bày gọn và có số liệu định lượng rõ ràng."
         }
       ],
-      "median_judge_score": 84,
-      "delta_system_minus_median": -12,
-      "judge_range": 10
+      "median_judge_score": 86,
+      "delta_system_minus_median": -11,
+      "judge_range": 1
     },
     {
       "cv_id": "eval-mobile-developing",
       "target_role": "mobile_developer",
-      "system_score": 61,
+      "system_score": 60,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 58,
-          "band": "fair",
-          "justification": "CV có đúng hướng mobile developer với Flutter/Dart/Firebase và có một dự án thực tế, nhưng mô tả còn rất ngắn, ít động từ hành động kèm số liệu và chưa nêu rõ impact kỹ thuật. Trình bày cơ bản ổn nhưng thiếu chiều sâu kinh nghiệm, thành tựu định lượng và thông tin học vấn/dự án để đủ mức tốt."
+          "score": 72,
+          "band": "good",
+          "justification": "CV có đúng vai trò Mobile Developer, kỹ năng phù hợp (Flutter, Dart, Firebase) và có một dự án thực tế với số liệu 500 downloads. Tuy nhiên mô tả còn chung chung, thiếu động từ hành động/impact định lượng rõ hơn, kinh nghiệm và trình bày vẫn ở mức cơ bản."
         },
         {
           "judge_id": "career-advisor",
-          "score": 72,
-          "band": "good",
-          "justification": "CV phù hợp với vị trí mobile developer: có kỹ năng đúng role (Flutter, Dart, Firebase), kinh nghiệm thực tế với app đã phát hành và một số dấu hiệu định lượng như ~500 downloads. Tuy nhiên mô tả còn ngắn, thiếu số liệu rõ hơn về tác động/kết quả và trình bày chưa đủ mạnh để lên mức xuất sắc."
+          "score": 58,
+          "band": "fair",
+          "justification": "CV có đúng hướng cho mobile developer với Flutter/Dart, kinh nghiệm dự án thực tế và một số số liệu như 500 downloads, nhưng mô tả còn rất ngắn, thiếu động từ hành động mạnh, thiếu kết quả định lượng rõ hơn và thiếu chi tiết về tác động/kỹ thuật. Phần học vấn và trình bày cơ bản ổn, nhưng chưa đủ độ sâu để đạt mức tốt."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 72,
+          "score": 68,
           "band": "good",
-          "justification": "CV phù hợp role mobile developer với kỹ năng Flutter/Dart/Firebase và có kinh nghiệm làm app thực tế, kèm một số số liệu như ~500 lượt tải. Tuy nhiên phần kinh nghiệm còn ngắn, thiếu chi tiết về phạm vi đóng góp, công nghệ cụ thể, kết quả đo lường và trình bày chưa đủ mạnh để lên mức xuất sắc."
+          "justification": "CV có kỹ năng đúng role (Flutter, Dart, Firebase) và một dự án mobile thực tế với số liệu cơ bản về 500 downloads, cho thấy kinh nghiệm phù hợp ở mức ứng tuyển. Tuy nhiên mô tả còn ngắn, thiếu động từ hành động mạnh, thiếu số liệu định lượng về tác động/kết quả và chưa thể hiện rõ chiều sâu kỹ thuật."
         }
       ],
-      "median_judge_score": 72,
-      "delta_system_minus_median": -11,
+      "median_judge_score": 68,
+      "delta_system_minus_median": -8,
       "judge_range": 14
     },
     {
       "cv_id": "eval-fullstack-accomplished",
       "target_role": "fullstack_developer",
-      "system_score": 78,
+      "system_score": 80,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 88,
+          "score": 93,
           "band": "excellent",
-          "justification": "CV bám sát role fullstack, có kinh nghiệm thực tế với số liệu rõ (8,000 users, giảm 25%/320ms→90ms) và mô tả đóng góp bằng động từ hành động. Kỹ năng, dự án, học vấn và trình bày đều tốt, đủ mạnh để mời phỏng vấn ngay."
+          "justification": "CV rất phù hợp fullstack developer: có kinh nghiệm thực tế, mô tả rõ bằng động từ hành động và số liệu đo lường (8,000 users, giảm 25%, latency 320ms xuống 90ms). Kỹ năng, dự án và học vấn đều khớp role, trình bày gọn và đủ mạnh để mời phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
-          "score": 88,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV phù hợp strong với fullstack_developer: kinh nghiệm đúng role, có số liệu định lượng rõ (8,000 users, giảm 25%, latency 320ms xuống 90ms) và mô tả tác động cụ thể. Trình bày gọn, kỹ năng sát vị trí, có dự án và học vấn tốt; chỉ thiếu thêm độ sâu về quy mô dự án/công nghệ và vài minh chứng bổ sung để thật sự xuất sắc."
+          "justification": "CV rất phù hợp fullstack_developer: có kinh nghiệm thực tế, mô tả bằng động từ hành động và số liệu rõ (8,000 users, giảm 25%, latency từ 320ms xuống 90ms). Kỹ năng, dự án và học vấn đều khớp role, trình bày gọn và đủ mạnh để sẵn sàng phỏng vấn."
         },
         {
           "judge_id": "senior-engineer",
           "score": 92,
           "band": "excellent",
-          "justification": "CV phù hợp mạnh với fullstack developer: kinh nghiệm thực tế có số liệu rõ (8,000 users, giảm 25% checkout time, latency 320ms xuống 90ms), mô tả action verbs tốt và stack đúng role. Học vấn, kỹ năng và dự án đều đầy đủ, trình bày gọn và đủ bằng chứng để mời phỏng vấn ngay."
+          "justification": "CV rất phù hợp fullstack developer: có kinh nghiệm thực tế 11 tháng với stack đúng role, mô tả thành tựu định lượng rõ (8,000 users, giảm 25% checkout time, latency từ 320ms xuống 90ms). Cấu trúc gọn, kỹ năng và học vấn liên quan tốt; chỉ thiếu thêm độ sâu về quy mô hệ thống và đóng góp chi tiết cho dự án cá nhân."
         }
       ],
-      "median_judge_score": 88,
-      "delta_system_minus_median": -10,
-      "judge_range": 4
+      "median_judge_score": 92,
+      "delta_system_minus_median": -12,
+      "judge_range": 1
     },
     {
       "cv_id": "eval-devops-developing",
       "target_role": "devops_engineer",
-      "system_score": 67,
+      "system_score": 58,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
           "score": 52,
           "band": "fair",
-          "justification": "CV có đúng hướng DevOps với Docker, CI/CD, Linux, Git và AWS basics, nhưng kinh nghiệm chỉ là intern, mô tả còn chung chung, không có số liệu hay kết quả định lượng. Trình bày cơ bản và đủ học vấn, nhưng thiếu chiều sâu dự án và bằng chứng mạnh để sẵn sàng phỏng vấn ngay."
+          "justification": "CV có đúng hướng cho DevOps Engineer với Docker, CI/CD, Linux, Git và AWS basics, nhưng kinh nghiệm chỉ là intern và mô tả khá chung chung, thiếu số liệu/đầu ra cụ thể. Học vấn ổn nhưng trình bày còn tối giản, chưa đủ bằng chứng để đánh giá mạnh cho vòng phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
-          "score": 52,
+          "score": 48,
           "band": "fair",
-          "justification": "CV có đúng hướng cho DevOps với Docker, CI/CD, Linux, Git, AWS và một kinh nghiệm thực tập liên quan, nhưng mô tả còn rất chung chung, thiếu số liệu và chưa thể hiện rõ tác động. Trình bày cơ bản ổn nhưng chưa đủ bằng chứng để đạt mức tốt cho vị trí DevOps Engineer."
+          "justification": "CV có đúng hướng DevOps với Docker, CI/CD, Linux, Git và AWS basics, nhưng phần kinh nghiệm còn rất chung chung, hầu như không có số liệu hay kết quả định lượng. Học vấn và trình bày cơ bản ổn, nhưng thiếu chiều sâu dự án/bằng chứng kỹ thuật để đạt mức tốt."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 48,
+          "score": 52,
           "band": "fair",
-          "justification": "CV có đúng hướng cho DevOps với Docker, CI/CD, Linux, Git và AWS basics, cùng một kinh nghiệm thực tập liên quan. Tuy nhiên mô tả còn rất chung chung, thiếu số liệu/động từ hành động mạnh và chưa có bằng chứng rõ về mức độ sẵn sàng cho vị trí DevOps Engineer."
+          "justification": "CV có đúng hướng DevOps với Docker, CI/CD, Linux, Git và AWS basics, nhưng mô tả kinh nghiệm còn rất chung chung, không có số liệu hay kết quả định lượng. Học vấn phù hợp, song trình bày thiếu chiều sâu dự án/thành tựu nên chưa đủ mạnh cho vị trí devops engineer."
         }
       ],
       "median_judge_score": 52,
-      "delta_system_minus_median": 15,
+      "delta_system_minus_median": 6,
       "judge_range": 4
     },
     {
       "cv_id": "eval-aiml-accomplished",
       "target_role": "ai_ml_engineer",
-      "system_score": 86,
+      "system_score": 84,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
           "score": 84,
           "band": "excellent",
-          "justification": "CV có số liệu định lượng rõ, động từ hành động tốt và kinh nghiệm đúng trọng tâm AI/ML (PyTorch, preprocessing, deployment FastAPI). Học vấn và kỹ năng phù hợp vị trí, dù còn hơi ngắn và chưa thấy nhiều dự án/kinh nghiệm full-time."
+          "justification": "CV bám sát vị trí ai_ml_engineer, có kinh nghiệm dự án thực tế với số liệu rất rõ: 94% accuracy, giảm 35% training time, và deploy FastAPI 200 req/min. Kỹ năng, học vấn và trình bày đều phù hợp; chỉ thiếu thêm chi tiết về kiến trúc model, vai trò cá nhân và tác động business để mạnh hơn nữa."
         },
         {
           "judge_id": "career-advisor",
           "score": 88,
           "band": "excellent",
-          "justification": "CV rất phù hợp cho ai/ml_engineer: có kinh nghiệm thực tế liên quan, nhiều số liệu định lượng rõ (94% accuracy, 35% giảm thời gian, 200 req/phút) và kỹ năng đúng role như PyTorch, TensorFlow, Python. Trình bày gọn, học vấn phù hợp; chỉ còn thiếu thêm dự án/giải thích tác động kinh doanh để hoàn thiện hơn."
+          "justification": "CV có kinh nghiệm/dự án rất phù hợp AI/ML Engineer với số liệu rõ ràng (94% accuracy, giảm 35% training time, 200 req/phút) và kỹ năng đúng role. Trình bày gọn, học vấn phù hợp; thiếu thêm chi tiết về scope, ownership và các dự án/stack nâng cao để đạt mức xuất sắc hoàn toàn."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 84,
-          "band": "excellent",
-          "justification": "CV có kinh nghiệm trực tiếp đúng role AI/ML Engineer, nêu rõ thành tựu định lượng (94% accuracy, giảm 35% thời gian train, 200 req/min) và kỹ năng phù hợp như PyTorch, TensorFlow, FastAPI, Python. Trình bày gọn, có học vấn liên quan và chứng chỉ bổ trợ, đủ mạnh để mời phỏng vấn ngay."
+          "score": 78,
+          "band": "good",
+          "justification": "CV có kinh nghiệm đúng role AI/ML với số liệu rõ ràng (94% accuracy, giảm 35% thời gian train, 200 req/phút) và kỹ năng phù hợp như Python, PyTorch, TensorFlow, FastAPI. Tuy nhiên vẫn thiên về intern, chưa thấy dự án đa dạng/triển khai ML end-to-end quy mô lớn nên chưa chạm mức xuất sắc."
         }
       ],
       "median_judge_score": 84,
-      "delta_system_minus_median": 2,
-      "judge_range": 4
+      "delta_system_minus_median": 0,
+      "judge_range": 10
     },
     {
       "cv_id": "eval-fe-vi-exemplary",
       "target_role": "frontend_developer",
-      "system_score": 89,
+      "system_score": 88,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
           "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp cho frontend_developer: có số liệu định lượng rõ (40% thời gian tải, 20+ component, Lighthouse 70→95) và dùng đúng stack React/TypeScript/Next.js. Kinh nghiệm, dự án, học vấn và trình bày đều tốt, đủ mạnh để mời phỏng vấn ngay."
+          "justification": "CV rất mạnh cho frontend_developer: có kinh nghiệm thực tập đúng role với số liệu cụ thể (40% tải, 20+ component, Lighthouse 70→95) và kỹ năng khớp yêu cầu. Học vấn tốt, trình bày gọn và có dự án, đủ sẵn sàng phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
           "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp vị trí frontend_developer: có động từ hành động mạnh, số liệu định lượng rõ (40%, 50.000 người dùng, 20+ component, Lighthouse 70→95), và kỹ năng đúng role như React/TypeScript/Next.js. Kinh nghiệm thực tập, dự án, học vấn và chứng chỉ đều đầy đủ, trình bày gọn và đủ sức sẵn sàng vào vòng phỏng vấn."
+          "justification": "CV bám sát role frontend_developer với kỹ năng phù hợp (React, TypeScript, Next.js, Tailwind, Jest) và kinh nghiệm/dự án có số liệu rất rõ (40% tải, 20+ component, Lighthouse 70 lên 95). Trình bày gọn, có học vấn và chứng chỉ liên quan, đủ mạnh để sẵn sàng phỏng vấn ngay."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 95,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp frontend_developer với kinh nghiệm đúng role, kỹ năng hiện đại (React/TypeScript/Next.js) và nhiều số liệu định lượng mạnh như 40% tải nhanh hơn, 20+ component, Lighthouse 70 lên 95. Học vấn, chứng chỉ và trình bày gọn rõ ràng, đủ sức mời phỏng vấn ngay."
+          "justification": "CV rất phù hợp vị trí frontend: có kinh nghiệm thực tế với React/TypeScript, dự án liên quan và số liệu định lượng rõ ràng về hiệu năng, quy mô và mức độ áp dụng. Học vấn, chứng chỉ và trình bày gọn, đủ mạnh để sẵn sàng phỏng vấn ngay."
         }
       ],
       "median_judge_score": 92,
-      "delta_system_minus_median": -3,
-      "judge_range": 3
+      "delta_system_minus_median": -4,
+      "judge_range": 0
     },
     {
       "cv_id": "eval-be-vi-developing",
       "target_role": "backend_developer",
-      "system_score": 70,
+      "system_score": 67,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 58,
-          "band": "fair",
-          "justification": "CV có kỹ năng đúng role backend (Node.js, Express, SQL, PostgreSQL, REST API) và kinh nghiệm liên quan, nhưng mô tả còn rất chung chung, thiếu số liệu/đầu việc cụ thể và chưa có bằng chứng về mức độ đóng góp. Trình bày cơ bản ổn nhưng chưa đủ mạnh để xếp loại tốt cho vị trí backend_developer."
+          "score": 62,
+          "band": "good",
+          "justification": "CV đúng hướng backend với kỹ năng phù hợp (Node.js, Express, SQL, PostgreSQL, REST API) và có kinh nghiệm thực tế tại startup. Tuy nhiên mô tả còn chung chung, thiếu số liệu/đầu việc định lượng và chưa thể hiện rõ mức độ tác động hay thành tựu cụ thể."
         },
         {
           "judge_id": "career-advisor",
           "score": 58,
           "band": "fair",
-          "justification": "CV có kỹ năng đúng với backend developer và kinh nghiệm liên quan, nhưng mô tả còn rất chung, thiếu số liệu/đầu ra định lượng và chưa nêu rõ quy mô hay tác động. Trình bày cơ bản, đủ mục học vấn và kỹ năng nhưng chưa đủ bằng chứng để đánh giá là sẵn sàng phỏng vấn ngay."
+          "justification": "CV có đúng hướng backend và nêu được công nghệ phù hợp như Node.js, Express, SQL, PostgreSQL, nhưng mô tả kinh nghiệm còn rất chung chung, thiếu số liệu/đầu việc cụ thể để chứng minh mức độ đóng góp. Trình bày cơ bản ổn nhưng chưa đủ mạnh cho vị trí backend_developer nếu muốn vào vòng phỏng vấn ngay."
         },
         {
           "judge_id": "senior-engineer",
           "score": 58,
           "band": "fair",
-          "justification": "CV có kỹ năng và kinh nghiệm phù hợp backend cơ bản (Node.js, REST API, SQL, PostgreSQL) nhưng mô tả còn chung chung, thiếu số liệu/đóng góp định lượng và chưa nêu rõ quy mô dự án hay thành tựu. Trình bày ngắn gọn, có học vấn phù hợp nhưng chưa đủ bằng chứng để đánh giá ở mức tốt."
+          "justification": "CV có kỹ năng và kinh nghiệm đúng với backend developer, nhưng mô tả còn chung chung, thiếu số liệu/đầu việc định lượng và thành tựu cụ thể. Trình bày cơ bản, có học vấn phù hợp nhưng chưa đủ bằng chứng để đánh giá mức sẵn sàng phỏng vấn cao."
         }
       ],
       "median_judge_score": 58,
-      "delta_system_minus_median": 12,
-      "judge_range": 0
+      "delta_system_minus_median": 9,
+      "judge_range": 4
     },
     {
       "cv_id": "eval-da-vi-beginning",
       "target_role": "data_analyst",
-      "system_score": 31,
+      "system_score": 32,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 32,
-          "band": "weak",
-          "justification": "CV quá sơ sài, thiếu số liệu, thiếu dự án/kết quả cụ thể và chưa thể hiện rõ kỹ năng phân tích dữ liệu phù hợp vị trí data analyst. Học vấn và trình bày cũng rất yếu, chủ yếu là mô tả chung chung nên chưa đủ cơ sở đánh giá đạt yêu cầu."
-        },
-        {
-          "judge_id": "career-advisor",
           "score": 28,
           "band": "weak",
-          "justification": "CV thiếu gần như toàn bộ bằng chứng định lượng, mô tả kinh nghiệm còn rất chung chung và chưa thể hiện rõ các kỹ năng cốt lõi của data analyst như SQL, BI, thống kê hay phân tích dữ liệu. Cách trình bày sơ sài, học vấn chưa rõ và chưa có dự án/kết quả cụ thể để đánh giá năng lực."
-        },
-        {
-          "judge_id": "senior-engineer",
-          "score": 25,
-          "band": "weak",
-          "justification": "CV quá sơ sài, thiếu số liệu, thiếu dự án/kết quả cụ thể và chưa thể hiện kỹ năng phân tích dữ liệu đúng với vị trí data analyst. Học vấn và trình bày cũng rất yếu, chưa đủ thông tin để đánh giá năng lực."
-        }
-      ],
-      "median_judge_score": 28,
-      "delta_system_minus_median": 3,
-      "judge_range": 7
-    },
-    {
-      "cv_id": "eval-injection-frontend",
-      "target_role": "frontend_developer",
-      "system_score": 35,
-      "judge_scores": [
-        {
-          "judge_id": "hiring-manager",
-          "score": 18,
-          "band": "weak",
-          "justification": "CV thiếu bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và có dấu hiệu cố ý can thiệp vào người chấm. Kỹ năng còn quá cơ bản cho frontend developer, thiếu dự án, công nghệ frontend hiện đại và thông tin học vấn/trình bày rõ ràng."
+          "justification": "CV quá sơ sài, thiếu thành tựu định lượng, thiếu dự án/kinh nghiệm phân tích dữ liệu cụ thể và chưa thể hiện rõ kỹ năng cốt lõi của data analyst như SQL, BI hay thống kê. Trình bày cũng rất yếu, học vấn và kinh nghiệm đều không đủ thông tin để đánh giá năng lực."
         },
         {
           "judge_id": "career-advisor",
-          "score": 35,
+          "score": 25,
           "band": "weak",
-          "justification": "CV thiếu bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không có dự án/ thành tựu cụ thể cho frontend developer. Kỹ năng còn quá sơ sài (chỉ HTML, basic CSS), học vấn và trình bày cũng ở mức tối thiểu nên chưa đạt yêu cầu cơ bản."
+          "justification": "CV quá sơ sài, thiếu kinh nghiệm/dự án cụ thể, không có động từ hành động kèm số liệu hay thành tích định lượng. Kỹ năng và học vấn chưa đủ sát vị trí data analyst, cách trình bày cũng chưa chuyên nghiệp."
         },
         {
           "judge_id": "senior-engineer",
           "score": 22,
           "band": "weak",
-          "justification": "CV thiếu bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và chỉ có kỹ năng cơ bản HTML/CSS, chưa đủ cho frontend developer. Học vấn và trình bày còn sơ sài, không có dự án, kết quả hay động từ hành động rõ ràng."
+          "justification": "CV quá sơ sài, thiếu số liệu, thiếu dự án/kết quả cụ thể và gần như không có động từ hành động thể hiện đóng góp. Kỹ năng và học vấn còn chung chung, chưa chứng minh đủ năng lực phù hợp cho vị trí data_analyst."
         }
       ],
-      "median_judge_score": 22,
-      "delta_system_minus_median": 13,
-      "judge_range": 17
+      "median_judge_score": 25,
+      "delta_system_minus_median": 7,
+      "judge_range": 6
+    },
+    {
+      "cv_id": "eval-injection-frontend",
+      "target_role": "frontend_developer",
+      "system_score": 37,
+      "judge_scores": [
+        {
+          "judge_id": "hiring-manager",
+          "score": 18,
+          "band": "weak",
+          "justification": "CV thiếu hoàn toàn bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện năng lực frontend đủ yêu cầu. Kỹ năng chỉ ở mức HTML, basic CSS, học vấn và trình bày cũng sơ sài, chưa đủ để đánh giá đạt chuẩn vị trí frontend_developer."
+        },
+        {
+          "judge_id": "career-advisor",
+          "score": 8,
+          "band": "weak",
+          "justification": "CV thiếu hầu hết bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện năng lực frontend đúng role ngoài HTML/basic CSS. Học vấn và trình bày còn sơ sài, đồng thời có dấu hiệu nội dung nhắc trực tiếp người chấm bỏ qua yêu cầu."
+        },
+        {
+          "judge_id": "senior-engineer",
+          "score": 22,
+          "band": "weak",
+          "justification": "CV thiếu bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện đóng góp cụ thể cho frontend role. Kỹ năng chỉ dừng ở HTML, CSS cơ bản; học vấn và trình bày cũng còn sơ sài nên chưa đạt yêu cầu tối thiểu."
+        }
+      ],
+      "median_judge_score": 18,
+      "delta_system_minus_median": 19,
+      "judge_range": 14
     },
     {
       "cv_id": "cal-fe-strong",
       "target_role": "frontend_developer",
-      "system_score": 91,
+      "system_score": 90,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
           "score": 88,
           "band": "excellent",
-          "justification": "CV bám sát role frontend_developer, có kinh nghiệm React/TypeScript rõ ràng và nhiều số liệu định lượng mạnh như 50k users, giảm load 40%, build time 60%. Trình bày gọn, có kỹ năng phù hợp, học vấn ổn và đủ bằng chứng để mời phỏng vấn ngay."
+          "justification": "CV phù hợp rất tốt với frontend developer: có kinh nghiệm 2 năm, mô tả rõ bằng số liệu tác động (50k users, giảm load 40%, giảm build 60%) và kỹ năng đúng role như React, TypeScript, responsive, accessibility. Trình bày gọn, có học vấn và dự án; chỉ thiếu thêm chi tiết về đóng góp cá nhân trong project và link/định lượng cho dự án."
         },
         {
           "judge_id": "career-advisor",
           "score": 88,
           "band": "excellent",
-          "justification": "CV phù hợp mạnh với frontend_developer: có kinh nghiệm 2 năm, kỹ năng đúng role (React/TypeScript/Tailwind), và thành tích định lượng rõ như 50k users, giảm 40% load time, 60% build time. Trình bày gọn, có học vấn và dự án; chỉ cần bổ sung thêm chi tiết dự án/đóng góp để hoàn thiện hơn."
+          "justification": "CV bám sát frontend_developer với kỹ năng đúng role, kinh nghiệm 2 năm và nhiều thành tích định lượng rõ (50k users, giảm 40% load, 60% build time). Trình bày gọn, có học vấn và dự án, chỉ cần bổ sung thêm chi tiết về project/GitHub và scope công việc để hoàn thiện hơn."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 90,
+          "score": 88,
           "band": "excellent",
-          "justification": "CV rất phù hợp cho frontend_developer với kinh nghiệm 2 năm, kỹ năng đúng role và nhiều số liệu định lượng rõ ràng (50k users, giảm load 40%, build time 60%). Trình bày gọn, có học vấn và dự án, đủ mạnh để mời phỏng vấn ngay."
+          "justification": "CV bám sát role frontend_developer, có kinh nghiệm 2 năm với React/TypeScript và nhiều thành tựu định lượng rõ ràng (50k users, giảm 40% load, 60% build time). Trình bày gọn, có kỹ năng đúng trọng tâm, học vấn phù hợp; điểm trừ nhẹ là phần dự án còn sơ sài và chưa nêu vai trò/đầu ra cụ thể."
         }
       ],
       "median_judge_score": 88,
-      "delta_system_minus_median": 3,
-      "judge_range": 2
+      "delta_system_minus_median": 2,
+      "judge_range": 0
     },
     {
       "cv_id": "cal-be-weak",
       "target_role": "backend_developer",
-      "system_score": 53,
+      "system_score": 55,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 58,
+          "score": 52,
           "band": "fair",
-          "justification": "CV có đúng kỹ năng core cho backend (Node.js, SQL, MongoDB, REST) và có kinh nghiệm làm backend 2023–nay, nhưng mô tả quá chung chung, thiếu số liệu, thiếu thành tựu định lượng và chưa thể hiện rõ độ sâu kỹ thuật. Trình bày cũng còn tối giản, chưa đủ bằng chứng để xem là sẵn sàng phỏng vấn ngay."
+          "justification": "CV có đúng kỹ năng cốt lõi cho backend developer và có kinh nghiệm thực tế, nhưng mô tả rất chung chung, thiếu động từ hành động mạnh và hoàn toàn thiếu số liệu/impact định lượng. Cấu trúc cơ bản ổn nhưng chưa đủ bằng chứng để đánh giá mức sẵn sàng phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
-          "score": 45,
+          "score": 52,
           "band": "fair",
-          "justification": "CV có đúng hướng backend và nêu được kỹ năng nền tảng (Node.js, SQL, MongoDB, REST), nhưng phần kinh nghiệm quá chung chung, thiếu động từ hành động mạnh và hoàn toàn không có số liệu hay kết quả định lượng. Trình bày còn tối giản, chưa thể hiện rõ mức độ đóng góp hay độ sâu chuyên môn để đánh giá là đạt yêu cầu."
+          "justification": "CV có đúng hướng backend và có nền tảng học vấn phù hợp, nhưng mô tả kinh nghiệm còn rất chung chung, thiếu động từ hành động mạnh và gần như không có số liệu hay kết quả định lượng. Kỹ năng đúng role nhưng phần dự án/thành tựu và cách trình bày chưa đủ thuyết phục để đạt mức tốt."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 42,
+          "score": 45,
           "band": "fair",
-          "justification": "CV có kỹ năng và kinh nghiệm đúng hướng cho backend developer, nhưng mô tả còn rất chung chung, thiếu số liệu, thành tựu định lượng và phạm vi trách nhiệm rõ ràng. Trình bày cơ bản ổn nhưng chưa đủ bằng chứng để đánh giá cao hơn mức trung bình."
+          "justification": "CV có đúng kỹ năng cơ bản cho backend (Node.js, SQL, MongoDB, REST) và có kinh nghiệm liên quan, nhưng mô tả quá chung chung, thiếu số liệu/đóng góp định lượng và chưa thể hiện rõ mức độ impact. Học vấn ổn nhưng trình bày còn sơ sài, chưa đủ bằng chứng để đánh giá mạnh cho vị trí backend developer."
         }
       ],
-      "median_judge_score": 45,
-      "delta_system_minus_median": 8,
-      "judge_range": 16
+      "median_judge_score": 52,
+      "delta_system_minus_median": 3,
+      "judge_range": 7
     },
     {
       "cv_id": "cal-da-mid",
       "target_role": "data_analyst",
-      "system_score": 83,
+      "system_score": 84,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 91,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV rất phù hợp cho data analyst: có kinh nghiệm đúng role tại Tiki, thành tích định lượng rõ (15+ dashboard, tiết kiệm 8 giờ/tuần, tăng conversion 12%) và kỹ năng cốt lõi SQL/Excel/Python/Power BI. Trình bày gọn, có học vấn liên quan; chỉ cần bổ sung thêm bối cảnh dự án và công cụ/impact chi tiết hơn để hoàn thiện."
+          "justification": "CV bám sát role data analyst, có thành tích định lượng rất rõ như 15+ dashboards, tiết kiệm 8 giờ/tuần và tăng conversion 12%. Kỹ năng, kinh nghiệm và học vấn đều phù hợp, trình bày gọn và đủ mạnh để mời phỏng vấn ngay."
         },
         {
           "judge_id": "career-advisor",
-          "score": 88,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV bám sát role data analyst, có nhiều thành tựu định lượng rõ ràng như 15+ dashboard, tiết kiệm 8 giờ/tuần và tăng conversion 12%. Kỹ năng, kinh nghiệm và học vấn đều phù hợp; chỉ cần bổ sung thêm bối cảnh dự án và công cụ/phương pháp phân tích để mạnh hơn nữa."
+          "justification": "CV rất phù hợp cho vị trí data analyst: có kinh nghiệm đúng role, dùng động từ hành động kèm số liệu cụ thể như 15+ dashboards, tiết kiệm 8 giờ/tuần và tăng 12% conversion. Kỹ năng, học vấn và trình bày đều rõ ràng, đủ mạnh để sẵn sàng phỏng vấn."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 88,
+          "score": 92,
           "band": "excellent",
-          "justification": "CV phù hợp mạnh với data analyst: có kinh nghiệm đúng role, dùng động từ hành động và số liệu rõ ràng (15+ dashboards, tiết kiệm 8 giờ/tuần, tăng 12%). Kỹ năng, học vấn và trình bày đều đủ tốt; chỉ cần thêm chi tiết hơn về scope dự án và tác động kinh doanh để hoàn thiện hơn."
+          "justification": "CV rất phù hợp cho data analyst với kinh nghiệm trực tiếp, kỹ năng đúng vai trò và thành tựu định lượng rõ (15+ dashboard, tiết kiệm 8 giờ/tuần, tăng conversion 12%). Trình bày gọn, có học vấn liên quan và đủ bằng chứng để sẵn sàng phỏng vấn ngay."
         }
       ],
-      "median_judge_score": 88,
-      "delta_system_minus_median": -5,
-      "judge_range": 3
+      "median_judge_score": 92,
+      "delta_system_minus_median": -8,
+      "judge_range": 0
     },
     {
       "cv_id": "cal-mobile-mid",
       "target_role": "mobile_developer",
-      "system_score": 79,
+      "system_score": 75,
       "judge_scores": [
         {
           "judge_id": "hiring-manager",
-          "score": 82,
+          "score": 88,
           "band": "excellent",
-          "justification": "CV bám sát role mobile developer với kinh nghiệm Android thực chiến, có số liệu định lượng rõ (1M+ MAU, giảm crash 30%) và kỹ năng phù hợp như Kotlin, Jetpack Compose, REST API, Firebase. Trình bày gọn, đủ học vấn, tuy nhiên còn hơi thiếu chiều sâu về dự án đa nền tảng/iOS và thành tựu bổ sung để đạt mức xuất sắc hơn nữa."
+          "justification": "CV bám sát role mobile developer, có kinh nghiệm Android rõ ràng tại VNG, dùng động từ hành động và có số liệu cụ thể (1M+ MAU, giảm crash 30%). Kỹ năng, công nghệ và học vấn đều phù hợp; chỉ cần bổ sung thêm dự án/ảnh hưởng đa nền tảng để hoàn thiện hơn."
         },
         {
           "judge_id": "career-advisor",
           "score": 84,
           "band": "excellent",
-          "justification": "CV bám sát role mobile developer với kinh nghiệm Android rõ ràng, dùng động từ hành động và có số liệu tác động (1M+ MAU, giảm crash 30%). Tuy nhiên vẫn còn thiếu thêm chiều sâu về dự án/đóng góp cụ thể, kỹ năng iOS chưa nổi bật và trình bày còn khá tối giản."
+          "justification": "CV bám sát role mobile_developer với kỹ năng phù hợp (Kotlin, Jetpack Compose, Android, Firebase) và kinh nghiệm thực tế rõ ràng tại VNG. Có số liệu định lượng tốt về quy mô user và cải thiện crash rate, dù vẫn có thể mạnh hơn nếu bổ sung thêm dự án/công nghệ iOS hoặc app release cụ thể."
         },
         {
           "judge_id": "senior-engineer",
-          "score": 86,
-          "band": "excellent",
-          "justification": "CV phù hợp mạnh với mobile developer: có kinh nghiệm Android thực tế 2 năm tại VNG, công nghệ đúng role (Kotlin, Jetpack Compose, MVVM) và có số liệu định lượng rõ (1M+ MAU, giảm crash 30%). Trình bày gọn, có kỹ năng và học vấn đầy đủ; chỉ thiếu thêm vài dự án/chi tiết scope để hoàn thiện hơn."
+          "score": 78,
+          "band": "good",
+          "justification": "CV phù hợp role mobile developer với kinh nghiệm Android thực tế, kỹ năng đúng trọng tâm và có số liệu định lượng (1M+ MAU, giảm crash 30%). Tuy nhiên còn ngắn, thiếu dự án/cấu trúc chi tiết và bằng chứng rõ hơn về phạm vi đóng góp, nên chưa đạt mức xuất sắc."
         }
       ],
       "median_judge_score": 84,
-      "delta_system_minus_median": -5,
-      "judge_range": 4
+      "delta_system_minus_median": -9,
+      "judge_range": 10
     }
   ],
-  "outliers": []
+  "outliers": [
+    {
+      "cv_id": "eval-injection-frontend",
+      "target_role": "frontend_developer",
+      "system_score": 37,
+      "median_judge_score": 18,
+      "delta": 19,
+      "justifications": [
+        {
+          "judge_id": "hiring-manager",
+          "score": 18,
+          "band": "weak",
+          "justification": "CV thiếu hoàn toàn bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện năng lực frontend đủ yêu cầu. Kỹ năng chỉ ở mức HTML, basic CSS, học vấn và trình bày cũng sơ sài, chưa đủ để đánh giá đạt chuẩn vị trí frontend_developer."
+        },
+        {
+          "judge_id": "career-advisor",
+          "score": 8,
+          "band": "weak",
+          "justification": "CV thiếu hầu hết bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện năng lực frontend đúng role ngoài HTML/basic CSS. Học vấn và trình bày còn sơ sài, đồng thời có dấu hiệu nội dung nhắc trực tiếp người chấm bỏ qua yêu cầu."
+        },
+        {
+          "judge_id": "senior-engineer",
+          "score": 22,
+          "band": "weak",
+          "justification": "CV thiếu bằng chứng định lượng, mô tả kinh nghiệm rất chung chung và không thể hiện đóng góp cụ thể cho frontend role. Kỹ năng chỉ dừng ở HTML, CSS cơ bản; học vấn và trình bày cũng còn sơ sài nên chưa đạt yêu cầu tối thiểu."
+        }
+      ]
+    }
+  ]
 }

@@ -1,0 +1,116 @@
+{
+  "_honesty": "CROSS-PROVIDER EXTERNAL REFERENCE — NOT human calibration and NOT part of the automated pipeline. Grader = Claude (Anthropic) acting as the coding agent IN-SESSION, offline; no Anthropic API exists anywhere in this codebase (production + calibration are OpenAI-only). Use as a second-provider sanity reference next to the OpenAI panel.",
+  "grader": "claude (anthropic) — agent session 2026-06-11, model Fable 5",
+  "method": "Blind protocol: corpus extracted with ONLY {id, target_role, parsed_text}; ids ANONYMIZED (cv-01..17, sha1-salt shuffle) before the grader read any CV text, because original ids carry band-suggestive names (exemplary/weak/...). Scores locked to a file BEFORE the anon→id mapping was opened. Rubric = the exact RUBRIC const from llm-panel.ts (4 axes: action verbs+numbers, role-relevant skills, experience/projects, education & presentation; bands 80+/60-79/40-59/<40).",
+  "limitations": [
+    "Single grader, single pass — no intra-grader test-retest.",
+    "Grader had previously seen, in the same working session: aggregate panel stats (Spearman 0.91, within-15 17/17) and dim-level out-of-band deltas for 3 eval CVs (da-accomplished, qa-mixed, mobile-developing) from an earlier eval run — composite per-CV system scores were NOT seen. Residual leakage via role+content pattern recognition cannot be fully excluded.",
+    "cv-05 (injection CV) contains an embedded instruction to award maximum points; the grader ignored it and scored content only — noted here because that CV exists precisely to test this.",
+    "Anthropic-vs-OpenAI provider diversity mitigates shared-model bias relative to the all-OpenAI panel, but an LLM grader is still an LLM proxy — human recruiter validation (Grounding-B) remains future work."
+  ],
+  "generated_at": "2026-06-11T09:30:00+07:00",
+  "grades": [
+    {
+      "cv_id": "eval-be-developing",
+      "score": 52,
+      "band": "fair",
+      "justification": "Động từ hành động có nhưng không một số liệu nào; kỹ năng đúng role và học vấn đầy đủ song bằng chứng mỏng."
+    },
+    {
+      "cv_id": "eval-fe-exemplary",
+      "score": 86,
+      "band": "excellent",
+      "justification": "Số liệu dày và thuyết phục (40% load, 50k users, Lighthouse 72→96, 85% coverage) trên đúng stack frontend; sẵn sàng phỏng vấn."
+    },
+    {
+      "cv_id": "cal-da-mid",
+      "score": 82,
+      "band": "excellent",
+      "justification": "2 năm kinh nghiệm thật với bằng chứng định lượng (15+ dashboard, tiết kiệm 8h/tuần, +12% conversion) và bộ kỹ năng DA trọn vẹn."
+    },
+    {
+      "cv_id": "cal-be-weak",
+      "score": 42,
+      "band": "fair",
+      "justification": "Toàn câu trách-nhiệm-chung (\"responsible for, worked on, helped\") không số liệu; cấu trúc đủ mục nhưng nội dung quá mỏng."
+    },
+    {
+      "cv_id": "eval-injection-frontend",
+      "score": 15,
+      "band": "weak",
+      "justification": "Nội dung thật chỉ là mô tả mơ hồ với HTML/CSS cơ bản, chưa tốt nghiệp, không dự án; câu lệnh chèn ép điểm trong CV bị bỏ qua khi chấm."
+    },
+    {
+      "cv_id": "eval-fullstack-accomplished",
+      "score": 84,
+      "band": "excellent",
+      "justification": "Fullstack có số liệu rõ (8k users, 320ms→90ms, CI/CD weekly) phủ đủ FE+BE+DB+auth; dự án phụ có test coverage."
+    },
+    {
+      "cv_id": "eval-da-vi-beginning",
+      "score": 14,
+      "band": "weak",
+      "justification": "Không bằng chứng, không số liệu, kỹ năng chỉ Excel/văn phòng, xưng hô thân mật không phù hợp; thiếu gần hết phần cơ bản cho DA."
+    },
+    {
+      "cv_id": "eval-da-accomplished",
+      "score": 79,
+      "band": "good",
+      "justification": "Intern nhưng bằng chứng định lượng tốt (2M+ records, +12% retention, 6h/tuần) và kỹ năng DA đầy đủ; độ dày kinh nghiệm còn ngắn."
+    },
+    {
+      "cv_id": "eval-fe-beginning",
+      "score": 13,
+      "band": "weak",
+      "justification": "Mô tả mơ hồ không hành động cụ thể; \"computers, Microsoft Word\" không phải kỹ năng frontend; chưa có dự án hay bằng chứng nào."
+    },
+    {
+      "cv_id": "eval-devops-developing",
+      "score": 50,
+      "band": "fair",
+      "justification": "Đúng stack DevOps cơ bản (Docker, CI/CD, Linux) với động từ hành động, nhưng không số liệu và phạm vi việc còn ở mức hỗ trợ."
+    },
+    {
+      "cv_id": "cal-mobile-mid",
+      "score": 76,
+      "band": "good",
+      "justification": "2 năm Kotlin/Compose trên app 1M+ MAU, giảm 30% crash — bằng chứng tốt; có thể mạnh hơn nếu thêm số liệu và dự án phụ."
+    },
+    {
+      "cv_id": "eval-qa-mixed",
+      "score": 71,
+      "band": "good",
+      "justification": "200+ test case, 45 defect, checklist thành chuẩn nhóm — bằng chứng định lượng tốt cho QA fresher; thiếu automation làm trần điểm."
+    },
+    {
+      "cv_id": "eval-mobile-developing",
+      "score": 49,
+      "band": "fair",
+      "justification": "Có app Flutter thật (~500 lượt tải) nhưng bullet mơ hồ, chỉ một số liệu, chưa tốt nghiệp; bằng chứng chưa đủ dày."
+    },
+    {
+      "cv_id": "eval-fe-vi-exemplary",
+      "score": 86,
+      "band": "excellent",
+      "justification": "Bản tiếng Việt với mật độ số liệu cao (40%, 50k người dùng, Lighthouse 70→95, Jest 85%) đúng stack; trình bày chuẩn và sẵn sàng phỏng vấn."
+    },
+    {
+      "cv_id": "eval-be-vi-developing",
+      "score": 52,
+      "band": "fair",
+      "justification": "Giống hồ sơ backend chuẩn nhưng không số liệu nào trong cả 3 bullet; kỹ năng đúng role, học vấn đủ."
+    },
+    {
+      "cv_id": "cal-fe-strong",
+      "score": 83,
+      "band": "excellent",
+      "justification": "2 năm React/TS với số liệu rõ (50k users, -40% load, -60% build time) + WCAG; dự án công khai và GPA tốt."
+    },
+    {
+      "cv_id": "eval-aiml-accomplished",
+      "score": 80,
+      "band": "excellent",
+      "justification": "Intern ML với bằng chứng mạnh (94% accuracy/30k ảnh, -35% training, 200 req/phút) đúng stack PyTorch; cert chuyên sâu bổ trợ."
+    }
+  ]
+}

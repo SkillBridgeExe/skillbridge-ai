@@ -5,9 +5,10 @@
  *
  * ╔══════════════════════════════════════════════════════════════════════════════╗
  * ║  HONESTY NOTICE                                                             ║
- * ║  This is a LLM-judge panel agreement study — NOT human calibration.        ║
- * ║  Judges are LLMs (cross-provider: Gemini judging an OpenAI-scored system)  ║
- * ║  which reduces but does NOT eliminate shared-model bias.                   ║
+ * ║  This is an OpenAI-only AI-panel PROXY — NOT human calibration.             ║
+ * ║  All judges run on the SAME provider as the scoring system, so shared-      ║
+ * ║  model bias is NOT mitigated (personas + temperatures + optional judge-     ║
+ * ║  model override give consistency diversity, not independent validity).     ║
  * ║  The 94% within-band accuracy claim remains a PROXY until Grounding-B      ║
  * ║  (3 human raters × 30-50 CVs) runs.                                        ║
  * ║  Use this report for consistency checks and outlier triage only.           ║
@@ -16,10 +17,16 @@
  * Corpus: eval-cvs.json (13 CVs) + calibration-cvs.json (4 CVs, if shape-compatible).
  * System scores: the SAME scoring path as eval-accuracy (CvReviewService, DB-less).
  * Judges (BLIND — never see the system score or expected bands):
- *   J1 hiring-manager  — OpenAI, temp 0.0
- *   J2 career-advisor  — OpenAI, temp 0.2
- *   J3 senior-engineer — OpenAI, temp 0.4
- *   (All-OpenAI: Gemini free tier 20 req/day can't serve the panel — see HONESTY_LINE.)
+ *   J1 hiring-manager  — OpenAI, temp 0.0  (IT recruiter / hiring manager)
+ *   J2 career-advisor  — OpenAI, temp 0.2  (university career advisor)
+ *   J3 senior-engineer — OpenAI, temp 0.4  (senior engineer interviewer)
+ *   Optional: PANEL_JUDGE_MODEL=<openai-model> judges on a different OpenAI model
+ *   than production (less same-model echo; same-provider bias remains).
+ *
+ * Cross-provider EXTERNAL reference (optional): when
+ * data/calibration-external-judge-claude.json exists (blind offline grades by the
+ * Claude coding agent — NO Anthropic API in this codebase), the report adds
+ * system-vs-external and panel-vs-external agreement. Reference-only, gates nothing.
  *
  * Output: console table + data/calibration-llm-panel-report.json
  * Exit: 0 when the harness itself succeeds; 1 only on harness errors.
@@ -35,7 +42,7 @@ if (dotenvParsed.GOOGLE_API_KEY) process.env.GOOGLE_API_KEY = dotenvParsed.GOOGL
 import * as fs from 'fs';
 import * as path from 'path';
 import { withRetry } from './retry';
-import { spearman, mean } from './calibration-stats';
+import { spearman, mean, scoreAgreement } from './calibration-stats';
 import type { LlmProvider } from '../infrastructure/llm/types/llm.types';
 
 // Force DB-less mode BEFORE AppModule is imported (same pattern as eval-accuracy).
@@ -90,6 +97,13 @@ const JUDGES: JudgeConfig[] = [
 
 const DELAY_MS = Number(process.env.PANEL_DELAY_MS ?? 3000);
 const PROMPT_CODE = 'cv_review_v1';
+/**
+ * Optional OpenAI model override for the JUDGES only (still OpenAI — provider is pinned).
+ * Lets the panel judge on a different model than the production scorer to reduce
+ * same-model echo; same-PROVIDER bias remains and stays declared in HONESTY_LINE.
+ *   PANEL_JUDGE_MODEL=gpt-4o pnpm calibrate:panel
+ */
+const JUDGE_MODEL = process.env.PANEL_JUDGE_MODEL?.trim() || undefined;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Band = 'excellent' | 'good' | 'fair' | 'weak';
@@ -202,6 +216,7 @@ async function callJudge(
           temperature: judge.temperature,
           jsonMode: true,
           maxOutputTokens: 512,
+          ...(JUDGE_MODEL ? { model: JUDGE_MODEL } : {}),
         },
       );
       const parsed = parseJudgeOutput(result.parsedJson ?? result.text);
@@ -422,6 +437,40 @@ async function main(): Promise<void> {
     .map((r) => r.judge_range as number);
   const meanJudgeRange = rangesValid.length > 0 ? round2(mean(rangesValid)) : null;
 
+  // ─── Cross-provider EXTERNAL reference (optional, offline) ────────────────
+  // data/calibration-external-judge-claude.json = blind grades by a DIFFERENT-provider
+  // grader (Claude agent, offline — no Anthropic API in this codebase). When present we
+  // report agreement vs the system and vs the panel median. Reference-only — it gates
+  // nothing; same proxy caveats as the panel, minus the same-provider echo.
+  interface ExternalJudgeFile {
+    _honesty: string;
+    grader: string;
+    grades: Array<{ cv_id: string; score: number; band: string; justification: string }>;
+  }
+  let external: ExternalJudgeFile | null = null;
+  try {
+    external = JSON.parse(
+      fs.readFileSync(path.join(dataDir, 'calibration-external-judge-claude.json'), 'utf-8'),
+    ) as ExternalJudgeFile;
+  } catch {
+    external = null;
+  }
+  const externalStats = external
+    ? {
+        grader: external.grader,
+        honesty: external._honesty,
+        n_grades: external.grades.length,
+        system_vs_external: scoreAgreement(
+          scoredResults.map((r) => ({ id: r.cv_id, score: r.system_score })),
+          external.grades.map((g) => ({ id: g.cv_id, score: g.score })),
+        ),
+        panel_median_vs_external: scoreAgreement(
+          scoredResults.map((r) => ({ id: r.cv_id, score: r.median_judge_score as number })),
+          external.grades.map((g) => ({ id: g.cv_id, score: g.score })),
+        ),
+      }
+    : null;
+
   // Outliers: |delta| > 15 → include all 3 justifications
   const outliers = scoredResults
     .filter(
@@ -492,7 +541,21 @@ async function main(): Promise<void> {
   for (const j of JUDGES) {
     const c = judgeCoverage[j.id];
     console.log(
-      `  ${j.id.padEnd(20)} scored=${c.scored}  failed=${c.failed}  provider=${j.provider}`,
+      `  ${j.id.padEnd(20)} scored=${c.scored}  failed=${c.failed}  provider=${j.provider}` +
+        (JUDGE_MODEL ? `  model=${JUDGE_MODEL} (override)` : '  model=default'),
+    );
+  }
+
+  if (externalStats) {
+    console.log('\n─── Cross-provider EXTERNAL reference (offline, gates nothing) ─────────────\n');
+    console.log(`  grader: ${externalStats.grader}`);
+    const se = externalStats.system_vs_external;
+    const pe = externalStats.panel_median_vs_external;
+    console.log(
+      `  system vs external : n=${se.n}  spearman=${se.spearman}  mae=${se.mae}  within-15=${se.within_15_count}/${se.n} (${se.within_15_pct}%)`,
+    );
+    console.log(
+      `  panel  vs external : n=${pe.n}  spearman=${pe.spearman}  mae=${pe.mae}  within-15=${pe.within_15_count}/${pe.n} (${pe.within_15_pct}%)`,
     );
   }
 
@@ -541,10 +604,15 @@ async function main(): Promise<void> {
     system_vs_panel: {
       n_scored: N,
       spearman_sys_vs_panel_median: rho,
+      // mae and mean_abs_delta are the SAME number — mae is the explicit-name alias
+      // (report consumers asked for "MAE"); mean_abs_delta kept for continuity.
+      mae: meanAbsDelta,
       mean_abs_delta: meanAbsDelta,
       within_15_pts_count: within15Count,
       within_15_pts_pct: within15Pct,
     },
+    judge_model_override: JUDGE_MODEL ?? null,
+    external_reference: externalStats,
     inter_judge: {
       mean_pairwise_spearman: meanInterJudgeRho,
       pairwise: pairwiseRhos,

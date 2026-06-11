@@ -16,8 +16,14 @@ import { TrendsController } from './trends/trends.controller';
  * one ingest code path for manual import / employer-posted / Tier-A crawlers.
  * Snapshots refresh via `pnpm trends:refresh` from an EXTERNAL daily trigger.
  */
+// BillingModule (quota) needs the DB → skip in the DB-less env (NODE_ENV=test:
+// e2e + calibration harnesses boot AppModule without Postgres), mirroring
+// AppModule's PLATFORM_MODULES skip. JobsController injects EntitlementsService
+// @Optional for exactly this case; every real runtime loads it and enforces quota.
+const QUOTA_IMPORTS = process.env.NODE_ENV === 'test' ? [] : [BillingModule];
+
 @Module({
-  imports: [CvJdMatchModule, BillingModule],
+  imports: [CvJdMatchModule, ...QUOTA_IMPORTS],
   controllers: [JobsController, TrendsController],
   providers: [
     JdIngestService,
