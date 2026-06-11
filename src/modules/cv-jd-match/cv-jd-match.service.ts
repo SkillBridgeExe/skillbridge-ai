@@ -101,6 +101,35 @@ export class CvJdMatchService {
 
       const extraction = this.parseLlmExtraction(llmResult.parsedJson);
 
+      // OFF-TOPIC guard (deterministic, post-extraction): the user PROVIDED a JD that passed
+      // the thin-content gate, yet extraction found zero job requirements in it while the CV
+      // side extracted fine — e.g. a recipe, a news article, chat. Silently falling back to
+      // the role rubric would score the CV against requirements the user never pasted and
+      // read as "26% match" for nonsense input. Reject deterministically instead. The LLM
+      // call already happened, so the trace completes as SUCCESS first (cost stays visible) —
+      // mirrors the cv-rewrite OFF_TOPIC precedent. Reuses JD_CONTENT_INSUFFICIENT so the FE
+      // gate mapping ("paste a real JD") applies unchanged.
+      if (
+        jdText &&
+        extraction.jd_requirements_raw.length === 0 &&
+        extraction.cv_skills_raw.length > 0
+      ) {
+        await this.tracing.completeAiRequest(aiRequestId, {
+          promptTokens: llmResult.tokenUsage.promptTokens,
+          completionTokens: llmResult.tokenUsage.completionTokens,
+          totalTokens: llmResult.tokenUsage.totalTokens,
+          estimatedCost: llmResult.estimatedCostUsd,
+          latencyMs: llmResult.latencyMs,
+          status: 'SUCCESS',
+        });
+        throw new BadRequestException({
+          code: 'JD_CONTENT_INSUFFICIENT',
+          message:
+            'Không nhận diện được yêu cầu công việc nào trong nội dung đã dán — có vẻ đây không phải JD. Hãy dán mô tả công việc thật (yêu cầu, kỹ năng, trách nhiệm). / ' +
+            'No job requirements could be recognized in the pasted text — it does not look like a job description. Paste a real JD (requirements, skills, responsibilities).',
+        });
+      }
+
       // Run deterministic diff — this is where scoring actually happens.
       const diff = this.skillDiff.diff({
         cv_skills_raw: extraction.cv_skills_raw,
@@ -175,6 +204,9 @@ export class CvJdMatchService {
         latency_ms: llmResult.latencyMs,
       };
     } catch (err) {
+      // The OFF-TOPIC rejection above is a SUCCESSFUL call whose trace is already completed —
+      // re-throw without flipping it to FAILED (mirrors cv-rewrite).
+      if (err instanceof BadRequestException) throw err;
       // LLM/parse/persist failed after the PENDING row was created — mark it FAILED so the
       // trace never accumulates orphan PENDING rows (mirrors cv-review).
       await this.tracing.markFailed(aiRequestId, startedAt, err);

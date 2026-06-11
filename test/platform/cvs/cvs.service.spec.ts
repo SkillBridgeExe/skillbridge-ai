@@ -450,7 +450,8 @@ describe('CvsService R1 completion behavior', () => {
 
     expect(evaluator.evaluate).toHaveBeenCalledWith(evaluateBody);
     expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_rewrite');
-    expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody);
+    // userId rides along so the ai_requests trace attributes cost to the real user.
+    expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody, 'u1');
     expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_rewrite', {
       sourceType: 'cv',
       sourceId: 'draft-1',
