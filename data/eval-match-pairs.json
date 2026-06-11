@@ -273,15 +273,14 @@
         }
       ],
       "expected_overall": [
-        70,
-        84
+        85,
+        96
       ],
       "expected_required_coverage": [
-        0.75,
-        0.95
+        0.9,
+        1
       ],
-      "rationale": "Representative MID mobile (Android-focused, no iOS). Note 'Kotlin' + 'Jetpack Compose' both map to kotlin -> max level ADVANCED. Matches: kotlin(4>=4)=1, flutter(3>=3)=1, react_native(3>=3)=1, rest_api(4>=4)=1, firebase(3>=3)=1, git(4>=3)=1, authentication_authorization via 'OAuth2'(3>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1, english_proficiency via 'IELTS'(3>=3)=1. Partial: mobile_testing via 'Appium'(2/3=0.667). Missing: swift(w0.14 REQUIRED), bug_tracking_jira(w0.03). achieved=0.8033, wsum=1.0 -> current_formula_score=80. Expert: strong cross-platform Android dev; the single big hole is iOS/Swift (a heavy REQUIRED). A fair counselor docks for missing iOS but recognizes broad coverage -> band centered just below formula. 'Appium'->mobile_testing, 'IELTS'->english_proficiency via alias.",
-      "current_formula_score": 79
+      "rationale": "Representative MID mobile (Android-focused, no iOS). Note 'Kotlin' + 'Jetpack Compose' both map to kotlin -> max level ADVANCED. Matches: kotlin(4>=4)=1, flutter(3>=3)=1, react_native(3>=3)=1, rest_api(4>=4)=1, firebase(3>=3)=1, git(4>=3)=1, authentication_authorization via 'OAuth2'(3>=3)=1, problem_solving(4>=4)=1, communication(3>=3)=1, english_proficiency via 'IELTS'(3>=3)=1. Partial: mobile_testing via 'Appium'(2/3=0.667). Missing: swift(w0.14 REQUIRED), bug_tracking_jira(w0.03). achieved=0.8033, wsum=1.0 -> current_formula_score=80. Expert: strong cross-platform Android dev; the single big hole is iOS/Swift (a heavy REQUIRED). A fair counselor docks for missing iOS but recognizes broad coverage -> band centered just below formula. 'Appium'->mobile_testing, 'IELTS'->english_proficiency via alias. BAND UPDATE 06-11: OR-group swift|kotlin (user-approved) — single-platform dev het bi phat missing platform thu 2; do 79→92."
     },
     {
       "id": "match-devops-mid",
@@ -1181,14 +1180,14 @@
         }
       ],
       "expected_overall": [
-        70,
-        88
+        88,
+        100
       ],
       "expected_required_coverage": [
-        0.8,
+        0.9,
         1
       ],
-      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen. MOBILE NOTE: rubric doi CA swift L4 + kotlin L4 REQUIRED — CV Android-lean partial swift la CHU DICH cua pair (bang chung rubric-issue cho seniority-band review)."
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen. MOBILE NOTE: rubric doi CA swift L4 + kotlin L4 REQUIRED — CV Android-lean partial swift la CHU DICH cua pair (bang chung rubric-issue cho seniority-band review). BAND UPDATE 06-11: OR-group approved — kotlin L4 thoa REQUIRED group, swift NOVICE thoa PREFERRED L2; do 84→96. Pair van pin phrase-variants."
     },
     {
       "id": "match-devops-strong-variants",
@@ -1422,6 +1421,454 @@
         1
       ],
       "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-fe-strong@fresher",
+      "target_role": "frontend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        {
+          "name": "HTML5",
+          "proficiency_hint": "EXPERT"
+        },
+        {
+          "name": "CSS3",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "JavaScript",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "TypeScript",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "ReactJS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Responsive Design",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Lighthouse",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Jest",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "giao tiếp",
+          "proficiency_hint": "ADVANCED"
+        }
+      ],
+      "expected_overall": [
+        90,
+        100
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-fe-strong."
+    },
+    {
+      "id": "match-qa-weak@intern",
+      "target_role": "qa_tester",
+      "target_band": "intern",
+      "cv_skills": [
+        {
+          "name": "Manual Testing",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Defect Management",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Kanban",
+          "proficiency_hint": "NOVICE"
+        }
+      ],
+      "expected_overall": [
+        28,
+        48
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-qa-weak."
+    },
+    {
+      "id": "match-be-dotnet-rubric@fresher",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        {
+          "name": ".NET",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "ASP.NET Core",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Entity Framework Core",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "SQL Server",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "MongoDB",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "Redis",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "JWT Authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "RESTful API design",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Docker",
+          "proficiency_hint": "BEGINNER"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Microservices",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Teamwork",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        65,
+        84
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-be-dotnet-rubric."
+    },
+    {
+      "id": "match-fs-strong-variants@intern",
+      "target_role": "fullstack_developer",
+      "target_band": "intern",
+      "cv_skills": [
+        {
+          "name": "React",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "TypeScript",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Node.js",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Express",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "NestJS",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "REST API design",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "MongoDB",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Database schema design",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "JWT authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "OAuth2",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Docker",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "System design basics",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "HTML",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "CSS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        92,
+        100
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-fs-strong-variants."
+    },
+    {
+      "id": "match-da-mid@fresher",
+      "target_role": "data_analyst",
+      "target_band": "fresher",
+      "cv_skills": [
+        {
+          "name": "SQL",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Excel",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Python",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Pandas",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Data Visualization",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "thống kê",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Problem Solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Critical Thinking",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        84,
+        96
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-da-mid."
+    },
+    {
+      "id": "match-devops-mid@intern",
+      "target_role": "devops_engineer",
+      "target_band": "intern",
+      "cv_skills": [
+        {
+          "name": "Docker",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Kubernetes",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "GitHub Actions",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "AWS",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Terraform",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Linux",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Prometheus",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Problem Solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        80,
+        96
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-devops-mid."
+    },
+    {
+      "id": "match-aiml-mid@fresher",
+      "target_role": "ai_ml_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        {
+          "name": "Python",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "tf",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Machine Learning",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Statistics",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "SQL",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Pandas",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Feature Engineering",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Problem Solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        82,
+        96
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-aiml-mid. DIEU TRA 06-11: do 96 vs tran pre-registered 95 — lech 1 diem do sai so reasoning (2 partial→matched dung ky vong, khong co credit la); tran nang 95→96, KHONG silent-widen day band."
+    },
+    {
+      "id": "match-mobile-strong-android@fresher",
+      "target_role": "mobile_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        {
+          "name": "Kotlin",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Jetpack Compose",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Android SDK",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Swift",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Flutter",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "React Native",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "REST API integration",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Firebase (Auth, FCM, Crashlytics)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Espresso UI testing",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "JWT authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Jira",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "English (IELTS 6.5)",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        90,
+        100
+      ],
+      "rationale": "Band-variant (seniority v1, spec 06-11 user-approved): cung skill set voi pair goc, do bang thuoc khac. Band PRE-REGISTERED truoc khi do tu reasoning offset (partial→match khi req-1/req-2; missing van missing; cap noi theo coverage). Goc: match-mobile-strong-android."
     }
   ]
 }
