@@ -885,6 +885,543 @@
       ],
       "rationale": "Live prod E2E 2026-06-11: CV .NET fresher that bi 26 diem vs backend rubric vi sql_server khong duoc credit cho req sql, JWT/EF-Core/RESTful-API truot alias het. Voi honest credit phai ve mid-band: chac dotnet/sql(via sql_server)/auth/rest_api/git/microservices ~L3 vs rubric L3-4; yeu docker/linux/api_testing/database_design. KHONG duoc high-band: van la fresher CV vs rubric mid-level. Band [46,62] pre-registered truoc khi do. Measured 2026-06-11 post-fix: 50 (pre-fix code: 13).",
       "current_formula_score": 50
+    },
+    {
+      "id": "match-fe-strong-variants",
+      "target_role": "frontend_developer",
+      "cv_skills": [
+        {
+          "name": "HTML5",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "CSS3 / SCSS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "JavaScript (ES6+)",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "TypeScript",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "ReactJS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Redux Toolkit",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Next.js 14",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Tailwind CSS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Responsive web design",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Lighthouse performance tuning",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "WCAG accessibility",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Jest",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "React Testing Library",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Cypress E2E",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Git/GitHub",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "ADVANCED"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-fs-strong-variants",
+      "target_role": "fullstack_developer",
+      "cv_skills": [
+        {
+          "name": "React",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "TypeScript",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Node.js",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Express",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "NestJS",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "REST API design",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "PostgreSQL",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "MongoDB",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Database schema design",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "JWT authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "OAuth2",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Docker",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "System design basics",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "HTML",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "CSS",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-da-strong-variants",
+      "target_role": "data_analyst",
+      "cv_skills": [
+        {
+          "name": "SQL (PostgreSQL, BigQuery)",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Advanced Excel (PivotTable, Power Query)",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Python",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Pandas",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "NumPy",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Matplotlib/Seaborn",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Power BI",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Tableau",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Data visualization",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Statistics (hypothesis testing, A/B testing)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Critical thinking",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-mobile-strong-android",
+      "target_role": "mobile_developer",
+      "cv_skills": [
+        {
+          "name": "Kotlin",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Jetpack Compose",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Android SDK",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Swift",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Flutter",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "React Native",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "REST API integration",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Firebase (Auth, FCM, Crashlytics)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Espresso UI testing",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "JWT authentication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Jira",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "English (IELTS 6.5)",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        70,
+        88
+      ],
+      "expected_required_coverage": [
+        0.8,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen. MOBILE NOTE: rubric doi CA swift L4 + kotlin L4 REQUIRED — CV Android-lean partial swift la CHU DICH cua pair (bang chung rubric-issue cho seniority-band review)."
+    },
+    {
+      "id": "match-devops-strong-variants",
+      "target_role": "devops_engineer",
+      "cv_skills": [
+        {
+          "name": "Docker",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Kubernetes (K8s)",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Helm",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "GitHub Actions",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "AWS (EC2, S3, RDS, IAM)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Terraform",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Ansible",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Linux (Ubuntu, Bash scripting)",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Prometheus + Grafana",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Python scripting",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Networking (TCP/IP, DNS, load balancing)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "System design",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-qa-strong-variants",
+      "target_role": "qa_tester",
+      "cv_skills": [
+        {
+          "name": "Manual testing",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Test case design",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Selenium WebDriver",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Cypress",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "API testing (Postman)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Database testing",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "SQL",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Jira",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Agile/Scrum",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Bug reporting",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "English",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
+    },
+    {
+      "id": "match-aiml-strong-variants",
+      "target_role": "ai_ml_engineer",
+      "cv_skills": [
+        {
+          "name": "Python",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "PyTorch",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "TensorFlow",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Keras",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "scikit-learn",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Machine learning",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Deep learning",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "NLP (Hugging Face Transformers)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Computer vision (OpenCV)",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Statistics",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Pandas",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Data preprocessing",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "SQL",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Docker",
+          "proficiency_hint": "NOVICE"
+        },
+        {
+          "name": "Git",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Problem solving",
+          "proficiency_hint": "ADVANCED"
+        },
+        {
+          "name": "Communication",
+          "proficiency_hint": "INTERMEDIATE"
+        },
+        {
+          "name": "Critical thinking",
+          "proficiency_hint": "INTERMEDIATE"
+        }
+      ],
+      "expected_overall": [
+        88,
+        100
+      ],
+      "expected_required_coverage": [
+        0.95,
+        1
+      ],
+      "rationale": "7-role probe 2026-06-11: strong on-target CV viết phrase-variants NHU NGUOI THAT (paren, tool-words, ownership moves). Pair pin normalize+satisfies: truoc fix score thap oan (fe 67/qa 55/da 71/fs 66/mobile 63/aiml 82). Band dat theo semantics perfect-coverage cua skill set nay (KHONG phai strong-typical) — dieu chinh sau dieu tra probe, ghi ro de khong silent-widen."
     }
   ]
 }
