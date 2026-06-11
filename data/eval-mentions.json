@@ -317,7 +317,7 @@
       "mention": "Jira",
       "lang": "en",
       "expected": [
-        "agile_scrum"
+        "bug_tracking_jira"
       ],
       "category": "alias",
       "requires": [],
@@ -357,7 +357,7 @@
       "mention": "PyTorch",
       "lang": "en",
       "expected": [
-        "machine_learning"
+        "pytorch_tensorflow"
       ],
       "category": "alias",
       "requires": [],
@@ -457,7 +457,7 @@
       "mention": "tensrflow",
       "lang": "en",
       "expected": [
-        "machine_learning"
+        "pytorch_tensorflow"
       ],
       "category": "fuzzy",
       "requires": [],
@@ -2299,7 +2299,7 @@
       "mention": "TensorFlow",
       "lang": "en",
       "expected": [
-        "machine_learning"
+        "pytorch_tensorflow"
       ],
       "category": "alias",
       "requires": [],
