@@ -20,6 +20,7 @@ function deps() {
       ],
     }),
     getSkillGap: jest.fn(),
+    getCoOccurrence: jest.fn().mockResolvedValue([]),
   };
   const llm = {
     complete: jest.fn().mockResolvedValue({

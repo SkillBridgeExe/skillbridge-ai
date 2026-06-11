@@ -43,7 +43,10 @@ export class TrendsInsightService {
       const gap = await this.demand.getSkillGap(req.user_id, req.cv_id, role, limit);
       coveredCanonicals = new Set(gap.skills.filter((s) => s.covered).map((s) => s.canonical_name));
     }
-    const facts = buildFacts(trends, coveredCanonicals);
+    // Insight sâu v1: cặp kỹ năng đi cùng nhau (đếm SQL trên pool active) — nguồn duy nhất
+    // cho skill_pairs; LLM chỉ được viết lời trên các cặp này (guard trong groundInsight).
+    const coOccurrence = await this.demand.getCoOccurrence(role, 10);
+    const facts = buildFacts(trends, coveredCanonicals, coOccurrence);
 
     const startedAt = Date.now();
     const template = this.prompts.get(PROMPT_CODE);
