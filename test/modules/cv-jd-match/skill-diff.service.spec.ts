@@ -334,6 +334,19 @@ describe('SkillDiffService — satisfies credit (child counts as parent)', () =>
     expect(res.bonus_skills.find((b) => b.canonical_name === 'sql_server')).toBeUndefined();
   });
 
+  it('typescript satisfies a javascript requirement (TS dev IS a JS dev) — 7-role probe finding', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'TypeScript', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: [
+        { name: 'JavaScript', importance_hint: 'REQUIRED', required_level_hint: 'ADVANCED' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    const js = res.matched_skills.find((x) => x.canonical_name === 'javascript');
+    expect(js).toBeDefined();
+    expect(js?.satisfied_by).toBe('typescript');
+  });
+
   it('an unused child stays in bonus as before', () => {
     const res = diff.diff({
       cv_skills_raw: [

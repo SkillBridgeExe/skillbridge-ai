@@ -1,7 +1,47 @@
 [
-  { "child": "sql_server", "parent": "sql", "note": "Dùng được SQL Server nghĩa là dùng được SQL" },
-  { "child": "postgresql", "parent": "sql", "note": "Dùng được PostgreSQL nghĩa là dùng được SQL" },
-  { "child": "mysql", "parent": "sql", "note": "Dùng được MySQL nghĩa là dùng được SQL" },
-  { "child": "mongodb", "parent": "nosql", "note": "MongoDB là NoSQL store" },
-  { "child": "redis", "parent": "caching", "note": "Dùng Redis thực tế = nắm caching cơ bản" }
+  {
+    "child": "sql_server",
+    "parent": "sql",
+    "note": "Dùng được SQL Server nghĩa là dùng được SQL"
+  },
+  {
+    "child": "postgresql",
+    "parent": "sql",
+    "note": "Dùng được PostgreSQL nghĩa là dùng được SQL"
+  },
+  {
+    "child": "mysql",
+    "parent": "sql",
+    "note": "Dùng được MySQL nghĩa là dùng được SQL"
+  },
+  {
+    "child": "mongodb",
+    "parent": "nosql",
+    "note": "MongoDB là NoSQL store"
+  },
+  {
+    "child": "redis",
+    "parent": "caching",
+    "note": "Dùng Redis thực tế = nắm caching cơ bản"
+  },
+  {
+    "child": "pytorch_tensorflow",
+    "parent": "machine_learning",
+    "note": "Dùng được PyTorch/TensorFlow nghĩa là có nền machine learning"
+  },
+  {
+    "child": "deep_learning",
+    "parent": "machine_learning",
+    "note": "Làm deep learning nghĩa là biết machine learning"
+  },
+  {
+    "child": "frontend_testing",
+    "parent": "test_automation",
+    "note": "Viết test tự động (Jest/Cypress/Playwright) = test automation ở mức đó"
+  },
+  {
+    "child": "typescript",
+    "parent": "javascript",
+    "note": "Viết được TypeScript nghĩa là viết được JavaScript"
+  }
 ]
