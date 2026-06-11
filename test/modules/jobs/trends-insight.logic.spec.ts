@@ -49,6 +49,7 @@ const FACTS: TrendsInsightFacts = {
   period: '2026-06-07',
   total_active_jobs: 200,
   personalized: true,
+  co_occurrence: [],
   skills: [
     {
       skill: 'security',
@@ -94,5 +95,64 @@ describe('groundInsight (anti-hallucination guard)', () => {
     expect(out.insights.length).toBeGreaterThan(0);
     expect(out.insights.every((i) => i.comment === '')).toBe(true);
     expect(out.summary).toContain('Security');
+  });
+});
+
+describe('insight sâu v1 — co-occurrence FACTS + skill_pairs guard', () => {
+  const PAIRS = [
+    {
+      a: 'docker',
+      a_display: 'Docker',
+      b: 'kubernetes',
+      b_display: 'Kubernetes',
+      pair_count: 31,
+      pct_of_postings: 24.8,
+    },
+    {
+      a: 'react',
+      a_display: 'React',
+      b: 'typescript',
+      b_display: 'TypeScript',
+      pair_count: 22,
+      pct_of_postings: 17.6,
+    },
+  ];
+
+  it('buildFacts carries co_occurrence pairs verbatim (empty by default)', () => {
+    const none = buildFacts(TRENDS, null);
+    expect(none.co_occurrence).toEqual([]);
+    const f = buildFacts(TRENDS, null, PAIRS);
+    expect(f.co_occurrence).toEqual(PAIRS);
+  });
+
+  it('groundInsight keeps ONLY pairs that exist in FACTS and re-attaches their numbers', () => {
+    const facts = buildFacts(TRENDS, null, PAIRS);
+    const out = groundInsight(
+      {
+        summary: 'ok',
+        insights: [],
+        recommended_skills: [],
+        skill_pairs: [
+          { a: 'docker', b: 'kubernetes', comment: 'Docker thường đi với K8s.', pair_count: 999 },
+          { a: 'php', b: 'wordpress', comment: 'bịa — phải bị loại' },
+          { a: 'kubernetes', b: 'docker', comment: 'đảo chiều vẫn là pair thật' },
+        ],
+      },
+      facts,
+    );
+    expect(out.skill_pairs.length).toBe(1); // dedup kể cả đảo chiều, pair bịa bị loại
+    expect(out.skill_pairs[0]).toMatchObject({
+      a: 'docker',
+      b: 'kubernetes',
+      pair_count: 31, // số LLM (999) bị vứt — RE-ATTACH từ FACTS
+      pct_of_postings: 24.8,
+    });
+    expect(out.skill_pairs[0].comment).toContain('K8s');
+  });
+
+  it('fallback (no LLM) returns empty skill_pairs, not undefined', () => {
+    const facts = buildFacts(TRENDS, null, PAIRS);
+    const out = groundInsight('not json', facts);
+    expect(out.skill_pairs).toEqual([]);
   });
 });
