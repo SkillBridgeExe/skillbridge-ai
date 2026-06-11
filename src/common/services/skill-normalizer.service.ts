@@ -122,6 +122,10 @@ export class SkillNormalizerService {
     'admin',
     'programming',
     'language',
+    // 7-role probe 2026-06-11: "Python scripting" / "Cypress E2E" are skill+tool-word
+    // phrases students write verbatim — both words are harmless next to a known alias.
+    'scripting',
+    'e2e',
     'hơi',
     'biết',
     'cơ',
@@ -203,6 +207,28 @@ export class SkillNormalizerService {
       // Fan-out (the strip uncovered a compound) → keep each PART's own raw_input (review finding).
       if (viaStrip.length === 1) return [{ ...viaStrip[0], raw_input: raw }];
       if (viaStrip.length > 0) return viaStrip;
+    }
+
+    // 0c′. paren-expansion: "A (B, C)" credits A and every paren part that resolves
+    // ("API testing (Postman)", "Advanced Excel (PivotTable, Power Query)", "English
+    // (IELTS 6.5)" — 7-role probe 2026-06-11: the comma INSIDE the parens made the
+    // primary split produce garbage like "Advanced excel (pivottable"). Must run BEFORE
+    // 0d. Unresolvable parts are simply dropped (a paren full of prose is harmless).
+    const paren = raw.match(/^(.+?)\s*\((.+)\)$/);
+    if (paren) {
+      const head = paren[1].trim();
+      const innerParts = paren[2]
+        .split(/[,;/]|\s+(?:và|and)\s+/i)
+        .map((p) => p.trim())
+        .filter((p) => p.length >= 2);
+      const resolved = new Map<string, NormalizedSkill>();
+      for (const part of [head, ...innerParts]) {
+        for (const s of this.normalizeMention(part, depth + 1)) {
+          if (s.canonical_name && !resolved.has(s.canonical_name))
+            resolved.set(s.canonical_name, s);
+        }
+      }
+      if (resolved.size > 0) return [...resolved.values()];
     }
 
     // 0d. compound split — primary delimiters first; slash only for fragments that don't
