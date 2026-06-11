@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
+import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
@@ -13,6 +14,12 @@ import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entit
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
+import {
+  GapReportService,
+  SkillBridgeGapReport,
+} from '../../modules/gap-report/gap-report.service';
+import { EntitlementsService } from '../billing/entitlements.service';
+import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.dto';
 import { JdTextExtractorService } from './jd-text-extractor.service';
@@ -31,6 +38,9 @@ export class CvMatchesService {
     private readonly scores: Repository<CvMatchScoreEntity>,
     private readonly extractor: JdTextExtractorService,
     private readonly matcher: CvJdMatchService,
+    private readonly entitlements: EntitlementsService,
+    private readonly gapReport?: GapReportService,
+    private readonly platformCvs?: CvsService,
   ) {}
 
   async createMatch(
@@ -48,6 +58,7 @@ export class CvMatchesService {
     }
 
     const jdText = await this.resolveJdText(dto, file);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_JD_MATCH);
     const targetRole = this.trimOrNull(dto.targetRole) ?? this.trimOrNull(cv.targetRole);
     const jd = await this.jobDescriptions.save(
       this.jobDescriptions.create({
@@ -95,6 +106,10 @@ export class CvMatchesService {
     );
 
     await this.scores.save(this.buildScoreRows(match.id, parsed));
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_JD_MATCH, {
+      sourceType: 'cv_match',
+      sourceId: match.id,
+    });
     return this.toResponse(match, jd, parsed);
   }
 
@@ -164,6 +179,26 @@ export class CvMatchesService {
       ? await this.jobDescriptions.findOne({ where: { id: match.jobDescriptionId } })
       : null;
     return this.toResponse(match, jd, this.reconstructParsedResponse(match));
+  }
+
+  async getGapReport(
+    userId: string,
+    matchId: string,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<SkillBridgeGapReport> {
+    const match = await this.matches.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('CV match not found');
+    await this.findOwnedCv(userId, match.cvId);
+    const parsed = this.reconstructParsedResponse(match);
+    if (!parsed) throw new NotFoundException('CV match not found');
+    if (!this.gapReport || !this.platformCvs) {
+      throw new Error('Gap report dependencies are not configured');
+    }
+    return this.gapReport.build({
+      match: parsed,
+      review: await this.platformCvs.getLatestReview(userId, match.cvId),
+      lang,
+    });
   }
 
   private async findOwnedCv(userId: string, cvId: string): Promise<CvEntity> {

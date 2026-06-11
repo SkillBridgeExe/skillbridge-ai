@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsWhere, Repository } from 'typeorm';
+import { DEFAULT_BILLING_FEATURE_PERIOD } from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
@@ -199,7 +200,7 @@ export class AdminBillingService {
         planCode: code,
         featureKey: feature.featureKey,
         limitValue: feature.limitValue,
-        period: feature.period ?? 'MONTHLY',
+        period: feature.period ?? DEFAULT_BILLING_FEATURE_PERIOD,
       }),
     );
     if (rows.length > 0) {

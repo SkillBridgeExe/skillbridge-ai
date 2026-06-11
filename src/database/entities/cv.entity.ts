@@ -40,6 +40,10 @@ export class CvEntity {
   @Column({ type: 'int', name: 'file_size', nullable: true })
   fileSize!: number | null;
 
+  @Index()
+  @Column({ type: 'varchar', name: 'content_hash', length: 64, nullable: true })
+  contentHash!: string | null;
+
   @Column({ type: 'text', name: 'file_url', nullable: true })
   fileUrl!: string | null;
 

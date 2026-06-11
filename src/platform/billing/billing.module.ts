@@ -11,7 +11,7 @@ import { UserSubscriptionEntity } from '../../database/entities/user-subscriptio
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from './admin-billing.service';
-import { BillingController } from './billing.controller';
+import { BillingController, MeEntitlementsController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
 import { PAYMENT_PROVIDER_PORTS } from './payment-providers/payment-provider.port';
@@ -34,7 +34,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
       UserEntity,
     ]),
   ],
-  controllers: [BillingController, AdminBillingController],
+  controllers: [BillingController, AdminBillingController, MeEntitlementsController],
   providers: [
     BillingService,
     AdminBillingService,

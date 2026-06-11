@@ -8,8 +8,10 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { createHash } from 'crypto';
 import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
@@ -17,6 +19,7 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { documentToPlainText } from '../../common/services/cv-document-text';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import {
@@ -32,6 +35,12 @@ import {
 import { RewriteRequestDto, RewriteResponseDto } from '../../modules/cv-builder/dto/rewrite.dto';
 import { CvReviewService } from '../../modules/cv-review/cv-review.service';
 import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
+import {
+  GithubEvidenceDto,
+  GithubEvidenceService,
+} from '../../modules/github-evidence/github-evidence.service';
+import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
+import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
@@ -43,6 +52,8 @@ const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_REAL_UPLOADS_PER_DAY = 10;
 const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
 const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
+const CV_REVIEW_PROMPT_CODE = 'cv_review_v1';
+const CV_REVIEW_PROMPT_VERSION = 1;
 const SUPPORTED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -71,6 +82,8 @@ export class CvsService {
     private readonly pdfRenderer: CvPdfRendererService,
     private readonly analysisQuota: CvAnalysisQuotaService,
     private readonly entitlements: EntitlementsService,
+    private readonly interviewPlan?: InterviewPlanService,
+    private readonly githubEvidence?: GithubEvidenceService,
   ) {}
 
   async create(
@@ -90,9 +103,19 @@ export class CvsService {
     if (generatedSource) {
       const [skills, review] = await Promise.all([
         this.getPersistedSkills(generatedSource.id),
-        this.getLatestPersistedReview(userId, generatedSource.id),
+        this.getLatestReview(userId, generatedSource.id),
       ]);
       return this.toResponse(generatedSource, skills, review);
+    }
+
+    const contentHash = this.sha256(file.buffer);
+    const duplicate = await this.findDuplicateContentHash(userId, contentHash);
+    if (duplicate) {
+      const [skills, review] = await Promise.all([
+        this.getPersistedSkills(duplicate.id),
+        this.getLatestReview(userId, duplicate.id),
+      ]);
+      return this.toResponse(duplicate, skills, review);
     }
 
     await this.enforceUploadQuota(userId);
@@ -122,6 +145,7 @@ export class CvsService {
           fileType: file.mimetype,
           fileSize: file.size,
           fileUrl: objectKey,
+          contentHash,
           parsedText: extracted.text,
           cvKind: 'UPLOADED',
           targetRole,
@@ -165,7 +189,7 @@ export class CvsService {
     const cv = await this.findOwnedCv(userId, cvId);
     const [skills, review] = await Promise.all([
       this.getPersistedSkills(cv.id),
-      this.getLatestPersistedReview(userId, cv.id),
+      this.getLatestReview(userId, cv.id),
     ]);
     return this.toResponse(cv, skills, review);
   }
@@ -199,6 +223,8 @@ export class CvsService {
       });
     }
 
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_CREATE);
+
     const language = dto.language ?? source?.language ?? source?.parsedJson?.language ?? 'en';
     const parsedJson = source?.parsedJson
       ? this.cloneDocument(source.parsedJson)
@@ -221,6 +247,10 @@ export class CvsService {
       }),
     );
 
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_CREATE, {
+      sourceType: 'cv',
+      sourceId: cv.id,
+    });
     return this.toResponse(cv, [], null);
   }
 
@@ -256,9 +286,9 @@ export class CvsService {
     dto: RewriteRequestDto,
   ): Promise<RewriteResponseDto> {
     await this.findOwnedCv(userId, cvId);
-    await this.entitlements.assertCanUse(userId, 'cv_builder_rewrite');
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
     const response = await this.rewriter.rewrite(dto);
-    await this.entitlements.recordUsage(userId, 'cv_builder_rewrite', {
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
       sourceType: 'cv',
       sourceId: cvId,
     });
@@ -274,18 +304,88 @@ export class CvsService {
         message: 'CV has no structured builder data to render',
       });
     }
-    return this.pdfRenderer.renderHarvardPdf(cv);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_RENDER_PDF);
+    const rendered = await this.pdfRenderer.renderHarvardPdf(cv);
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_RENDER_PDF, {
+      sourceType: 'cv',
+      sourceId: cv.id,
+    });
+    return rendered;
+  }
+
+  async getInterviewPlan(
+    userId: string,
+    cvId: string,
+    role: string | null | undefined,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<InterviewPlanResponseDto> {
+    const targetRole = this.normalizeTargetRole(role);
+    if (!targetRole) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'role query parameter is required',
+      });
+    }
+    await this.findOwnedCv(userId, cvId);
+    const review = await this.getLatestReview(userId, cvId);
+    if (!review) {
+      throw new NotFoundException({
+        errorCode: ERROR_CODES.NOT_FOUND,
+        message: 'Run CV diagnosis before generating an interview plan',
+      });
+    }
+    if (!this.interviewPlan) {
+      throw new Error('InterviewPlanService is not configured');
+    }
+
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.INTERVIEW_SESSION);
+    const response = await this.interviewPlan.generatePlan(userId, {
+      review,
+      target_role: targetRole,
+      lang,
+    });
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
+      sourceType: 'cv',
+      sourceId: cvId,
+    });
+    return response;
+  }
+
+  async getGithubEvidence(
+    userId: string,
+    cvId: string,
+    username: string,
+    consent: boolean,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<GithubEvidenceDto> {
+    await this.findOwnedCv(userId, cvId);
+    if (!this.githubEvidence) {
+      throw new Error('GithubEvidenceService is not configured');
+    }
+    return this.githubEvidence.build({
+      username,
+      consent,
+      review: await this.getLatestReview(userId, cvId),
+      lang,
+    });
   }
 
   async rerunReview(userId: string, cvId: string): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
-    if (!cv.parsedText) {
+    const parsedText = this.reviewableText(cv);
+    if (!parsedText) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.CV_PARSE_FAILED,
         message: 'CV has no parsed text to review',
       });
     }
 
+    const cached = await this.getLatestMatchingReview(userId, cv.id, cv.targetRole ?? null);
+    if (cached) {
+      return this.toResponse(cv, await this.getPersistedSkills(cv.id), cached);
+    }
+
+    cv.parsedText = parsedText;
     await this.analysisQuota.assertWithinDailyLimit(userId);
     const review = await this.reviewCv(userId, cv);
     await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
@@ -309,7 +409,7 @@ export class CvsService {
     const review = await this.cvReview.review(userId, {
       cv_id: cv.id,
       parsed_text: cv.parsedText,
-      prompt_template_code: 'cv_review_v1',
+      prompt_template_code: CV_REVIEW_PROMPT_CODE,
       target_role: effectiveTargetRole ?? undefined,
       mime_type: cv.fileType ?? undefined,
       is_ocr_only: cv.isOcrOnly,
@@ -403,9 +503,28 @@ export class CvsService {
     });
   }
 
-  private async getLatestPersistedReview(
+  async getLatestReview(userId: string, cvId: string): Promise<CvReviewParsedResponse | null> {
+    const rows = (await this.aiResults.manager.query(
+      `
+        SELECT ar.parsed_response
+        FROM ai_results ar
+        INNER JOIN ai_requests req ON req.id = ar.ai_request_id
+        WHERE ar.user_id = $1
+          AND ar.result_type = $2
+          AND req.request_payload -> 'payload' ->> 'cv_id' = $3
+        ORDER BY ar.created_at DESC
+        LIMIT 1
+      `,
+      [userId, BillingFeatureKey.CV_REVIEW, cvId],
+    )) as Array<{ parsed_response: CvReviewParsedResponse | null }>;
+
+    return rows[0]?.parsed_response ?? null;
+  }
+
+  private async getLatestMatchingReview(
     userId: string,
     cvId: string,
+    targetRole: string | null,
   ): Promise<CvReviewParsedResponse | null> {
     const rows = (await this.aiResults.manager.query(
       `
@@ -413,12 +532,22 @@ export class CvsService {
         FROM ai_results ar
         INNER JOIN ai_requests req ON req.id = ar.ai_request_id
         WHERE ar.user_id = $1
-          AND ar.result_type = 'cv_review'
-          AND req.request_payload -> 'payload' ->> 'cv_id' = $2
+          AND ar.result_type = $2
+          AND req.request_payload -> 'payload' ->> 'cv_id' = $3
+          AND ($4::text IS NULL OR req.request_payload -> 'payload' ->> 'target_role' = $4)
+          AND req.request_payload ->> 'prompt_template_code' = $5
+          AND (req.request_payload ->> 'prompt_template_version')::int = $6
         ORDER BY ar.created_at DESC
         LIMIT 1
       `,
-      [userId, cvId],
+      [
+        userId,
+        BillingFeatureKey.CV_REVIEW,
+        cvId,
+        targetRole,
+        CV_REVIEW_PROMPT_CODE,
+        CV_REVIEW_PROMPT_VERSION,
+      ],
     )) as Array<{ parsed_response: CvReviewParsedResponse | null }>;
 
     return rows[0]?.parsed_response ?? null;
@@ -450,6 +579,29 @@ export class CvsService {
     return this.cvs.findOne({
       where: { id: sourceCvId, userId, deletedAt: IsNull() },
     });
+  }
+
+  private async findDuplicateContentHash(
+    userId: string,
+    contentHash: string,
+  ): Promise<CvEntity | null> {
+    return this.cvs.findOne({
+      where: { userId, contentHash, deletedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private reviewableText(cv: CvEntity): string | null {
+    if (cv.parsedText?.trim()) return cv.parsedText;
+    if (cv.cvKind === 'BUILT' && cv.parsedJson) {
+      const text = documentToPlainText(cv.parsedJson);
+      return text.trim() ? text : null;
+    }
+    return null;
+  }
+
+  private sha256(buffer: Buffer): string {
+    return createHash('sha256').update(buffer).digest('hex');
   }
 
   private async enforceUploadQuota(userId: string): Promise<void> {

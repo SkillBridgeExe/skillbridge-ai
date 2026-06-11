@@ -142,3 +142,28 @@ export class CvMatchesController {
     return this.matches.getMatch(user.userId, cvId, matchId);
   }
 }
+
+@ApiTags('CV Matches')
+@ApiBearerAuth()
+@Public()
+@UseGuards(AuthGuard('jwt'))
+@Controller('api/cv-matches')
+export class CvMatchReportsController {
+  constructor(private readonly matches: CvMatchesService) {}
+
+  @Get(':matchId/gap-report')
+  @ApiOperation({ summary: 'Get the unified gap report for a persisted CV/JD match' })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  gapReport(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+    @Query('lang') lang?: string,
+  ) {
+    return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang));
+  }
+}
+
+function normalizeLang(value: string | undefined): 'vi' | 'en' {
+  return value === 'en' ? 'en' : 'vi';
+}

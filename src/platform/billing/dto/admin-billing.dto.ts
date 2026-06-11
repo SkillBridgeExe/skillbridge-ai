@@ -20,8 +20,10 @@ import {
 } from '../../../database/entities/billing-plan.entity';
 import {
   BILLING_FEATURE_KEYS,
+  BILLING_FEATURE_PERIODS,
   BillingFeatureKey,
-} from '../../../database/entities/plan-feature.entity';
+  BillingFeaturePeriod,
+} from '../../../common/constants/billing.constants';
 import {
   PaymentOrderPurpose,
   PaymentOrderStatus,
@@ -66,8 +68,8 @@ export class AdminBillingPlanFeatureInputDto {
   limitValue!: number;
 
   @IsOptional()
-  @IsIn(['MONTHLY'])
-  period?: 'MONTHLY';
+  @IsIn(BILLING_FEATURE_PERIODS)
+  period?: BillingFeaturePeriod;
 }
 
 export class CreateAdminBillingPlanDto {

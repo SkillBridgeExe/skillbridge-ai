@@ -5,7 +5,10 @@ import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
-import { CvMatchesController } from './cv-matches.controller';
+import { GapReportModule } from '../../modules/gap-report/gap-report.module';
+import { BillingModule } from '../billing/billing.module';
+import { CvsModule } from '../cvs/cvs.module';
+import { CvMatchReportsController, CvMatchesController } from './cv-matches.controller';
 import { CvMatchesService } from './cv-matches.service';
 import { JdTextExtractorService } from './jd-text-extractor.service';
 
@@ -13,8 +16,11 @@ import { JdTextExtractorService } from './jd-text-extractor.service';
   imports: [
     TypeOrmModule.forFeature([CvEntity, JobDescriptionEntity, CvMatchEntity, CvMatchScoreEntity]),
     CvJdMatchModule,
+    BillingModule,
+    GapReportModule,
+    CvsModule,
   ],
-  controllers: [CvMatchesController],
+  controllers: [CvMatchesController, CvMatchReportsController],
   providers: [CvMatchesService, JdTextExtractorService],
 })
 export class CvMatchesModule {}

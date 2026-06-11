@@ -8,6 +8,8 @@ import { SkillEntity } from '../../database/entities/skill.entity';
 import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
 import { CvReviewModule } from '../../modules/cv-review/cv-review.module';
+import { GithubEvidenceModule } from '../../modules/github-evidence/github-evidence.module';
+import { InterviewModule } from '../../modules/interview/interview.module';
 import { TracingModule } from '../../modules/tracing/tracing.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvPdfRendererService } from './cv-pdf-renderer.service';
@@ -30,6 +32,8 @@ import { TextExtractorService } from './text-extractor.service';
     StorageModule,
     CvReviewModule,
     CvBuilderModule,
+    InterviewModule,
+    GithubEvidenceModule,
     BillingModule,
     // Self-sufficient DI for CV analysis usage counting; @Global, so idempotent.
     TracingModule,
@@ -42,6 +46,6 @@ import { TextExtractorService } from './text-extractor.service';
     CvsRetentionService,
     CvAnalysisQuotaService,
   ],
-  exports: [CvsRetentionService],
+  exports: [CvsRetentionService, CvsService],
 })
 export class CvsModule {}

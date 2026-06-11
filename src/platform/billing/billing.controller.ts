@@ -73,3 +73,28 @@ export class BillingController {
     return this.billing.getUsage(user.userId);
   }
 }
+
+@ApiTags('Me')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'))
+@Controller('api/me')
+export class MeEntitlementsController {
+  constructor(private readonly billing: BillingService) {}
+
+  @Get('entitlements')
+  @ApiOperation({ summary: 'Get current user feature entitlements for quota display' })
+  async entitlements(@CurrentUser() user: JwtUser) {
+    const subscription = await this.billing.getUsage(user.userId);
+    return subscription.features.map((feature) => ({
+      feature: feature.featureKey,
+      used: feature.used,
+      limit: feature.limit,
+      period: feature.period,
+      remaining: feature.remaining,
+      unlimited: feature.unlimited,
+      allowed: feature.allowed,
+      resets_at: feature.resetsAt,
+    }));
+  }
+}
