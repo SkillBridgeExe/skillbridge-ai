@@ -287,7 +287,9 @@ export class CvsService {
   ): Promise<RewriteResponseDto> {
     await this.findOwnedCv(userId, cvId);
     await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
-    const response = await this.rewriter.rewrite(dto);
+    // Pass the authenticated user so the ai_requests trace attributes cost/tokens to them
+    // (anonymous traces are reserved for internal/calibration callers).
+    const response = await this.rewriter.rewrite(dto, userId);
     await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
       sourceType: 'cv',
       sourceId: cvId,
