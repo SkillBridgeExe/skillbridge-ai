@@ -58,6 +58,16 @@ When evidence is ambiguous, default to INTERMEDIATE.
 - **NOVICE**: "exposure to", "familiarity with", "willingness to learn"
 - **BEGINNER**: default for nice-to-have items
 
+### Anti-inflation rule (QUAN TRỌNG)
+
+- A BARE technology mention or list item ("SQL Server and PostgreSQL", "Docker, Git")
+  carries NO depth signal ⇒ OMIT `required_level_hint` entirely (the pipeline defaults
+  it to INTERMEDIATE). Being listed under "Requirements" makes a skill REQUIRED
+  (importance) — it does NOT make it ADVANCED (level). Those are different axes.
+- A depth qualifier applies ONLY to the skill it modifies: "strong C#, SQL Server"
+  ⇒ C# = ADVANCED, SQL Server = no hint. Never spread one qualifier across a list.
+- NEVER infer level from the job title or the role's seniority.
+
 ## Importance hint guide
 
 - **REQUIRED**: "must have", "required", "essential", or listed under "Requirements/Must-have"
