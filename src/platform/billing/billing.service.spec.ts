@@ -1,4 +1,9 @@
 import { Repository } from 'typeorm';
+import {
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+  BillingPlanCode,
+} from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
@@ -57,8 +62,90 @@ describe('BillingService reconcileOrder', () => {
       providers,
       settlement,
     ) as BillingService;
-    return { service, orders, provider, settlement };
+    return { service, plans, features, orders, provider, settlement };
   }
+
+  it('hides internal billing plans from the public plan list', async () => {
+    const { service, plans, features } = setup();
+    plans.find.mockResolvedValue([
+      {
+        code: BillingPlanCode.INTERNAL_QA,
+        name: 'Internal QA',
+        description: 'Unlimited internal testing plan',
+        category: 'SUBSCRIPTION',
+        interval: 'MONTHLY',
+        priceVnd: 0,
+        currency: 'VND',
+        metadata: { internal: true },
+      },
+      {
+        code: BillingPlanCode.FREE,
+        name: 'Free',
+        description: 'Free monthly starter plan',
+        category: 'SUBSCRIPTION',
+        interval: 'MONTHLY',
+        priceVnd: 0,
+        currency: 'VND',
+        metadata: null,
+      },
+      {
+        code: BillingPlanCode.PRO,
+        name: 'Pro',
+        description: 'Monthly AI career tools plan',
+        category: 'SUBSCRIPTION',
+        interval: 'MONTHLY',
+        priceVnd: 99000,
+        currency: 'VND',
+        metadata: null,
+      },
+    ]);
+    features.find.mockResolvedValue([
+      {
+        planCode: BillingPlanCode.INTERNAL_QA,
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: -1,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+      {
+        planCode: BillingPlanCode.FREE,
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 5,
+        period: BillingFeaturePeriod.DAILY,
+      },
+      {
+        planCode: BillingPlanCode.PRO,
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 30,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+    ]);
+
+    const result = await service.listPlans();
+
+    expect(result.map((plan) => plan.code)).toEqual([BillingPlanCode.FREE, BillingPlanCode.PRO]);
+    expect(result).toEqual([
+      expect.objectContaining({
+        code: BillingPlanCode.FREE,
+        features: [
+          {
+            featureKey: BillingFeatureKey.CV_REVIEW,
+            limit: 5,
+            period: BillingFeaturePeriod.DAILY,
+          },
+        ],
+      }),
+      expect.objectContaining({
+        code: BillingPlanCode.PRO,
+        features: [
+          {
+            featureKey: BillingFeatureKey.CV_REVIEW,
+            limit: 30,
+            period: BillingFeaturePeriod.MONTHLY,
+          },
+        ],
+      }),
+    ]);
+  });
 
   it('settles a paid provider snapshot for an order owned by the current user', async () => {
     const { service, orders, provider, settlement } = setup();

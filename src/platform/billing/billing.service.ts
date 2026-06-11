@@ -44,20 +44,22 @@ export class BillingService {
       current.push(feature);
       featuresByPlan.set(feature.planCode, current);
     }
-    return plans.map((plan) => ({
-      code: plan.code,
-      name: plan.name,
-      description: plan.description,
-      category: plan.category,
-      interval: plan.interval,
-      priceVnd: plan.priceVnd,
-      currency: plan.currency,
-      features: (featuresByPlan.get(plan.code) ?? []).map((feature) => ({
-        featureKey: feature.featureKey,
-        limit: feature.limitValue,
-        period: feature.period,
-      })),
-    }));
+    return plans
+      .filter((plan) => !isInternalPlan(plan))
+      .map((plan) => ({
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        category: plan.category,
+        interval: plan.interval,
+        priceVnd: plan.priceVnd,
+        currency: plan.currency,
+        features: (featuresByPlan.get(plan.code) ?? []).map((feature) => ({
+          featureKey: feature.featureKey,
+          limit: feature.limitValue,
+          period: feature.period,
+        })),
+      }));
   }
 
   createCheckout(userId: string, dto: CreateCheckoutDto) {
@@ -145,4 +147,11 @@ function isTerminalNonPaidStatus(
   status: string,
 ): status is Exclude<PaymentOrderStatus, 'PENDING' | 'PAID'> {
   return status === 'CANCELLED' || status === 'EXPIRED' || status === 'FAILED';
+}
+
+function isInternalPlan(plan: BillingPlanEntity): boolean {
+  const metadata = plan.metadata;
+  return Boolean(
+    metadata && typeof metadata === 'object' && 'internal' in metadata && metadata.internal,
+  );
 }
