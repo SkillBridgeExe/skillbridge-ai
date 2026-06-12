@@ -132,4 +132,66 @@ describe('SkillNormalizerService stage-0', () => {
   ])('normalizes the live-miss phrase "%s" → %s', (raw, canonical) => {
     expect(canonicals(raw)).toContain(canonical);
   });
+
+  // ── 7-role probe findings 2026-06-11 (strong on-target CVs losing credit) ──
+
+  // Paren-expansion: "A (B, C)" must credit A and every paren part that resolves.
+  it.each([
+    ['JavaScript (ES6+)', 'javascript'],
+    ['API testing (Postman)', 'api_testing'],
+    ['Advanced Excel (PivotTable, Power Query)', 'excel'],
+    ['Statistics (hypothesis testing, A/B testing)', 'statistics'],
+    ['English (IELTS 6.5)', 'english_proficiency'],
+    ['Computer vision (OpenCV)', 'computer_vision'],
+    ['NLP (Hugging Face Transformers)', 'nlp'],
+    ['Firebase (Auth, FCM, Crashlytics)', 'firebase'],
+    ['AWS (EC2, S3, RDS, IAM)', 'cloud_aws'],
+  ])('paren-expansion: "%s" → %s', (raw, canonical) => {
+    expect(canonicals(raw)).toContain(canonical);
+  });
+
+  it('paren-expansion credits BOTH head and resolvable paren parts', () => {
+    const out = canonicals('Linux (Ubuntu, Bash scripting)');
+    expect(out).toContain('linux');
+  });
+
+  // New token-qualifiers: trailing tool-words must not block a single known skill.
+  it.each([
+    ['Python scripting', 'python'],
+    ['Cypress E2E', 'frontend_testing'],
+  ])('qualifier tokens: "%s" → %s', (raw, canonical) => {
+    expect(canonicals(raw)).toContain(canonical);
+  });
+
+  // Alias additions — every row was dropped as not_in_taxonomy in the 7-role probe.
+  it.each([
+    ['Selenium WebDriver', 'test_automation'],
+    ['REST API integration', 'rest_api'],
+    ['REST API design', 'rest_api'],
+    ['Responsive web design', 'responsive_design'],
+    ['Database schema design', 'database_design'],
+    ['System design basics', 'system_design'],
+    ['Bug reporting', 'bug_tracking_jira'],
+    ['Espresso UI testing', 'mobile_testing'],
+    ['English', 'english_proficiency'],
+    ['Keras', 'pytorch_tensorflow'],
+    ['Express', 'node_js'],
+    ['Hugging Face', 'nlp'],
+    ['Advanced Excel', 'excel'],
+    ['A/B testing', 'statistics'],
+    ['Lighthouse performance tuning', 'web_performance'],
+    ['WCAG accessibility', 'accessibility_a11y'],
+  ])('probe alias: "%s" → %s', (raw, canonical) => {
+    expect(canonicals(raw)).toContain(canonical);
+  });
+
+  // Ownership MOVES (taxonomy mis-wiring): the canonical that NAMES the tool owns it.
+  it('moves "PyTorch"/"TensorFlow" to pytorch_tensorflow (was machine_learning — every AI/ML CV missed the L4 REQUIRED)', () => {
+    expect(canonicals('PyTorch')).toContain('pytorch_tensorflow');
+    expect(canonicals('TensorFlow')).toContain('pytorch_tensorflow');
+  });
+
+  it('moves "Jira" to bug_tracking_jira (was agile_scrum — QA/mobile CVs missed the REQUIRED tracker)', () => {
+    expect(canonicals('Jira')).toContain('bug_tracking_jira');
+  });
 });

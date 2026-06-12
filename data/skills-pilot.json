@@ -52,7 +52,8 @@
         "es2015",
         "vanilla js",
         "Lập trình JavaScript",
-        "ajax"
+        "ajax",
+        "es6+"
       ]
     },
     {
@@ -103,7 +104,8 @@
         "media queries",
         "thiết kế responsive",
         "thiết kế giao diện",
-        "thiet ke giao dien"
+        "thiet ke giao dien",
+        "responsive web design"
       ]
     },
     {
@@ -116,7 +118,8 @@
         "a11y",
         "web accessibility",
         "wcag",
-        "aria"
+        "aria",
+        "wcag accessibility"
       ]
     },
     {
@@ -129,7 +132,9 @@
         "lighthouse",
         "core web vitals",
         "performance optimization",
-        "tối ưu web"
+        "tối ưu web",
+        "lighthouse performance tuning",
+        "web performance optimization"
       ]
     },
     {
@@ -158,7 +163,8 @@
         "node.js",
         "express.js",
         "nestjs",
-        "npm"
+        "npm",
+        "express"
       ]
     },
     {
@@ -222,7 +228,10 @@
         "api design",
         "restful api design",
         "rest apis",
-        "thiết kế api"
+        "thiết kế api",
+        "rest api",
+        "rest api design",
+        "rest api integration"
       ]
     },
     {
@@ -287,7 +296,8 @@
         "db",
         "thiết kế cơ sở dữ liệu",
         "thiet ke co so du lieu",
-        "mô hình hóa dữ liệu"
+        "mô hình hóa dữ liệu",
+        "database schema design"
       ]
     },
     {
@@ -421,7 +431,8 @@
         "architecture design",
         "distributed systems",
         "scalability",
-        "thiết kế hệ thống"
+        "thiết kế hệ thống",
+        "system design basics"
       ]
     },
     {
@@ -436,7 +447,8 @@
         "swagger testing",
         "integration testing",
         "kiểm thử api",
-        "kiem thu api"
+        "kiem thu api",
+        "api testing"
       ]
     },
     {
@@ -448,7 +460,6 @@
       "aliases": [
         "scrum master",
         "sprint planning",
-        "jira",
         "kanban",
         "agile methodology",
         "agile",
@@ -470,7 +481,11 @@
         "spreadsheet",
         "google sheets",
         "pivot tables",
-        "vlookup"
+        "vlookup",
+        "advanced excel",
+        "power query",
+        "pivottable",
+        "pivot table"
       ]
     },
     {
@@ -545,7 +560,9 @@
         "statistical analysis",
         "regression",
         "hypothesis testing",
-        "thống kê"
+        "thống kê",
+        "a/b testing",
+        "ab testing"
       ]
     },
     {
@@ -572,8 +589,6 @@
       "aliases": [
         "ml",
         "scikit-learn",
-        "tensorflow",
-        "pytorch",
         "học máy",
         "ai",
         "artificial intelligence",
@@ -661,7 +676,9 @@
         "tiếng anh",
         "tiếng anh giao tiếp",
         "tieng anh giao tiep",
-        "giao tiếp tiếng anh"
+        "giao tiếp tiếng anh",
+        "english",
+        "english communication"
       ]
     },
     {
@@ -756,7 +773,8 @@
         "xctest",
         "appium",
         "detox",
-        "ui testing mobile"
+        "ui testing mobile",
+        "espresso ui testing"
       ]
     },
     {
@@ -769,7 +787,10 @@
         "bug tracking",
         "issue tracking",
         "defect management",
-        "test management"
+        "test management",
+        "jira",
+        "bug reporting",
+        "defect tracking"
       ]
     },
     {
@@ -873,7 +894,8 @@
         "kiem thu tu dong",
         "tự động hóa kiểm thử",
         "tu dong hoa kiem thu",
-        "writing automated test scripts"
+        "writing automated test scripts",
+        "selenium webdriver"
       ]
     },
     {
@@ -898,7 +920,10 @@
       "aliases": [
         "tf",
         "deep learning frameworks",
-        "deep learning libs"
+        "deep learning libs",
+        "pytorch",
+        "tensorflow",
+        "keras"
       ]
     },
     {
@@ -1545,7 +1570,9 @@
         "ner",
         "xử lý ngôn ngữ tự nhiên",
         "xu ly ngon ngu tu nhien",
-        "natural language understanding"
+        "natural language understanding",
+        "hugging face",
+        "huggingface"
       ],
       "role_relevance": [
         {
