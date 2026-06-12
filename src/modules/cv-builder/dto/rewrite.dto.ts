@@ -108,6 +108,23 @@ export class RewriteRequestDto {
   @IsIn(BUILDER_SECTIONS)
   section?: BuilderSection;
 
+  /**
+   * Opaque regenerate token. The first suggestion for a field sends none (cacheable —
+   * re-opening the same field is free). An explicit "Viết lại / Tạo lại" click sends a
+   * changing value so the cache key differs → a FRESH suggestion at a higher temperature,
+   * instead of the byte-identical cached sentence. Mixed into the cache key only; never
+   * rendered into the prompt.
+   */
+  @ApiPropertyOptional({
+    example: '1',
+    maxLength: 16,
+    description: 'Opaque token to force a fresh suggestion on explicit regenerate.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  variant?: string;
+
   /** Required for mode='tailor' — the checklist item; the INSTRUCTION is built server-side. */
   @ApiPropertyOptional({ type: TailorActionInputDto })
   @IsOptional()
