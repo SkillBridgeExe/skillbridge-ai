@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
@@ -14,7 +15,13 @@ import { JdTextExtractorService } from './jd-text-extractor.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CvEntity, JobDescriptionEntity, CvMatchEntity, CvMatchScoreEntity]),
+    TypeOrmModule.forFeature([
+      CvEntity,
+      JobDescriptionEntity,
+      CvMatchEntity,
+      CvMatchScoreEntity,
+      AiResultEntity,
+    ]),
     CvJdMatchModule,
     BillingModule,
     GapReportModule,

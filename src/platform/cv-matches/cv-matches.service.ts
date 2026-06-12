@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
@@ -36,6 +37,8 @@ export class CvMatchesService {
     @InjectRepository(CvMatchEntity) private readonly matches: Repository<CvMatchEntity>,
     @InjectRepository(CvMatchScoreEntity)
     private readonly scores: Repository<CvMatchScoreEntity>,
+    @InjectRepository(AiResultEntity)
+    private readonly aiResults: Repository<AiResultEntity>,
     private readonly extractor: JdTextExtractorService,
     private readonly matcher: CvJdMatchService,
     private readonly entitlements: EntitlementsService,
@@ -178,7 +181,7 @@ export class CvMatchesService {
     const jd = match.jobDescriptionId
       ? await this.jobDescriptions.findOne({ where: { id: match.jobDescriptionId } })
       : null;
-    return this.toResponse(match, jd, this.reconstructParsedResponse(match));
+    return this.toResponse(match, jd, await this.resolveParsedResponse(match));
   }
 
   async getGapReport(
@@ -189,7 +192,7 @@ export class CvMatchesService {
     const match = await this.matches.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('CV match not found');
     await this.findOwnedCv(userId, match.cvId);
-    const parsed = this.reconstructParsedResponse(match);
+    const parsed = await this.resolveParsedResponse(match);
     if (!parsed) throw new NotFoundException('CV match not found');
     if (!this.gapReport || !this.platformCvs) {
       throw new Error('Gap report dependencies are not configured');
@@ -284,6 +287,27 @@ export class CvMatchesService {
         : null,
       createdAt: match.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * Read-path parsed response: prefer the FULL-FIDELITY ai_results.parsed_response (the
+   * exact object the AI module produced — keeps target_role, rubric_band,
+   * source_of_requirements, keyword_frequency...). The denormalized match columns are a
+   * lossy projection; reconstruction from them is only a fallback for legacy rows
+   * (pre-aiResultId) or a pruned ai_results table. Hardcoding target_role=null in that
+   * fallback was the prod bug that made gap-report market position return NO_ROLE.
+   */
+  private async resolveParsedResponse(
+    match: CvMatchEntity,
+  ): Promise<CvJdMatchParsedResponse | null> {
+    if (match.aiResultId) {
+      const row = await this.aiResults.findOne({ where: { id: match.aiResultId } });
+      const parsed = row?.parsedResponse;
+      if (parsed && typeof parsed === 'object') {
+        return parsed as CvJdMatchParsedResponse;
+      }
+    }
+    return this.reconstructParsedResponse(match);
   }
 
   private reconstructParsedResponse(match: CvMatchEntity): CvJdMatchParsedResponse | null {

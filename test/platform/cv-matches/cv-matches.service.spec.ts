@@ -61,6 +61,9 @@ describe('CvMatchesService', () => {
       create: jest.fn((input) => input),
       save: jest.fn(async (input) => input),
     };
+    const aiResultsRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
     const extractor = {
       extract: jest.fn().mockResolvedValue('Extracted JD text'),
     };
@@ -99,6 +102,7 @@ describe('CvMatchesService', () => {
       jobDescriptionsRepo as never,
       matchesRepo as never,
       scoresRepo as never,
+      aiResultsRepo as never,
       extractor as never,
       matcher as never,
       entitlements as never,
@@ -112,6 +116,7 @@ describe('CvMatchesService', () => {
       jobDescriptionsRepo,
       matchesRepo,
       scoresRepo,
+      aiResultsRepo,
       extractor,
       matcher,
       entitlements,
@@ -293,4 +298,88 @@ describe('CvMatchesService', () => {
 
     expect(gapReport.build).not.toHaveBeenCalled();
   });
+
+  /**
+   * T9 — parsed-response passthrough. The denormalized match columns (strengths/weaknesses/
+   * suggestions) are LOSSY: reconstructing from them hardcodes target_role=null +
+   * source_of_requirements='jd_extraction', so every read-path consumer (gap report → market
+   * position) saw NO_ROLE even when the match was scored against a role rubric. The
+   * full-fidelity parsed_response lives in ai_results — reads must prefer it and only fall
+   * back to reconstruction for legacy rows.
+   */
+  describe('parsed-response passthrough (T9)', () => {
+    const fullParsed = {
+      ...parsedResponse,
+      source_of_requirements: 'role_rubric' as const,
+      target_role: 'backend_developer',
+      rubric_band: 'fresher' as const,
+    };
+    const storedMatch = {
+      id: 'match-1',
+      cvId: 'cv-1',
+      jobDescriptionId: null,
+      aiResultId: 'ai-result-1',
+      overallScore: '82.00',
+      semanticScore: '70.00',
+      ruleEngineScore: '80.00',
+      strengths: [],
+      weaknesses: [],
+      suggestions: { scoring_breakdown: parsedResponse.scoring_breakdown },
+      createdAt: now,
+    };
+
+    it('gap report feeds the FULL ai_results parsed_response (target_role, rubric_band) to the builder', async () => {
+      const { service, matchesRepo, aiResultsRepo, gapReport } = build();
+      matchesRepo.findOne.mockResolvedValue(storedMatch);
+      aiResultsRepo.findOne.mockResolvedValue({ id: 'ai-result-1', parsedResponse: fullParsed });
+
+      await service.getGapReport('user-1', 'match-1', 'vi');
+
+      expect(aiResultsRepo.findOne).toHaveBeenCalledWith({ where: { id: 'ai-result-1' } });
+      expect(gapReport.build).toHaveBeenCalledWith(
+        expect.objectContaining({
+          match: expect.objectContaining({
+            target_role: 'backend_developer',
+            rubric_band: 'fresher',
+            source_of_requirements: 'role_rubric',
+          }),
+        }),
+      );
+    });
+
+    it('getMatch returns the stored parsed_response instead of the lossy reconstruction', async () => {
+      const { service, matchesRepo, aiResultsRepo } = build();
+      matchesRepo.findOne.mockResolvedValue(storedMatch);
+      aiResultsRepo.findOne.mockResolvedValue({ id: 'ai-result-1', parsedResponse: fullParsed });
+
+      const response = await service.getMatch('user-1', 'cv-1', 'match-1');
+
+      expect(response.parsedResponse).toEqual(fullParsed);
+    });
+
+    it('falls back to reconstruction for legacy matches without an aiResultId', async () => {
+      const { service, matchesRepo, aiResultsRepo, gapReport } = build();
+      matchesRepo.findOne.mockResolvedValue({ ...storedMatch, aiResultId: null });
+
+      await service.getGapReport('user-1', 'match-1', 'vi');
+
+      expect(aiResultsRepo.findOne).not.toHaveBeenCalled();
+      expect(gapReport.build).toHaveBeenCalledWith(
+        expect.objectContaining({ match: expect.objectContaining({ overall_score: 82 }) }),
+      );
+    });
+
+    it('falls back to reconstruction when the ai_results row is gone or empty', async () => {
+      const { service, matchesRepo, aiResultsRepo, gapReport } = build();
+      matchesRepo.findOne.mockResolvedValue(storedMatch);
+      aiResultsRepo.findOne.mockResolvedValue({ id: 'ai-result-1', parsedResponse: null });
+
+      await service.getGapReport('user-1', 'match-1', 'vi');
+
+      expect(gapReport.build).toHaveBeenCalledWith(
+        expect.objectContaining({ match: expect.objectContaining({ overall_score: 82 }) }),
+      );
+    });
+  });
+
 });
