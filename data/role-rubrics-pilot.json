@@ -10,168 +10,665 @@
     "Every skill_id referenced here must exist in skills-pilot.json (by canonical_name).",
     "required_level must be 1-5 (matches user_skills.level convention)."
   ],
-
   "role_rubrics": {
     "frontend_developer": {
       "display_name_vi": "Lập trình viên Frontend",
       "display_name_en": "Frontend Developer",
       "description": "Builds user-facing web applications using HTML, CSS, JavaScript, and modern frameworks like React.",
       "skills": [
-        { "skill_canonical_name": "html",                  "required_level": 3, "importance": "REQUIRED",     "weight": 0.08 },
-        { "skill_canonical_name": "css",                   "required_level": 4, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "javascript",            "required_level": 4, "importance": "REQUIRED",     "weight": 0.15 },
-        { "skill_canonical_name": "typescript",            "required_level": 3, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "react",                 "required_level": 4, "importance": "REQUIRED",     "weight": 0.18 },
-        { "skill_canonical_name": "responsive_design",     "required_level": 3, "importance": "REQUIRED",     "weight": 0.08 },
-        { "skill_canonical_name": "git",                   "required_level": 3, "importance": "REQUIRED",     "weight": 0.07 },
-        { "skill_canonical_name": "web_performance",       "required_level": 2, "importance": "PREFERRED",    "weight": 0.06 },
-        { "skill_canonical_name": "accessibility_a11y",    "required_level": 2, "importance": "PREFERRED",    "weight": 0.05 },
-        { "skill_canonical_name": "frontend_testing",      "required_level": 2, "importance": "PREFERRED",    "weight": 0.07 },
-        { "skill_canonical_name": "nextjs",                "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 },
-        { "skill_canonical_name": "communication",         "required_level": 3, "importance": "REQUIRED",     "weight": 0.02 }
+        {
+          "skill_canonical_name": "html",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "css",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "javascript",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.15
+        },
+        {
+          "skill_canonical_name": "typescript",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "react",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.18
+        },
+        {
+          "skill_canonical_name": "responsive_design",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "web_performance",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "accessibility_a11y",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "frontend_testing",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "nextjs",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "backend_developer": {
       "display_name_vi": "Lập trình viên Backend",
       "display_name_en": "Backend Developer",
       "description": "Builds server-side APIs, business logic, and data persistence layers. Language flexible (Node.js / .NET / Java).",
       "skills": [
-        { "skill_canonical_name": "node_js",                       "required_level": 3, "importance": "PREFERRED",    "weight": 0.08 },
-        { "skill_canonical_name": "dotnet",                        "required_level": 3, "importance": "NICE_TO_HAVE", "weight": 0.05 },
-        { "skill_canonical_name": "sql",                           "required_level": 4, "importance": "REQUIRED",     "weight": 0.15 },
-        { "skill_canonical_name": "rest_api",                      "required_level": 4, "importance": "REQUIRED",     "weight": 0.13 },
-        { "skill_canonical_name": "database_design",               "required_level": 3, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "authentication_authorization",  "required_level": 3, "importance": "REQUIRED",     "weight": 0.10 },
-        { "skill_canonical_name": "nosql",                         "required_level": 2, "importance": "PREFERRED",    "weight": 0.06 },
-        { "skill_canonical_name": "caching",                       "required_level": 2, "importance": "PREFERRED",    "weight": 0.06 },
-        { "skill_canonical_name": "docker",                        "required_level": 2, "importance": "PREFERRED",    "weight": 0.06 },
-        { "skill_canonical_name": "git",                           "required_level": 3, "importance": "REQUIRED",     "weight": 0.08 },
-        { "skill_canonical_name": "api_testing",                   "required_level": 2, "importance": "PREFERRED",    "weight": 0.06 },
-        { "skill_canonical_name": "linux",                         "required_level": 2, "importance": "PREFERRED",    "weight": 0.05 },
-        { "skill_canonical_name": "communication",                 "required_level": 3, "importance": "REQUIRED",     "weight": 0.02 }
+        {
+          "skill_canonical_name": "node_js",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "dotnet",
+          "required_level": 3,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.15
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.13
+        },
+        {
+          "skill_canonical_name": "database_design",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "nosql",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "caching",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "api_testing",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "linux",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "fullstack_developer": {
       "display_name_vi": "Lập trình viên Fullstack",
       "display_name_en": "Fullstack Developer",
       "description": "Builds end-to-end web applications, comfortable on both frontend and backend stacks.",
       "skills": [
-        { "skill_canonical_name": "html",                          "required_level": 3, "importance": "REQUIRED",  "weight": 0.05 },
-        { "skill_canonical_name": "css",                           "required_level": 3, "importance": "REQUIRED",  "weight": 0.05 },
-        { "skill_canonical_name": "javascript",                    "required_level": 4, "importance": "REQUIRED",  "weight": 0.10 },
-        { "skill_canonical_name": "typescript",                    "required_level": 3, "importance": "REQUIRED",  "weight": 0.07 },
-        { "skill_canonical_name": "react",                         "required_level": 3, "importance": "REQUIRED",  "weight": 0.10 },
-        { "skill_canonical_name": "node_js",                       "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
-        { "skill_canonical_name": "sql",                           "required_level": 3, "importance": "REQUIRED",  "weight": 0.12 },
-        { "skill_canonical_name": "rest_api",                      "required_level": 4, "importance": "REQUIRED",  "weight": 0.13 },
-        { "skill_canonical_name": "database_design",               "required_level": 3, "importance": "REQUIRED",  "weight": 0.08 },
-        { "skill_canonical_name": "authentication_authorization",  "required_level": 3, "importance": "REQUIRED",  "weight": 0.07 },
-        { "skill_canonical_name": "git",                           "required_level": 3, "importance": "REQUIRED",  "weight": 0.05 },
-        { "skill_canonical_name": "docker",                        "required_level": 2, "importance": "PREFERRED", "weight": 0.04 },
-        { "skill_canonical_name": "system_design",                 "required_level": 2, "importance": "PREFERRED", "weight": 0.02 },
-        { "skill_canonical_name": "communication",                 "required_level": 3, "importance": "REQUIRED",  "weight": 0.02 }
+        {
+          "skill_canonical_name": "html",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "css",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "javascript",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "typescript",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "react",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "node_js",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.13
+        },
+        {
+          "skill_canonical_name": "database_design",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "system_design",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.02
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "data_analyst": {
       "display_name_vi": "Chuyên viên Phân tích Dữ liệu",
       "display_name_en": "Data Analyst",
       "description": "Extracts insights from data using SQL, Excel, Python, and visualization tools. Communicates findings to stakeholders.",
       "skills": [
-        { "skill_canonical_name": "sql",                  "required_level": 4, "importance": "REQUIRED",  "weight": 0.20 },
-        { "skill_canonical_name": "excel",                "required_level": 4, "importance": "REQUIRED",  "weight": 0.15 },
-        { "skill_canonical_name": "python",               "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
-        { "skill_canonical_name": "pandas",               "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
-        { "skill_canonical_name": "data_visualization",   "required_level": 3, "importance": "REQUIRED",  "weight": 0.10 },
-        { "skill_canonical_name": "statistics",           "required_level": 3, "importance": "REQUIRED",  "weight": 0.10 },
-        { "skill_canonical_name": "tableau",              "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
-        { "skill_canonical_name": "power_bi",             "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
-        { "skill_canonical_name": "communication",        "required_level": 4, "importance": "REQUIRED",  "weight": 0.05 },
-        { "skill_canonical_name": "problem_solving",      "required_level": 4, "importance": "REQUIRED",  "weight": 0.04 },
-        { "skill_canonical_name": "critical_thinking",    "required_level": 3, "importance": "REQUIRED",  "weight": 0.02 }
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.2
+        },
+        {
+          "skill_canonical_name": "excel",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.15
+        },
+        {
+          "skill_canonical_name": "python",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "pandas",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "data_visualization",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "statistics",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "tableau",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "power_bi",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "critical_thinking",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "mobile_developer": {
       "display_name_vi": "Lập trình viên Mobile",
       "display_name_en": "Mobile Developer",
       "description": "Builds native (Swift/iOS, Kotlin/Android) and cross-platform (Flutter, React Native) mobile apps, integrating REST APIs and backend services such as Firebase.",
       "skills": [
-        { "skill_canonical_name": "swift", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "kotlin", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "flutter", "required_level": 3, "importance": "PREFERRED", "weight": 0.11 },
-        { "skill_canonical_name": "react_native", "required_level": 3, "importance": "PREFERRED", "weight": 0.11 },
-        { "skill_canonical_name": "rest_api", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "firebase", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "mobile_testing", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "git", "required_level": 3, "importance": "REQUIRED", "weight": 0.07 },
-        { "skill_canonical_name": "authentication_authorization", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
-        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.04 },
-        { "skill_canonical_name": "bug_tracking_jira", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.03 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 },
-        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+        {
+          "skill_canonical_name": "swift",
+          "any_of": [
+            "swift",
+            "kotlin"
+          ],
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.18
+        },
+        {
+          "skill_canonical_name": "swift",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "kotlin",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "flutter",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.11
+        },
+        {
+          "skill_canonical_name": "react_native",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.11
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "firebase",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "mobile_testing",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "bug_tracking_jira",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "english_proficiency",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "devops_engineer": {
       "display_name_vi": "Kỹ sư DevOps",
       "display_name_en": "DevOps Engineer",
       "description": "Builds and operates automated infrastructure and CI/CD pipelines using Docker, Kubernetes, Terraform/IaC and cloud platforms; ensures reliability via monitoring and logging.",
       "skills": [
-        { "skill_canonical_name": "docker", "required_level": 4, "importance": "REQUIRED", "weight": 0.12 },
-        { "skill_canonical_name": "kubernetes", "required_level": 4, "importance": "REQUIRED", "weight": 0.11 },
-        { "skill_canonical_name": "ci_cd", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "cloud_aws", "required_level": 3, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "infrastructure_as_code", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "linux", "required_level": 4, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "monitoring_logging", "required_level": 3, "importance": "PREFERRED", "weight": 0.09 },
-        { "skill_canonical_name": "python", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
-        { "skill_canonical_name": "networking", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
-        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
-        { "skill_canonical_name": "system_design", "required_level": 3, "importance": "NICE_TO_HAVE", "weight": 0.04 },
-        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.03 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "kubernetes",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.11
+        },
+        {
+          "skill_canonical_name": "ci_cd",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "cloud_aws",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "infrastructure_as_code",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "linux",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "monitoring_logging",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.09
+        },
+        {
+          "skill_canonical_name": "python",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "networking",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "system_design",
+          "required_level": 3,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.02
+        }
       ]
     },
-
     "qa_tester": {
       "display_name_vi": "Chuyên viên Kiểm thử Phần mềm",
       "display_name_en": "QA Engineer / Tester",
       "description": "Ensures software quality through manual and automated testing, API and database testing, test case design and defect tracking.",
       "skills": [
-        { "skill_canonical_name": "manual_testing", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
-        { "skill_canonical_name": "test_automation", "required_level": 3, "importance": "REQUIRED", "weight": 0.15 },
-        { "skill_canonical_name": "bug_tracking_jira", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
-        { "skill_canonical_name": "api_testing", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
-        { "skill_canonical_name": "database_testing", "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
-        { "skill_canonical_name": "sql", "required_level": 3, "importance": "PREFERRED", "weight": 0.10 },
-        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.08 },
-        { "skill_canonical_name": "agile_scrum", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.05 },
-        { "skill_canonical_name": "git", "required_level": 2, "importance": "PREFERRED", "weight": 0.03 },
-        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "PREFERRED", "weight": 0.01 }
+        {
+          "skill_canonical_name": "manual_testing",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.18
+        },
+        {
+          "skill_canonical_name": "test_automation",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.15
+        },
+        {
+          "skill_canonical_name": "bug_tracking_jira",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "api_testing",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "database_testing",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "agile_scrum",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "english_proficiency",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.01
+        }
       ]
     },
-
     "ai_ml_engineer": {
       "display_name_vi": "Kỹ sư AI/ML",
       "display_name_en": "AI/ML Engineer",
       "description": "Designs, trains and ships machine learning models using Python, PyTorch and TensorFlow, with strong statistics and data preprocessing.",
       "skills": [
-        { "skill_canonical_name": "python", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
-        { "skill_canonical_name": "pytorch_tensorflow", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "machine_learning", "required_level": 4, "importance": "REQUIRED", "weight": 0.13 },
-        { "skill_canonical_name": "statistics", "required_level": 4, "importance": "REQUIRED", "weight": 0.12 },
-        { "skill_canonical_name": "sql", "required_level": 3, "importance": "REQUIRED", "weight": 0.10 },
-        { "skill_canonical_name": "pandas", "required_level": 3, "importance": "PREFERRED", "weight": 0.09 },
-        { "skill_canonical_name": "data_preprocessing", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.06 },
-        { "skill_canonical_name": "docker", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
-        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.04 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "PREFERRED", "weight": 0.02 },
-        { "skill_canonical_name": "critical_thinking", "required_level": 3, "importance": "NICE_TO_HAVE", "weight": 0.01 }
+        {
+          "skill_canonical_name": "python",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.16
+        },
+        {
+          "skill_canonical_name": "pytorch_tensorflow",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.14
+        },
+        {
+          "skill_canonical_name": "machine_learning",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.13
+        },
+        {
+          "skill_canonical_name": "statistics",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "pandas",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.09
+        },
+        {
+          "skill_canonical_name": "data_preprocessing",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.04
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.02
+        },
+        {
+          "skill_canonical_name": "critical_thinking",
+          "required_level": 3,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.01
+        }
       ]
     }
   }

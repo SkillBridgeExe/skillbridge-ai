@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { RubricBand } from '../../../common/services/role-rubric.service';
 
 export class CvJdMatchRequestDto {
   @IsUUID()
@@ -40,4 +41,13 @@ export class CvJdMatchRequestDto {
   @IsOptional()
   @IsString()
   target_role?: string;
+
+  /**
+   * Seniority yardstick for the RUBRIC path (spec 2026-06-11). Omitted ⇒ the service
+   * defaults to 'fresher' (the product's audience). The JD path ignores it entirely —
+   * the employer's bar is nobody's to lower.
+   */
+  @IsOptional()
+  @IsIn(['intern', 'fresher', 'mid'])
+  target_band?: RubricBand;
 }

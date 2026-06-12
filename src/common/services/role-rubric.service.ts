@@ -4,11 +4,27 @@ import * as path from 'path';
 
 export type Importance = 'REQUIRED' | 'PREFERRED' | 'NICE_TO_HAVE';
 
+/**
+ * Seniority bands (spec 2026-06-11, user-approved): the curated rubric is a MID-LEVEL
+ * yardstick; lower bands shift every required_level down by a fixed offset (clamped 1-5).
+ * Band selection is ALWAYS caller-supplied — never inferred from the CV (a weak CV picking
+ * itself an easier yardstick is a self-serving loop; adding experience would LOWER scores).
+ */
+export type RubricBand = 'intern' | 'fresher' | 'mid';
+export const BAND_OFFSET: Record<RubricBand, number> = { intern: -2, fresher: -1, mid: 0 };
+
 export interface RoleSkillRequirement {
   skill_canonical_name: string;
   required_level: number; // 1-5
   importance: Importance;
   weight: number; // 0-1, sum per role ≈ 1.00
+  /**
+   * OR-group: this single requirement is satisfied by ANY listed member (e.g. a mobile
+   * dev needs swift OR kotlin at L4 — demanding both punished single-platform devs).
+   * When set, skill_canonical_name is the group's first member (kept canonical-valid);
+   * the diff displays the joined member names when the whole group is missing.
+   */
+  any_of?: string[];
 }
 
 export interface RoleRubric {
@@ -98,8 +114,25 @@ export class RoleRubricService implements OnModuleInit {
     }
   }
 
-  getRubric(roleCode: string): RoleRubric | null {
-    return this.rubrics.get(roleCode) ?? null;
+  /** Banded rubrics are derived + cached per (role, band); 'mid' returns the base as-is. */
+  private bandCache: Map<string, RoleRubric> = new Map();
+
+  getRubric(roleCode: string, band: RubricBand = 'mid'): RoleRubric | null {
+    const base = this.rubrics.get(roleCode) ?? null;
+    if (!base || band === 'mid') return base;
+    const key = `${roleCode}::${band}`;
+    const cached = this.bandCache.get(key);
+    if (cached) return cached;
+    const offset = BAND_OFFSET[band];
+    const banded: RoleRubric = {
+      ...base,
+      skills: base.skills.map((s) => ({
+        ...s,
+        required_level: Math.max(1, Math.min(5, s.required_level + offset)),
+      })),
+    };
+    this.bandCache.set(key, banded);
+    return banded;
   }
 
   listRoleCodes(): string[] {

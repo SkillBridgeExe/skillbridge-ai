@@ -67,6 +67,8 @@ export interface CvJdMatchParsedResponse {
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';
   /** Echo of target_role if rubric was used. */
   target_role: string | null;
+  /** Seniority yardstick applied (rubric path only; null khi JD đặt thước). UI phải hiện nhãn. */
+  rubric_band?: 'intern' | 'fresher' | 'mid' | null;
 }
 
 export interface CvJdMatchResponseDto {

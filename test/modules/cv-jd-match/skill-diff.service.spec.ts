@@ -360,3 +360,100 @@ describe('SkillDiffService — satisfies credit (child counts as parent)', () =>
     expect(res.bonus_skills.find((b) => b.canonical_name === 'redis')).toBeDefined();
   });
 });
+
+/**
+ * Seniority-band v1 (spec 2026-06-11): bands shift the RUBRIC yardstick only.
+ * JD path NEVER applies a band (the employer's bar is nobody's to lower).
+ */
+describe('SkillDiffService — seniority bands + OR-group', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  const jsCv = (hint: string): RawCvSkill[] => [
+    { name: 'JavaScript', proficiency_hint: hint },
+    { name: 'HTML', proficiency_hint: 'ADVANCED' },
+    { name: 'CSS', proficiency_hint: 'ADVANCED' },
+  ];
+
+  it('fresher band turns an L3-vs-L4 partial into a match on the rubric path', () => {
+    const mid = diff.diff({
+      cv_skills_raw: jsCv('INTERMEDIATE'),
+      target_role: 'frontend_developer',
+    });
+    const fresher = diff.diff({
+      cv_skills_raw: jsCv('INTERMEDIATE'),
+      target_role: 'frontend_developer',
+      target_band: 'fresher',
+    });
+    const jsMid = [...mid.partial_skills].find((x) => x.canonical_name === 'javascript');
+    const jsFresher = fresher.matched_skills.find((x) => x.canonical_name === 'javascript');
+    expect(jsMid).toBeDefined(); // cv3 vs req4 @mid = partial
+    expect(jsFresher).toBeDefined(); // cv3 vs req3 @fresher = matched
+    expect(fresher.overall_score).toBeGreaterThan(mid.overall_score);
+  });
+
+  it('reports rubric_band on the rubric path and null on the JD path', () => {
+    const rubric = diff.diff({
+      cv_skills_raw: jsCv('ADVANCED'),
+      target_role: 'frontend_developer',
+      target_band: 'fresher',
+    });
+    expect(rubric.rubric_band).toBe('fresher');
+
+    const jd = diff.diff({
+      cv_skills_raw: jsCv('ADVANCED'),
+      jd_requirements_raw: [{ name: 'JavaScript', importance_hint: 'REQUIRED' }],
+      target_role: 'frontend_developer',
+      target_band: 'intern',
+    });
+    expect(jd.requirements_source).toBe('jd_extraction');
+    expect(jd.rubric_band).toBeNull();
+    // JD requirement level is UNTOUCHED by the band (default INTERMEDIATE=3 stays 3)
+    const js = [...jd.matched_skills, ...jd.partial_skills].find(
+      (x) => x.canonical_name === 'javascript',
+    );
+    expect(js?.required_level).toBe(3);
+  });
+
+  it('omitted band defaults to mid (back-compat: 24 eval pairs unchanged)', () => {
+    const res = diff.diff({ cv_skills_raw: jsCv('ADVANCED'), target_role: 'frontend_developer' });
+    expect(res.rubric_band).toBe('mid');
+  });
+
+  it('OR-group: a Kotlin-only CV satisfies the swift|kotlin REQUIRED group at its kotlin level', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'Kotlin', proficiency_hint: 'ADVANCED' }],
+      target_role: 'mobile_developer',
+    });
+    const group = res.matched_skills.find(
+      (x) => x.canonical_name === 'kotlin' && x.required_level === 4,
+    );
+    expect(group).toBeDefined(); // group matched via the kotlin member at L4
+    // swift must NOT appear as an L4 REQUIRED missing anymore
+    const swiftL4Missing = res.missing_skills.find(
+      (x) => x.canonical_name === 'swift' && x.required_level === 4,
+    );
+    expect(swiftL4Missing).toBeUndefined();
+  });
+
+  it('OR-group missing entirely shows the joined display name', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'Git', proficiency_hint: 'ADVANCED' }],
+      target_role: 'mobile_developer',
+    });
+    const group = res.missing_skills.find(
+      (x) => x.display_name.includes('/') && x.required_level === 4,
+    );
+    expect(group).toBeDefined();
+    expect(group?.display_name).toContain('Swift');
+    expect(group?.display_name).toContain('Kotlin');
+  });
+});
