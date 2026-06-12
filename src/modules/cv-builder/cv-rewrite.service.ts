@@ -37,9 +37,10 @@ export function buildTailorInstruction(
  *    post-check verifies the suggestion did not INVENT a number/percent that was not in the
  *    input (the most damaging hallucination on a CV). If it did, we fall back to the original
  *    text + flag `fallback` rather than ship a fabricated metric.
- *  - Cached by hash(text|mode|target_lang|instruction|role) so re-clicking "Viết lại" on the
- *    SAME input is free; "Viết lại" with intent to vary is a different call only if input changed
- *    (the FE's regenerate sends the same input → same suggestion, which is acceptable & cheap).
+ *  - Cached by hash(text|mode|target_lang|instruction|role|section|variant). Re-opening a field
+ *    (same input, no variant) is free. An explicit "Viết lại / Tạo lại" sends a changing `variant`
+ *    → cache miss → a FRESH suggestion sampled at a higher temperature, so regenerate actually
+ *    varies instead of returning the byte-identical cached sentence.
  */
 @Injectable()
 export class CvRewriteService {
@@ -141,7 +142,13 @@ export class CvRewriteService {
           { role: 'user', content: userPrompt },
         ],
         // 1024 gives a summary/translate rewrite clear headroom (512 could truncate a paragraph).
-        { provider: 'openai', temperature: 0.3, maxOutputTokens: 1024 },
+        // First take = 0.3 (consistent). An explicit regenerate (variant set) samples hotter so
+        // the new suggestion is perceptibly different — the anti-fabrication guard still runs.
+        {
+          provider: 'openai',
+          temperature: req.variant ? 0.8 : 0.3,
+          maxOutputTokens: 1024,
+        },
       );
 
       let suggestion = this.clean(result.text);
@@ -251,6 +258,8 @@ export class CvRewriteService {
     return createHash('sha256')
       .update(
         // `section` is rendered into the prompt → part of the cache identity (review finding).
+        // `variant` is NOT in the prompt, but it IS part of identity: a changing variant is how
+        // an explicit regenerate escapes the cache to get a fresh suggestion.
         [
           text,
           req.mode,
@@ -258,6 +267,7 @@ export class CvRewriteService {
           instruction ?? '',
           req.role_code ?? '',
           req.section ?? '',
+          req.variant ?? '',
         ].join(' '),
       )
       .digest('hex');
