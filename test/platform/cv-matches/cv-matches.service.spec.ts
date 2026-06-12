@@ -382,4 +382,31 @@ describe('CvMatchesService', () => {
     });
   });
 
+  /** T7 — seniority band passthrough: the API caller picks the yardstick (never the CV). */
+  describe('target band (T7)', () => {
+    it('forwards targetBand to the matcher', async () => {
+      const { service, matcher } = build();
+
+      await service.createMatch('user-1', 'cv-1', {
+        jdText: 'We need React and TypeScript experience.',
+        targetBand: 'intern',
+      });
+
+      expect(matcher.match).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ target_band: 'intern' }),
+      );
+    });
+
+    it('omits target_band when the request does not set it (product default stays in the AI module)', async () => {
+      const { service, matcher } = build();
+
+      await service.createMatch('user-1', 'cv-1', {
+        jdText: 'We need React and TypeScript experience.',
+      });
+
+      const input = matcher.match.mock.calls[0][1] as { target_band?: string };
+      expect(input.target_band).toBeUndefined();
+    });
+  });
 });

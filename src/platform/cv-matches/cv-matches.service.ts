@@ -81,6 +81,7 @@ export class CvMatchesService {
       jd_text: jdText,
       scoring_template_code: 'cv_jd_match_v1',
       target_role: targetRole ?? undefined,
+      target_band: dto.targetBand ?? undefined,
     });
     const parsed = ai.parsed_response;
     const matchRatio = parsed.match_ratio;
