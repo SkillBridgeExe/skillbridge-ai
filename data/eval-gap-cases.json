@@ -1,0 +1,42 @@
+{
+  "$note": "Golden cases for the Unified Gap Engine (eval:gap). Each case runs cv_skills + jd_requirements through the REAL SkillNormalizer → SkillDiffService, overlays a fixture evidence ledger, then asserts buildGapItems() produces the expected canonical gap items. Offline, 0 LLM. Data-sanity: every cv_skills name MUST normalize.",
+  "version": "eval-gap-cases-v1",
+  "created_at": "2026-06-12",
+  "cases": [
+    {
+      "id": "be-mixed-missing-partial-unproven",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["react"],
+      "rationale": "Kubernetes absent → missing/learn. SQL int<adv → partial. React int>=int → matched, but ledger lists it only and cv_level<4 → unproven/add_evidence (an ADVANCED listed-only would instead be overclaimed).",
+      "expect": [
+        { "canonical": "kubernetes", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "sql", "cv_status": "partial" },
+        { "canonical": "react", "cv_status": "unproven", "fixability": "add_evidence", "evidence_risk": "listed_only" }
+      ]
+    },
+    {
+      "id": "be-demonstrated-clean-match",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["sql"],
+      "rationale": "SQL adv>=int + demonstrated in experience → matched, no action, severity 0.",
+      "expect": [
+        { "canonical": "sql", "cv_status": "matched", "fixability": "not_fixable_now" }
+      ]
+    }
+  ]
+}
