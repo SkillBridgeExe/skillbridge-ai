@@ -569,7 +569,7 @@ describe('CvsService R1 completion behavior', () => {
   });
 
   it('does NOT consume the analysis quota for duplicate file content owned by the user', async () => {
-    const { service, cvsRepo, storage, cvReview, analysisQuota } = build();
+    const { service, cvsRepo, storage, cvReview, analysisQuota, aiResults } = build();
     cvsRepo.findOne.mockResolvedValue({
       id: 'existing-cv',
       userId: 'u1',
@@ -588,6 +588,8 @@ describe('CvsService R1 completion behavior', () => {
       createdAt: now,
       updatedAt: now,
     });
+    // Same file, no NEW role requested → an existing analysis is reused (fast, no re-grade).
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
 
     const response = await service.create('u1', { consentAccepted: true }, file);
 
@@ -595,6 +597,59 @@ describe('CvsService R1 completion behavior', () => {
     expect(storage.upload).not.toHaveBeenCalled();
     expect(cvReview.review).not.toHaveBeenCalled();
     expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+  });
+
+  it('re-grades a duplicate file when re-uploaded under a NEW target role (role-aware dedup)', async () => {
+    const { service, cvsRepo, cvReview, analysisQuota, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'existing-cv',
+      userId: 'u1',
+      originalFileName: 'sample.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      contentHash: 'existing-hash',
+      createdAt: now,
+      updatedAt: now,
+    });
+    // No persisted review exists for the NEWLY requested role → must re-grade against its rubric.
+    aiResults.manager.query.mockResolvedValue([]);
+
+    await service.create('u1', { consentAccepted: true, targetRole: 'data_analyst' }, file);
+
+    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalled();
+    expect(cvReview.review).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ target_role: 'data_analyst' }),
+    );
+  });
+
+  it('rerunReview re-grades when called with a NEW role (not the stored one) and no cached review for it', async () => {
+    const { service, cvsRepo, cvReview, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([]); // no data_analyst review yet
+
+    await service.rerunReview('u1', 'cv-1', 'data_analyst');
+
+    expect(cvReview.review).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ target_role: 'data_analyst' }),
+    );
   });
 
   it('returns a matching persisted review without consuming analysis quota or calling the model', async () => {
