@@ -23,8 +23,9 @@ export interface SkillBridgeGapReport extends GapReportCore {
   /** Full positioning DTO (per-requirement niche/standard/common + implied incl. covered) —
    *  the W12 "đọc vị JD" display block; market_trend_gaps above is its distilled subset. */
   jd_market_position: JdMarketPositionDto;
-  /** Unified Gap Engine v2 (PR1): the canonical gap list every flow will consume. Additive —
-   *  the groups above are unchanged and will be re-expressed on top of this in a later PR. */
+  /** Gap Engine v2 FOUNDATION (PR1): JD/rubric requirements as canonical GapItem[]. Additive —
+   *  the groups above are unchanged. NOTE: market-implied gaps are NOT here yet (they remain in
+   *  `market_trend_gaps`); folding them in + re-expressing the groups on top is a later PR. */
   gap_items: GapItem[];
 }
 

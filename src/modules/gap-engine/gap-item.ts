@@ -71,17 +71,18 @@ const importanceWeight = (importance: GapImportance): number =>
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
 
-/** Baseline only (PR2 swaps in importance × gap_level × market_demand × evidence_risk × interview_risk). */
+/** Baseline only (PR2 swaps in importance × gap_level × market_demand × evidence_risk × interview_risk).
+ *  max() of the level-gap and the evidence-risk parts so an overclaimed-AND-below-level skill
+ *  (level gap > 0 AND listed-only) ranks by whichever signal is stronger, not just the gap. */
 function baselineSeverity(
   importance: GapImportance,
   gapLevels: number,
   evidenceRisk: EvidenceRisk,
 ): number {
   const w = importanceWeight(importance);
-  if (gapLevels > 0) return clamp01(w * (gapLevels / 5));
-  // Level is met but evidence is weak/absent — a real (smaller) gap; fixed baseline until PR2.
-  if (evidenceRisk !== 'none') return clamp01(w * 0.4);
-  return 0;
+  const gapPart = gapLevels > 0 ? w * (gapLevels / 5) : 0;
+  const evidencePart = evidenceRisk !== 'none' ? w * 0.4 : 0;
+  return clamp01(Math.max(gapPart, evidencePart));
 }
 
 const ACTION_LABEL: Record<CvStatus, string> = {
@@ -99,6 +100,11 @@ const typeOf = (skillType?: 'hard' | 'soft'): GapType =>
  * Deterministic unification of the existing diff + ledger (+ optional market) into GapItem[].
  * One item per REQUIREMENT (matched/partial/missing); bonus_skills are extras, not requirements,
  * so they are excluded here.
+ *
+ * SCOPE (PR1): emits JD/rubric REQUIREMENTS only. `market_implied` gaps (skills the market expects
+ * that the CV lacks) still live separately in gap-report's `market_trend_gaps` — folding them into
+ * gap_items is a later PR. So this is the unification FOUNDATION, not yet the single source for
+ * every gap type.
  */
 export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
   const { match, ledger, marketDemand } = input;
@@ -118,6 +124,9 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     importance: GapImportance,
     type: GapType,
   ) => ({
+    // Report-SCOPED id — unique within one gap report, enough to dedupe/key the UI. NOT globally
+    // unique across JD/role/band: typescript@frontend-L4 and typescript@fullstack-L3 collide.
+    // When history/analytics tracks a gap across re-grades, add a context id (match_id/role/band).
     requirement_id: `${source}:${type}:${canonical}`,
     source,
     type,
@@ -148,20 +157,34 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
   }
 
   for (const p of match.partial_skills) {
-    const demonstrated = strengthByCanonical.get(p.canonical_name) === 'demonstrated';
-    const evidence_risk: EvidenceRisk = evidenceGap.has(p.canonical_name) ? 'listed_only' : 'none';
+    const strength = strengthByCanonical.get(p.canonical_name);
+    const listedOnly = evidenceGap.has(p.canonical_name) || strength === 'listed_only';
+    const demonstrated = strength === 'demonstrated';
+    // A skill claimed at >= advanced (cv_level>=4) but only listed (no demonstrated evidence) is an
+    // OVERCLAIM even when it sits in partial_skills because the JD wants an even higher level
+    // (e.g. claims ADVANCED, JD needs EXPERT). The overclaim is the dominant signal — downstream
+    // interview probing asks "how did you prove that advanced level?" — so it wins over the
+    // level-gap framing. The level gap is still recorded in gap_levels.
+    const overclaimed = listedOnly && p.cv_level >= 4;
+    const cv_status: CvStatus = overclaimed ? 'overclaimed' : 'partial';
+    const evidence_risk: EvidenceRisk = overclaimed
+      ? 'unproven'
+      : listedOnly
+        ? 'listed_only'
+        : 'none';
     items.push({
       ...base(p.canonical_name, p.display_name, p.importance, typeOf(p.skill_type)),
       satisfied_by: p.satisfied_by ?? null,
-      cv_status: 'partial',
+      cv_status,
       cv_level: p.cv_level,
       required_level: p.required_level,
       gap_levels: p.gap_levels,
       evidence_risk,
-      // Demonstrated → a rewrite can foreground it; otherwise the level itself must grow.
-      fixability: demonstrated ? 'rewrite' : 'learn',
+      // Overclaim → prove it (add evidence); demonstrated → a rewrite can foreground it;
+      // otherwise the level itself must grow.
+      fixability: overclaimed ? 'add_evidence' : demonstrated ? 'rewrite' : 'learn',
       severity: baselineSeverity(p.importance, p.gap_levels, evidence_risk),
-      recommended_next_action: ACTION_LABEL.partial,
+      recommended_next_action: ACTION_LABEL[cv_status],
     });
   }
 

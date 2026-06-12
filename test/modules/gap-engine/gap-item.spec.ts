@@ -148,6 +148,55 @@ describe('buildGapItems', () => {
     expect(g.evidence_risk).toBe('unproven');
   });
 
+  it('partial + listed-only + cv_level>=4 → overclaimed (claims advanced below the JD bar, no proof)', () => {
+    // React claimed ADVANCED (cv 4) but only in the skills list; JD wants EXPERT (5) → partial.
+    const ledger: EvidenceLedger = {
+      items: [
+        {
+          skill_canonical: 'react',
+          display_name: 'React',
+          sources: [],
+          strength: 'listed_only',
+          most_recent_year: null,
+        },
+      ],
+      evidence_gap: ['react'],
+    };
+    const [g] = buildGapItems({
+      match: emptyMatch({
+        partial_skills: [
+          partial({ canonical_name: 'react', cv_level: 4, required_level: 5, gap_levels: 1 }),
+        ],
+      }),
+      ledger,
+    });
+    expect(g.cv_status).toBe('overclaimed');
+    expect(g.evidence_risk).toBe('unproven');
+    expect(g.fixability).toBe('add_evidence');
+    expect(g.gap_levels).toBe(1); // the level gap is still recorded
+  });
+
+  it('partial + listed-only but cv_level<4 → stays partial (not an overclaim)', () => {
+    const ledger: EvidenceLedger = {
+      items: [
+        {
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          sources: [],
+          strength: 'listed_only',
+          most_recent_year: null,
+        },
+      ],
+      evidence_gap: ['sql'],
+    };
+    const [g] = buildGapItems({
+      match: emptyMatch({ partial_skills: [partial({ cv_level: 2 })] }),
+      ledger,
+    });
+    expect(g.cv_status).toBe('partial');
+    expect(g.evidence_risk).toBe('listed_only');
+  });
+
   it('cleanly matched + demonstrated → matched / not_fixable_now / severity 0', () => {
     const ledger: EvidenceLedger = {
       items: [

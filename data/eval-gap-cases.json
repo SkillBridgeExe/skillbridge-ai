@@ -24,6 +24,19 @@
       ]
     },
     {
+      "id": "fe-overclaimed-partial",
+      "target_role": "frontend_developer",
+      "cv_skills": [{ "name": "React", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" }
+      ],
+      "ledger_listed_only": ["react"],
+      "rationale": "React claimed ADVANCED (4) but only listed; JD needs EXPERT (5) → partial. Listed-only at >=advanced → overclaimed (interview must probe the advanced claim), not plain partial.",
+      "expect": [
+        { "canonical": "react", "cv_status": "overclaimed", "fixability": "add_evidence", "evidence_risk": "unproven" }
+      ]
+    },
+    {
       "id": "be-demonstrated-clean-match",
       "target_role": "backend_developer",
       "cv_skills": [
