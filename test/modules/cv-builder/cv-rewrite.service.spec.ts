@@ -155,6 +155,39 @@ describe('CvRewriteService (mocked LLM)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // regenerate: an explicit "Viết lại / Tạo lại" must produce a FRESH suggestion,
+  // not the cached identical sentence (user-reported bug). The variant token is the
+  // only thing that changes the cache identity; an accidental double-click with the
+  // SAME variant must still hit the cache (cost protection).
+  // ---------------------------------------------------------------------------
+  describe('regenerate via variant token', () => {
+    it('same input, different variant → cache miss → a second LLM call', async () => {
+      const { svc, llm } = build('Optimized the API.');
+      const base = { text: 'made the api better', mode: 'harvard' as const };
+      await svc.rewrite(base); // first take (no variant) — cacheable
+      await svc.rewrite({ ...base, variant: '1' }); // explicit regenerate
+      expect(llm.complete).toHaveBeenCalledTimes(2);
+    });
+
+    it('same variant repeated → cache hit (one call) — protects against double-click', async () => {
+      const { svc, llm } = build('Optimized the API.');
+      const req = { text: 'made the api better', mode: 'harvard' as const, variant: '2' };
+      await svc.rewrite(req);
+      await svc.rewrite(req);
+      expect(llm.complete).toHaveBeenCalledTimes(1);
+    });
+
+    it('a regenerate samples at a HIGHER temperature than the first take (perceptible variation)', async () => {
+      const { svc, llm } = build('Optimized the API.');
+      await svc.rewrite({ text: 'made the api better', mode: 'harvard' });
+      await svc.rewrite({ text: 'made the api better', mode: 'harvard', variant: '1' });
+      const firstTemp = (llm.complete.mock.calls[0][1] as { temperature: number }).temperature;
+      const regenTemp = (llm.complete.mock.calls[1][1] as { temperature: number }).temperature;
+      expect(regenTemp).toBeGreaterThan(firstTemp);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // tracing tests
   // ---------------------------------------------------------------------------
   describe('tracing', () => {
