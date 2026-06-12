@@ -675,6 +675,34 @@ describe('CvsService R1 completion behavior', () => {
     expect(cvReview.review).not.toHaveBeenCalled();
   });
 
+  it('matches the review cache on the NESTED payload prompt code that tracing actually stores', async () => {
+    // Regression guard: tracing stores top-level prompt_template_code='cv_review' (loader strips
+    // the _v1 into the version) but the constant is 'cv_review_v1'. The lookup MUST filter the
+    // nested payload.prompt_template_code (='cv_review_v1') or it returns 0 rows forever and the
+    // role-aware cache silently never hits — re-grading + re-charging every scan.
+    const { service, cvsRepo, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+
+    await service.rerunReview('u1', 'cv-1');
+
+    const [sql, params] = aiResults.manager.query.mock.calls.at(-1) as [string, unknown[]];
+    expect(sql).toContain("'payload' ->> 'prompt_template_code'");
+    expect(sql).not.toContain('prompt_template_version'); // redundant — code encodes the version
+    expect(params).toContain('cv_review_v1'); // the value BE actually persists nested
+  });
+
   it('analyzes a BUILT CV by rendering parsedJson to plain text when parsedText is missing', async () => {
     const { service, cvsRepo, cvReview } = build();
     const builtDocument = {
