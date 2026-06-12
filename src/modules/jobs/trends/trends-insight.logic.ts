@@ -1,8 +1,10 @@
 import { SkillTrendsResponse } from './skill-demand.service';
 import {
+  CoOccurrencePair,
   TrendsInsightFacts,
   InsightItem,
   RecommendedSkill,
+  SkillPairInsight,
   TrendsInsightLlmRaw,
   TrendsInsightResponse,
 } from './trends-insight.types';
@@ -14,6 +16,7 @@ import {
 export function buildFacts(
   trends: SkillTrendsResponse,
   coveredCanonicals: Set<string> | null,
+  coOccurrence: CoOccurrencePair[] = [],
 ): TrendsInsightFacts {
   return {
     role_code: trends.role_code,
@@ -28,12 +31,14 @@ export function buildFacts(
       salary_p50_vnd: s.salary_p50_vnd,
       covered: coveredCanonicals ? coveredCanonicals.has(s.canonical_name) : null,
     })),
+    co_occurrence: coOccurrence,
   };
 }
 
 const TOP_N_FALLBACK = 3;
 const MAX_INSIGHTS = 5;
 const MAX_RECOMMENDED = 5;
+const MAX_PAIRS = 4;
 
 /** Deterministic summary built ONLY from FACTS — used as fallback and when the LLM summary is empty. */
 function fallbackSummary(facts: TrendsInsightFacts): string {
@@ -69,6 +74,7 @@ function fallback(facts: TrendsInsightFacts): TrendsInsightResponse {
     summary: fallbackSummary(facts),
     insights,
     recommended_skills,
+    skill_pairs: [],
     cached: false,
   };
 }
@@ -124,6 +130,24 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
   }
   recommended_skills.sort((a, b) => b.pct_of_postings - a.pct_of_postings);
 
+  // skill_pairs: pair PHẢI tồn tại trong FACTS.co_occurrence (không phân biệt chiều);
+  // mọi số LLM bịa bị vứt — RE-ATTACH từ FACTS. Comment giữ (clamp).
+  const pairKey = (a: string, b: string) => [a, b].sort().join('|');
+  const factPairs = new Map(facts.co_occurrence.map((p) => [pairKey(p.a, p.b), p]));
+  const pairSeen = new Set<string>();
+  const skill_pairs: SkillPairInsight[] = [];
+  for (const item of Array.isArray(raw.skill_pairs) ? raw.skill_pairs : []) {
+    const a = typeof item?.a === 'string' ? item.a : '';
+    const b = typeof item?.b === 'string' ? item.b : '';
+    const f = factPairs.get(pairKey(a, b));
+    if (!f || pairSeen.has(pairKey(a, b))) continue;
+    pairSeen.add(pairKey(a, b));
+    skill_pairs.push({
+      ...f,
+      comment: typeof item?.comment === 'string' ? item.comment.slice(0, 280) : '',
+    });
+  }
+
   const summary =
     typeof raw.summary === 'string' && raw.summary.trim()
       ? raw.summary.slice(0, 600)
@@ -136,6 +160,7 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
     summary,
     insights: insights.slice(0, MAX_INSIGHTS),
     recommended_skills: recommended_skills.slice(0, MAX_RECOMMENDED),
+    skill_pairs: skill_pairs.slice(0, MAX_PAIRS),
     cached: false,
   };
 }

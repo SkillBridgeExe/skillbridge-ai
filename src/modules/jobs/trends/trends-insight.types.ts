@@ -7,6 +7,17 @@ export interface TrendsInsightRequest {
 }
 
 /** Deterministic FACTS distilled from trends/gap — the ONLY source of numbers. */
+/** Cặp kỹ năng xuất hiện CÙNG một tin tuyển dụng (đếm SQL trên pool active — compute-on-read). */
+export interface CoOccurrencePair {
+  a: string;
+  a_display: string;
+  b: string;
+  b_display: string;
+  pair_count: number;
+  /** pair_count / tổng tin active của role, % (1 chữ số thập phân). */
+  pct_of_postings: number;
+}
+
 export interface TrendsInsightFacts {
   role_code: string;
   period: string;
@@ -20,6 +31,8 @@ export interface TrendsInsightFacts {
     salary_p50_vnd: number | null;
     covered: boolean | null; // null = role-level (no CV)
   }>;
+  /** Insight sâu v1: cặp kỹ năng đi cùng nhau — nguồn DUY NHẤT cho skill_pairs. */
+  co_occurrence: CoOccurrencePair[];
 }
 
 export interface InsightItem {
@@ -38,6 +51,11 @@ export interface RecommendedSkill {
   salary_p50_vnd: number | null;
 }
 
+/** Nhận định cụm kỹ năng — pair PHẢI tồn tại trong FACTS, số RE-ATTACH từ FACTS. */
+export interface SkillPairInsight extends CoOccurrencePair {
+  comment: string;
+}
+
 export interface TrendsInsightResponse {
   role_code: string;
   period: string;
@@ -45,6 +63,8 @@ export interface TrendsInsightResponse {
   summary: string;
   insights: InsightItem[];
   recommended_skills: RecommendedSkill[];
+  /** Insight sâu v1 (có thể rỗng khi pool/LLM không có cặp đáng nói). */
+  skill_pairs: SkillPairInsight[];
   cached: boolean;
 }
 
@@ -53,4 +73,5 @@ export interface TrendsInsightLlmRaw {
   summary?: unknown;
   insights?: Array<{ skill?: unknown; comment?: unknown }>;
   recommended_skills?: unknown[];
+  skill_pairs?: Array<{ a?: unknown; b?: unknown; comment?: unknown }>;
 }

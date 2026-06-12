@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { CoOccurrencePair } from './trends-insight.types';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
 
 export interface SkillDemandRow {
@@ -171,6 +172,54 @@ export class SkillDemandService {
         trend_delta: !r.has_prev ? null : r.posting_count - (r.prev_count ?? 0),
       })),
     };
+  }
+
+  /**
+   * Insight sâu v1: cặp kỹ năng xuất hiện CÙNG một tin tuyển dụng — đếm SQL trực tiếp
+   * trên pool active (compute-on-read; ~10³ jobs nên không cần bảng snapshot riêng).
+   * Số này là nguồn DUY NHẤT cho skill_pairs trong trends-insight (LLM chỉ viết lời).
+   */
+  async getCoOccurrence(roleCode = 'all', limit = 10): Promise<CoOccurrencePair[]> {
+    const rows = await this.db.query<{
+      a: string;
+      a_display: string;
+      b: string;
+      b_display: string;
+      pair_count: string;
+      total: string;
+    }>(
+      `WITH scope AS (
+         SELECT id FROM public.jobs
+          WHERE status = 'active' AND (expires_at IS NULL OR expires_at > now())
+            AND canonical_job_id IS NULL
+            AND ($1 = 'all' OR role_code = $1)
+       )
+       SELECT s1.canonical_name AS a, s1.display_name AS a_display,
+              s2.canonical_name AS b, s2.display_name AS b_display,
+              count(DISTINCT js1.job_id)::text AS pair_count,
+              (SELECT count(*) FROM scope)::text AS total
+         FROM public.job_skills js1
+         JOIN scope sc ON sc.id = js1.job_id
+         JOIN public.job_skills js2 ON js2.job_id = js1.job_id AND js2.skill_id > js1.skill_id
+         JOIN public.skills s1 ON s1.id = js1.skill_id
+         JOIN public.skills s2 ON s2.id = js2.skill_id
+        GROUP BY s1.canonical_name, s1.display_name, s2.canonical_name, s2.display_name
+        ORDER BY count(DISTINCT js1.job_id) DESC, a ASC, b ASC
+        LIMIT $2`,
+      [roleCode, Math.min(Math.max(Number(limit) || 10, 1), 30)],
+    );
+    return rows.map((r) => {
+      const total = Number(r.total) || 0;
+      const pairCount = Number(r.pair_count);
+      return {
+        a: r.a,
+        a_display: r.a_display,
+        b: r.b,
+        b_display: r.b_display,
+        pair_count: pairCount,
+        pct_of_postings: total > 0 ? Math.round((pairCount / total) * 1000) / 10 : 0,
+      };
+    });
   }
 
   /**
