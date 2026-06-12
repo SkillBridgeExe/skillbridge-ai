@@ -14,6 +14,7 @@ import {
 } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
 import { assessTextQuality } from '../../common/services/text-quality';
+import { maskPii, maskPiiDeep } from '../../common/services/pii-mask';
 
 interface LlmExtractionOutput {
   cv_skills_raw: RawCvSkill[];
@@ -170,12 +171,19 @@ export class CvJdMatchService {
       };
 
       // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
+      // PRIVACY: the persisted copy is PII-masked (per-skill evidence_text quotes CV lines that
+      // carry email/phone) — parity with cv-review's redacted trace. The caller still gets the
+      // unmasked `parsed` below; the masked copy is what the gap report later reads back.
       const aiResultId = await this.tracing.saveAiResult({
         aiRequestId,
         userId,
         resultType: 'cv_jd_match',
-        rawResponse: llmResult.rawResponse,
-        parsedResponse: parsed,
+        rawResponse: maskPii(
+          typeof llmResult.rawResponse === 'string'
+            ? llmResult.rawResponse
+            : JSON.stringify(llmResult.rawResponse),
+        ),
+        parsedResponse: maskPiiDeep(parsed),
         totalScore: diff.overall_score,
         tokenUsage: llmResult.tokenUsage.totalTokens,
       });

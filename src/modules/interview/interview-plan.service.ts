@@ -4,6 +4,7 @@ import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { buildInterviewPlan, InterviewFocusArea } from './interview-planner';
+import { maskPii } from '../../common/services/pii-mask';
 import {
   InterviewPlanItem,
   InterviewPlanRequestDto,
@@ -94,7 +95,12 @@ export class InterviewPlanService {
         aiRequestId,
         userId,
         resultType: 'interview_plan',
-        rawResponse: llmResult.rawResponse,
+        // PII-masked trace (the raw LLM text can echo CV email/phone) — parity with cv-review.
+        rawResponse: maskPii(
+          typeof llmResult.rawResponse === 'string'
+            ? llmResult.rawResponse
+            : JSON.stringify(llmResult.rawResponse),
+        ),
         parsedResponse: { target_role: input.target_role, language: lang, items },
         totalScore: 0,
         tokenUsage: tokens,
