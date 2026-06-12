@@ -91,11 +91,18 @@ export class InterviewService {
     userId: string,
     input: AnswerInterviewRequestDto,
   ): Promise<AnswerInterviewResponseDto> {
-    // For incremental scoring we reuse the same template as start; in a
-    // production setup we'd have a separate `interview_answer_v1` template.
+    const template = this.prompts.get('interview_answer_v1');
+    const userPrompt = this.prompts.render('interview_answer_v1', {
+      history: JSON.stringify(input.question_history),
+      current_answer: input.current_user_answer,
+      current_order: input.current_question_order,
+    });
+
     const aiRequestId = await this.tracing.startAiRequest({
       userId,
       modelCode: '',
+      promptTemplateCode: template.code,
+      promptTemplateVersion: template.version,
       requestType: 'interview_answer',
       requestPayload: { session_id: input.session_id, order: input.current_question_order },
     });
@@ -104,19 +111,8 @@ export class InterviewService {
     try {
       const llmResult = await this.llm.complete(
         [
-          {
-            role: 'system',
-            content:
-              'You are a structured interviewer. Score the current answer 0-100 and produce ONE follow-up question (or null if interview should end). Return JSON.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              history: input.question_history,
-              current_answer: input.current_user_answer,
-              current_order: input.current_question_order,
-            }),
-          },
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: userPrompt },
         ],
         { jsonMode: true, temperature: 0.4, maxOutputTokens: 600 },
       );

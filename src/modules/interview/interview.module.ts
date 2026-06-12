@@ -8,6 +8,6 @@ import { CvJdMatchModule } from '../cv-jd-match/cv-jd-match.module';
   imports: [CvJdMatchModule],
   controllers: [InterviewController],
   providers: [InterviewService, InterviewPlanService],
-  exports: [InterviewPlanService],
+  exports: [InterviewService, InterviewPlanService],
 })
 export class InterviewModule {}
