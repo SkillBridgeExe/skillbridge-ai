@@ -37,6 +37,7 @@ export const configValidationSchema = Joi.object({
   GEMINI_MODEL_EMBEDDING: Joi.string().default('text-embedding-004'),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-5.4-mini'),
+  OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2'),
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),
 
   // Database
