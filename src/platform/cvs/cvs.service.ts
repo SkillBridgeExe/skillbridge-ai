@@ -53,7 +53,6 @@ const MAX_REAL_UPLOADS_PER_DAY = 10;
 const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
 const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
 const CV_REVIEW_PROMPT_CODE = 'cv_review_v1';
-const CV_REVIEW_PROMPT_VERSION = 1;
 const SUPPORTED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -557,6 +556,14 @@ export class CvsService {
     cvId: string,
     targetRole: string | null,
   ): Promise<CvReviewParsedResponse | null> {
+    // All four predicates read the SAME nested `payload` object that cv-review.service writes
+    // (cv_id, target_role, prompt_template_code='cv_review_v1'). The TOP-LEVEL
+    // prompt_template_code is the bare 'cv_review' (the loader strips the _v1 suffix into a
+    // separate version), so filtering it against the combined CV_REVIEW_PROMPT_CODE never
+    // matched — this query returned 0 rows for every call, silently disabling the cache.
+    // The combined code already encodes the version, so no separate version predicate is needed.
+    // Null role is its OWN bucket (IS NOT DISTINCT FROM): a role-less scan must not reuse a
+    // role-specific analysis (its skills_relevance was graded against that role's rubric).
     const rows = (await this.aiResults.manager.query(
       `
         SELECT ar.parsed_response
@@ -565,20 +572,12 @@ export class CvsService {
         WHERE ar.user_id = $1
           AND ar.result_type = $2
           AND req.request_payload -> 'payload' ->> 'cv_id' = $3
-          AND ($4::text IS NULL OR req.request_payload -> 'payload' ->> 'target_role' = $4)
-          AND req.request_payload ->> 'prompt_template_code' = $5
-          AND (req.request_payload ->> 'prompt_template_version')::int = $6
+          AND req.request_payload -> 'payload' ->> 'target_role' IS NOT DISTINCT FROM $4
+          AND req.request_payload -> 'payload' ->> 'prompt_template_code' = $5
         ORDER BY ar.created_at DESC
         LIMIT 1
       `,
-      [
-        userId,
-        BillingFeatureKey.CV_REVIEW,
-        cvId,
-        targetRole,
-        CV_REVIEW_PROMPT_CODE,
-        CV_REVIEW_PROMPT_VERSION,
-      ],
+      [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE],
     )) as Array<{ parsed_response: CvReviewParsedResponse | null }>;
 
     return rows[0]?.parsed_response ?? null;
