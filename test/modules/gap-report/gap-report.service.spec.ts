@@ -104,6 +104,42 @@ describe('GapReportService', () => {
     expect(report.explicit_gaps).toEqual([]);
   });
 
+  it('(a2) attaches unified gap_items (additive); market_demand lifted from jd_skills', async () => {
+    tailorMock.build.mockReturnValue({
+      actions: [],
+      generated_with_ledger: false,
+      source_of_requirements: 'jd_extraction',
+      overall_score: 72,
+    });
+    marketMock.build.mockResolvedValue({
+      available: true,
+      role_code: 'backend_developer',
+      period: '2026-Q2',
+      total_active_jobs: 100,
+      jd_skills: [{ skill_canonical: 'kubernetes', pct_of_postings: 62 }],
+      implied: [],
+    });
+    const match = baseMatch();
+    match.missing_skills = [
+      {
+        skill_id: 'kubernetes',
+        canonical_name: 'kubernetes',
+        display_name: 'Kubernetes',
+        required_level: 4,
+        importance: 'REQUIRED',
+        weight: 0.2,
+        skill_type: 'hard',
+        gap_levels: 4,
+      },
+    ] as never;
+
+    const report = await service.build({ match, review: null });
+
+    expect(Array.isArray(report.gap_items)).toBe(true);
+    const k = report.gap_items.find((g) => g.canonical_name === 'kubernetes');
+    expect(k).toMatchObject({ cv_status: 'missing', fixability: 'learn', market_demand: 62 });
+  });
+
   it('(b) market unavailable → market_trend_gaps: null, reason echoed', async () => {
     tailorMock.build.mockReturnValue({
       actions: [],
