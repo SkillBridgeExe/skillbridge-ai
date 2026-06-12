@@ -1,0 +1,172 @@
+import { Transform } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  InterviewMode,
+  InterviewStatus,
+  InterviewType,
+} from '../../../database/entities/interview-session.entity';
+import { InterviewPhase } from '../../../modules/interview/dto/start-interview.dto';
+
+const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
+const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
+const LANGUAGES = ['vi', 'en'] as const;
+const MODALITIES = ['TEXT', 'AUDIO'] as const;
+
+export class StartPlatformInterviewDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  cvId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  cvMatchId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  jobDescriptionId?: string;
+
+  @ApiProperty({ example: 'frontend_developer' })
+  @IsString()
+  @MaxLength(120)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  targetRole!: string;
+
+  @ApiPropertyOptional({ enum: LANGUAGES, default: 'vi' })
+  @IsOptional()
+  @IsIn(LANGUAGES)
+  language?: 'vi' | 'en';
+
+  @ApiPropertyOptional({ enum: INTERVIEW_MODES, default: 'HYBRID' })
+  @IsOptional()
+  @IsIn(INTERVIEW_MODES)
+  mode?: InterviewMode;
+
+  @ApiPropertyOptional({ enum: INTERVIEW_TYPES, default: 'TECHNICAL' })
+  @IsOptional()
+  @IsIn(INTERVIEW_TYPES)
+  interviewType?: InterviewType;
+}
+
+export class AnswerPlatformInterviewDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  sessionId!: string;
+
+  @ApiProperty({ example: 'Em dùng React Query để cache server state...' })
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  userAnswer!: string;
+
+  @ApiPropertyOptional({
+    description: 'Transcript from voice mode. Omit for text answers.',
+  })
+  @IsOptional()
+  @IsString()
+  userTranscript?: string;
+
+  @ApiPropertyOptional({ enum: MODALITIES, default: 'TEXT' })
+  @IsOptional()
+  @IsIn(MODALITIES)
+  modality?: 'TEXT' | 'AUDIO';
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+}
+
+export class EndPlatformInterviewDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  sessionId!: string;
+}
+
+export class InterviewListQueryDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit = 20;
+}
+
+export interface RealtimeClientSecretDto {
+  enabled: boolean;
+  provider: 'openai';
+  model: string | null;
+  clientSecret: string | null;
+  expiresAt: string | null;
+  reason?: string;
+}
+
+export interface InterviewTurnDto {
+  id: string;
+  sessionId: string;
+  turnOrder: number;
+  phase: InterviewPhase | null;
+  modality: 'TEXT' | 'AUDIO';
+  aiRequestId: string | null;
+  interviewerMessage: string | null;
+  interviewerQuestion: string;
+  userAnswerText: string | null;
+  userAnswerTranscript: string | null;
+  perQuestionScore: number | null;
+  strengths: unknown;
+  improvements: unknown;
+  askedAt: string;
+  answeredAt: string | null;
+  durationSeconds: number | null;
+}
+
+export interface InterviewSessionDto {
+  id: string;
+  cvId: string | null;
+  cvMatchId: string | null;
+  jobDescriptionId: string | null;
+  targetRole: string;
+  language: string;
+  mode: InterviewMode;
+  interviewType: InterviewType;
+  status: InterviewStatus;
+  totalQuestionsPlanned: number | null;
+  maxDurationSeconds: number;
+  expiresAt: string | null;
+  overallScore: number | null;
+  semanticScore: number | null;
+  llmScore: number | null;
+  communicationScore: number | null;
+  aiFeedback: unknown;
+  durationSeconds: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface StartInterviewResponseDto extends InterviewSessionDto {
+  firstMessage: string;
+  firstQuestion: string;
+  phase: InterviewPhase | null;
+  realtime: RealtimeClientSecretDto;
+}
+
+export interface AnswerInterviewResponseDto {
+  session: InterviewSessionDto;
+  answeredTurn: InterviewTurnDto;
+  nextTurn: InterviewTurnDto | null;
+  aiMessage: string;
+  nextQuestion: string | null;
+  finished: boolean;
+}
+
+export interface InterviewDetailResponseDto extends InterviewSessionDto {
+  turns: InterviewTurnDto[];
+}
