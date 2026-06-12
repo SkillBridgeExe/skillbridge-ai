@@ -111,11 +111,32 @@ export class CvsService {
     const contentHash = this.sha256(file.buffer);
     const duplicate = await this.findDuplicateContentHash(userId, contentHash);
     if (duplicate) {
-      const [skills, review] = await Promise.all([
-        this.getPersistedSkills(duplicate.id),
-        this.getLatestReview(userId, duplicate.id),
-      ]);
-      return this.toResponse(duplicate, skills, review);
+      // Role-aware dedup: the review is scored against the TARGET ROLE's rubric
+      // (skills_relevance + skill breakdown), so reuse a prior analysis ONLY when one
+      // exists for the requested role. Re-uploading the same file under a NEW role must
+      // re-grade — otherwise the user sees the previous role's analysis on a fast-but-wrong
+      // scan. A request without a role (null) matches the latest analysis of any role.
+      const requestedRole = this.normalizeTargetRole(dto.targetRole);
+      const cachedForRole = await this.getLatestMatchingReview(
+        userId,
+        duplicate.id,
+        requestedRole ?? null,
+      );
+      if (cachedForRole) {
+        return this.toResponse(
+          duplicate,
+          await this.getPersistedSkills(duplicate.id),
+          cachedForRole,
+        );
+      }
+      await this.analysisQuota.assertWithinDailyLimit(userId);
+      if (requestedRole && requestedRole !== duplicate.targetRole) {
+        duplicate.targetRole = requestedRole;
+        await this.cvs.save(duplicate);
+      }
+      const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined);
+      await this.analysisQuota.recordSuccessfulAnalysis(userId, duplicate.id);
+      return this.toResponse(review.cv, review.skills, review.parsed);
     }
 
     await this.enforceUploadQuota(userId);
@@ -372,7 +393,7 @@ export class CvsService {
     });
   }
 
-  async rerunReview(userId: string, cvId: string): Promise<CvResponseDto> {
+  async rerunReview(userId: string, cvId: string, requestedRole?: string): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     const parsedText = this.reviewableText(cv);
     if (!parsedText) {
@@ -382,14 +403,22 @@ export class CvsService {
       });
     }
 
-    const cached = await this.getLatestMatchingReview(userId, cv.id, cv.targetRole ?? null);
+    // The caller may pick a NEW role (e.g. re-scan as Data Analyst); fall back to the CV's
+    // stored role when none is given. Reuse a cached analysis only for THAT role — a different
+    // role re-grades against its own rubric instead of returning the stored role's review.
+    const role = this.normalizeTargetRole(requestedRole) ?? cv.targetRole ?? null;
+    const cached = await this.getLatestMatchingReview(userId, cv.id, role);
     if (cached) {
       return this.toResponse(cv, await this.getPersistedSkills(cv.id), cached);
     }
 
     cv.parsedText = parsedText;
+    if (role && role !== cv.targetRole) {
+      cv.targetRole = role;
+      await this.cvs.save(cv);
+    }
     await this.analysisQuota.assertWithinDailyLimit(userId);
-    const review = await this.reviewCv(userId, cv);
+    const review = await this.reviewCv(userId, cv, role ?? undefined);
     await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
     return this.toResponse(review.cv, review.skills, review.parsed);
   }
