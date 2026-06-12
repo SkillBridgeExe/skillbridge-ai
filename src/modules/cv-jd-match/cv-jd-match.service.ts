@@ -131,10 +131,13 @@ export class CvJdMatchService {
       }
 
       // Run deterministic diff — this is where scoring actually happens.
+      // PRODUCT default band = 'fresher' (our audience); the pure diff layer defaults to
+      // 'mid' so eval pairs/tests stay byte-identical. JD path ignores the band entirely.
       const diff = this.skillDiff.diff({
         cv_skills_raw: extraction.cv_skills_raw,
         jd_requirements_raw: extraction.jd_requirements_raw,
         target_role: input.target_role,
+        target_band: input.target_band ?? 'fresher',
       });
 
       // Source is decided inside the diff (JD wins over rubric) — read it, don't re-derive.
@@ -163,6 +166,7 @@ export class CvJdMatchService {
         inferred_skills: diff.inferred_skills,
         source_of_requirements: sourceOfRequirements,
         target_role: input.target_role ?? null,
+        rubric_band: diff.rubric_band,
       };
 
       // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).

@@ -60,6 +60,7 @@ describe('CV match OpenAPI docs', () => {
           jdText: expect.objectContaining({ type: 'string' }),
           title: expect.objectContaining({ type: 'string' }),
           targetRole: expect.objectContaining({ type: 'string' }),
+          targetBand: expect.objectContaining({ enum: ['intern', 'fresher', 'mid'] }),
         }),
       }),
     );
@@ -74,6 +75,7 @@ describe('CV match OpenAPI docs', () => {
           file: expect.objectContaining({ type: 'string', format: 'binary' }),
           title: expect.objectContaining({ type: 'string' }),
           targetRole: expect.objectContaining({ type: 'string' }),
+          targetBand: expect.objectContaining({ enum: ['intern', 'fresher', 'mid'] }),
         }),
       }),
     );

@@ -30,6 +30,8 @@ import { spearman } from './calibration-stats';
 interface MatchPair {
   id: string;
   target_role: string;
+  /** Seniority yardstick (rubric path). Omitted = 'mid' — every legacy pair unchanged. */
+  target_band?: 'intern' | 'fresher' | 'mid';
   cv_skills: Array<{ name: string; proficiency_hint: string }>;
   jd_requirements?: Array<{ name: string; importance_hint?: string; required_level_hint?: string }>;
   expected_overall: [number, number];
@@ -73,6 +75,8 @@ async function main(): Promise<void> {
       cv_skills_raw: pair.cv_skills as RawCvSkill[],
       target_role: pair.target_role,
       ...(pair.jd_requirements ? { jd_requirements_raw: pair.jd_requirements } : {}),
+      // Legacy pairs omit target_band → diff defaults to 'mid' (byte-identical history).
+      ...(pair.target_band ? { target_band: pair.target_band } : {}),
     });
     const score = res.overall_score;
     const ok = inBand(score, pair.expected_overall);

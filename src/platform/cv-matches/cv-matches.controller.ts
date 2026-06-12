@@ -63,6 +63,12 @@ export class CvMatchesController {
           example: 'frontend_developer',
           description: 'Optional. Falls back to the CV targetRole when omitted.',
         },
+        targetBand: {
+          type: 'string',
+          enum: ['intern', 'fresher', 'mid'],
+          description:
+            'Optional seniority yardstick for rubric-path scoring (ignored when a JD is matched). Defaults to fresher.',
+        },
       },
     },
   })
@@ -97,6 +103,12 @@ export class CvMatchesController {
           type: 'string',
           example: 'frontend_developer',
           description: 'Optional. Falls back to the CV targetRole when omitted.',
+        },
+        targetBand: {
+          type: 'string',
+          enum: ['intern', 'fresher', 'mid'],
+          description:
+            'Optional seniority yardstick for rubric-path scoring (ignored when a JD is matched). Defaults to fresher.',
         },
       },
     },

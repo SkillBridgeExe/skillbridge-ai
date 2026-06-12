@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { RubricBand } from '../../../common/services/role-rubric.service';
 
 export class CreateCvMatchDto {
   @ApiPropertyOptional({
@@ -25,4 +26,14 @@ export class CreateCvMatchDto {
   @MaxLength(80)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   targetRole?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Seniority yardstick for rubric-path scoring (ignored when a JD is matched). ' +
+      'Omitted = product default (fresher).',
+    enum: ['intern', 'fresher', 'mid'],
+  })
+  @IsOptional()
+  @IsIn(['intern', 'fresher', 'mid'])
+  targetBand?: RubricBand;
 }

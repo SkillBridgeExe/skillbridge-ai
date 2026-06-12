@@ -4,6 +4,7 @@ import {
   RoleRubricService,
   RoleSkillRequirement,
   Importance,
+  RubricBand,
 } from '../../common/services/role-rubric.service';
 import { inferSkills, loadSkillEdges, InferredSkill } from './skill-graph';
 import { findSatisfying, loadSatisfiesEdges } from './skill-satisfies';
@@ -121,6 +122,11 @@ export interface DiffResult {
   overall_score: number;
   /** Which source the required-skills set came from (telemetry / UI honesty). */
   requirements_source: 'jd_extraction' | 'role_rubric' | 'none';
+  /**
+   * Seniority yardstick actually applied — only meaningful on the rubric path
+   * (null for jd_extraction/none). The UI MUST label it ("Đang chấm theo thước Fresher").
+   */
+  rubric_band: RubricBand | null;
   /** Breakdown for transparency / audit. */
   scoring_breakdown: {
     total_requirements: number;
@@ -179,6 +185,13 @@ export class SkillDiffService {
     cv_skills_raw: RawCvSkill[];
     jd_requirements_raw?: RawJdRequirement[];
     target_role?: string | null;
+    /**
+     * Seniority yardstick for the RUBRIC path only (JD path never applies a band — the
+     * employer's bar is nobody's to lower). Defaults to 'mid' = the curated base rubric,
+     * keeping every existing eval pair and caller byte-identical; the PRODUCT default
+     * ('fresher') lives in CvJdMatchService.
+     */
+    target_band?: RubricBand;
   }): DiffResult {
     const cvSkillsByCanonical = new Map<string, { level: number; raw: RawCvSkill }>();
     const unnormalizedCv: UnnormalizedSkill[] = [];
@@ -208,7 +221,7 @@ export class SkillDiffService {
     }
 
     // Build required-skills list
-    const { requirements, unnormalizedJd, source } = this.buildRequirements(args);
+    const { requirements, unnormalizedJd, source, bandUsed } = this.buildRequirements(args);
 
     // Compute diff
     const matched: MatchedSkill[] = [];
@@ -226,27 +239,37 @@ export class SkillDiffService {
     const satisfiedChildren = new Set<string>();
 
     for (const req of requirements) {
-      // Exact hit on the requirement canonical wins; only on a miss do we consult the
-      // curated satisfies-edges (child counts as parent at the CHILD's own level).
-      let cvHit = cvSkillsByCanonical.get(req.skill_canonical_name);
-      let satisfiedBy: string | undefined;
-      if (!cvHit) {
-        const viaChild = findSatisfying(
-          req.skill_canonical_name,
-          cvSkillsByCanonical,
-          loadSatisfiesEdges(),
-        );
-        if (viaChild) {
-          cvHit = cvSkillsByCanonical.get(viaChild.child);
-          satisfiedBy = viaChild.child;
-          satisfiedChildren.add(viaChild.child);
+      // OR-group: any listed member satisfies the requirement (single-canonical reqs are a
+      // one-member group). Exact hit on the BEST member wins; only on a full miss do we
+      // consult the curated satisfies-edges per member (child counts at its OWN level).
+      const members = req.any_of?.length ? req.any_of : [req.skill_canonical_name];
+      let cvHit: { level: number; raw: RawCvSkill } | undefined;
+      let matchedCanonical = req.skill_canonical_name;
+      for (const m of members) {
+        const h = cvSkillsByCanonical.get(m);
+        if (h && (!cvHit || h.level > cvHit.level)) {
+          cvHit = h;
+          matchedCanonical = m;
         }
       }
+      let satisfiedBy: string | undefined;
+      if (!cvHit) {
+        for (const m of members) {
+          const viaChild = findSatisfying(m, cvSkillsByCanonical, loadSatisfiesEdges());
+          if (viaChild && (!cvHit || viaChild.level > cvHit.level)) {
+            cvHit = cvSkillsByCanonical.get(viaChild.child);
+            matchedCanonical = m;
+            satisfiedBy = viaChild.child;
+          }
+        }
+        if (satisfiedBy) satisfiedChildren.add(satisfiedBy);
+      }
+      const display = (c: string) => this.normalizer.getByCanonical(c)?.display_name ?? c;
+      // A fully-missing OR-group shows every option ("Swift / Kotlin") — honest UX.
       const displayName =
-        this.normalizer.getByCanonical(req.skill_canonical_name)?.display_name ??
-        req.skill_canonical_name;
+        !cvHit && members.length > 1 ? members.map(display).join(' / ') : display(matchedCanonical);
       const skill_type: 'hard' | 'soft' =
-        this.normalizer.getByCanonical(req.skill_canonical_name)?.category === 'soft_skill'
+        this.normalizer.getByCanonical(matchedCanonical)?.category === 'soft_skill'
           ? 'soft'
           : 'hard';
 
@@ -272,8 +295,8 @@ export class SkillDiffService {
 
       if (cvHit.level >= req.required_level) {
         matched.push({
-          skill_id: req.skill_canonical_name,
-          canonical_name: req.skill_canonical_name,
+          skill_id: matchedCanonical,
+          canonical_name: matchedCanonical,
           display_name: displayName,
           cv_level: cvHit.level,
           required_level: req.required_level,
@@ -288,8 +311,8 @@ export class SkillDiffService {
         // Partial: CONVEX credit (cv/required)^exponent — junior-everywhere CVs no longer
         // harvest near-linear credit (eval pairs: levelgap-all-novice, keyword-stuffing).
         partial.push({
-          skill_id: req.skill_canonical_name,
-          canonical_name: req.skill_canonical_name,
+          skill_id: matchedCanonical,
+          canonical_name: matchedCanonical,
           display_name: displayName,
           cv_level: cvHit.level,
           required_level: req.required_level,
@@ -305,7 +328,10 @@ export class SkillDiffService {
     }
 
     // Bonus skills: everything the CV has that the role doesn't ask for — surfaced, NEVER penalized.
-    const requiredNames = new Set(requirements.map((r) => r.skill_canonical_name));
+    // OR-group members all count as "asked for" (a kotlin hit consumed by the group must not re-appear).
+    const requiredNames = new Set(
+      requirements.flatMap((r) => (r.any_of?.length ? r.any_of : [r.skill_canonical_name])),
+    );
     const bonus: BonusSkill[] = [];
     for (const [canonical, hit] of cvSkillsByCanonical) {
       if (requiredNames.has(canonical) || satisfiedChildren.has(canonical)) continue;
@@ -349,6 +375,7 @@ export class SkillDiffService {
       required_coverage: round3(required_coverage),
       overall_score,
       requirements_source: source,
+      rubric_band: bandUsed,
       scoring_breakdown: {
         total_requirements: totalReqs,
         matched_count: matched.length,
@@ -376,29 +403,38 @@ export class SkillDiffService {
   private buildRequirements(args: {
     jd_requirements_raw?: RawJdRequirement[];
     target_role?: string | null;
+    target_band?: RubricBand;
   }): {
     requirements: RoleSkillRequirement[];
     unnormalizedJd: UnnormalizedSkill[];
     source: 'jd_extraction' | 'role_rubric' | 'none';
+    /** Band actually applied — rubric path only; null when the JD (or nothing) set the bar. */
+    bandUsed: RubricBand | null;
   } {
     const { requirements: jdReqs, unnormalizedJd } = this.normalizeJdRequirements(
       args.jd_requirements_raw ?? [],
     );
     if (jdReqs.length > 0) {
-      return { requirements: jdReqs, unnormalizedJd, source: 'jd_extraction' };
+      return { requirements: jdReqs, unnormalizedJd, source: 'jd_extraction', bandUsed: null };
     }
 
     if (args.target_role) {
-      const rubric = this.rubrics.getRubric(args.target_role);
+      const band = args.target_band ?? 'mid';
+      const rubric = this.rubrics.getRubric(args.target_role, band);
       if (rubric) {
-        return { requirements: rubric.skills, unnormalizedJd, source: 'role_rubric' };
+        return {
+          requirements: rubric.skills,
+          unnormalizedJd,
+          source: 'role_rubric',
+          bandUsed: band,
+        };
       }
       this.logger.warn(
         `No rubric for target_role "${args.target_role}" and no usable JD requirements — empty requirement set.`,
       );
     }
 
-    return { requirements: [], unnormalizedJd, source: 'none' };
+    return { requirements: [], unnormalizedJd, source: 'none', bandUsed: null };
   }
 
   /**
