@@ -1,0 +1,44 @@
+{
+  "$note": "Golden cases for the CV Patch Engine (eval:patch). Each runs cv_skills + jd_requirements through the REAL SkillNormalizer → SkillDiffService, overlays a fixture ledger + a CanonicalCvDocument (cv_projects), then asserts decorateWithPatch produces the expected action_type / rewrite_eligible / has_before. Offline, 0 LLM. Honesty core: has_before=true ONLY for an evidence-backed rewrite whose anchor resolves to a real bullet.",
+  "version": "eval-patch-cases-v1",
+  "created_at": "2026-06-14",
+  "cases": [
+    {
+      "id": "patch-rewrite-demonstrated-bullet",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "SQL", "proficiency_hint": "INTERMEDIATE" }],
+      "jd_requirements": [{ "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "ledger_demonstrated": [["sql", "Booking App"]],
+      "cv_projects": [{ "name": "Booking App", "bullets": ["Tối ưu truy vấn với SQL giảm 30% thời gian phản hồi", "Viết tài liệu API"] }],
+      "rationale": "SQL int<adv → partial; demonstrated in a project → deepen_wording (rewrite). The project bullet mentions SQL → anchor resolves → a real `before` is emitted (the only has_before=true case).",
+      "expect_patch": [{ "canonical": "sql", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": true }]
+    },
+    {
+      "id": "patch-rewrite-no-matching-bullet",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "SQL", "proficiency_hint": "INTERMEDIATE" }],
+      "jd_requirements": [{ "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "ledger_demonstrated": [["sql", "Booking App"]],
+      "cv_projects": [{ "name": "Booking App", "bullets": ["Làm việc nhóm 4 người", "Viết tài liệu"] }],
+      "rationale": "Same rewrite action, but NO project bullet mentions SQL → anchor_confidence low → has_before=false (never guesses a bullet). Still rewrite_eligible (the on-demand rewrite dialog lets the user pick the bullet).",
+      "expect_patch": [{ "canonical": "sql", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": false }]
+    },
+    {
+      "id": "patch-missing-no-before",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "rationale": "Kubernetes absent → missing_required (fixability learn). Advise-only: never rewrite_eligible, never a before (would be fabrication).",
+      "expect_patch": [{ "canonical": "kubernetes", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false }]
+    },
+    {
+      "id": "patch-add-evidence-listed-only",
+      "target_role": "frontend_developer",
+      "cv_skills": [{ "name": "React", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "ledger_listed_only": ["react"],
+      "rationale": "React matched (adv>=int) but only listed in Skills → add_evidence (prove it with a bullet). No demonstrated bullet exists → no before, not rewrite_eligible.",
+      "expect_patch": [{ "canonical": "react", "action_type": "add_evidence", "rewrite_eligible": false, "has_before": false }]
+    }
+  ]
+}
