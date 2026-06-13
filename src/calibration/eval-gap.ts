@@ -34,14 +34,19 @@ interface GapCase {
   jd_requirements?: Array<{ name: string; importance_hint?: string; required_level_hint?: string }>;
   ledger_listed_only?: string[];
   ledger_demonstrated?: string[];
+  /** canonical → pct_of_postings (0-100), overlaid as the market-demand input. Optional; when present
+   *  it drives severity ranking (lets a case test market-tilt — e.g. two equal gaps ordered by demand). */
+  market_demand?: Record<string, number>;
   expect: Array<{
     canonical: string;
     cv_status: string;
     fixability?: string;
     evidence_risk?: string;
   }>;
-  /** Canonicals in REQUIRED severity order (highest first). Asserts severity(a) >= severity(b) >= ...
-   *  — the PR2 ranking gate (market_demand is null in eval-gap, so this isolates importance/status/evidence). */
+  /** Canonicals in REQUIRED severity order (highest first). The PR2 ranking gate: asserts these
+   *  canonicals appear in this exact order in the EMITTED items[] (so it catches near-ties that round
+   *  to equal public severity but must still rank by raw severity), and that their severities are
+   *  non-increasing. Supply `market_demand` to exercise market-driven ordering. */
   expect_severity_order?: string[];
 }
 
@@ -109,7 +114,11 @@ async function main(): Promise<void> {
       target_role: c.target_role,
     } as unknown as CvJdMatchParsedResponse;
 
-    const items = buildGapItems({ match, ledger: buildFixtureLedger(c) });
+    const items = buildGapItems({
+      match,
+      ledger: buildFixtureLedger(c),
+      marketDemand: c.market_demand ? new Map(Object.entries(c.market_demand)) : null,
+    });
     const byCanonical = new Map(items.map((g) => [g.canonical_name, g]));
 
     const lines: string[] = [];
@@ -132,25 +141,33 @@ async function main(): Promise<void> {
       lines.push(`${e.canonical}=${g.cv_status}/${g.fixability}`);
     }
 
-    // Severity ranking gate (PR2): the emitted severities must be non-increasing in the listed order.
+    // Severity ranking gate (PR2): the listed canonicals must appear in the EMITTED items[] in this
+    // order (the primary check — it catches near-ties that round to equal public severity but must
+    // still rank by raw severity, e.g. market-demand tilt), and their severities must be non-increasing.
     if (c.expect_severity_order) {
-      const sevs = c.expect_severity_order.map((canon) => ({
+      const positions = c.expect_severity_order.map((canon) => ({
         canon,
+        idx: items.findIndex((g) => g.canonical_name === canon),
         sev: byCanonical.get(canon)?.severity,
       }));
-      const missing = sevs.find((s) => s.sev === undefined);
-      if (missing) {
-        misses.push(`  ${c.id}: severity-order canonical "${missing.canon}" not produced`);
+      const absent = positions.find((p) => p.idx < 0);
+      if (absent) {
+        misses.push(`  ${c.id}: severity-order canonical "${absent.canon}" not produced`);
       } else {
-        for (let i = 1; i < sevs.length; i++) {
-          if ((sevs[i - 1].sev as number) < (sevs[i].sev as number)) {
+        for (let i = 1; i < positions.length; i++) {
+          if (positions[i - 1].idx > positions[i].idx) {
             misses.push(
-              `  ${c.id}: severity order violated — ${sevs[i - 1].canon}(${sevs[i - 1].sev}) < ${sevs[i].canon}(${sevs[i].sev})`,
+              `  ${c.id}: emitted order violated — ${positions[i - 1].canon}(#${positions[i - 1].idx}) after ${positions[i].canon}(#${positions[i].idx})`,
+            );
+          }
+          if ((positions[i - 1].sev as number) < (positions[i].sev as number)) {
+            misses.push(
+              `  ${c.id}: severity order violated — ${positions[i - 1].canon}(${positions[i - 1].sev}) < ${positions[i].canon}(${positions[i].sev})`,
             );
           }
         }
       }
-      lines.push(`order[${sevs.map((s) => `${s.canon}:${s.sev}`).join(' > ')}]`);
+      lines.push(`order[${positions.map((p) => `${p.canon}#${p.idx}:${p.sev}`).join(' > ')}]`);
     }
     console.log(`${c.id.padEnd(38)} ${lines.join('  ')}`);
   }

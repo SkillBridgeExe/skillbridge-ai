@@ -110,13 +110,16 @@ export function interviewRiskRaw(item: Pick<GapItem, 'cv_status' | 'evidence_ris
   return clamp01(base * (0.5 + 0.5 * ev));
 }
 
-/** PURE, deterministic, clamped [0,1], rounded to 3dp (platform-stable golden values). */
-export function computeSeverity(
-  item: Pick<
-    GapItem,
-    'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
-  >,
-): number {
+type SeverityInput = Pick<
+  GapItem,
+  'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
+>;
+
+/** UNROUNDED severity — the internal RANKING value. PURE, deterministic, clamped [0,1] but NOT
+ *  rounded. Ordering must use THIS, never the rounded public `severity`: two gaps differing only
+ *  slightly (e.g. market_demand 53 vs 50) round to the same 3dp public value yet must still order by
+ *  their true magnitude. The public `computeSeverity()` is just round3 of this. */
+export function severityRaw(item: SeverityInput): number {
   const imp = importanceWeight(item.importance);
   const levelPart = clamp01((item.gap_levels ?? 0) / 5);
   const evPart = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
@@ -124,7 +127,13 @@ export function computeSeverity(
   const core = NEED_W * need + IV_W * interviewRiskRaw(item);
   const fMarket = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
   const marketMult = MARKET_FLOOR + MARKET_SPAN * fMarket; // [0.8,1.2]; null → 1.0
-  return round3(clamp01(imp * core * marketMult));
+  return clamp01(imp * core * marketMult);
+}
+
+/** PUBLIC severity — severityRaw() rounded to 3dp (platform-stable golden values), stored on
+ *  GapItem.severity. Ranking uses severityRaw() so near-ties don't collapse. */
+export function computeSeverity(item: SeverityInput): number {
+  return round3(severityRaw(item));
 }
 
 const ACTION_LABEL: Record<CvStatus, string> = {
@@ -272,8 +281,12 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     });
   }
 
-  // Highest severity first; stable tiebreak by canonical so output is reproducible.
-  return items.sort(
-    (a, b) => b.severity - a.severity || a.canonical_name.localeCompare(b.canonical_name),
-  );
+  // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
+  // so two gaps that round to the same 3dp value still order by their true magnitude — e.g. a
+  // market_demand 53 gap outranks an otherwise-identical 50 gap though both publish as 0.063. The
+  // public GapItem.severity stays round3. Stable tiebreak by canonical keeps output reproducible.
+  return items
+    .map((item) => ({ item, raw: severityRaw(item) }))
+    .sort((a, b) => b.raw - a.raw || a.item.canonical_name.localeCompare(b.item.canonical_name))
+    .map((entry) => entry.item);
 }

@@ -84,6 +84,25 @@
         { "canonical": "sql", "cv_status": "partial" }
       ],
       "expect_severity_order": ["react", "sql"]
+    },
+    {
+      "id": "sev-market-demand-breaks-rounding-tie",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "ADVANCED" },
+        { "name": "React", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "ADVANCED" }
+      ],
+      "market_demand": { "sql": 53, "react": 50 },
+      "rationale": "Two identical NICE partial gaps (int<adv, gap 1); both round to the same public severity (0.063), but sql's higher market_demand (53 vs 50) must rank it first. Sorting by the rounded public severity would tie and fall back to alphabetical (react first) — so this asserts the EMITTED order tracks the unrounded raw severity. 'sql' sorts before 'react' despite being alphabetically later.",
+      "expect": [
+        { "canonical": "sql", "cv_status": "partial" },
+        { "canonical": "react", "cv_status": "partial" }
+      ],
+      "expect_severity_order": ["sql", "react"]
     }
   ]
 }

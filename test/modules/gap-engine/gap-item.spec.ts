@@ -362,4 +362,42 @@ describe('buildGapItems', () => {
     expect(items[0].cv_status).toBe('missing');
     expect(items[items.length - 1].cv_status).toBe('matched');
   });
+
+  it('near-tie sort ranks by RAW severity, not the rounded public value (market 53 > 50)', () => {
+    // Two NICE_TO_HAVE partial gaps identical but for market_demand. Both round to the SAME public
+    // severity (0.063); the higher-market gap must still sort first. sql=53 / react=50 makes the
+    // higher-market skill alphabetically LATER, so a rounded-severity sort would tie and fall back to
+    // the alphabetical tiebreak (react first) — this test fails on that bug, passes on the raw sort.
+    const items = buildGapItems({
+      match: emptyMatch({
+        partial_skills: [
+          partial({
+            skill_id: 'react',
+            canonical_name: 'react',
+            display_name: 'React',
+            importance: 'NICE_TO_HAVE',
+            cv_level: 3,
+            required_level: 4,
+            gap_levels: 1,
+          }),
+          partial({
+            skill_id: 'sql',
+            canonical_name: 'sql',
+            display_name: 'SQL',
+            importance: 'NICE_TO_HAVE',
+            cv_level: 3,
+            required_level: 4,
+            gap_levels: 1,
+          }),
+        ],
+      }),
+      marketDemand: new Map([
+        ['sql', 53],
+        ['react', 50],
+      ]),
+    });
+    expect(items.map((g) => g.canonical_name)).toEqual(['sql', 'react']); // 53 before 50, despite 'sql' > 'react'
+    expect(items[0].severity).toBe(items[1].severity); // identical rounded public severity…
+    expect(items[0].severity).toBe(0.063); // …both 0.063
+  });
 });
