@@ -89,7 +89,7 @@ When evidence is ambiguous, default to INTERMEDIATE.
 
 Extract the requirements the JD states that are NOT individual skills:
 
-- **seniority**: a required level/years of experience. `level_hint` ∈ {INTERN, FRESHER, JUNIOR, MIDDLE, SENIOR, LEAD}; set `min_years` if a number is stated. e.g. "Senior Backend Engineer, 5+ years" → {level_hint: "SENIOR", min_years: 5}.
+- **seniority**: a required OVERALL experience level — a role rank (Intern/Fresher/Junior/Middle/Senior/Lead) OR total years of professional experience that is NOT tied to one specific skill. `level_hint` ∈ {INTERN, FRESHER, JUNIOR, MIDDLE, SENIOR, LEAD}; set `min_years` only for a TOTAL-experience number. e.g. "Senior Backend Engineer, 5+ years" → {level_hint: "SENIOR", min_years: 5}. ⚠️ Years attached to a specific skill are NOT seniority — see honesty rule #2.
 - **language**: a human-language requirement. e.g. "English B2", "Tiếng Anh giao tiếp", "JLPT N2". Put the level in `value_text`/`level_hint` as written.
 - **education**: a degree/field requirement. e.g. "Bachelor in Computer Science", "Cử nhân CNTT".
 - **domain**: an industry/domain requirement. e.g. "experience in Fintech", "background in healthcare".
@@ -98,7 +98,7 @@ Extract the requirements the JD states that are NOT individual skills:
 ### Honesty rules for jd_dimensions_raw (BẮT BUỘC)
 
 1. Only emit a dimension the JD **explicitly STATES**. Quote it verbatim in `evidence_text`. If the JD states no such requirement, omit that dimension. If the JD states NONE of these, return `jd_dimensions_raw: []`.
-2. **NEVER infer seniority or years from the job title alone or from the skill list.** Only emit `seniority` when the JD states a level or a years-of-experience requirement in the text.
+2. **`seniority` is OVERALL experience — NEVER skill-specific years.** "X years WITH / OF [a specific skill]" — e.g. "3+ years with React", "2+ years of Node.js", "2 năm kinh nghiệm với ReactJS", "tối thiểu 2 năm với TypeScript" — is a SKILL requirement: it belongs in `jd_requirements_raw` (as that skill's level) and you MUST NOT emit any `seniority` dimension for it. Emit `seniority` ONLY when the JD states a role rank (Senior/Junior/Fresher/Middle/Lead/Intern) OR a TOTAL professional-experience figure not bound to a single skill (e.g. "5+ years of experience" standing alone). Also NEVER infer seniority from the job title alone or from the skill list.
 3. Set `deal_breaker: true` ONLY when the JD uses must/required/mandatory/essential language for that requirement; otherwise `false`.
 4. `evidence_text` MUST quote the JD — no fabrication. A dimension with no quote is invalid; omit it.
 
