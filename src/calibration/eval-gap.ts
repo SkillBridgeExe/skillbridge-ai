@@ -40,6 +40,9 @@ interface GapCase {
     fixability?: string;
     evidence_risk?: string;
   }>;
+  /** Canonicals in REQUIRED severity order (highest first). Asserts severity(a) >= severity(b) >= ...
+   *  — the PR2 ranking gate (market_demand is null in eval-gap, so this isolates importance/status/evidence). */
+  expect_severity_order?: string[];
 }
 
 /** A fixture ledger from the case (only the fields buildGapItems reads: strength + evidence_gap). */
@@ -127,6 +130,27 @@ async function main(): Promise<void> {
         }
       }
       lines.push(`${e.canonical}=${g.cv_status}/${g.fixability}`);
+    }
+
+    // Severity ranking gate (PR2): the emitted severities must be non-increasing in the listed order.
+    if (c.expect_severity_order) {
+      const sevs = c.expect_severity_order.map((canon) => ({
+        canon,
+        sev: byCanonical.get(canon)?.severity,
+      }));
+      const missing = sevs.find((s) => s.sev === undefined);
+      if (missing) {
+        misses.push(`  ${c.id}: severity-order canonical "${missing.canon}" not produced`);
+      } else {
+        for (let i = 1; i < sevs.length; i++) {
+          if ((sevs[i - 1].sev as number) < (sevs[i].sev as number)) {
+            misses.push(
+              `  ${c.id}: severity order violated — ${sevs[i - 1].canon}(${sevs[i - 1].sev}) < ${sevs[i].canon}(${sevs[i].sev})`,
+            );
+          }
+        }
+      }
+      lines.push(`order[${sevs.map((s) => `${s.canon}:${s.sev}`).join(' > ')}]`);
     }
     console.log(`${c.id.padEnd(38)} ${lines.join('  ')}`);
   }

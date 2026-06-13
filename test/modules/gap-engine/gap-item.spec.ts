@@ -1,6 +1,121 @@
-import { buildGapItems } from '../../../src/modules/gap-engine/gap-item';
+import { buildGapItems, computeSeverity } from '../../../src/modules/gap-engine/gap-item';
 import { CvJdMatchParsedResponse } from '../../../src/modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { EvidenceLedger } from '../../../src/common/services/evidence-ledger';
+
+/**
+ * PR2 — severity formula: severity = clamp01(imp × core × marketMult), core = 0.65·max(levelPart,
+ * evPart) + 0.35·interviewRiskRaw, marketMult = 0.8+0.4·fMarket (null→neutral 1.0). Pure +
+ * deterministic. Golden values verified by hand + the design workflow.
+ */
+describe('computeSeverity (PR2)', () => {
+  const sev = (o: Record<string, unknown>) =>
+    computeSeverity({
+      importance: 'REQUIRED',
+      gap_levels: 0,
+      evidence_risk: 'none',
+      cv_status: 'matched',
+      market_demand: null,
+      ...o,
+    } as never);
+
+  it('matched + demonstrated → exactly 0, for any market (incl null)', () => {
+    expect(sev({ market_demand: 80 })).toBe(0);
+    expect(sev({ market_demand: null })).toBe(0);
+  });
+
+  it('exact golden values', () => {
+    expect(sev({ cv_status: 'missing', gap_levels: 5, market_demand: 80 })).toBe(0.748);
+    expect(
+      sev({ importance: 'NICE_TO_HAVE', cv_status: 'missing', gap_levels: 5, market_demand: 80 }),
+    ).toBe(0.224);
+    expect(
+      sev({
+        cv_status: 'overclaimed',
+        evidence_risk: 'unproven',
+        gap_levels: 0,
+        market_demand: 70,
+      }),
+    ).toBe(0.813);
+    expect(
+      sev({
+        cv_status: 'unproven',
+        evidence_risk: 'listed_only',
+        gap_levels: 0,
+        market_demand: 70,
+      }),
+    ).toBe(0.535);
+  });
+
+  it('REQUIRED missing outranks NICE missing at equal gap/market', () => {
+    expect(sev({ cv_status: 'missing', gap_levels: 5, market_demand: 80 })).toBeGreaterThan(
+      sev({ importance: 'NICE_TO_HAVE', cv_status: 'missing', gap_levels: 5, market_demand: 80 }),
+    );
+  });
+
+  it('zero-level-gap overclaimed REQUIRED outranks a NICE partial (not zeroed by gap=0)', () => {
+    const over = sev({
+      cv_status: 'overclaimed',
+      evidence_risk: 'unproven',
+      gap_levels: 0,
+      market_demand: 70,
+    });
+    const nicePartial = sev({
+      importance: 'NICE_TO_HAVE',
+      cv_status: 'partial',
+      gap_levels: 1,
+      market_demand: 50,
+    });
+    expect(over).toBeGreaterThan(0);
+    expect(over).toBeGreaterThan(nicePartial);
+  });
+
+  it('market: null is neutral (== 50), monotonic, floored (never zeroes a real gap)', () => {
+    const base = { cv_status: 'missing', gap_levels: 5 } as const;
+    expect(sev({ ...base, market_demand: null })).toBe(sev({ ...base, market_demand: 50 })); // 0.668
+    expect(sev({ ...base, market_demand: 0 })).toBeLessThan(sev({ ...base, market_demand: null }));
+    expect(sev({ ...base, market_demand: 100 })).toBeGreaterThan(
+      sev({ ...base, market_demand: null }),
+    );
+    expect(sev({ ...base, market_demand: null })).toBeGreaterThan(
+      sev({ ...base, market_demand: 10 }),
+    );
+    expect(sev({ cv_status: 'partial', gap_levels: 2, market_demand: 0 })).toBeGreaterThan(0);
+  });
+
+  it('evidence-met-but-unproven REQUIRED outranks a small honest level gap', () => {
+    expect(
+      sev({
+        cv_status: 'unproven',
+        evidence_risk: 'listed_only',
+        gap_levels: 0,
+        market_demand: null,
+      }),
+    ).toBeGreaterThan(sev({ cv_status: 'partial', gap_levels: 1, market_demand: 50 }));
+  });
+
+  it('importance tier order REQUIRED > PREFERRED > NICE_TO_HAVE', () => {
+    const m = { cv_status: 'missing', gap_levels: 3, market_demand: 60 } as const;
+    expect(sev({ ...m, importance: 'REQUIRED' })).toBeGreaterThan(
+      sev({ ...m, importance: 'PREFERRED' }),
+    );
+    expect(sev({ ...m, importance: 'PREFERRED' })).toBeGreaterThan(
+      sev({ ...m, importance: 'NICE_TO_HAVE' }),
+    );
+  });
+
+  it('always in [0,1] and pure (same input → same output)', () => {
+    const args = {
+      cv_status: 'missing',
+      gap_levels: 5,
+      evidence_risk: 'unproven',
+      market_demand: 100,
+    };
+    const a = sev(args);
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(a).toBeLessThanOrEqual(1);
+    expect(a).toBe(sev(args));
+  });
+});
 
 /**
  * PR1 — pure GapItem builder. No DB, no LLM: feed a parsed match (+ optional ledger / market map)
@@ -76,7 +191,7 @@ describe('buildGapItems', () => {
     expect(g.gap_levels).toBe(4);
     expect(g.cv_level).toBeNull();
     expect(g.type).toBe('hard_skill');
-    expect(g.severity).toBeCloseTo(1.0 * (4 / 5)); // REQUIRED multiplier 1.0
+    expect(g.severity).toBe(0.538); // PR2 formula: REQ missing gap4, no market → 0.538
     expect(g.requirement_id).toBe('role_rubric:hard_skill:kubernetes');
     expect(g.recommended_next_action).not.toBe('');
   });
