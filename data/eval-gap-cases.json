@@ -50,6 +50,40 @@
       "expect": [
         { "canonical": "sql", "cv_status": "matched", "fixability": "not_fixable_now" }
       ]
+    },
+    {
+      "id": "sev-required-missing-outranks-nice-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Figma", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "ADVANCED" }
+      ],
+      "rationale": "Both missing at equal gap; a REQUIRED missing skill must outrank a NICE_TO_HAVE one (importance is the outer severity scaler).",
+      "expect": [
+        { "canonical": "kubernetes", "cv_status": "missing" },
+        { "canonical": "figma", "cv_status": "missing" }
+      ],
+      "expect_severity_order": ["kubernetes", "figma"]
+    },
+    {
+      "id": "sev-overclaimed-outranks-honest-partial",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_listed_only": ["react"],
+      "rationale": "React (adv, listed-only, JD wants expert) → overclaimed partial; SQL (int, honest, JD wants adv) → plain partial. An overclaim the interview will expose outranks an honest small level gap.",
+      "expect": [
+        { "canonical": "react", "cv_status": "overclaimed" },
+        { "canonical": "sql", "cv_status": "partial" }
+      ],
+      "expect_severity_order": ["react", "sql"]
     }
   ]
 }
