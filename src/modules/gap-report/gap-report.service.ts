@@ -72,7 +72,15 @@ export class GapReportService {
         ? { available: true, role_code: marketDto.role_code, period: marketDto.period }
         : { available: false, reason: marketDto.reason },
       jd_market_position: marketDto,
-      gap_items: buildGapItems({ match: input.match, ledger, marketDemand }),
+      // PR3: feed extracted JD dimensions + CV seniority — only `seniority` becomes a graded GapItem;
+      // absent (v1 path) ⇒ byte-identical to before. The other dims surface in core.jd_intelligence.
+      gap_items: buildGapItems({
+        match: input.match,
+        ledger,
+        marketDemand,
+        jdDimensions: input.match.jd_dimensions ?? null,
+        cvSeniority,
+      }),
     };
   }
 }
