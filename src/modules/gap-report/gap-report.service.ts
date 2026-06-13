@@ -10,6 +10,7 @@ import {
 import { ImpliedSkill } from '../jobs/trends/jd-market-position';
 import { deriveCvSeniority } from '../../common/services/seniority';
 import { buildGapReportCore, GapReportCore } from './gap-report';
+import { buildGapItems, GapItem } from '../gap-engine/gap-item';
 
 export interface SkillBridgeGapReport extends GapReportCore {
   /** Distilled trend GAPS (implied & not covered) — the downstream signal (roadmap/interview). */
@@ -22,6 +23,10 @@ export interface SkillBridgeGapReport extends GapReportCore {
   /** Full positioning DTO (per-requirement niche/standard/common + implied incl. covered) —
    *  the W12 "đọc vị JD" display block; market_trend_gaps above is its distilled subset. */
   jd_market_position: JdMarketPositionDto;
+  /** Gap Engine v2 FOUNDATION (PR1): JD/rubric requirements as canonical GapItem[]. Additive —
+   *  the groups above are unchanged. NOTE: market-implied gaps are NOT here yet (they remain in
+   *  `market_trend_gaps`); folding them in + re-expressing the groups on top is a later PR. */
+  gap_items: GapItem[];
 }
 
 /**
@@ -52,6 +57,12 @@ export class GapReportService {
     const checklist = this.tailor.build({ match: input.match, review: input.review, lang });
     const marketDto = await this.market.build({ match: input.match, lang });
 
+    // PR1: per-requirement market demand (pct_of_postings) when a snapshot exists — else the
+    // builder defaults market_demand to null. No new computation; reads the positioning DTO.
+    const marketDemand = marketDto.available
+      ? new Map(marketDto.jd_skills.map((s) => [s.skill_canonical, s.pct_of_postings] as const))
+      : null;
+
     return {
       ...core,
       recommended_actions: checklist.actions,
@@ -61,6 +72,7 @@ export class GapReportService {
         ? { available: true, role_code: marketDto.role_code, period: marketDto.period }
         : { available: false, reason: marketDto.reason },
       jd_market_position: marketDto,
+      gap_items: buildGapItems({ match: input.match, ledger, marketDemand }),
     };
   }
 }
