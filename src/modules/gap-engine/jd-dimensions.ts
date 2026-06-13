@@ -32,6 +32,7 @@ const DIMENSION_TYPES: readonly JdDimensionType[] = [
   'work_mode',
 ];
 const IMPORTANCE_VALUES: readonly Importance[] = ['REQUIRED', 'PREFERRED', 'NICE_TO_HAVE'];
+const IMPORTANCE_ORDER: Record<Importance, number> = { REQUIRED: 2, PREFERRED: 1, NICE_TO_HAVE: 0 };
 
 /** Loose shape the LLM emits per entry of jd_dimensions_raw[] — every field is untrusted. */
 export interface RawJdDimension {
@@ -148,11 +149,18 @@ export function gradeSeniority(
       d.dimension === 'seniority' && !!d.level_hint && JOB_LEVEL_RANK[d.level_hint] !== undefined,
   );
   if (seniorityDims.length === 0) return null;
-  const dim = seniorityDims.reduce((a, b) =>
-    (JOB_LEVEL_RANK[b.level_hint as string] ?? -1) > (JOB_LEVEL_RANK[a.level_hint as string] ?? -1)
-      ? b
-      : a,
-  );
+  const dim = seniorityDims.reduce((a, b) => {
+    const ra = JOB_LEVEL_RANK[a.level_hint as string] ?? -1;
+    const rb = JOB_LEVEL_RANK[b.level_hint as string] ?? -1;
+    if (rb !== ra) return rb > ra ? b : a;
+    // Tie on required rank → keep the MORE SEVERE: deal-breaker, then importance, then total min_years —
+    // so a SENIOR/PREFERRED listed before a SENIOR/REQUIRED deal-breaker never wins (P2 fix).
+    if (a.deal_breaker !== b.deal_breaker) return b.deal_breaker ? b : a;
+    const ia = IMPORTANCE_ORDER[a.importance] ?? 0;
+    const ib = IMPORTANCE_ORDER[b.importance] ?? 0;
+    if (ib !== ia) return ib > ia ? b : a;
+    return (b.min_years ?? -1) > (a.min_years ?? -1) ? b : a;
+  });
   const jdRank = JOB_LEVEL_RANK[dim.level_hint as string];
   const cvRank = BUCKET_RANK[cvSeniority.bucket];
   const verdict = computeExperienceFit(cvSeniority, dim.level_hint).verdict;

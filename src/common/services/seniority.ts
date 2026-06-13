@@ -2,8 +2,9 @@ import { CanonicalCvDocument } from '../types/canonical-cv';
 
 export type SeniorityBucket = 'intern' | 'fresher' | 'junior' | 'mid' | 'senior';
 /** CV seniority bucket → ordinal rank (0-4). Exported additively for the Gap Engine's seniority
- *  GapItem (PR3) — note there is NO 'lead' CV bucket, so a LEAD-required JD can never be 'matched'
- *  from CV signal alone (an honest limitation, surfaced as a partial/missing gap). */
+ *  GapItem (PR3). There is NO 'lead' CV bucket, so the CV signal tops out at senior (rank 4): under
+ *  the ±1 fits-tolerance a LEAD-required JD (rank 5) is still 'matched' for a senior CV, but a real
+ *  gap for any CV two-or-more levels below. */
 export const BUCKET_RANK: Record<SeniorityBucket, number> = {
   intern: 0,
   fresher: 1,

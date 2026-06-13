@@ -183,6 +183,22 @@ describe('gradeJdDimensions (PR3, seniority-only, pure)', () => {
     expect(items[0].cv_status).toBe('missing');
   });
 
+  it('same-rank duplicate → keeps the MORE SEVERE (deal-breaker / importance), order-independent (P2)', () => {
+    // Both SENIOR, but a PREFERRED non-deal-breaker is listed BEFORE a REQUIRED deal-breaker. The
+    // tie-break must keep the REQUIRED one so severity reflects the real requirement (0.408, not 0.245).
+    const items = gradeJdDimensions({
+      jdDimensions: [
+        dim({ level_hint: 'SENIOR', importance: 'PREFERRED', deal_breaker: false }),
+        dim({ level_hint: 'SENIOR', importance: 'REQUIRED', deal_breaker: true }),
+      ],
+      cvSeniority: sen({ bucket: 'fresher', confidence: 'high' }),
+      source: 'jd',
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0].importance).toBe('REQUIRED');
+    expect(items[0].severity).toBe(0.408);
+  });
+
   it('senior-required vs senior CV → matched, severity 0', () => {
     const [g] = gradeJdDimensions({
       jdDimensions: [dim()],
