@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
 import { TailorChecklistService } from '../cv-jd-match/tailor-checklist.service';
-import { TailorAction } from '../cv-jd-match/tailor-checklist';
+import { decorateWithPatch, PatchedTailorAction } from '../cv-jd-match/cv-patch';
 import {
   JdMarketPositionDto,
   JdMarketPositionService,
@@ -15,7 +15,9 @@ import { buildGapItems, GapItem } from '../gap-engine/gap-item';
 export interface SkillBridgeGapReport extends GapReportCore {
   /** Distilled trend GAPS (implied & not covered) — the downstream signal (roadmap/interview). */
   market_trend_gaps: ImpliedSkill[] | null;
-  recommended_actions: TailorAction[];
+  /** PR4: the tailor checklist, enriched into a deterministic CV-patch plan (section / stable
+   *  action_id / fixability / a verbatim `before` only when evidence-backed). Superset of TailorAction. */
+  recommended_actions: PatchedTailorAction[];
   generated_with_ledger: boolean;
   market:
     | { available: true; role_code: string; period: string }
@@ -63,24 +65,33 @@ export class GapReportService {
       ? new Map(marketDto.jd_skills.map((s) => [s.skill_canonical, s.pct_of_postings] as const))
       : null;
 
+    // PR3: feed extracted JD dimensions + CV seniority — only `seniority` becomes a graded GapItem;
+    // absent (v1 path) ⇒ byte-identical to before. The other dims surface in core.jd_intelligence.
+    // Built ONCE here and reused for BOTH gap_items and the PR4 patch decorator (no recomputation).
+    const gapItems = buildGapItems({
+      match: input.match,
+      ledger,
+      marketDemand,
+      jdDimensions: input.match.jd_dimensions ?? null,
+      cvSeniority,
+    });
+
     return {
       ...core,
-      recommended_actions: checklist.actions,
+      // PR4: enrich the checklist into a deterministic patch plan (joins gap_items by skill_canonical).
+      recommended_actions: decorateWithPatch({
+        actions: checklist.actions,
+        gapItems,
+        document: input.review?.document ?? null,
+        lang,
+      }),
       generated_with_ledger: checklist.generated_with_ledger,
       market_trend_gaps: marketDto.available ? marketDto.implied.filter((i) => !i.covered) : null,
       market: marketDto.available
         ? { available: true, role_code: marketDto.role_code, period: marketDto.period }
         : { available: false, reason: marketDto.reason },
       jd_market_position: marketDto,
-      // PR3: feed extracted JD dimensions + CV seniority — only `seniority` becomes a graded GapItem;
-      // absent (v1 path) ⇒ byte-identical to before. The other dims surface in core.jd_intelligence.
-      gap_items: buildGapItems({
-        match: input.match,
-        ledger,
-        marketDemand,
-        jdDimensions: input.match.jd_dimensions ?? null,
-        cvSeniority,
-      }),
+      gap_items: gapItems,
     };
   }
 }
