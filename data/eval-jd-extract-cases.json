@@ -1,0 +1,72 @@
+{
+  "$note": "Tier-B golden cases for eval:jd-extract — labeled bilingual JD prose with the seniority the JD STATES (level_hint), or null when it states NONE (a honesty/false-positive case). Calls the real LLM via cv_jd_match_v2. recall = correct level extraction on positives; false-positive rate = invented seniority on negatives. Run GREEN before flipping production to cv_jd_match_v2.",
+  "version": "eval-jd-extract-cases-v1",
+  "created_at": "2026-06-13",
+  "cases": [
+    {
+      "id": "en-senior-explicit",
+      "jd_text": "We are hiring a Senior Backend Engineer with 5+ years of production experience to own our core services. Responsibilities: design APIs, mentor juniors. Required: Node.js, PostgreSQL, AWS.",
+      "expect_seniority": { "level_hint": "SENIOR" }
+    },
+    {
+      "id": "vi-senior-explicit",
+      "jd_text": "Tuyển Kỹ sư Backend Senior, yêu cầu tối thiểu 5 năm kinh nghiệm làm sản phẩm thực tế. Thành thạo Node.js, PostgreSQL, kinh nghiệm dẫn dắt nhóm nhỏ là một lợi thế.",
+      "expect_seniority": { "level_hint": "SENIOR" }
+    },
+    {
+      "id": "en-junior-explicit",
+      "jd_text": "Junior Frontend Developer (1 year experience). You will build UI components under guidance. Skills: React, TypeScript, CSS.",
+      "expect_seniority": { "level_hint": "JUNIOR" }
+    },
+    {
+      "id": "vi-fresher-explicit",
+      "jd_text": "Tuyển Lập trình viên Java Fresher, chào đón sinh viên mới ra trường. Được đào tạo Spring Boot, làm việc nhóm.",
+      "expect_seniority": { "level_hint": "FRESHER" }
+    },
+    {
+      "id": "en-middle-explicit",
+      "jd_text": "Looking for a Mid-level (Middle) Software Engineer, 2-3 years of experience, to deliver features end to end. Stack: Java, Spring, MySQL.",
+      "expect_seniority": { "level_hint": "MIDDLE" }
+    },
+    {
+      "id": "vi-middle-explicit",
+      "jd_text": "Cần tuyển Lập trình viên Middle (2-4 năm kinh nghiệm) cho dự án fintech. Yêu cầu: ReactJS, NodeJS, hiểu về CI/CD.",
+      "expect_seniority": { "level_hint": "MIDDLE" }
+    },
+    {
+      "id": "en-lead-explicit",
+      "jd_text": "We need an Engineering Lead to manage a team of 6 and set technical direction. 8+ years total, with team leadership. Tech: Go, Kubernetes.",
+      "expect_seniority": { "level_hint": "LEAD" }
+    },
+    {
+      "id": "vi-intern-explicit",
+      "jd_text": "Tuyển Thực tập sinh (Intern) Data Engineer, ưu tiên sinh viên năm 3-4. Học việc với Python, SQL. Có trợ cấp.",
+      "expect_seniority": { "level_hint": "INTERN" }
+    },
+    {
+      "id": "en-skills-only-no-seniority",
+      "jd_text": "Required skills: React, TypeScript, REST APIs, unit testing. You will build and maintain UI components and collaborate with designers.",
+      "expect_seniority": { "level_hint": null }
+    },
+    {
+      "id": "vi-skills-only-no-seniority",
+      "jd_text": "Yêu cầu: thành thạo ReactJS, TypeScript, biết sử dụng Git, có khả năng làm việc nhóm. Mô tả: phát triển giao diện người dùng cho sản phẩm web.",
+      "expect_seniority": { "level_hint": null }
+    },
+    {
+      "id": "en-skill-years-trap",
+      "jd_text": "Requirements: 3+ years of hands-on experience with React and 2+ years with Node.js. Strong CSS. Build performant web apps.",
+      "expect_seniority": { "level_hint": null }
+    },
+    {
+      "id": "en-title-only-trap",
+      "jd_text": "Position: Software Engineer. Responsibilities: write clean code, fix bugs, ship features. Skills: Python, Django, PostgreSQL, Docker.",
+      "expect_seniority": { "level_hint": null }
+    },
+    {
+      "id": "vi-skill-years-trap",
+      "jd_text": "Yêu cầu: tối thiểu 2 năm kinh nghiệm với ReactJS, sử dụng tốt TypeScript và Redux. Mô tả công việc: xây dựng tính năng cho ứng dụng web.",
+      "expect_seniority": { "level_hint": null }
+    }
+  ]
+}

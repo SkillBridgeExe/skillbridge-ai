@@ -13,8 +13,10 @@
  */
 import { EvidenceLedger } from '../../common/services/evidence-ledger';
 import { Importance } from '../../common/services/role-rubric.service';
+import { CvSeniority } from '../../common/services/seniority';
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { MATCH_TUNING } from '../cv-jd-match/skill-diff.service';
+import { JdDimension, gradeSeniority } from './jd-dimensions';
 
 export type GapSource = 'jd' | 'role_rubric' | 'market_implied';
 export type GapType =
@@ -66,6 +68,11 @@ export interface BuildGapItemsInput {
   ledger?: EvidenceLedger | null;
   /** canonical_name → pct_of_postings (0-100). Optional; PR1 callers may omit. */
   marketDemand?: Map<string, number> | null;
+  /** Extracted non-skill JD requirements (PR3, JD-Intelligence v2). Optional — when absent, output
+   *  is byte-identical to PR1/PR2. Only `seniority` is graded into a GapItem here (see gradeJdDimensions). */
+  jdDimensions?: JdDimension[] | null;
+  /** Evidence-based CV seniority (deriveCvSeniority) — the CV-side signal for the seniority gap. */
+  cvSeniority?: CvSeniority | null;
 }
 
 const importanceWeight = (importance: GapImportance): number =>
@@ -110,13 +117,16 @@ export function interviewRiskRaw(item: Pick<GapItem, 'cv_status' | 'evidence_ris
   return clamp01(base * (0.5 + 0.5 * ev));
 }
 
-/** PURE, deterministic, clamped [0,1], rounded to 3dp (platform-stable golden values). */
-export function computeSeverity(
-  item: Pick<
-    GapItem,
-    'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
-  >,
-): number {
+type SeverityInput = Pick<
+  GapItem,
+  'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
+>;
+
+/** UNROUNDED severity — the internal RANKING value. PURE, deterministic, clamped [0,1] but NOT
+ *  rounded. Ordering must use THIS, never the rounded public `severity`: two gaps differing only
+ *  slightly (e.g. market_demand 53 vs 50) round to the same 3dp public value yet must still order by
+ *  their true magnitude. The public `computeSeverity()` is just round3 of this. */
+export function severityRaw(item: SeverityInput): number {
   const imp = importanceWeight(item.importance);
   const levelPart = clamp01((item.gap_levels ?? 0) / 5);
   const evPart = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
@@ -124,7 +134,13 @@ export function computeSeverity(
   const core = NEED_W * need + IV_W * interviewRiskRaw(item);
   const fMarket = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
   const marketMult = MARKET_FLOOR + MARKET_SPAN * fMarket; // [0.8,1.2]; null → 1.0
-  return round3(clamp01(imp * core * marketMult));
+  return clamp01(imp * core * marketMult);
+}
+
+/** PUBLIC severity — severityRaw() rounded to 3dp (platform-stable golden values), stored on
+ *  GapItem.severity. Ranking uses severityRaw() so near-ties don't collapse. */
+export function computeSeverity(item: SeverityInput): number {
+  return round3(severityRaw(item));
 }
 
 const ACTION_LABEL: Record<CvStatus, string> = {
@@ -138,6 +154,64 @@ const ACTION_LABEL: Record<CvStatus, string> = {
 const typeOf = (skillType?: 'hard' | 'soft'): GapType =>
   skillType === 'soft' ? 'soft_skill' : 'hard_skill';
 
+/** A seniority gap is closed by EXPERIENCE, not by "learning a skill" — so it gets its own labels.
+ *  Seniority is only ever matched (within ±1) or missing (≥2 levels below); no 'partial' bucket. */
+const SENIORITY_ACTION: Partial<Record<CvStatus, string>> = {
+  missing: 'Tích lũy thêm kinh nghiệm để đạt cấp độ JD yêu cầu',
+  matched: '',
+};
+
+/**
+ * PURE: grade the extracted non-skill JD dimensions into canonical GapItems. PR3 (JD-Intelligence v2)
+ * grades ONLY `seniority` — the sole dimension with a real CV-side signal (deriveCvSeniority); the
+ * other four are extracted-but-not-graded (PR3b), never fabricated. The single grading DECISION lives
+ * in gradeSeniority() (shared with the report's jd_intelligence so the two can never contradict): it
+ * reuses the product-wide computeExperienceFit ±1 tolerance — within ±1 = matched, ≥2 below = missing —
+ * and collapses duplicate seniority dims to one. HONEST-BY-DEFAULT: returns [] when the CV signal is
+ * absent, low-confidence, or the JD states no parseable level. Reuses computeSeverity UNCHANGED by
+ * mapping the rank diff onto the same 0-5 gap_levels scale skills use, so no severity constant moves.
+ */
+export function gradeJdDimensions(input: {
+  jdDimensions?: JdDimension[] | null;
+  cvSeniority?: CvSeniority | null;
+  source: GapSource;
+}): GapItem[] {
+  const { jdDimensions, cvSeniority, source } = input;
+  const g = gradeSeniority(jdDimensions, cvSeniority);
+  if (!g) return [];
+  const evidence_risk: EvidenceRisk = 'none';
+  return [
+    {
+      requirement_id: `${source}:seniority:seniority`,
+      source,
+      type: 'seniority',
+      canonical_name: 'seniority',
+      display_name: 'Cấp độ / kinh nghiệm',
+      importance: g.dim.importance,
+      cv_status: g.cv_status,
+      cv_level: g.cvRank + 1, // display 1-5
+      required_level: g.jdRank + 1,
+      gap_levels: g.gap_levels,
+      satisfied_by: null,
+      evidence_refs: [],
+      evidence_risk,
+      // Experience can't be fabricated by a rewrite — a real gap is "learn" (gain experience).
+      fixability: g.cv_status === 'matched' ? 'not_fixable_now' : 'learn',
+      market_demand: null,
+      severity: computeSeverity({
+        importance: g.dim.importance,
+        gap_levels: g.gap_levels,
+        evidence_risk,
+        cv_status: g.cv_status,
+        market_demand: null,
+      }),
+      // <1 for a non-deterministic (LLM-extracted) requirement — the GapItem contract reserves this.
+      confidence: cvSeniority?.confidence === 'high' ? 0.8 : 0.6,
+      recommended_next_action: SENIORITY_ACTION[g.cv_status] ?? '',
+    },
+  ];
+}
+
 /**
  * Deterministic unification of the existing diff + ledger (+ optional market) into GapItem[].
  * One item per REQUIREMENT (matched/partial/missing); bonus_skills are extras, not requirements,
@@ -149,7 +223,7 @@ const typeOf = (skillType?: 'hard' | 'soft'): GapType =>
  * every gap type.
  */
 export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
-  const { match, ledger, marketDemand } = input;
+  const { match, ledger, marketDemand, jdDimensions, cvSeniority } = input;
   const source: GapSource = match.source_of_requirements === 'jd_extraction' ? 'jd' : 'role_rubric';
 
   const evidenceGap = new Set(ledger?.evidence_gap ?? []);
@@ -272,8 +346,18 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     });
   }
 
-  // Highest severity first; stable tiebreak by canonical so output is reproducible.
-  return items.sort(
-    (a, b) => b.severity - a.severity || a.canonical_name.localeCompare(b.canonical_name),
-  );
+  // PR3: append non-skill GapItems (seniority only is graded). With jdDimensions absent — every PR1/PR2
+  // caller — this is a no-op and output stays byte-identical. They join the SAME sort below.
+  if (jdDimensions?.length) {
+    items.push(...gradeJdDimensions({ jdDimensions, cvSeniority: cvSeniority ?? null, source }));
+  }
+
+  // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
+  // so two gaps that round to the same 3dp value still order by their true magnitude — e.g. a
+  // market_demand 53 gap outranks an otherwise-identical 50 gap though both publish as 0.063. The
+  // public GapItem.severity stays round3. Stable tiebreak by canonical keeps output reproducible.
+  return items
+    .map((item) => ({ item, raw: severityRaw(item) }))
+    .sort((a, b) => b.raw - a.raw || a.item.canonical_name.localeCompare(b.item.canonical_name))
+    .map((entry) => entry.item);
 }

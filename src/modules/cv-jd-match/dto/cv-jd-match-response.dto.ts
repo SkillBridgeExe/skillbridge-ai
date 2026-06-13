@@ -7,6 +7,7 @@ import {
   UnnormalizedSkill,
 } from '../skill-diff.service';
 import { InferredSkill } from '../skill-graph';
+import { JdDimension } from '../../gap-engine/jd-dimensions';
 
 export interface KeywordFrequency {
   canonical_name: string;
@@ -62,6 +63,14 @@ export interface CvJdMatchParsedResponse {
    * change (additive, cross-lane-safe — same pattern as keyword_frequency).
    */
   inferred_skills?: InferredSkill[];
+
+  /**
+   * PR3 (JD-Intelligence v2): non-skill JD requirements extracted by the cv_jd_match_v2 prompt
+   * (seniority, language, education, domain, work_mode). Optional + additive — the v1 prompt never
+   * emits the key, so this is always [] on the v1 path (the gap-report jd_intelligence block + the
+   * seniority gap_item stay omitted there). Only `seniority` is graded into gap_items today.
+   */
+  jd_dimensions?: JdDimension[];
 
   /** Indicates which source was used for "required skills". */
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';

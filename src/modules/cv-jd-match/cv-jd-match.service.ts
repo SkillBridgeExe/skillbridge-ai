@@ -14,11 +14,14 @@ import {
 } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
 import { assessTextQuality } from '../../common/services/text-quality';
+import { JdDimension, normalizeJdDimensions } from '../gap-engine/jd-dimensions';
 import { maskPii, maskPiiDeep } from '../../common/services/pii-mask';
 
 interface LlmExtractionOutput {
   cv_skills_raw: RawCvSkill[];
   jd_requirements_raw: RawJdRequirement[];
+  /** PR3: non-skill JD requirements (cv_jd_match_v2 only). [] on the v1 path (key never emitted). */
+  jd_dimensions: JdDimension[];
 }
 
 /**
@@ -97,7 +100,11 @@ export class CvJdMatchService {
           { role: 'user', content: userPrompt },
         ],
         // Lower temperature — consistent extraction, not creative scoring (scoring is deterministic).
-        { jsonMode: true, temperature: 0.1, maxOutputTokens: 2500 },
+        // 3000 (was 2500): cv_jd_match_v2 adds jd_dimensions_raw; the extra key risks MAX_TOKENS
+        // (Gemini throws a hard error on truncation), so give the richer schema headroom. This is the
+        // shared call so it also raises the v1 cap — harmless: a higher ceiling only avoids truncation,
+        // it can never change a (deterministic, downstream) score.
+        { jsonMode: true, temperature: 0.1, maxOutputTokens: 3000 },
       );
 
       const extraction = this.parseLlmExtraction(llmResult.parsedJson);
@@ -165,6 +172,7 @@ export class CvJdMatchService {
         unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
         scoring_breakdown: diff.scoring_breakdown,
         inferred_skills: diff.inferred_skills,
+        jd_dimensions: extraction.jd_dimensions,
         source_of_requirements: sourceOfRequirements,
         target_role: input.target_role ?? null,
         rubric_band: diff.rubric_band,
@@ -228,14 +236,17 @@ export class CvJdMatchService {
 
   private parseLlmExtraction(raw: unknown): LlmExtractionOutput {
     if (!raw || typeof raw !== 'object') {
-      return { cv_skills_raw: [], jd_requirements_raw: [] };
+      return { cv_skills_raw: [], jd_requirements_raw: [], jd_dimensions: [] };
     }
     const obj = raw as Record<string, unknown>;
     const cv = Array.isArray(obj.cv_skills_raw) ? (obj.cv_skills_raw as RawCvSkill[]) : [];
     const jd = Array.isArray(obj.jd_requirements_raw)
       ? (obj.jd_requirements_raw as RawJdRequirement[])
       : [];
-    return { cv_skills_raw: cv, jd_requirements_raw: jd };
+    // PR3: a THIRD guarded read. The v1 prompt never emits jd_dimensions_raw ⇒ normalizeJdDimensions
+    // returns [] (non-breaking by construction); v2 populates it. The coercer drops un-quoted entries.
+    const jdDimensions = normalizeJdDimensions(obj.jd_dimensions_raw);
+    return { cv_skills_raw: cv, jd_requirements_raw: jd, jd_dimensions: jdDimensions };
   }
 }
 

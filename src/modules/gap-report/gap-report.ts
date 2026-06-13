@@ -6,7 +6,8 @@ import {
 } from '../cv-jd-match/skill-diff.service';
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { EvidenceLedger } from '../../common/services/evidence-ledger';
-import { CvSeniority } from '../../common/services/seniority';
+import { CvSeniority, ExperienceVerdict } from '../../common/services/seniority';
+import { JdDimension, JdDimensionType, gradeSeniority } from '../gap-engine/jd-dimensions';
 
 export interface EvidenceGapItem {
   skill_canonical: string;
@@ -25,11 +26,38 @@ export interface EmphasisGapItem {
 export interface SeniorityBlock {
   /** Evidence-based CV seniority (#34). null when the review/document is unavailable. */
   cv: CvSeniority | null;
-  /** HONEST v1: pasted JDs carry no extracted level yet — ALWAYS null until JD-intelligence (P1). */
+  /** HONEST v1: pasted JDs carry no extracted level yet — ALWAYS null until JD-intelligence (P1).
+   *  PR3 keeps this null (the extracted JD level lives in jd_intelligence, not here) so the FE
+   *  contract (shared/api.ts GapSeniorityBlock.jd_level: null) is unchanged until the v2-flip PR. */
   jd_level: null;
   verdict: 'unknown';
   note: string;
 }
+
+/** One extracted non-skill JD requirement, surfaced for honest disclosure (PR3, JD-Intelligence v2). */
+export interface JdIntelligenceItem {
+  dimension: JdDimensionType;
+  value_text: string;
+  level_hint: string | null;
+  min_years: number | null;
+  importance: string;
+  deal_breaker: boolean;
+  /** Exact JD quote backing this requirement (never fabricated — un-quoted dims are dropped upstream). */
+  evidence_text: string;
+  /** true only when a gap_item was actually emitted for it — PR3: seniority with a usable CV signal. */
+  graded: boolean;
+  /** Human-readable CV-side signal (seniority only); null for dims with no CV parser yet (PR3b). */
+  cv_signal: string | null;
+  /** Seniority fit verdict; null for the not-yet-graded dimensions. */
+  verdict: ExperienceVerdict | null;
+}
+/** JD-Intelligence disclosure block: what the JD requires beyond skills. Only seniority is graded into
+ *  gap_items today; the rest are read from the JD and shown here until a CV-side parser lands (PR3b). */
+export interface JdIntelligenceBlock {
+  dimensions: JdIntelligenceItem[];
+  note: string;
+}
+
 export interface GapReportCore {
   target_role: string | null;
   overall_score: number;
@@ -40,6 +68,10 @@ export interface GapReportCore {
   seniority: SeniorityBlock;
   jd_emphasis_gaps: EmphasisGapItem[];
   strengths: { matched: MatchedSkill[]; demonstrated: string[]; bonus: BonusSkill[] };
+  /** PR3: non-skill JD requirements (seniority/language/education/domain/work_mode). Optional +
+   *  additive — OMITTED entirely when the match carries no jd_dimensions (v1 path), so legacy output
+   *  is byte-identical. Present only when cv_jd_match_v2 extracted dimensions. */
+  jd_intelligence?: JdIntelligenceBlock;
   language: 'vi' | 'en';
 }
 
@@ -47,6 +79,45 @@ const SENIORITY_NOTE = {
   vi: 'Cấp độ JD chưa trích xuất được từ JD dán (sẽ bổ sung) — chỉ hiển thị ước lượng phía CV, không kết luận hợp/lệch.',
   en: 'The pasted JD carries no extracted level yet — only the CV-side estimate is shown; no fit verdict is made.',
 } as const;
+
+const JD_INTEL_NOTE = {
+  vi: 'Hiện mới chấm gap cho cấp độ/kinh nghiệm (có bằng chứng từ CV). Ngôn ngữ, học vấn, lĩnh vực và hình thức làm việc đã đọc được từ JD nhưng CHƯA chấm gap — chờ bổ sung phân tích phía CV.',
+  en: 'Only seniority is graded so far (it has CV-side evidence). Language, education, domain and work mode are read from the JD but NOT yet graded — pending CV-side parsing.',
+} as const;
+
+/** Pure: turn the extracted JD dimensions into the disclosure block. Seniority gets a fit verdict +
+ *  CV signal (and graded=true when a gap_item was emitted); the other dims are read-only for now. */
+function buildJdIntelligence(
+  dims: JdDimension[],
+  cvSeniority: CvSeniority | null,
+  lang: 'vi' | 'en',
+): JdIntelligenceBlock {
+  // The ONE seniority dim that actually became a gap_item — via the SHARED gradeSeniority decision,
+  // so `graded`/`verdict` here can NEVER contradict gap_items. null when omitted (no/low CV signal).
+  const grade = gradeSeniority(dims, cvSeniority);
+  const dimensions: JdIntelligenceItem[] = dims.map((d) => {
+    const isGraded = !!grade && d === grade.dim;
+    const cv_signal =
+      d.dimension === 'seniority' && cvSeniority
+        ? `${cvSeniority.bucket}${cvSeniority.est_years != null ? ` (~${cvSeniority.est_years}y)` : ''} · ${cvSeniority.confidence}`
+        : null;
+    return {
+      dimension: d.dimension,
+      value_text: d.value_text,
+      level_hint: d.level_hint,
+      min_years: d.min_years,
+      importance: d.importance,
+      deal_breaker: d.deal_breaker,
+      evidence_text: d.evidence_text,
+      graded: isGraded,
+      cv_signal,
+      // Assert a verdict ONLY for the dim we actually graded; a weak/omitted signal stays null so the
+      // disclosure never claims a fit the grader declined to make (honesty).
+      verdict: isGraded ? grade.verdict : null,
+    };
+  });
+  return { dimensions, note: JD_INTEL_NOTE[lang] };
+}
 
 const EMPHASIS_JD_MIN = 2;
 const EMPHASIS_CV_MAX = 1;
@@ -97,6 +168,13 @@ export function buildGapReportCore(
     ? ledger.items.filter((i) => i.strength === 'demonstrated').map((i) => i.skill_canonical)
     : [];
 
+  // PR3: build the JD-Intelligence disclosure block only when v2 extracted dimensions — OMITTED on
+  // the v1 path so legacy output is byte-identical (additive, cross-lane-safe).
+  const jdDims = match.jd_dimensions ?? [];
+  const jd_intelligence = jdDims.length
+    ? buildJdIntelligence(jdDims, cvSeniority, lang)
+    : undefined;
+
   return {
     target_role: match.target_role,
     overall_score: match.overall_score,
@@ -107,6 +185,7 @@ export function buildGapReportCore(
     seniority: { cv: cvSeniority, jd_level: null, verdict: 'unknown', note: SENIORITY_NOTE[lang] },
     jd_emphasis_gaps,
     strengths: { matched: match.matched_skills, demonstrated, bonus: match.bonus_skills },
+    ...(jd_intelligence ? { jd_intelligence } : {}),
     language: lang,
   };
 }
