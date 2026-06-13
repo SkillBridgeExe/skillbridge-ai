@@ -103,6 +103,71 @@
         { "canonical": "react", "cv_status": "partial" }
       ],
       "expect_severity_order": ["sql", "react"]
+    },
+    {
+      "id": "sev-seniority-required-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "seniority", "value_text": "Senior", "level_hint": "SENIOR", "min_years": 5, "importance_hint": "REQUIRED", "deal_breaker": true, "evidence_text": "Looking for a Senior Backend Engineer with 5+ years" }
+      ],
+      "cv_seniority": { "bucket": "fresher", "est_years": null, "confidence": "high" },
+      "rationale": "JD requires Senior (rank 4), CV is fresher (rank 1) → seniority gap 3, REQUIRED deal-breaker → 'missing'. Git is matched (no skill gap). Seniority graded into a GapItem reusing computeSeverity (severity 0.408).",
+      "expect": [{ "canonical": "seniority", "cv_status": "missing" }]
+    },
+    {
+      "id": "sev-seniority-within-tolerance-matched",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "seniority", "value_text": "Senior", "level_hint": "SENIOR", "importance_hint": "REQUIRED", "evidence_text": "Senior engineer" }
+      ],
+      "cv_seniority": { "bucket": "mid", "est_years": 3, "confidence": "high" },
+      "rationale": "JD Senior (rank 4) vs CV mid (rank 3) → one level below = within the ±1 'fits' tolerance (computeExperienceFit) → 'matched', severity 0, NO penalty. Regression guard for the must-fix: gap_items must AGREE with jd_intelligence (no 'fits'-vs-partial-gap contradiction).",
+      "expect": [{ "canonical": "seniority", "cv_status": "matched" }]
+    },
+    {
+      "id": "sev-seniority-matched",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "seniority", "value_text": "Senior", "level_hint": "SENIOR", "importance_hint": "REQUIRED", "evidence_text": "Senior role" }
+      ],
+      "cv_seniority": { "bucket": "senior", "est_years": 6, "confidence": "high" },
+      "rationale": "JD Senior, CV senior → gap 0 → 'matched', severity 0 (no penalty, incl. over-qualified).",
+      "expect": [{ "canonical": "seniority", "cv_status": "matched" }]
+    },
+    {
+      "id": "sev-seniority-low-confidence-omitted",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "seniority", "value_text": "Senior", "level_hint": "SENIOR", "importance_hint": "REQUIRED", "evidence_text": "Senior role" }
+      ],
+      "cv_seniority": { "bucket": "mid", "est_years": null, "confidence": "low" },
+      "rationale": "CV seniority confidence is LOW → honest omission: NO seniority gap is emitted (never fabricate from a weak signal). Git stays matched.",
+      "expect": [{ "canonical": "git", "cv_status": "matched" }],
+      "expect_absent": ["seniority"]
+    },
+    {
+      "id": "sev-seniority-dealbreaker-outranks-nice-skill",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Kubernetes", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "ADVANCED" }],
+      "jd_dimensions": [
+        { "dimension": "seniority", "value_text": "Senior", "level_hint": "SENIOR", "importance_hint": "REQUIRED", "deal_breaker": true, "evidence_text": "Must be Senior" }
+      ],
+      "cv_seniority": { "bucket": "fresher", "est_years": null, "confidence": "high" },
+      "rationale": "A REQUIRED deal-breaker seniority gap (0.408) must outrank a NICE missing skill (kubernetes, 0.161) — the seniority GapItem interleaves with skills in the single severity sort.",
+      "expect": [
+        { "canonical": "seniority", "cv_status": "missing" },
+        { "canonical": "kubernetes", "cv_status": "missing" }
+      ],
+      "expect_severity_order": ["seniority", "kubernetes"]
     }
   ]
 }

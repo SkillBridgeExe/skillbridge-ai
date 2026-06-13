@@ -26,6 +26,14 @@ import {
 import { CvJdMatchParsedResponse } from '../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { EvidenceLedger } from '../common/services/evidence-ledger';
 import { buildGapItems } from '../modules/gap-engine/gap-item';
+import { normalizeJdDimensions, RawJdDimension } from '../modules/gap-engine/jd-dimensions';
+import {
+  BUCKET_RANK,
+  JOB_LEVEL_RANK,
+  CvSeniority,
+  SeniorityBucket,
+  Confidence,
+} from '../common/services/seniority';
 
 interface GapCase {
   id: string;
@@ -37,12 +45,20 @@ interface GapCase {
   /** canonical → pct_of_postings (0-100), overlaid as the market-demand input. Optional; when present
    *  it drives severity ranking (lets a case test market-tilt — e.g. two equal gaps ordered by demand). */
   market_demand?: Record<string, number>;
+  /** PR3: raw non-skill JD dimensions (LLM-shaped) — hardened via normalizeJdDimensions then graded
+   *  (only `seniority` is graded). Pair with `cv_seniority` to test the seniority gap end-to-end. */
+  jd_dimensions?: RawJdDimension[];
+  /** PR3: fixture CV seniority (the deriveCvSeniority output) — the CV-side signal for the gap. */
+  cv_seniority?: { bucket: string; est_years?: number | null; confidence: string };
   expect: Array<{
     canonical: string;
     cv_status: string;
     fixability?: string;
     evidence_risk?: string;
   }>;
+  /** Canonicals that must NOT appear in the emitted items[] — the honest-omission gate (e.g. a
+   *  seniority dim with no/low-confidence CV signal must produce NO gap, never a fabricated one). */
+  expect_absent?: string[];
   /** Canonicals in REQUIRED severity order (highest first). The PR2 ranking gate: asserts these
    *  canonicals appear in this exact order in the EMITTED items[] (so it catches near-ties that round
    *  to equal public severity but must still rank by raw severity), and that their severities are
@@ -114,10 +130,44 @@ async function main(): Promise<void> {
       target_role: c.target_role,
     } as unknown as CvJdMatchParsedResponse;
 
+    // PR3 non-skill dims: harden raw fixtures through the REAL coercer; build a fixture CV seniority.
+    const jdDimensions = c.jd_dimensions ? normalizeJdDimensions(c.jd_dimensions) : null;
+    let cvSeniority: CvSeniority | null = null;
+    if (c.cv_seniority) {
+      const bucket = c.cv_seniority.bucket as SeniorityBucket;
+      if (!(bucket in BUCKET_RANK)) {
+        dataErrors.push(
+          `  ${c.id}: cv_seniority.bucket "${c.cv_seniority.bucket}" is not a SeniorityBucket`,
+        );
+      }
+      cvSeniority = {
+        bucket,
+        est_years: c.cv_seniority.est_years ?? null,
+        confidence: c.cv_seniority.confidence as Confidence,
+        signals: [],
+      };
+    }
+    // Data sanity: a seniority fixture that PROVIDES a level_hint must coerce to a known rank, else it
+    // would silently never grade (a missing level_hint is a deliberate omission case — allowed).
+    for (const d of c.jd_dimensions ?? []) {
+      if (
+        d.dimension === 'seniority' &&
+        typeof d.level_hint === 'string' &&
+        d.level_hint.trim() &&
+        !(d.level_hint.trim().toUpperCase() in JOB_LEVEL_RANK)
+      ) {
+        dataErrors.push(
+          `  ${c.id}: seniority level_hint "${String(d.level_hint)}" is not a JOB_LEVEL_RANK key`,
+        );
+      }
+    }
+
     const items = buildGapItems({
       match,
       ledger: buildFixtureLedger(c),
       marketDemand: c.market_demand ? new Map(Object.entries(c.market_demand)) : null,
+      jdDimensions,
+      cvSeniority,
     });
     const byCanonical = new Map(items.map((g) => [g.canonical_name, g]));
 
@@ -168,6 +218,15 @@ async function main(): Promise<void> {
         }
       }
       lines.push(`order[${positions.map((p) => `${p.canon}#${p.idx}:${p.sev}`).join(' > ')}]`);
+    }
+
+    // Honest-omission gate: these canonicals must NOT be produced (e.g. no/low-confidence CV signal).
+    for (const canon of c.expect_absent ?? []) {
+      if (byCanonical.has(canon)) {
+        misses.push(`  ${c.id}: "${canon}" must NOT be produced (honest omission), but it was`);
+      } else {
+        lines.push(`absent[${canon}]✓`);
+      }
     }
     console.log(`${c.id.padEnd(38)} ${lines.join('  ')}`);
   }
