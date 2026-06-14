@@ -59,7 +59,7 @@ export class AuthController {
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const r = await this.auth.refresh(req.cookies?.[REFRESH_COOKIE]);
     this.setRefreshCookie(res, r.refreshToken);
-    return { accessToken: r.accessToken, expiresIn: r.expiresIn };
+    return { user: r.user, accessToken: r.accessToken, expiresIn: r.expiresIn };
   }
 
   @Public()
