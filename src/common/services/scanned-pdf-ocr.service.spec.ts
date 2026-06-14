@@ -100,3 +100,145 @@ describe('ScannedPdfOcrService — decide (deterministic, do not pick OCR if wor
     expect(svc().decideForTest(O, R).useOcr).toBe(true);
   });
 });
+
+type ScannerLike = import('./skill-text-scanner.service').SkillTextScannerService;
+
+describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/network)', () => {
+  class FakeOcr extends ScannedPdfOcrService {
+    constructor(
+      over: Record<string, unknown>,
+      scanStub: ScannerLike,
+      private readonly hooks: {
+        render?: () => Promise<Buffer[]>;
+        ocr?: () => Promise<string>;
+        terminate?: () => Promise<void>;
+      },
+    ) {
+      super(cfg(over), scanStub);
+    }
+    protected async renderPages(): Promise<Buffer[]> {
+      return this.hooks.render ? this.hooks.render() : [Buffer.from('page')];
+    }
+    protected async ocrPages(): Promise<string> {
+      return this.hooks.ocr ? this.hooks.ocr() : '';
+    }
+    protected async createWorker(): Promise<any> {
+      return {
+        recognize: async () => ({ data: { text: '' } }),
+        terminate: this.hooks.terminate ?? (async () => {}),
+      };
+    }
+  }
+
+  const buf = Buffer.from('x'.repeat(50));
+
+  it('disabled → kept_original, attempted:false', async () => {
+    const s = new FakeOcr({ 'ocrFallback.enabled': false }, scanner, {});
+    const r = await s.rescue(buf, 'orig');
+    expect(r).toMatchObject({
+      text: 'orig',
+      ocrUsed: false,
+      metadata: { decision: 'kept_original', reason: 'disabled', attempted: false },
+    });
+  });
+
+  it('oversized → kept_original reason:oversized', async () => {
+    const s = new FakeOcr({ 'ocrFallback.maxPdfBytes': 10 }, scanner, {});
+    const r = await s.rescue(buf, 'orig');
+    expect(r.ocrUsed).toBe(false);
+    expect(r.metadata.reason).toBe('oversized');
+  });
+
+  it('render throws → render_failed, no throw, no worker created', async () => {
+    const terminate = jest.fn(async () => {});
+    const s = new FakeOcr({}, scanner, {
+      render: () => Promise.reject(new Error('boom')),
+      terminate,
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.text).toBe('orig');
+    expect(r.metadata.reason).toBe('render_failed');
+    expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it('empty render (0 pages) → empty_render', async () => {
+    const s = new FakeOcr({}, scanner, { render: async () => [] });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.metadata.reason).toBe('empty_render');
+    expect(r.ocrUsed).toBe(false);
+  });
+
+  it('ocr throws → ocr_failed, worker terminated once', async () => {
+    const terminate = jest.fn(async () => {});
+    const s = new FakeOcr({}, scanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: () => Promise.reject(new Error('ocr boom')),
+      terminate,
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.metadata.reason).toBe('ocr_failed');
+    expect(terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it('timeout → reason:timeout, worker terminated once', async () => {
+    const terminate = jest.fn(async () => {});
+    const s = new FakeOcr({ 'ocrFallback.timeoutMs': 20 }, scanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: () => new Promise<string>(() => {}), // hangs forever
+      terminate,
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.metadata.reason).toBe('timeout');
+    expect(r.ocrUsed).toBe(false);
+    expect(terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it('used_ocr: rich OCR text selected', async () => {
+    const s = new FakeOcr({}, scanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: async () => 'react '.repeat(80),
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.ocrUsed).toBe(true);
+    expect(r.metadata.decision).toBe('used_ocr');
+    expect(r.metadata.ocr).toBeDefined();
+    expect(r.metadata.pagesRendered).toBe(1);
+    expect(r.text).toContain('react');
+  });
+
+  it('used_ocr counts skills via the shared scanner (rule 5)', async () => {
+    const richScanner = {
+      scan: (t: string) => (t.includes('react') ? [{ canonical_name: 'react' }] : []),
+    } as unknown as ScannerLike;
+    const s = new FakeOcr({}, richScanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: async () => 'react typescript '.repeat(40),
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.ocrUsed).toBe(true);
+    expect(r.metadata.ocr?.skillsFound).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ocr_not_better: junk OCR → kept_original', async () => {
+    const s = new FakeOcr({}, scanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: async () => 'x',
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.ocrUsed).toBe(false);
+    expect(r.metadata.reason).toBe('ocr_not_better');
+  });
+
+  it('metadata is PII-safe: only TextMetrics + timings + decision, no raw CV text', async () => {
+    const s = new FakeOcr({}, scanner, {
+      render: async () => [Buffer.from('p')],
+      ocr: async () => 'react '.repeat(80),
+    });
+    const { metadata } = await s.rescue(buf, 'orig');
+    expect(Object.keys(metadata).sort()).toEqual(
+      ['attempted', 'decision', 'ocr', 'ocrMs', 'original', 'pagesRendered', 'renderMs'].sort(),
+    );
+    expect(metadata.original).not.toHaveProperty('text');
+    expect(JSON.stringify(metadata)).not.toContain('react react'); // OCR body never embedded
+  });
+});
