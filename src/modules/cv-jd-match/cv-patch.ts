@@ -55,13 +55,34 @@ const EMPHASIZE_HINT: Record<Lang, (s: string) => string> = {
 
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Scanner-free, deterministic: does the bullet mention the skill as a whole token (no java⊂javascript)? */
-function bulletMentions(bullet: string, tokens: string[]): boolean {
+/** Scanner-free, deterministic: does the bullet mention the skill as a whole token (no java⊂javascript)?
+ *  Exported for the server-verified tailor rewrite (PR4.5) deepen-only skill-token guard. */
+export function bulletMentions(bullet: string, tokens: string[]): boolean {
   return tokens.some((tok) => {
     const t = tok.trim();
     if (t.length < 2) return false;
     return new RegExp(`(?<![a-zA-Z0-9])${escapeRegex(t)}(?![a-zA-Z0-9])`, 'i').test(bullet);
   });
+}
+
+/**
+ * PR4.5 anti-injection guard: is `text` a VERBATIM piece of the candidate's own CV — a real
+ * bullet (experience/project/activity/education highlight) or the summary? Deterministic exact
+ * (trimmed) match: the server-verified tailor rewrite only rewords content the user actually has,
+ * never arbitrary text the FE submits. Whitespace-insensitive at the edges; otherwise verbatim
+ * (no fuzzy/semantic match — keep it light per the owner's "no over-engineered verifier" rule).
+ */
+export function isDocumentBullet(doc: CanonicalCvDocument | null, text: string): boolean {
+  const needle = text.trim();
+  if (!doc || !needle) return false;
+  const haystack: string[] = [
+    doc.summary,
+    ...doc.experience.flatMap((e) => e.bullets),
+    ...doc.projects.flatMap((p) => p.bullets),
+    ...doc.activities.flatMap((a) => a.bullets),
+    ...doc.education.flatMap((e) => e.highlights),
+  ];
+  return haystack.some((b) => typeof b === 'string' && b.trim() === needle);
 }
 
 /** Resolve the anchored CV section (the bullets to search) from the demonstrated-source anchor.
