@@ -1,74 +1,211 @@
-# SkillBridge Backend (NestJS) — Agent Context
+# SkillBridge AI Backend - Agent Context
 
-> Read this before making changes. Shared context for Codex, Claude, Antigravity, and other AI agents.
-> ⚡ **2026-05-30 PIVOT:** this repo is now the **SINGLE backend** (NestJS-only). Full design in `docs/ARCHITECTURE.md`.
+Read this before making code, architecture, database, deployment, or AI-logic changes in this repo.
 
-## Service identity
+## Repository Identity
 
-`skillbridge-ai` is now the **single NestJS backend** for SkillBridge — a **modular monolith** ("Opt 2"):
+`skillbridge-ai` is the current **NestJS backend modular monolith** for SkillBridge.
 
-- **Platform (public BFF):** auth, users/profiles, cvs, job-descriptions, billing/quota, history. Owns PostgreSQL + TypeORM migrations.
-- **AI module (internal bounded context):** LLM calls, RAG over pgvector, versioned prompts, response parsing/validation, MCP/tool-call traceability.
+It contains both:
 
-> ⛔ The old **.NET BFF is dropped**. This repo absorbs its responsibilities. Any old text saying "internal only / called by .NET / FE never calls this" is **obsolete**.
+- Public platform APIs under `/api/*`.
+- Internal AI orchestration modules for CV diagnosis, CV/JD matching, gap analysis, rewrite, roadmap, interview, embeddings, RAG, tracing, and future MCP/tool calls.
 
-## Architecture position
+Current high-level flow:
 
 ```txt
 React FE (skillbridge-fe-official)
-   -> NestJS backend (THIS repo)   [Platform /api/*]  +  [internal AI module]
-        -> PostgreSQL (+ pgvector) via TypeORM
-        -> LLM: Gemini (@google/genai) / OpenAI
+  -> NestJS backend (this repo, /api/*)
+      -> PostgreSQL / Supabase + TypeORM
+      -> LLM providers through LlmService
+      -> Storage / jobs / tracing as needed
 ```
 
-FE calls `/api/*`. The AI module is invoked intra-process by platform services (or via guarded `/internal/ai/*`). Gemini Live WS is the only FE→Google direct path (ephemeral token brokered here).
+Do not assume there is a separate active `.NET` backend unless the user explicitly provides new current evidence. Older docs may mention `.NET`; treat those as stale for this repo unless confirmed.
 
-## Stack (verified 2026-05-30 — see ARCHITECTURE.md §5)
+## Product Focus
 
-NestJS **11** · TypeORM **0.3** (Postgres + pgvector) · **`@google/genai`** (⚠️ replaces dead `@google/generative-ai`) · `openai` **v6** · Passport + `@nestjs/jwt` · `@nestjs/throttler` · class-validator · `@nestjs/config` · eslint **9**.
+SkillBridge is an AI career platform. The strongest active product area is the **Diagnosis tab**:
 
-## Code split (2 devs) — see ARCHITECTURE.md §2
+- CV upload, parsing, scoring, ATS checks, bullet feedback.
+- CV/JD matching and gap analysis.
+- Evidence ledger: demonstrated vs mentioned vs listed-only skills.
+- Gap Engine: normalized `gap_items`, severity, fixability, confidence.
+- Tailor-to-JD actions and CV Patch Engine.
+- Job market trends from crawled IT jobs.
+- Later consumers: learning roadmap and interview practice.
 
-- **`src/platform/**` — Dev B (ex-.NET):** auth, users, cvs, job-descriptions, billing, public gateway, entities + migrations.
-- **`src/ai/**` — Dev A (FE + AI):** cv-review, cv-jd-match, interview, roadmap, skills, embeddings, rag, prompts, tracing.
-- **`src/shared`, `src/infrastructure`, `src/config`, `src/database`:** edit-sparingly, coordinate between devs.
+The core product principle is:
 
-## Hard rules
+```txt
+Raw CV/JD data -> clean signals -> deterministic scoring/gaps/actions -> LLM only extracts or rewrites text
+```
 
-- **Public-facing now:** global `ValidationPipe` (`whitelist`), `@nestjs/throttler` rate-limit, `helmet`, strict CORS (FE origin only). `JwtAuthGuard` default; `@Public()` for login/register/health.
-- **TypeORM is the DB authority:** `synchronize: false` outside personal dev; **migrations are the source of truth** (like EF Migrations). No raw SQL except vetted pgvector similarity queries.
-- **Schema source of truth:** `../skillbridge-fe-official/docs/database/skillbridge-mvp.dbml` (38 tables). Don't invent tables/columns.
-- **AI traceability (keep, first-class):** every LLM call → `ai_requests` via `TracingService`; every retrieval → `retrieval_logs`; every tool call → `ai_tool_calls`. Don't bypass.
-- **LLM abstraction:** use `LlmService` from `infrastructure/llm`. Do NOT import `@google/genai` / `openai` directly in feature modules.
-- **Prompts:** load via `PromptsService` from `prompts/<code>_v<n>.md`. Don't hard-code.
-- **PII:** CV text is personal data → redact from logs/traces; soft + hard delete; consent on upload.
-- **Heavy AI runs async** via `ai_jobs` (FE polls) — don't block request threads.
+LLM must not be the primary scorer.
 
-## Conventions
+## Architecture Map
 
-- TypeScript strict mode ON. DTOs use `class-validator`.
-- Response envelope (`ResponseInterceptor` / `AllExceptionsFilter`): `{ success, message, data, errors, errorCode? }`. `errors` field-keyed for validation; `errorCode` for client branching.
-- Correlation ID via `X-Correlation-Id` header + `@CorrelationId()` decorator.
-- Layering + folder layout: **see `docs/ARCHITECTURE.md`** (pragmatic clean architecture: controller → service → domain ← infrastructure via ports).
+Main folders:
 
-## Verify before "done"
+- `src/platform/**`: public API wrappers and user-owned workflows.
+  - Auth, users, CVs, CV matches, interviews, billing, quota, verified tailor rewrite.
+- `src/modules/**`: AI/product logic.
+  - `cv-review`, `cv-jd-match`, `cv-builder`, `gap-engine`, `gap-report`, `jobs`, `roadmap`, `interview`, `github-evidence`, `embeddings`, `rag`, `tracing`, `prompts`.
+- `src/common/**`: shared deterministic helpers, guards, evidence ledger, taxonomy, seniority, text quality.
+- `src/infrastructure/**`: providers such as LLM, storage, vector access.
+- `src/database/**`: TypeORM entities, migrations, seed.
+- `prompts/**`: versioned prompt templates.
+- `data/**`: rubrics, taxonomy, eval fixtures, course catalog, jobs snapshots.
+- `docs/**`: architecture, status, handoff, scoring, research, and implementation notes.
 
-Note: this repository uses pnpm. Run `pnpm install` to install dependencies and use `pnpm run <script>` to execute scripts.
+Shared files such as `src/main.ts`, `src/app.module.ts`, `src/database/**`, and config files affect many flows. Edit them only when the task clearly requires it.
+
+## Lane Ownership
+
+AI/Product lane:
+
+- `src/modules/cv-review/**`
+- `src/modules/cv-jd-match/**`
+- `src/modules/cv-builder/**`
+- `src/modules/gap-engine/**`
+- `src/modules/gap-report/**`
+- `src/modules/interview/**`
+- `src/modules/roadmap/**`
+- `src/modules/jobs/**`
+- `src/modules/github-evidence/**`
+- `src/common/services/**` when it affects AI signals
+- `prompts/**`
+- `data/eval-*`, rubrics, taxonomy, skill graph, course catalog
+
+Platform lane:
+
+- `src/platform/auth/**`
+- `src/platform/users/**`
+- `src/platform/cvs/**`
+- `src/platform/cv-matches/**`
+- `src/platform/tailor-verifier/**`
+- `src/platform/interviews/**`
+- `src/platform/billing/**`
+- quota, ownership, JWT, Cloud Run/runtime settings, destructive/account flows
+
+Coordinate before changing shared platform/security/billing/destructive behavior. Do not revert unrelated worktree changes. Avoid `git add -A`; stage intentional files only.
+
+## Diagnosis And Gap Rules
+
+For CV diagnosis and CV/JD matching:
+
+- Prefer deterministic code for scoring, severity, fixability, coverage, evidence risk, and final action eligibility.
+- LLM may extract structured data or rewrite text, but code must validate and coerce it.
+- Never let LLM decide final score, `gap_items.severity`, `fixability`, quota, ownership, or whether a user may rewrite a claim.
+- Every gap/action should be traceable to CV/JD evidence, role rubric, or market data.
+- Missing skills must not become rewrite suggestions. Tell the user to learn or add real evidence only if true.
+- Listed-only skills should become `add_evidence` or `overclaimed` signals when appropriate.
+- Demonstrated partial skills may become `deepen_wording` rewrite candidates.
+- Market-implied gaps must be labeled as market/trend signals, not explicit JD requirements.
+
+## PR4 / PR4.5 Tailor Rewrite Guardrails
+
+The CV Patch Engine decorates `recommended_actions` with deterministic patch-plan fields:
+
+- `action_id`
+- `requirement_id`
+- `fixability`
+- `cv_section`
+- `anchor_confidence`
+- `before`
+- `target_section`
+- `insertion_hint`
+
+Rules:
+
+- `before` may appear only when a real CV bullet is found with high confidence.
+- `emphasize` is not a single-bullet rewrite by default; it should use `insertion_hint` or user-selected real text.
+- `missing_required` and `add_evidence` must not be accepted as tailor rewrite actions.
+- Tailor rewrite must be server-verified. Do not trust FE-provided `tailor_action` facts.
+- For `mode='tailor'`, the server should verify user ownership, load the match/review/gap report, find the real action by `match_id` + `action_id` or equivalent, check `rewrite_eligible`, and build the instruction from verified server data.
+- Keep the number-invention guard. Add anti-fabrication guards conservatively and deterministically.
+
+## Input Quality Rules
+
+Diagnosis quality depends on the input signal chain:
+
+```txt
+file -> extracted text -> CanonicalCvDocument -> skill signals -> evidence ledger -> gap/score/action
+```
+
+Be careful with:
+
+- PDF/DOCX/image extraction.
+- OCR-only or scanned PDFs.
+- Two-column/Canva/icon-heavy CVs.
+- CV parser section mistakes.
+- Skill taxonomy aliases and unnormalized skills.
+- Proficiency and required-level inflation.
+- Role rubric calibration by role/band.
+- Evidence ledger strength: demonstrated vs mentioned vs listed-only.
+- Market data quality: `role_code`, snapshots, co-occurrence, confidence.
+
+When hardening these layers, add evals or golden cases when possible.
+
+## Data, Prompts, And Tracing
+
+- Use `PromptsService` and files in `prompts/**`. Do not hard-code long prompts in services.
+- Use `LlmService` from `src/infrastructure/llm`. Do not import OpenAI/Gemini clients directly inside feature modules.
+- Persist/trace AI requests through existing tracing services.
+- Do not log raw CV text, JD text, emails, phone numbers, or other personal data.
+- Redact PII in raw/parsed traces when storing evidence text.
+- Keep prompt output schemas narrow and validate/coerce all model output before downstream use.
+
+## Database And API Rules
+
+- TypeORM entities/migrations are the DB source of truth for this repo.
+- Do not use `synchronize: true` for production-like environments.
+- Add indexes/constraints for new persistent relationships.
+- Public API should stay under `/api/*`.
+- Internal AI endpoints, if used, should stay guarded and not become a second public surface accidentally.
+- Enforce ownership and quota in platform services, not in FE.
+
+## Verification
+
+Use `pnpm`.
+
+Common commands:
 
 ```powershell
-pnpm install
-pnpm run lint
-pnpm run test
-pnpm run build
-pnpm exec typeorm migration:run   # once TypeORM is wired
+pnpm.cmd --dir .\skillbridge-ai build
+pnpm.cmd --dir .\skillbridge-ai exec jest --runInBand
+pnpm.cmd --dir .\skillbridge-ai exec eslint "{src,test}/**/*.ts"
+pnpm.cmd --dir .\skillbridge-ai eval:match
+pnpm.cmd --dir .\skillbridge-ai eval:gap
+pnpm.cmd --dir .\skillbridge-ai eval:patch
+pnpm.cmd --dir .\skillbridge-ai eval:jd-extract
+pnpm.cmd --dir .\skillbridge-ai eval:extractors
 ```
 
-## Migration status (R0)
+Run the narrowest relevant checks while iterating, then broader checks before claiming completion.
 
-R0 (stack migration) is **DONE + committed on `main`**: NestJS 11 · `@google/genai` · `openai` v6 · TypeORM 0.3 + entities · auth · public posture. `npm run build` / `test:e2e` / `lint` green; app boots (`:3002`). **Next:** `platform/cvs` (upload/extract/persist), wire real Gemini, seed 8 IT rubrics, run `migration:run` against the team DB. Detail: `docs/ARCHITECTURE.md` §7.
+Known lint state may include warnings in tests; report them honestly.
 
-## Related repos
+## Current Strategic Roadmap
 
-- `../skillbridge-fe-official` — React FE (calls this backend) + canonical docs (DBML, `api-contract.md`, plans).
-- `../skillbridge-be` (.NET) — **deprecated by the 2026-05-30 pivot; not used.**
-- `../Exe-SkillBridge` — original full-stack prototype; UI/behavior reference only.
+Gap Engine v2 sequence (shipped to `main`):
+
+- PR1 (`feat/gap-engine-foundation`, #62): canonical `GapItem` + `buildGapItems()` + `eval:gap`.
+- PR2 (`feat/gap-severity-formula`, #63): severity formula — market_demand, evidence_risk, interview_risk.
+- PR3 (`feat/jd-intelligence-v2`, #64/#65): seniority grading, JD-intelligence extraction scaffold, prompt v2 dormant.
+- PR4 (`feat/cv-patch-engine`, #66): CV Patch Engine — deterministic patch plan wired into `recommended_actions`.
+- PR4.5 (`feat/verified-tailor-rewrite`, #67 ✅ MERGED): `TailorVerifierService` — FE sends only `match_id + action_id`; server reloads match + gap-report, verifies ownership + eligibility, builds LLM instruction from server-verified action only. Closes the FE trust boundary on tailor rewrite.
+
+Next priorities (input hardening — NOT new features):
+
+1. ~~Server-verified tailor rewrite~~ → **DONE** (PR #67).
+2. ~~FE Patch UI consumes patch fields~~ → **DONE** (FE PR #51).
+3. Flip `cv_jd_match_v2` only when FE and BE are ready (W19 brief exists, prompt already in BE).
+4. Input/extractor quality hardening: `cv_parse_v1` evals, multi-extractor/OCR fallback for scanned CVs. Requires real-CV corpus from user.
+5. Proficiency/required-level anti-inflation eval (craftable golden cases, no corpus needed).
+6. Role rubric calibration per role/band (needs GOLDEN CVs per role).
+7. Market hardening: role-code backfill for 308/799 jobs missing `role_code`, co-occurrence snapshots, data confidence.
+8. CV Profile Signals parser for language, education, domain, work mode (PR3b).
+9. PR6: Roadmap + Interview consume shared `GapReport` / `gap_items`.
+
+Keep the system boring, traceable, and hard to fool. That is the moat.
