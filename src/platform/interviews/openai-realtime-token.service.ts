@@ -1,20 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
+import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { RealtimeClientSecretDto } from './dto/interview.dto';
-
-interface OpenAiClientSecretResponse {
-  id?: string;
-  client_secret?: {
-    value?: string;
-    expires_at?: number;
-  };
-}
 
 @Injectable()
 export class OpenAiRealtimeTokenService {
   private readonly logger = new Logger(OpenAiRealtimeTokenService.name);
+  private client: OpenAI | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -37,52 +31,49 @@ export class OpenAiRealtimeTokenService {
     }
 
     try {
-      const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Safety-Identifier': this.safetyIdentifier(userId),
-        },
-        body: JSON.stringify({
+      const payload = await this.getClient(apiKey).realtime.clientSecrets.create(
+        {
           session: {
             type: 'realtime',
             model,
             instructions,
+            output_modalities: ['audio'],
             audio: {
+              input: {
+                transcription: {
+                  model: 'gpt-4o-mini-transcribe',
+                  language: session.language === 'vi' ? 'vi' : 'en',
+                },
+                turn_detection: {
+                  type: 'server_vad',
+                  create_response: false,
+                  interrupt_response: true,
+                },
+              },
               output: {
                 voice: 'alloy',
               },
             },
           },
-        }),
-      });
+        },
+        {
+          headers: {
+            'OpenAI-Safety-Identifier': this.safetyIdentifier(userId),
+          },
+        },
+      );
 
-      if (!response.ok) {
-        const text = await response.text();
-        this.logger.warn(`OpenAI realtime token failed (${response.status}): ${text}`);
-        return {
-          enabled: false,
-          provider: 'openai',
-          model,
-          clientSecret: null,
-          expiresAt: null,
-          reason: `OpenAI realtime token failed with HTTP ${response.status}`,
-        };
-      }
-
-      const payload = (await response.json()) as OpenAiClientSecretResponse;
-      session.realtimeSessionId = payload.id ?? session.realtimeSessionId;
+      session.realtimeSessionId = payload.session?.id ?? session.realtimeSessionId;
       session.realtimeProvider = 'openai';
       session.realtimeModel = model;
-      const expiresAt = payload.client_secret?.expires_at
-        ? new Date(payload.client_secret.expires_at * 1000).toISOString()
+      const expiresAt = payload.expires_at
+        ? new Date(payload.expires_at * 1000).toISOString()
         : null;
       return {
         enabled: true,
         provider: 'openai',
         model,
-        clientSecret: payload.client_secret?.value ?? null,
+        clientSecret: payload.value,
         expiresAt,
       };
     } catch (err) {
@@ -96,6 +87,13 @@ export class OpenAiRealtimeTokenService {
         reason: 'OpenAI realtime token request failed',
       };
     }
+  }
+
+  private getClient(apiKey: string): OpenAI {
+    if (!this.client) {
+      this.client = new OpenAI({ apiKey, maxRetries: 2, timeout: 15_000 });
+    }
+    return this.client;
   }
 
   private safetyIdentifier(userId: string): string {
