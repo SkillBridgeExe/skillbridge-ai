@@ -48,6 +48,7 @@
     "eval:cv-parse": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-parse.ts",
     "eval:jd-extract": "ts-node -r tsconfig-paths/register src/calibration/eval-jd-extract.ts",
     "eval:patch": "ts-node -r tsconfig-paths/register src/calibration/eval-patch.ts",
+    "eval:proficiency": "ts-node -r tsconfig-paths/register src/calibration/eval-proficiency.ts",
     "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts"
   },
   "dependencies": {

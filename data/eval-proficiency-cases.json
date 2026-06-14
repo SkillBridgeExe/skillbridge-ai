@@ -1,0 +1,27 @@
+{
+  "$note": "Anti-inflate calibration cases. Offline, 0 LLM. Gate: pnpm eval:proficiency (strict: EVAL_PROFICIENCY_STRICT=1). qualifier_cases test qualifierToProficiency; evidence_cap_cases test capForEvidence (telemetry/gate ONLY, NOT wired to scoring); jd_default_cases assert the EXISTING skill-diff default (missing/invalid JD level -> INTERMEDIATE=3, importance -> REQUIRED) via a real diff().",
+  "version": "eval-proficiency-v1",
+  "qualifier_cases": [
+    { "text": "basic React", "expected": "BEGINNER" },
+    { "text": "cơ bản", "expected": "BEGINNER" },
+    { "text": "familiar with Go", "expected": "NOVICE" },
+    { "text": "làm quen với Java", "expected": "NOVICE" },
+    { "text": "khá tốt", "expected": "INTERMEDIATE" },
+    { "text": "thành thạo Docker", "expected": "ADVANCED" },
+    { "text": "strong in Python", "expected": "ADVANCED" },
+    { "text": "chuyên sâu về AWS", "expected": "EXPERT" },
+    { "text": "expert-level k8s", "expected": "EXPERT" },
+    { "text": "React, Node.js, PostgreSQL", "expected": null }
+  ],
+  "evidence_cap_cases": [
+    { "prof": "EXPERT", "evidence": "listed_only", "expected": "INTERMEDIATE" },
+    { "prof": "ADVANCED", "evidence": "mentioned", "expected": "INTERMEDIATE" },
+    { "prof": "ADVANCED", "evidence": "listed_only", "expected": "INTERMEDIATE" },
+    { "prof": "NOVICE", "evidence": "listed_only", "expected": "NOVICE" },
+    { "prof": "EXPERT", "evidence": "demonstrated", "expected": "EXPERT" }
+  ],
+  "jd_default_cases": [
+    { "required_level_hint": null, "importance_hint": null, "expected_level": 3, "expected_importance": "REQUIRED" },
+    { "required_level_hint": "GARBLED", "importance_hint": "x", "expected_level": 3, "expected_importance": "REQUIRED" }
+  ]
+}
