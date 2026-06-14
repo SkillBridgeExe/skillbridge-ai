@@ -12,6 +12,7 @@ import { GithubEvidenceModule } from '../../modules/github-evidence/github-evide
 import { InterviewModule } from '../../modules/interview/interview.module';
 import { TracingModule } from '../../modules/tracing/tracing.module';
 import { BillingModule } from '../billing/billing.module';
+import { TailorVerifierModule } from '../tailor-verifier/tailor-verifier.module';
 import { CvPdfRendererService } from './cv-pdf-renderer.service';
 import { CvsRetentionService } from './cv-retention.service';
 import { CvsController } from './cvs.controller';
@@ -37,6 +38,8 @@ import { TextExtractorService } from './text-extractor.service';
     BillingModule,
     // Self-sufficient DI for CV analysis usage counting; @Global, so idempotent.
     TracingModule,
+    // PR4.5 — server-verified tailor rewrite. Standalone (no Cvs/CvMatches dep) → no module cycle.
+    TailorVerifierModule,
   ],
   controllers: [CvsController, DiagnosisController],
   providers: [
