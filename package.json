@@ -45,6 +45,7 @@
     "import:esco": "ts-node src/tools/import-esco-it.ts",
     "eval:extractors": "ts-node -r tsconfig-paths/register src/calibration/eval-extractors.ts",
     "eval:jd-extract": "ts-node -r tsconfig-paths/register src/calibration/eval-jd-extract.ts",
+    "eval:patch": "ts-node -r tsconfig-paths/register src/calibration/eval-patch.ts",
     "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts"
   },
   "dependencies": {
