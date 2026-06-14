@@ -13,6 +13,7 @@ import {
   SkillTextScannerService,
 } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
+import { detectProficiencyInflation } from './proficiency-crosscheck';
 import { assessTextQuality } from '../../common/services/text-quality';
 import { JdDimension, normalizeJdDimensions } from '../gap-engine/jd-dimensions';
 import { maskPii, maskPiiDeep } from '../../common/services/pii-mask';
@@ -210,6 +211,20 @@ export class CvJdMatchService {
           `Match request ${aiRequestId}: ${diff.unnormalized_cv_skills.length} CV skills + ` +
             `${diff.unnormalized_jd_requirements.length} JD requirements did not normalize — ` +
             `consider expanding taxonomy.`,
+        );
+      }
+
+      // Telemetry only (does NOT affect the score): surface CV skills where the LLM proficiency_hint
+      // exceeds the qualifier word in the evidence. Logs enum/canonical/count ONLY — never raw text.
+      const proficiencyInflation = detectProficiencyInflation(extraction.cv_skills_raw);
+      if (proficiencyInflation.length > 0) {
+        this.logger.warn(
+          `Match request ${aiRequestId}: ${proficiencyInflation.length} CV skill(s) where the LLM ` +
+            `proficiency_hint exceeds the evidence qualifier — ` +
+            proficiencyInflation
+              .map((f) => `${f.canonical_or_raw}:${f.llm_hint}>${f.qualifier_proficiency}`)
+              .join(', ') +
+            ` (telemetry only — does not affect score).`,
         );
       }
 
