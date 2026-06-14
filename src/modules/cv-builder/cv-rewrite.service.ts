@@ -3,17 +3,19 @@ import { createHash } from 'node:crypto';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
-import { RewriteRequestDto, RewriteResponseDto, TailorActionInputDto } from './dto/rewrite.dto';
+import { RewriteRequestDto, RewriteResponseDto } from './dto/rewrite.dto';
+import { VerifiedTailorAction } from './tailor-verification';
 import { assessRewriteInput } from './rewrite-input-gate';
 
 const PROMPT_CODE = 'cv_rewrite_v1';
 /** Cache entries are tiny; cap protects memory under a busy session. */
 const CACHE_MAX = 2000;
 
-/** Deterministic tailor instruction — server-built from a checklist item, never user free-text.
- *  Only evidence-backed actions reach here (the checklist gates rewrite_eligible). */
+/** Deterministic tailor instruction — built ONLY from a SERVER-VERIFIED action (never FE-sent
+ *  skill/level). The verifier upstream already proved the skill is evidence-backed and the text is
+ *  the candidate's own content; this just phrases the rewrite goal for the LLM. */
 export function buildTailorInstruction(
-  a: Pick<TailorActionInputDto, 'action_type' | 'skill_display' | 'required_level'>,
+  a: Pick<VerifiedTailorAction, 'action_type' | 'skill_display' | 'required_level'>,
 ): string {
   if (a.action_type === 'emphasize') {
     return (
@@ -60,8 +62,17 @@ export class CvRewriteService {
    * @param userId - Optional user id for tracing. Pass null for anonymous/platform calls.
    *                 The platform layer (`/api/cvs/:id/builder/rewrite`) MUST pass the real
    *                 userId so cost/token/latency is attributed correctly.
+   * @param verifiedAction - REQUIRED for mode='tailor'. The platform layer verifies the FE's
+   *                 match_id+action_id against the rebuilt gap report and passes the trusted
+   *                 action here. This service NEVER trusts FE-sent skill/level — without a
+   *                 verifiedAction a tailor request fails closed (NO_VERIFIED_ACTION). This also
+   *                 closes the internal `/internal/ai/cv/rewrite` endpoint to unverified tailoring.
    */
-  async rewrite(req: RewriteRequestDto, userId: string | null = null): Promise<RewriteResponseDto> {
+  async rewrite(
+    req: RewriteRequestDto,
+    userId: string | null = null,
+    verifiedAction?: VerifiedTailorAction,
+  ): Promise<RewriteResponseDto> {
     const text = (req.text ?? '').trim();
     if (text.length === 0) {
       throw new BadRequestException({ code: 'EMPTY_TEXT', message: 'text is required' });
@@ -78,10 +89,11 @@ export class CvRewriteService {
         message: 'instruction required for custom',
       });
     }
-    if (req.mode === 'tailor' && !req.tailor_action) {
+    if (req.mode === 'tailor' && !verifiedAction) {
+      // Fail closed: the instruction must come from a server-verified action, never FE input.
       throw new BadRequestException({
-        code: 'NO_TAILOR_ACTION',
-        message: 'tailor_action required for tailor',
+        code: 'NO_VERIFIED_ACTION',
+        message: 'tailor rewrite requires a server-verified action (match_id + action_id)',
       });
     }
 
@@ -98,8 +110,8 @@ export class CvRewriteService {
     }
 
     const instruction =
-      req.mode === 'tailor' && req.tailor_action
-        ? buildTailorInstruction(req.tailor_action)
+      req.mode === 'tailor' && verifiedAction
+        ? buildTailorInstruction(verifiedAction)
         : req.instruction;
 
     const key = this.cacheKey(req, text, instruction);

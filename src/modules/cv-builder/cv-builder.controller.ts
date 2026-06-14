@@ -33,6 +33,10 @@ export class CvBuilderController {
     @Body() body: RewriteRequestDto,
     @InternalUser() userId: string,
   ): Promise<RewriteResponseDto> {
+    // No verifiedAction is passed here, so mode='tailor' fails closed (NO_VERIFIED_ACTION):
+    // tailoring requires the platform path (/api/cvs/:id/builder/rewrite) which reloads the match,
+    // verifies ownership + the action, and supplies the trusted action. This endpoint stays
+    // harvard/translate/custom only.
     return this.rewriter.rewrite(body, userId);
   }
 }
