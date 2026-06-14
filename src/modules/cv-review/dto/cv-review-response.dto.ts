@@ -2,6 +2,7 @@ import { AtsCheckResult } from '../ats-rule-checker.service';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
 import { BulletAnalysis, BulletFeedbackItem } from '../bullet-analyzer.service';
 import { EvidenceLedger } from '../../../common/services/evidence-ledger';
+import { ExtractionQuality } from '../../../common/services/extraction-quality';
 
 export interface CvReviewSectionIssue {
   severity: 'info' | 'warning' | 'error';
@@ -116,6 +117,10 @@ export interface CvReviewParsedResponse {
   /** Display-only: where each CV skill is evidenced (bullet/project/listed) + recency + honest
    *  strength. NEVER affects any score. evidence_gap = skills only listed, never shown. */
   evidence_ledger?: EvidenceLedger;
+  /** Deterministic read on how trustworthy the EXTRACTED text was (mojibake / OCR / thin / sparse).
+   *  Reportable signal + low-confidence flag — NEVER blocks scoring, NEVER affects overall_score.
+   *  Optional: older cached ai_results predate this field. */
+  extraction_quality?: ExtractionQuality;
 }
 
 export interface CvReviewResponseDto {
