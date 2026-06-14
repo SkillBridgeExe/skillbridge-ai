@@ -23,6 +23,7 @@ import {
   StartInterviewResponseDto,
   StartPlatformInterviewDto,
 } from './dto/interview.dto';
+import { OpenAiQuestionAudioService, QuestionAudioResult } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
@@ -72,6 +73,7 @@ export class InterviewsService {
     private readonly interviewAi: InterviewAiService,
     private readonly entitlements: EntitlementsService,
     private readonly realtime: OpenAiRealtimeTokenService,
+    private readonly questionAudio?: OpenAiQuestionAudioService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -283,6 +285,32 @@ export class InterviewsService {
     return realtime;
   }
 
+  async createQuestionAudio(userId: string, sessionId: string): Promise<QuestionAudioResult> {
+    const session = await this.findOwnedSession(userId, sessionId);
+    this.assertInProgress(session);
+    await this.assertNotExpired(session);
+
+    const current = await this.turns.findOne({
+      where: { sessionId: session.id, userAnswerText: IsNull() },
+      order: { turnOrder: 'ASC' },
+    });
+    if (!current) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview session has no pending question to read',
+      });
+    }
+
+    if (!this.questionAudio) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Question audio service is not configured',
+      });
+    }
+
+    return this.questionAudio.createQuestionAudio(userId, session, current.interviewerQuestion);
+  }
+
   private async resolveContext(
     userId: string,
     dto: StartPlatformInterviewDto,
@@ -384,11 +412,23 @@ export class InterviewsService {
   }
 
   private realtimeInstructions(session: InterviewSessionEntity, context?: string): string {
+    const modeInstructions =
+      session.mode === 'VOICE'
+        ? [
+            'Live Realtime mode: speak like a real interviewer in a live call.',
+            'Keep every answer turn separable. If the app sends an official question directive, ask that question exactly.',
+            'Do not reveal scoring or final feedback during the live interview.',
+          ]
+        : [
+            'Guided Voice mode: the app owns the official question sequence.',
+            'Use realtime primarily for voice capture and concise acknowledgement. Do not invent new official questions.',
+          ];
+
     return [
       'You are Alex, a realistic professional interviewer for SkillBridge.',
       `Interview type: ${session.interviewType}. Language: ${session.language}. Target role: ${session.targetRole}.`,
       'Ask exactly one question at a time. Keep questions concise. Do not reveal scoring.',
-      'After the candidate answers, acknowledge briefly, then ask the next relevant question.',
+      ...modeInstructions,
       'Focus on evidence in the CV, JD requirements, and gaps. Avoid inventing experience.',
       context ? `Context:\n${context}` : '',
     ]
