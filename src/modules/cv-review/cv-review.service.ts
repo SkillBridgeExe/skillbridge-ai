@@ -22,6 +22,7 @@ import { SkillTextScannerService } from '../../common/services/skill-text-scanne
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { buildEvidenceLedger } from '../../common/services/evidence-ledger';
 import { assessTextQuality } from '../../common/services/text-quality';
+import { assessExtractionQuality } from '../../common/services/extraction-quality';
 import scoringWeights from './scoring-weights-v1.json';
 
 // Bilingual action templates for the deterministic top_summary, keyed by ATS rule_id.
@@ -258,6 +259,14 @@ export class CvReviewService {
         new Date().getFullYear(),
       );
 
+      // Deterministic input-quality read (mojibake / OCR / thin / sparse). Computed AFTER scoring is
+      // final — it is a reportable signal only, NEVER blocks or alters overall_score. The hard gate
+      // (CV_CONTENT_INSUFFICIENT, Step 0) already rejected truly-unreadable uploads.
+      const extraction_quality = assessExtractionQuality(input.parsed_text ?? '', document, {
+        ocrUsed: input.is_ocr_only ?? false,
+        scan: (t) => this.scanner.scan(t),
+      });
+
       const parsedResponse: CvReviewParsedResponse = {
         language: document.language,
         document,
@@ -280,6 +289,7 @@ export class CvReviewService {
         buzzwords_detected: this.bulletAnalyzer.detectBuzzwords(document),
         top_summary,
         evidence_ledger,
+        extraction_quality,
       };
 
       // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
