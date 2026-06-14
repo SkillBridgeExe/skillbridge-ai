@@ -1,3 +1,6 @@
+import { mkdirSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Tesseract from 'tesseract.js';
@@ -156,7 +159,11 @@ export class ScannedPdfOcrService {
 
   /** Create a Tesseract worker for eng+vie. Overridable seam for tests. */
   protected async createWorker(): Promise<any> {
-    return Tesseract.createWorker('eng+vie');
+    // Cache eng+vie traineddata under the OS temp dir (writable on Cloud Run = /tmp) instead of the
+    // default cwd, so a run never dumps ~tens of MB of *.traineddata into the project / app root.
+    const cachePath = join(tmpdir(), 'skillbridge-tesseract');
+    mkdirSync(cachePath, { recursive: true });
+    return Tesseract.createWorker('eng+vie', undefined, { cachePath });
   }
 
   /**
