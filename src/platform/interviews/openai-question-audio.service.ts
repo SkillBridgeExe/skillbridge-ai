@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
+import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 
 export interface QuestionAudioResult {
@@ -11,6 +12,7 @@ export interface QuestionAudioResult {
 @Injectable()
 export class OpenAiQuestionAudioService {
   private readonly logger = new Logger(OpenAiQuestionAudioService.name);
+  private client: OpenAI | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -19,37 +21,24 @@ export class OpenAiQuestionAudioService {
     session: InterviewSessionEntity,
     question: string,
   ): Promise<QuestionAudioResult> {
-    const apiKey = this.config.get<string>('llm.openai.apiKey');
     const model = this.config.get<string>('llm.openai.ttsModel') ?? 'gpt-4o-mini-tts';
     const voice = this.config.get<string>('llm.openai.ttsVoice') ?? 'alloy';
-    if (!apiKey) {
-      throw new ServiceUnavailableException('OPENAI_API_KEY is not set');
-    }
 
     try {
-      const response = await fetch('https://api.openai.com/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'OpenAI-Safety-Identifier': this.safetyIdentifier(userId),
-        },
-        body: JSON.stringify({
+      const response = await this.getClient().audio.speech.create(
+        {
           model,
           voice,
           input: question,
           instructions: this.voiceInstructions(session),
           response_format: 'mp3',
-        }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        this.logger.warn(`OpenAI question audio failed (${response.status}): ${text}`);
-        throw new ServiceUnavailableException(
-          `OpenAI question audio failed with HTTP ${response.status}`,
-        );
-      }
+        },
+        {
+          headers: {
+            'OpenAI-Safety-Identifier': this.safetyIdentifier(userId),
+          },
+        },
+      );
 
       const arrayBuffer = await response.arrayBuffer();
       return {
@@ -61,6 +50,17 @@ export class OpenAiQuestionAudioService {
       this.logger.warn(`OpenAI question audio failed: ${(error as Error).message}`);
       throw new ServiceUnavailableException('OpenAI question audio request failed');
     }
+  }
+
+  private getClient(): OpenAI {
+    if (!this.client) {
+      const apiKey = this.config.get<string>('llm.openai.apiKey');
+      if (!apiKey) {
+        throw new ServiceUnavailableException('OPENAI_API_KEY is not set');
+      }
+      this.client = new OpenAI({ apiKey, maxRetries: 5, timeout: 60_000 });
+    }
+    return this.client;
   }
 
   private voiceInstructions(session: InterviewSessionEntity): string {
