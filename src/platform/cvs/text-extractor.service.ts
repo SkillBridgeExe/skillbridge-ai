@@ -1,8 +1,15 @@
-import { BadGatewayException, Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  Injectable,
+  Optional,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { PDFParse } from 'pdf-parse';
 import * as mammoth from 'mammoth';
 import * as Tesseract from 'tesseract.js';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { ScannedPdfOcrService } from '../../common/services/scanned-pdf-ocr.service';
+import { computeTextMetrics } from '../../common/services/text-metrics';
 
 export interface ExtractedCvText {
   text: string;
@@ -15,9 +22,13 @@ const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp
 
 @Injectable()
 export class TextExtractorService {
+  // Optional so the extractor is still constructible without OCR (unit contexts). @Optional()
+  // is REQUIRED for runtime optional injection — the `?` in the type alone is not enough.
+  constructor(@Optional() private readonly scannedPdfOcr?: ScannedPdfOcrService) {}
+
   async extract(file: Express.Multer.File): Promise<ExtractedCvText> {
     if (file.mimetype === PDF_MIME) {
-      return { text: await this.extractPdf(file.buffer), isOcrOnly: false };
+      return this.extractPdf(file.buffer);
     }
     if (file.mimetype === DOCX_MIME) {
       return { text: await this.extractDocx(file.buffer), isOcrOnly: false };
@@ -32,16 +43,40 @@ export class TextExtractorService {
     });
   }
 
-  private async extractPdf(buffer: Buffer): Promise<string> {
+  private async extractPdf(buffer: Buffer): Promise<ExtractedCvText> {
+    // 1. Raw text WITHOUT throwing — a text-less / scanned PDF must reach the OCR rescue, not
+    //    fail here. pdf-parse errors degrade to empty text rather than propagating.
+    let rawText = '';
     const parser = new PDFParse({ data: buffer });
     try {
-      const result = await parser.getText();
-      return this.requireText(result.text);
-    } catch (error) {
-      throw this.parseFailed(error);
+      rawText = (await parser.getText()).text ?? '';
+    } catch {
+      rawText = '';
     } finally {
       await parser.destroy().catch(() => undefined);
     }
+
+    // 2. Normalize ONCE (NUL-strip + trim, same as requireText) so the original metrics seen by
+    //    the rescue match the parsedText that gets persisted downstream.
+    const normalizedRaw = rawText.split(String.fromCharCode(0)).join('').trim();
+
+    // 3. Thin trigger computed from raw-text metrics only (skill count is irrelevant to the
+    //    trigger → empty scan keeps the extractor scanner-free).
+    const m = computeTextMetrics(normalizedRaw, () => []);
+    const isThin = m.charCount < 300 || m.wordCount < 50 || m.wordlikeRatio < 0.55;
+
+    // 4. OCR rescue only when thin AND the optional service is wired. rescue() never throws.
+    let chosen = normalizedRaw;
+    let ocrUsed = false;
+    if (isThin && this.scannedPdfOcr) {
+      const rescued = await this.scannedPdfOcr.rescue(buffer, normalizedRaw);
+      chosen = rescued.text;
+      ocrUsed = rescued.ocrUsed;
+    }
+
+    // 5. SINGLE throw point (invariant): only fails when the chosen text is empty — i.e. a real
+    //    all-empty PDF with OCR disabled/failed. OCR chosen ⇒ isOcrOnly=true (honest for ATS).
+    return { text: this.requireText(chosen), isOcrOnly: ocrUsed };
   }
 
   private async extractDocx(buffer: Buffer): Promise<string> {
