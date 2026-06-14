@@ -46,6 +46,14 @@ const DEFAULT_ENTRY: ManifestEntry = { layout: 'unknown', lang: 'unknown', sourc
 const TARGET_LAYOUTS: Layout[] = ['single_column', 'two_column', 'canva', 'scanned'];
 const TARGET_LANGS: Lang[] = ['vi', 'en'];
 
+const ALL_LAYOUTS: Layout[] = [...TARGET_LAYOUTS, 'unknown'];
+const ALL_LANGS: Lang[] = ['vi', 'en', 'mixed', 'unknown'];
+const ALL_SOURCES: Source[] = ['real', 'synthetic', 'redacted', 'unknown'];
+/** Coerce a raw manifest value to a known enum member, else 'unknown' — a typo can't silently
+ *  invent a coverage key (e.g. "two-column") that never matches the target grid. */
+const oneOf = <T extends string>(value: unknown, allowed: T[]): T =>
+  allowed.includes(value as T) ? (value as T) : (allowed[allowed.length - 1] as T);
+
 type Cell = ExtractorMetrics | { error: string };
 const isErr = (c: Cell): c is { error: string } => 'error' in c;
 
@@ -61,9 +69,9 @@ function loadManifest(dir: string): Map<string, ManifestEntry> {
     for (const f of raw.files ?? []) {
       if (!f.filename) continue;
       map.set(f.filename, {
-        layout: f.layout ?? 'unknown',
-        lang: f.lang ?? 'unknown',
-        source: f.source ?? 'unknown',
+        layout: oneOf(f.layout, ALL_LAYOUTS),
+        lang: oneOf(f.lang, ALL_LANGS),
+        source: oneOf(f.source, ALL_SOURCES),
       });
     }
   } catch (e) {
@@ -102,8 +110,11 @@ function buildDisclaimer(rows: Array<{ file: string; entry: ManifestEntry }>): {
 
 async function main(): Promise<void> {
   const dir = path.join(process.cwd(), 'data', 'eval-cvs-pdf');
+  // ALWAYS surface the thin-corpus disclaimer — including the (gitignored, so DEFAULT-on-fresh-checkout)
+  // empty paths, so a run can never look authoritative without the caveat.
   if (!fs.existsSync(dir)) {
     console.log(`No corpus dir. Create ${dir} and drop CV PDFs (esp. 2-column), then re-run.`);
+    console.log('\n⚠️  ' + buildDisclaimer([]).text + '\n');
     return;
   }
   const pdfs = fs
@@ -112,6 +123,7 @@ async function main(): Promise<void> {
     .sort();
   if (pdfs.length === 0) {
     console.log(`No PDFs in ${dir} — drop CV PDFs (esp. 2-column) and re-run.`);
+    console.log('\n⚠️  ' + buildDisclaimer([]).text + '\n');
     return;
   }
 
