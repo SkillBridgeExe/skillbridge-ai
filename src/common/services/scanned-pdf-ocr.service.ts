@@ -1,24 +1,31 @@
 import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { Worker } from 'worker_threads';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Tesseract from 'tesseract.js';
 import { SkillTextScannerService } from './skill-text-scanner.service';
 import { computeTextMetrics, TextMetrics } from './text-metrics';
+import type { OcrWorkerInput, OcrWorkerResult } from './ocr-worker';
 
 /**
  * Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin to read
- * (scanned / image-only CV), {@link ScannedPdfOcrService.rescue} rasterizes the first N pages
- * with mupdf, OCRs them with the existing Tesseract engine, and returns the OCR text ONLY when
- * deterministic metrics say it is genuinely better than the original.
+ * (scanned / image-only CV), {@link ScannedPdfOcrService.rescue} rasterizes the first N pages and
+ * OCRs them, returning the OCR text ONLY when deterministic metrics say it is genuinely better.
  *
- * Design invariants (see docs spec 2026-06-14-scanned-pdf-ocr-fallback):
+ * Execution model: the heavy, blocking work (pdfium WASM render + Tesseract OCR) runs in a
+ * worker_thread (see ocr-worker.ts). This keeps the main event loop responsive (so the timeout
+ * actually fires) AND lets us hard-terminate the whole thread on timeout — the only reliable way to
+ * interrupt a stuck Tesseract load or slow WASM render, with no worker/native-memory leak.
+ *
+ * Rasterizer stack is fully permissive + native-free: @hyzyla/pdfium (WASM, MIT/BSD) + pngjs
+ * (pure JS, MIT) + tesseract.js (WASM). No AGPL, no prebuilt native binaries (alpine-safe).
+ *
+ * Invariants:
  *  - rescue() NEVER throws — every failure path returns { text: original, ocrUsed: false, reason }.
- *  - rescue() OWNS the Tesseract worker + the mupdf doc and frees both in a single finally on
- *    EVERY path including timeout (terminate() is the only thing that interrupts a stuck recognize).
- *  - Reuses computeTextMetrics + the shared SkillTextScannerService so skillsFound is comparable
- *    to the eval harness and the live extraction_quality signal.
+ *  - The worker is terminated in a single finally on EVERY path (success/timeout/error).
+ *  - Reuses computeTextMetrics + the shared SkillTextScannerService so skillsFound is comparable to
+ *    the eval harness and the live extraction_quality signal.
  *  - Additive only: does not touch scoring / gap / rewrite / cv-parse.
  */
 
@@ -60,6 +67,14 @@ interface OcrFallbackConfig {
   maxPdfBytes: number;
   dpi: number;
 }
+
+/** A running OCR job: a result promise plus a hard-terminate handle. The seam for unit tests. */
+interface OcrRun {
+  result: Promise<{ text: string; pages: number; renderMs: number; ocrMs: number }>;
+  terminate: () => Promise<void>;
+}
+
+const TIMEOUT = Symbol('ocr-timeout');
 
 @Injectable()
 export class ScannedPdfOcrService {
@@ -108,70 +123,41 @@ export class ScannedPdfOcrService {
     return this.decide(O, R);
   }
 
-  // ---- OCR rescue pipeline ----
-
-  private mupdfMod: unknown;
-
-  private async loadMupdf(): Promise<any> {
-    if (!this.mupdfMod) {
-      // mupdf is ESM + top-level-await. require() AND a downleveled `await import` both throw
-      // ERR_REQUIRE_ASYNC_MODULE under module:"commonjs". This indirect import is NOT rewritten
-      // by tsc, so native dynamic import() loads the ESM module at runtime. (proven by spike)
-      const dynImport = new Function('s', 'return import(s)') as (s: string) => Promise<any>;
-      this.mupdfMod = await dynImport('mupdf');
-    }
-    return this.mupdfMod;
-  }
-
-  /** Rasterize up to maxPages pages to PNG buffers. Frees native memory even on error. */
-  protected async renderPages(buffer: Buffer, maxPages: number, dpi: number): Promise<Buffer[]> {
-    const mupdf = await this.loadMupdf();
-    const doc = mupdf.Document.openDocument(new Uint8Array(buffer), 'application/pdf');
-    const out: Buffer[] = [];
-    try {
-      const n = Math.min(doc.countPages(), maxPages);
-      for (let i = 0; i < n; i++) {
-        const page = doc.loadPage(i);
-        const pix = page.toPixmap(
-          mupdf.Matrix.scale(dpi / 72, dpi / 72),
-          mupdf.ColorSpace.DeviceRGB,
-          false,
-        );
-        out.push(Buffer.from(pix.asPNG()));
-        pix.destroy?.();
-        page.destroy?.();
-      }
-    } finally {
-      doc.destroy?.();
-    }
-    return out;
-  }
-
-  /** OCR each PNG with the GIVEN worker. Does NOT own/terminate the worker (rescue does). */
-  protected async ocrPages(worker: any, pngs: Buffer[]): Promise<string> {
-    const parts: string[] = [];
-    for (const png of pngs) {
-      const res = await worker.recognize(png);
-      parts.push(res.data.text);
-    }
-    return parts.join('\n');
-  }
-
-  /** Create a Tesseract worker for eng+vie. Overridable seam for tests. */
-  protected async createWorker(): Promise<any> {
-    // Cache eng+vie traineddata under the OS temp dir (writable on Cloud Run = /tmp) instead of the
-    // default cwd, so a run never dumps ~tens of MB of *.traineddata into the project / app root.
+  /**
+   * Spawn the render+OCR worker_thread and return its result promise + a hard-terminate handle.
+   * Overridable seam: unit tests subclass this to inject results with no real thread/WASM/network.
+   */
+  protected runOcr(buffer: Buffer, maxPages: number, dpi: number): OcrRun {
     const cachePath = join(tmpdir(), 'skillbridge-tesseract');
     mkdirSync(cachePath, { recursive: true });
-    return Tesseract.createWorker('eng+vie', undefined, { cachePath });
+
+    // __filename is *.ts under ts-node (dev/eval) and *.js under the compiled build (prod).
+    const isTs = __filename.endsWith('.ts');
+    const workerFile = join(__dirname, isTs ? 'ocr-worker.ts' : 'ocr-worker.js');
+    const execArgv = isTs ? ['-r', 'ts-node/register/transpile-only'] : [];
+    const workerData: OcrWorkerInput = { pdf: buffer, maxPages, dpi, cachePath };
+    const worker = new Worker(workerFile, { workerData, execArgv });
+
+    const result = new Promise<{ text: string; pages: number; renderMs: number; ocrMs: number }>(
+      (resolve, reject) => {
+        worker.once('message', (m: OcrWorkerResult) => {
+          if (m.ok) resolve({ text: m.text, pages: m.pages, renderMs: m.renderMs, ocrMs: m.ocrMs });
+          else reject(Object.assign(new Error(m.message), { stage: m.stage }));
+        });
+        worker.once('error', reject);
+        worker.once('exit', (code) => {
+          if (code !== 0) reject(new Error(`OCR worker exited (${code})`));
+        });
+      },
+    );
+    return { result, terminate: () => worker.terminate().then(() => undefined) };
   }
 
   /**
    * Rescue a thin/scanned PDF via OCR. NEVER throws: any failure returns the original text with
-   * ocrUsed=false + a reason. rescue() OWNS the worker and frees it in a single finally on EVERY
-   * path (terminate() is the only thing that interrupts a stuck recognize). If the timeout fires
-   * during the render phase (before the worker exists), the background task terminates the worker
-   * it later creates, so nothing leaks.
+   * ocrUsed=false + a reason. The worker is hard-terminated in a single finally on EVERY path
+   * (success/timeout/error) — terminating the thread kills the render + the nested Tesseract worker
+   * with no leak, and because the heavy work is off the main loop the timeout actually fires.
    */
   async rescue(buffer: Buffer, originalText: string): Promise<ScannedPdfOcrResult> {
     const scan = (t: string) => this.scanner.scan(t);
@@ -198,63 +184,39 @@ export class ScannedPdfOcrService {
     if (!this.cfg.enabled) return keep('disabled', false);
     if (buffer.length > this.cfg.maxPdfBytes) return keep('oversized');
 
-    let worker: any;
-    let finished = false;
+    const run = this.runOcr(buffer, this.cfg.maxPages, this.cfg.dpi);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<{ timedOut: true }>((res) => {
-      timer = setTimeout(() => res({ timedOut: true }), this.cfg.timeoutMs);
+    const timeout = new Promise<typeof TIMEOUT>((res) => {
+      timer = setTimeout(() => res(TIMEOUT), this.cfg.timeoutMs);
     });
-    const work = (async () => {
-      const t0 = Date.now();
-      const pngs = await this.renderPages(buffer, this.cfg.maxPages, this.cfg.dpi);
-      const renderMs = Date.now() - t0;
-      if (pngs.length === 0) return { empty: true as const, renderMs };
-      worker = await this.createWorker();
-      if (finished) {
-        // Race already lost during createWorker — terminate the worker we just made (no leak).
-        await worker.terminate?.().catch(() => undefined);
-        return { aborted: true as const };
-      }
-      const t1 = Date.now();
-      const ocrText = await this.ocrPages(worker, pngs);
-      return {
-        empty: false as const,
-        pages: pngs.length,
-        renderMs,
-        ocrMs: Date.now() - t1,
-        ocrText,
-      };
-    })();
 
     try {
-      const res = await Promise.race([work, timeout]);
-      if ('timedOut' in res) return keep('timeout');
-      if ('aborted' in res) return keep('timeout');
-      if (res.empty) return keep('empty_render', true, { renderMs: res.renderMs });
-      const ocr = computeTextMetrics(res.ocrText, scan);
+      const raced = await Promise.race([run.result, timeout]);
+      if (raced === TIMEOUT) return keep('timeout');
+
+      const { text, pages, renderMs, ocrMs } = raced;
+      if (!text || text.trim().length === 0) {
+        return keep('empty_render', true, { pagesRendered: pages, renderMs, ocrMs });
+      }
+      const ocr = computeTextMetrics(text, scan);
       const d = this.decide(original, ocr);
-      const base = {
-        attempted: true,
-        pagesRendered: res.pages,
-        renderMs: res.renderMs,
-        ocrMs: res.ocrMs,
-        original,
-        ocr,
-      };
+      const base = { attempted: true, pagesRendered: pages, renderMs, ocrMs, original, ocr };
       return d.useOcr
-        ? { text: res.ocrText, ocrUsed: true, metadata: { ...base, decision: 'used_ocr' } }
+        ? { text, ocrUsed: true, metadata: { ...base, decision: 'used_ocr' } }
         : {
             text: originalText,
             ocrUsed: false,
             metadata: { ...base, decision: 'kept_original', reason: d.reason },
           };
     } catch (e) {
-      this.logger.warn(`OCR rescue failed: ${e instanceof Error ? e.message : String(e)}`);
-      return keep(worker ? 'ocr_failed' : 'render_failed');
+      const stage = (e as { stage?: string }).stage;
+      this.logger.warn(
+        `OCR rescue failed (${stage ?? 'unknown'}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return keep(stage === 'ocr' ? 'ocr_failed' : 'render_failed');
     } finally {
-      finished = true;
       if (timer) clearTimeout(timer);
-      if (worker) await worker.terminate?.().catch(() => undefined);
+      await run.terminate().catch(() => undefined); // hard-kill the thread on every path
     }
   }
 }

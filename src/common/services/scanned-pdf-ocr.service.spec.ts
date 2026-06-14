@@ -6,9 +6,8 @@ import { TextMetrics } from './text-metrics';
 const cfg = (over: Record<string, unknown> = {}): ConfigService =>
   ({ get: (k: string) => over[k] }) as unknown as ConfigService;
 
-const scanner = {
-  scan: () => [],
-} as unknown as import('./skill-text-scanner.service').SkillTextScannerService;
+type ScannerLike = import('./skill-text-scanner.service').SkillTextScannerService;
+const scanner = { scan: () => [] } as unknown as ScannerLike;
 
 /** Build a TextMetrics with sane zero defaults; override only the fields a test cares about. */
 const M = (o: Partial<TextMetrics>): TextMetrics => ({
@@ -101,36 +100,33 @@ describe('ScannedPdfOcrService — decide (deterministic, do not pick OCR if wor
   });
 });
 
-type ScannerLike = import('./skill-text-scanner.service').SkillTextScannerService;
+type WorkerResult = { text: string; pages: number; renderMs: number; ocrMs: number };
 
-describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/network)', () => {
+describe('ScannedPdfOcrService — rescue (never-throws, worker injected, no thread/WASM/network)', () => {
   class FakeOcr extends ScannedPdfOcrService {
     constructor(
       over: Record<string, unknown>,
       scanStub: ScannerLike,
       private readonly hooks: {
-        render?: () => Promise<Buffer[]>;
-        ocr?: () => Promise<string>;
+        result?: () => Promise<WorkerResult>;
         terminate?: () => Promise<void>;
       },
     ) {
       super(cfg(over), scanStub);
     }
-    protected async renderPages(): Promise<Buffer[]> {
-      return this.hooks.render ? this.hooks.render() : [Buffer.from('page')];
-    }
-    protected async ocrPages(): Promise<string> {
-      return this.hooks.ocr ? this.hooks.ocr() : '';
-    }
-    protected async createWorker(): Promise<any> {
+    protected runOcr() {
       return {
-        recognize: async () => ({ data: { text: '' } }),
+        result: this.hooks.result
+          ? this.hooks.result()
+          : Promise.resolve({ text: '', pages: 0, renderMs: 0, ocrMs: 0 }),
         terminate: this.hooks.terminate ?? (async () => {}),
       };
     }
   }
 
   const buf = Buffer.from('x'.repeat(50));
+  const rejectWith = (stage: 'render' | 'ocr') => () =>
+    Promise.reject(Object.assign(new Error(`${stage} boom`), { stage }));
 
   it('disabled → kept_original, attempted:false', async () => {
     const s = new FakeOcr({ 'ocrFallback.enabled': false }, scanner, {});
@@ -145,46 +141,39 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
   it('oversized → kept_original reason:oversized', async () => {
     const s = new FakeOcr({ 'ocrFallback.maxPdfBytes': 10 }, scanner, {});
     const r = await s.rescue(buf, 'orig');
-    expect(r.ocrUsed).toBe(false);
     expect(r.metadata.reason).toBe('oversized');
   });
 
-  it('render throws → render_failed, no throw, no worker created', async () => {
+  it('render stage error → render_failed, worker terminated', async () => {
     const terminate = jest.fn(async () => {});
-    const s = new FakeOcr({}, scanner, {
-      render: () => Promise.reject(new Error('boom')),
-      terminate,
-    });
+    const s = new FakeOcr({}, scanner, { result: rejectWith('render'), terminate });
     const r = await s.rescue(buf, 'orig');
     expect(r.text).toBe('orig');
     expect(r.metadata.reason).toBe('render_failed');
-    expect(terminate).not.toHaveBeenCalled();
+    expect(terminate).toHaveBeenCalledTimes(1);
   });
 
-  it('empty render (0 pages) → empty_render', async () => {
-    const s = new FakeOcr({}, scanner, { render: async () => [] });
-    const r = await s.rescue(buf, 'orig');
-    expect(r.metadata.reason).toBe('empty_render');
-    expect(r.ocrUsed).toBe(false);
-  });
-
-  it('ocr throws → ocr_failed, worker terminated once', async () => {
+  it('ocr stage error → ocr_failed, worker terminated', async () => {
     const terminate = jest.fn(async () => {});
-    const s = new FakeOcr({}, scanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: () => Promise.reject(new Error('ocr boom')),
-      terminate,
-    });
+    const s = new FakeOcr({}, scanner, { result: rejectWith('ocr'), terminate });
     const r = await s.rescue(buf, 'orig');
     expect(r.metadata.reason).toBe('ocr_failed');
     expect(terminate).toHaveBeenCalledTimes(1);
   });
 
-  it('timeout → reason:timeout, worker terminated once', async () => {
+  it('empty render (0 pages, no text) → empty_render', async () => {
+    const s = new FakeOcr({}, scanner, {
+      result: async () => ({ text: '', pages: 0, renderMs: 5, ocrMs: 0 }),
+    });
+    const r = await s.rescue(buf, 'orig');
+    expect(r.metadata.reason).toBe('empty_render');
+    expect(r.ocrUsed).toBe(false);
+  });
+
+  it('timeout (result never resolves) → timeout, worker terminated once', async () => {
     const terminate = jest.fn(async () => {});
     const s = new FakeOcr({ 'ocrFallback.timeoutMs': 20 }, scanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: () => new Promise<string>(() => {}), // hangs forever
+      result: () => new Promise<WorkerResult>(() => {}), // never resolves
       terminate,
     });
     const r = await s.rescue(buf, 'orig');
@@ -193,10 +182,11 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
     expect(terminate).toHaveBeenCalledTimes(1);
   });
 
-  it('used_ocr: rich OCR text selected', async () => {
+  it('used_ocr: rich OCR text selected, worker terminated on success too', async () => {
+    const terminate = jest.fn(async () => {});
     const s = new FakeOcr({}, scanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: async () => 'react '.repeat(80),
+      result: async () => ({ text: 'react '.repeat(80), pages: 1, renderMs: 10, ocrMs: 20 }),
+      terminate,
     });
     const r = await s.rescue(buf, 'orig');
     expect(r.ocrUsed).toBe(true);
@@ -204,6 +194,7 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
     expect(r.metadata.ocr).toBeDefined();
     expect(r.metadata.pagesRendered).toBe(1);
     expect(r.text).toContain('react');
+    expect(terminate).toHaveBeenCalledTimes(1); // finally terminates even on success
   });
 
   it('used_ocr counts skills via the shared scanner (rule 5)', async () => {
@@ -211,8 +202,12 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
       scan: (t: string) => (t.includes('react') ? [{ canonical_name: 'react' }] : []),
     } as unknown as ScannerLike;
     const s = new FakeOcr({}, richScanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: async () => 'react typescript '.repeat(40),
+      result: async () => ({
+        text: 'react typescript '.repeat(40),
+        pages: 1,
+        renderMs: 1,
+        ocrMs: 1,
+      }),
     });
     const r = await s.rescue(buf, 'orig');
     expect(r.ocrUsed).toBe(true);
@@ -221,8 +216,7 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
 
   it('ocr_not_better: junk OCR → kept_original', async () => {
     const s = new FakeOcr({}, scanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: async () => 'x',
+      result: async () => ({ text: 'x', pages: 1, renderMs: 1, ocrMs: 1 }),
     });
     const r = await s.rescue(buf, 'orig');
     expect(r.ocrUsed).toBe(false);
@@ -231,8 +225,7 @@ describe('ScannedPdfOcrService — rescue (never-throws, OCR injected, no WASM/n
 
   it('metadata is PII-safe: only TextMetrics + timings + decision, no raw CV text', async () => {
     const s = new FakeOcr({}, scanner, {
-      render: async () => [Buffer.from('p')],
-      ocr: async () => 'react '.repeat(80),
+      result: async () => ({ text: 'react '.repeat(80), pages: 1, renderMs: 1, ocrMs: 1 }),
     });
     const { metadata } = await s.rescue(buf, 'orig');
     expect(Object.keys(metadata).sort()).toEqual(
