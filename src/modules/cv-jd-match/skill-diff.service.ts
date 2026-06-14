@@ -8,6 +8,7 @@ import {
 } from '../../common/services/role-rubric.service';
 import { inferSkills, loadSkillEdges, InferredSkill } from './skill-graph';
 import { findSatisfying, loadSatisfiesEdges } from './skill-satisfies';
+import { PROFICIENCY_TO_LEVEL } from '../../common/services/proficiency-calibration';
 
 export type ProficiencyHint = 'BEGINNER' | 'NOVICE' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT';
 
@@ -143,14 +144,6 @@ export interface DiffResult {
   /** Display-only Inferred-layer suggestions (skill-graph). NEVER affects any score. */
   inferred_skills?: InferredSkill[];
 }
-
-const PROFICIENCY_TO_LEVEL: Record<ProficiencyHint, number> = {
-  BEGINNER: 1,
-  NOVICE: 2,
-  INTERMEDIATE: 3,
-  ADVANCED: 4,
-  EXPERT: 5,
-};
 
 const DEFAULT_LEVEL = 3; // INTERMEDIATE — used when LLM hint is missing/invalid
 const DEFAULT_IMPORTANCE: Importance = 'REQUIRED';
