@@ -9,6 +9,26 @@ import { setupOpenApi } from './openapi';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:8080',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:4173',
+  'https://www.skillbridgebuilder.com',
+  'https://skillbridgebuilder.com',
+  'https://skillbridge-fe-973344038436.asia-southeast1.run.app',
+  'https://skillbridge-fe-pkbqs32y4q-as.a.run.app',
+];
+
+function parseCsvEnv(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
@@ -26,11 +46,10 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
-  const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  app.enableCors({ origin: corsOrigins.length > 0 ? corsOrigins : true, credentials: true });
+  const corsOrigins = Array.from(
+    new Set([...DEFAULT_CORS_ORIGINS, ...parseCsvEnv(config.get<string>('CORS_ORIGINS'))]),
+  );
+  app.enableCors({ origin: corsOrigins, credentials: true });
 
   // Global validation: strip unknown fields, fail on missing required fields
   app.useGlobalPipes(
