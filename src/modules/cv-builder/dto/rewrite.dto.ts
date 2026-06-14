@@ -10,6 +10,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -19,12 +20,19 @@ import { BUILDER_SECTIONS, BuilderSection } from './evaluate-section.dto';
 
 export type RewriteMode = 'harvard' | 'translate' | 'custom' | 'tailor';
 
+/**
+ * @deprecated PR4.5 — the FE no longer dictates the tailor action. The skill/level fields here
+ * are NO LONGER trusted as facts (a malicious FE could foreground a skill the candidate lacks).
+ * Send `match_id` + `action_id` instead; the server re-derives the action from the gap report and
+ * builds the instruction from the VERIFIED action. Kept optional only so an in-flight old-FE
+ * request fails with a clear error instead of a whitelist 400 during the transition window.
+ */
 export class TailorActionInputDto {
   @ApiProperty({ enum: ['emphasize', 'deepen_wording'] })
   @IsIn(['emphasize', 'deepen_wording'])
   action_type!: 'emphasize' | 'deepen_wording';
 
-  /** Display name of the skill — verified evidence-backed by the tailor checklist. */
+  /** @deprecated Ignored as a fact source since PR4.5 — verified server-side from the gap report. */
   @ApiProperty({ example: 'React', maxLength: 64 })
   @IsString()
   @IsNotEmpty()
@@ -125,7 +133,38 @@ export class RewriteRequestDto {
   @MaxLength(16)
   variant?: string;
 
-  /** Required for mode='tailor' — the checklist item; the INSTRUCTION is built server-side. */
+  /**
+   * Required for mode='tailor' — the CV↔JD match whose gap report the action belongs to. The
+   * server reloads this match, verifies ownership (it must belong to the caller AND to the CV in
+   * the route), and rebuilds the gap report to verify the action below.
+   */
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Required for mode=tailor. The CV↔JD match the verified action belongs to.',
+  })
+  @IsOptional()
+  @IsUUID()
+  match_id?: string;
+
+  /**
+   * Required for mode='tailor' — the stable `action_id` (`${action_type}:${skill_canonical}`) from
+   * the gap report's recommended_actions. The server finds this action, asserts it is rewritable,
+   * and builds the instruction from it. The FE never sends the skill/level facts anymore.
+   */
+  @ApiPropertyOptional({
+    example: 'deepen_wording:sql',
+    maxLength: 128,
+    description: 'Required for mode=tailor. Stable action_id from the gap report.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  action_id?: string;
+
+  /**
+   * @deprecated PR4.5 — ignored as a fact source; send `match_id` + `action_id` instead. Kept
+   * optional only for transitional tolerance (see TailorActionInputDto).
+   */
   @ApiPropertyOptional({ type: TailorActionInputDto })
   @IsOptional()
   @ValidateNested()

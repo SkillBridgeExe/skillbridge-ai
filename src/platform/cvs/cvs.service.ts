@@ -28,6 +28,8 @@ import {
 } from '../../infrastructure/storage/gcs-storage.service';
 import { SectionEvaluatorService } from '../../modules/cv-builder/section-evaluator.service';
 import { CvRewriteService } from '../../modules/cv-builder/cv-rewrite.service';
+import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
+import { TailorVerifierService } from '../tailor-verifier/tailor-verifier.service';
 import {
   EvaluateSectionRequestDto,
   EvaluateSectionResponseDto,
@@ -83,6 +85,12 @@ export class CvsService {
     private readonly entitlements: EntitlementsService,
     private readonly interviewPlan?: InterviewPlanService,
     private readonly githubEvidence?: GithubEvidenceService,
+    // PR4.5 — verifies a tailor action server-side (reloads match + gap report). The `?` is forced
+    // by TS (it follows the two optionals above) and lets unit tests omit it; it is NOT @Optional()
+    // for Nest, so CvsModule's TailorVerifierModule import makes it ALWAYS present at runtime (the
+    // app fails to boot loudly if that import is dropped). Do NOT add @Optional() — the guard below
+    // would then be the only thing standing between a mis-wired prod and an unverified tailor.
+    private readonly tailorVerifier?: TailorVerifierService,
   ) {}
 
   async create(
@@ -307,9 +315,38 @@ export class CvsService {
   ): Promise<RewriteResponseDto> {
     await this.findOwnedCv(userId, cvId);
     await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+
+    // PR4.5: mode='tailor' must NOT trust FE-sent skill/level. Reload the match + gap report,
+    // verify ownership + the action, and let the rewriter build the instruction from the VERIFIED
+    // action only. The verifier runs AFTER the quota gate above but the LLM call is inside
+    // rewriter.rewrite — a verification reject here costs no LLM and no recorded usage (below).
+    let verifiedAction: VerifiedTailorAction | undefined;
+    if (dto.mode === 'tailor') {
+      if (!dto.match_id || !dto.action_id) {
+        throw new BadRequestException({
+          errorCode: ERROR_CODES.VALIDATION_ERROR,
+          message: 'match_id and action_id are required for tailor rewrite',
+        });
+      }
+      if (!this.tailorVerifier) throw new Error('TailorVerifierService is not configured');
+      // lang is intentionally left to the verifier's 'vi' default: the lookup key (action_id =
+      // `${action_type}:${skill_canonical}`) and the anchored `before` (a verbatim CV bullet) are
+      // BOTH language-independent, so the rebuilt report finds the same action regardless of lang.
+      verifiedAction = await this.tailorVerifier.verify({
+        userId,
+        cvId,
+        matchId: dto.match_id,
+        actionId: dto.action_id,
+        text: dto.text,
+      });
+    }
+
     // Pass the authenticated user so the ai_requests trace attributes cost/tokens to them
-    // (anonymous traces are reserved for internal/calibration callers).
-    const response = await this.rewriter.rewrite(dto, userId);
+    // (anonymous traces are reserved for internal/calibration callers). Only forward the verified
+    // action for tailor — keeping the non-tailor call shape unchanged.
+    const response = verifiedAction
+      ? await this.rewriter.rewrite(dto, userId, verifiedAction)
+      : await this.rewriter.rewrite(dto, userId);
     await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
       sourceType: 'cv',
       sourceId: cvId,

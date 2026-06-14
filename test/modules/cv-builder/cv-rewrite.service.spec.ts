@@ -323,28 +323,47 @@ describe('CvRewriteService (mocked LLM)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // tailor mode
+  // tailor mode (PR4.5) — the instruction is built ONLY from a SERVER-VERIFIED action passed as
+  // the 3rd arg; FE-sent skill/level are never trusted. Without a verifiedAction it fails closed.
   // ---------------------------------------------------------------------------
   describe('tailor mode', () => {
+    const verifiedEmphasizeReact = {
+      action_id: 'emphasize:react',
+      action_type: 'emphasize' as const,
+      skill_canonical: 'react',
+      skill_display: 'React',
+      cv_level: 3,
+      required_level: 4,
+    };
+    const verifiedEmphasizeDocker = {
+      action_id: 'emphasize:docker',
+      action_type: 'emphasize' as const,
+      skill_canonical: 'docker',
+      skill_display: 'Docker',
+      cv_level: 2,
+      required_level: 4,
+    };
+
     beforeEach(() => {
       llm = { complete: jest.fn() };
       prompts = makePrompts();
       svc = new CvRewriteService(llm as never, prompts as never, makeTracing() as never);
     });
 
-    it('tailor without tailor_action → BadRequest NO_TAILOR_ACTION', async () => {
+    it('tailor without a verified action → BadRequest NO_VERIFIED_ACTION (fails closed)', async () => {
       await expect(
         svc.rewrite({ text: 'built dashboards for internal ops teams', mode: 'tailor' } as never),
-      ).rejects.toMatchObject({ response: { code: 'NO_TAILOR_ACTION' } });
+      ).rejects.toMatchObject({ response: { code: 'NO_VERIFIED_ACTION' } });
+      expect(llm.complete).not.toHaveBeenCalled();
     });
 
-    it('tailor emphasize: server-built instruction reaches the prompt; suggestion returned', async () => {
+    it('tailor emphasize: server-built instruction (from the verified action) reaches the prompt', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('Built React dashboards for ops teams'));
-      const res = await svc.rewrite({
-        text: 'built dashboards for internal ops teams',
-        mode: 'tailor',
-        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
-      } as never);
+      const res = await svc.rewrite(
+        { text: 'built dashboards for internal ops teams', mode: 'tailor' } as never,
+        'user-1',
+        verifiedEmphasizeReact,
+      );
       expect(res.suggestion).toBe('Built React dashboards for ops teams');
       expect(res.fallback).toBeFalsy();
       const rendered = prompts.render.mock.calls.at(-1)![1] as Record<string, string>;
@@ -355,26 +374,20 @@ describe('CvRewriteService (mocked LLM)', () => {
 
     it('tailor still trips the invented-number guard (falls back to original)', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('Built React dashboards improving latency 37%'));
-      const res = await svc.rewrite({
-        text: 'built dashboards for internal ops teams',
-        mode: 'tailor',
-        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
-      } as never);
+      const res = await svc.rewrite(
+        { text: 'built dashboards for internal ops teams', mode: 'tailor' } as never,
+        'user-1',
+        verifiedEmphasizeReact,
+      );
       expect(res.fallback).toBe(true);
       expect(res.suggestion).toBe('built dashboards for internal ops teams');
     });
 
-    it('different tailor_actions on the same text are cached separately (two LLM calls)', async () => {
+    it('different verified actions on the same text are cached separately (two LLM calls)', async () => {
       llm.complete.mockResolvedValue(makeLlmResult('ok output'));
-      const base = { text: 'built dashboards for internal ops teams', mode: 'tailor' } as const;
-      await svc.rewrite({
-        ...base,
-        tailor_action: { action_type: 'emphasize', skill_display: 'React' },
-      } as never);
-      await svc.rewrite({
-        ...base,
-        tailor_action: { action_type: 'emphasize', skill_display: 'Docker' },
-      } as never);
+      const req = { text: 'built dashboards for internal ops teams', mode: 'tailor' } as const;
+      await svc.rewrite(req as never, 'user-1', verifiedEmphasizeReact);
+      await svc.rewrite(req as never, 'user-1', verifiedEmphasizeDocker);
       expect(llm.complete).toHaveBeenCalledTimes(2);
     });
   });
