@@ -74,20 +74,13 @@ describe('OpenAiQuestionAudioService', () => {
       maxRetries: 5,
       timeout: 60_000,
     });
-    expect(mockSpeechCreate).toHaveBeenCalledWith(
-      {
-        model: 'gpt-4o-mini-tts',
-        voice: 'alloy',
-        input: 'Tell me about your latest React project.',
-        instructions: expect.stringContaining('Speak natural Vietnamese'),
-        response_format: 'mp3',
-      },
-      {
-        headers: {
-          'OpenAI-Safety-Identifier': expect.any(String),
-        },
-      },
-    );
+    expect(mockSpeechCreate).toHaveBeenCalledWith({
+      model: 'gpt-4o-mini-tts',
+      voice: 'alloy',
+      input: 'Tell me about your latest React project.',
+      instructions: expect.stringContaining('Speak natural Vietnamese'),
+      response_format: 'mp3',
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result).toEqual({
       data: Buffer.from([7, 8, 9]),

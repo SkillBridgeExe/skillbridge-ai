@@ -1,6 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'crypto';
 import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 
@@ -17,7 +16,7 @@ export class OpenAiQuestionAudioService {
   constructor(private readonly config: ConfigService) {}
 
   async createQuestionAudio(
-    userId: string,
+    _userId: string,
     session: InterviewSessionEntity,
     question: string,
   ): Promise<QuestionAudioResult> {
@@ -25,20 +24,13 @@ export class OpenAiQuestionAudioService {
     const voice = this.config.get<string>('llm.openai.ttsVoice') ?? 'alloy';
 
     try {
-      const response = await this.getClient().audio.speech.create(
-        {
-          model,
-          voice,
-          input: question,
-          instructions: this.voiceInstructions(session),
-          response_format: 'mp3',
-        },
-        {
-          headers: {
-            'OpenAI-Safety-Identifier': this.safetyIdentifier(userId),
-          },
-        },
-      );
+      const response = await this.getClient().audio.speech.create({
+        model,
+        voice,
+        input: question,
+        instructions: this.voiceInstructions(session),
+        response_format: 'mp3',
+      });
 
       const arrayBuffer = await response.arrayBuffer();
       return {
@@ -73,9 +65,5 @@ export class OpenAiQuestionAudioService {
       'Read only the interview question. Do not add extra commentary, scoring, or advice.',
       `Target role: ${session.targetRole}. Interview type: ${session.interviewType}.`,
     ].join(' ');
-  }
-
-  private safetyIdentifier(userId: string): string {
-    return createHash('sha256').update(userId).digest('hex');
   }
 }
