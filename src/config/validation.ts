@@ -107,4 +107,13 @@ export const configValidationSchema = Joi.object({
   // Per-user daily cap on CV analyses (cv_review). 0 disables the cap. Enforced by
   // CvAnalysisQuotaGuard against the ai_requests trace (no separate usage table).
   CV_REVIEW_DAILY_LIMIT: Joi.number().integer().min(0).default(5),
+
+  // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
+  // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
+  // when deterministic metrics say it is better. All bounded to protect Cloud Run resources.
+  OCR_FALLBACK_ENABLED: Joi.boolean().default(true),
+  OCR_FALLBACK_MAX_PAGES: Joi.number().integer().min(1).max(10).default(3),
+  OCR_FALLBACK_TIMEOUT_MS: Joi.number().integer().min(1000).default(25000),
+  OCR_FALLBACK_MAX_PDF_BYTES: Joi.number().integer().min(1).default(10485760),
+  OCR_FALLBACK_DPI: Joi.number().integer().min(72).max(400).default(200),
 });

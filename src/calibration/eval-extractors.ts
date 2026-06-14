@@ -18,8 +18,10 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 import { SkillTaxonomyService } from '../common/services/skill-taxonomy.service';
 import { SkillTextScannerService } from '../common/services/skill-text-scanner.service';
+import { ScannedPdfOcrService, OcrRescueMeta } from '../common/services/scanned-pdf-ocr.service';
 import { computeMetrics, ExtractorMetrics } from './extractor-metrics';
 import { pdfParseExtract } from './extractors/pdf-parse.extractor';
 import { unpdfExtract } from './extractors/unpdf.extractor';
@@ -56,6 +58,16 @@ const oneOf = <T extends string>(value: unknown, allowed: T[]): T =>
 
 type Cell = ExtractorMetrics | { error: string };
 const isErr = (c: Cell): c is { error: string } => 'error' in c;
+
+// OCR-rescue report for layout:'scanned' files. PII-safe: metadata is metrics/timings/decision only
+// (no raw CV text). Kept on a SEPARATE field so it never enters the extractor A/B aggregate.
+type OcrRescueReport = { ocrUsed: boolean } & OcrRescueMeta;
+interface ReportRow {
+  file: string;
+  meta: ManifestEntry;
+  metrics: Record<string, Cell>;
+  ocr_rescue?: OcrRescueReport;
+}
 
 /** Load the optional per-machine manifest (corpus dir is gitignored). Returns an empty map if absent. */
 function loadManifest(dir: string): Map<string, ManifestEntry> {
@@ -134,7 +146,14 @@ async function main(): Promise<void> {
   scanner.buildMatchers();
   const scan = (t: string): { canonical_name: string }[] => scanner.scan(t);
 
-  const report: Array<{ file: string; meta: ManifestEntry; metrics: Record<string, Cell> }> = [];
+  // DB-less, defaults-only config (Joi defaults mirrored). Reuses the SAME scanner so OCR skill
+  // counts are comparable to the extractor cells.
+  const ocrService = new ScannedPdfOcrService(
+    { get: () => undefined } as unknown as ConfigService,
+    scanner,
+  );
+
+  const report: ReportRow[] = [];
 
   for (const file of pdfs) {
     const entry = manifest.get(file) ?? DEFAULT_ENTRY;
@@ -147,13 +166,34 @@ async function main(): Promise<void> {
         cells[name] = { error: (e as Error).message };
       }
     }
-    report.push({ file, meta: entry, metrics: cells });
+    const row: ReportRow = { file, meta: entry, metrics: cells };
+    // Scanned / image-only PDFs: additionally run the OCR rescue and report PII-safe metrics so the
+    // run shows whether OCR would have rescued the thin text layer.
+    if (entry.layout === 'scanned') {
+      let pdfText = '';
+      try {
+        pdfText = await pdfParseExtract(buffer);
+      } catch {
+        pdfText = '';
+      }
+      const rescued = await ocrService.rescue(buffer, pdfText);
+      row.ocr_rescue = { ocrUsed: rescued.ocrUsed, ...rescued.metadata };
+    }
+    report.push(row);
     console.log(`\n${file}  [${entry.layout}/${entry.lang}/${entry.source}]`);
     for (const [name, c] of Object.entries(cells)) {
       console.log(
         isErr(c)
           ? `  ${name.padEnd(10)} ERROR: ${c.error}`
           : `  ${name.padEnd(10)} skills=${String(c.skillsFound).padStart(3)}  mojibake=${String(c.mojibakeCount).padStart(3)}  chars=${String(c.charCount).padStart(5)}  wordlike=${c.wordlikeRatio}  nonWs=${c.nonWsRatio}`,
+      );
+    }
+    if (row.ocr_rescue) {
+      const o = row.ocr_rescue;
+      console.log(
+        `  ${'ocr_rescue'.padEnd(10)} decision=${o.decision}${o.reason ? `(${o.reason})` : ''}  ` +
+          `orig_chars=${o.original.charCount} ocr_chars=${o.ocr?.charCount ?? '-'}  ` +
+          `orig_skills=${o.original.skillsFound} ocr_skills=${o.ocr?.skillsFound ?? '-'}`,
       );
     }
   }

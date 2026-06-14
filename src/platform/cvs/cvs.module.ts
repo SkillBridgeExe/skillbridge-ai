@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScannedPdfOcrService } from '../../common/services/scanned-pdf-ocr.service';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
@@ -45,6 +46,9 @@ import { TextExtractorService } from './text-extractor.service';
   providers: [
     CvsService,
     TextExtractorService,
+    // Optional OCR rescue for scanned/thin PDFs (input-quality lane). SkillTextScannerService +
+    // ConfigService come from the global CommonServicesModule / ConfigModule.
+    ScannedPdfOcrService,
     CvPdfRendererService,
     CvsRetentionService,
     CvAnalysisQuotaService,

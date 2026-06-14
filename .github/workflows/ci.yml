@@ -42,3 +42,17 @@ jobs:
 
       - name: Test (jest)
         run: pnpm test
+
+      # The real OCR pipeline (pdfium WASM render + Tesseract) can't run under jest's CJS VM
+      # (ESM dynamic import), so jest green does NOT prove production OCR works. Gate it here on the
+      # committed synthetic scanned fixture. Cache eng+vie traineddata so reruns don't re-download.
+      - name: Cache Tesseract traineddata
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/skillbridge-tesseract
+          key: tesseract-eng-vie-v1
+
+      - name: OCR fixture gate (real pdfium + Tesseract)
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: pnpm eval:ocr-fixture

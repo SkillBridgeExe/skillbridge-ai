@@ -91,6 +91,16 @@ export default () => ({
     logLevel: process.env.LOG_LEVEL ?? 'debug',
     enableRequestLogging: process.env.ENABLE_REQUEST_LOGGING === 'true',
   },
+
+  // Scanned-PDF OCR fallback caps (see validation.ts). enabled default-on; disable with the
+  // exact string 'false'. Numerics are Joi-validated/defaulted at boot, so plain reads are safe.
+  ocrFallback: {
+    enabled: process.env.OCR_FALLBACK_ENABLED !== 'false',
+    maxPages: parseInt(process.env.OCR_FALLBACK_MAX_PAGES ?? '3', 10),
+    timeoutMs: parseInt(process.env.OCR_FALLBACK_TIMEOUT_MS ?? '25000', 10),
+    maxPdfBytes: parseInt(process.env.OCR_FALLBACK_MAX_PDF_BYTES ?? '10485760', 10),
+    dpi: parseInt(process.env.OCR_FALLBACK_DPI ?? '200', 10),
+  },
 });
 
 export type AppConfig = ReturnType<typeof import('./configuration').default>;
