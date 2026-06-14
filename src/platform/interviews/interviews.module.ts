@@ -9,6 +9,7 @@ import { InterviewModule } from '../../modules/interview/interview.module';
 import { BillingModule } from '../billing/billing.module';
 import { InterviewsController } from './interviews.controller';
 import { InterviewsService } from './interviews.service';
+import { OpenAiQuestionAudioService } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 @Module({
@@ -24,6 +25,6 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
     BillingModule,
   ],
   controllers: [InterviewsController],
-  providers: [InterviewsService, OpenAiRealtimeTokenService],
+  providers: [InterviewsService, OpenAiRealtimeTokenService, OpenAiQuestionAudioService],
 })
 export class InterviewsModule {}

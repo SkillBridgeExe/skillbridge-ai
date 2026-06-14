@@ -221,6 +221,60 @@ describe('InterviewsService', () => {
     expect(instructions).not.toContain('Context:\nYou are Alex');
   });
 
+  it('creates question audio only from the current pending interview question', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionAudio = {
+      createQuestionAudio: jest.fn(async () => ({
+        data: Buffer.from('audio'),
+        contentType: 'audio/mpeg',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      questionAudio as never,
+    );
+    const session = {
+      id: 'session-1',
+      userId,
+      targetRole: 'frontend_developer',
+      language: 'vi',
+      mode: 'HYBRID',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    } as InterviewSessionEntity;
+    const pendingTurn = {
+      id: 'turn-1',
+      sessionId: 'session-1',
+      turnOrder: 1,
+      interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
+      userAnswerText: null,
+    } as InterviewTurnEntity;
+    sessions.findOne.mockResolvedValue(session);
+    turns.findOne.mockResolvedValue(pendingTurn);
+
+    const response = await service.createQuestionAudio(userId, 'session-1');
+
+    expect(questionAudio.createQuestionAudio).toHaveBeenCalledWith(
+      userId,
+      session,
+      'Bạn hãy giới thiệu dự án React gần nhất.',
+    );
+    expect(response.contentType).toBe('audio/mpeg');
+  });
+
   it('uses a 15 minute duration limit for premium interview sessions', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:00:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();

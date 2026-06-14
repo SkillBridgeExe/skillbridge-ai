@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
@@ -61,5 +71,17 @@ export class InterviewsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   realtimeToken(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.interviews.createRealtimeToken(user.userId, id);
+  }
+
+  @Post('sessions/:id/question-audio')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Create speech audio for the current server-owned question' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  async questionAudio(@CurrentUser() user: JwtUser, @Param('id') id: string) {
+    const audio = await this.interviews.createQuestionAudio(user.userId, id);
+    return new StreamableFile(audio.data, {
+      type: audio.contentType,
+      disposition: 'inline; filename="interview-question.mp3"',
+    });
   }
 }
