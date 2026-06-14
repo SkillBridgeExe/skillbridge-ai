@@ -112,7 +112,7 @@ describe('verifyTailorAction (pure)', () => {
     );
   });
 
-  it('deepen_wording with a verified before + text===before + skill present → returns verified action', () => {
+  it('deepen_wording with a verified before + text===before → returns verified action', () => {
     const v = verifyTailorAction(
       [base({})],
       { actionId: 'deepen_wording:sql', text: SQL_BULLET },
@@ -164,15 +164,19 @@ describe('verifyTailorAction (pure)', () => {
     );
   });
 
-  it('deepen_wording on a real CV bullet that does NOT mention the skill → SKILL_NOT_IN_TEXT', () => {
-    const docWithTwo: CanonicalCvDocument = {
+  it('deepen_wording: a DIFFERENT real CV bullet that even mentions the SAME skill → TEXT_NOT_IN_CV (strict: must target the anchored before)', () => {
+    // Review fix: `before` is bullet A; the client submits bullet B. B is a genuine CV bullet that
+    // ALSO mentions SQL — yet it is NOT the located anchor, so the deepen rewrite must be rejected
+    // (otherwise the "deepen SQL on bullet A" instruction would be redirected onto bullet B).
+    const OTHER_SQL_BULLET = 'Designed SQL schemas and indexes for the reporting service';
+    const docWithTwoSql: CanonicalCvDocument = {
       ...doc,
       projects: [
         {
           name: 'Booking App',
           role: null,
           tech: [],
-          bullets: [SQL_BULLET, 'Wrote project documentation and onboarding guides'],
+          bullets: [SQL_BULLET, OTHER_SQL_BULLET],
           link: null,
         },
       ],
@@ -180,14 +184,11 @@ describe('verifyTailorAction (pure)', () => {
     expectThrowCode(
       () =>
         verifyTailorAction(
-          [base({})],
-          {
-            actionId: 'deepen_wording:sql',
-            text: 'Wrote project documentation and onboarding guides',
-          },
-          docWithTwo,
+          [base({})], // before = SQL_BULLET (bullet A)
+          { actionId: 'deepen_wording:sql', text: OTHER_SQL_BULLET }, // client sends bullet B
+          docWithTwoSql,
         ),
-      'SKILL_NOT_IN_TEXT',
+      'TEXT_NOT_IN_CV',
     );
   });
 

@@ -11,16 +11,16 @@
  *     missing_required / add_evidence, which must be addressed honestly, not reworded),
  *   - deepen_wording has a HIGH-confidence anchor (a real `before` bullet) — a low-confidence
  *     anchor (before=null) is advise-only and must NOT reach the LLM as a rewrite,
- *   - the submitted `text` is the candidate's OWN content (matches `before`, or is a verbatim
- *     document bullet / summary) — never arbitrary FE text,
- *   - (deepen only, light) the bullet being deepened actually MENTIONS the skill token.
+ *   - for deepen_wording the submitted `text` is EXACTLY the located `before` bullet (never another
+ *     CV bullet, even one mentioning the same skill — that would redirect the instruction); for
+ *     emphasize the `text` is any verbatim document bullet / summary the user picked,
  *
  * The returned VerifiedTailorAction carries ONLY server-trusted facts; CvRewriteService builds the
  * instruction from it, ignoring any FE-sent skill/level. Pure: no LLM, no I/O, no Date.now/random.
  */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CanonicalCvDocument } from '../../common/types/canonical-cv';
-import { PatchedTailorAction, bulletMentions, isDocumentBullet } from '../cv-jd-match/cv-patch';
+import { PatchedTailorAction, isDocumentBullet } from '../cv-jd-match/cv-patch';
 
 /** The trusted subset CvRewriteService is allowed to build a tailor instruction from. */
 export interface VerifiedTailorAction {
@@ -86,22 +86,17 @@ export function verifyTailorAction(
           'No verified CV bullet was located to deepen for this skill.',
       });
     }
-    // The text must be the candidate's own content: the anchored bullet, or another verbatim bullet.
-    const matchesBefore = text === action.before.trim();
-    if (!matchesBefore && !isDocumentBullet(document, text)) {
+    // STRICT (review fix): a deepen rewrite may target ONLY the exact anchored bullet the server
+    // located (`before`) — never another CV bullet, even one that mentions the same skill, which
+    // would silently redirect the "deepen <skill>" instruction onto unrelated content. The located
+    // `before` is, by construction (cv-patch.ts), a real bullet that already names the skill, so this
+    // single equality subsumes the former document-bullet + skill-token checks.
+    if (text !== action.before.trim()) {
       throw new BadRequestException({
         code: 'TEXT_NOT_IN_CV',
         message:
-          'Chỉ viết lại được nội dung đã có trong CV. / Rewrite must target existing CV content.',
-      });
-    }
-    // Deepen-only light skill-token guard: don't "deepen <skill>" on a bullet that never names it.
-    if (!bulletMentions(text, [action.skill_canonical, action.display_name])) {
-      throw new BadRequestException({
-        code: 'SKILL_NOT_IN_TEXT',
-        message:
-          'Bullet được chọn không nhắc tới kỹ năng cần viết sâu hơn. / ' +
-          'The selected bullet does not mention the skill to deepen.',
+          'Chỉ viết lại được đúng bullet đã xác định cho gợi ý này. / ' +
+          'This rewrite must target the exact CV bullet the analysis located.',
       });
     }
   } else {
