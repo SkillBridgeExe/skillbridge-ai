@@ -260,7 +260,8 @@ describe('gradeJdDimensions (PR3, seniority-only, pure)', () => {
         }),
       ).toEqual([]);
     });
-    it('non-seniority dimensions are NOT graded in PR3', () => {
+    it('PR3c: work_mode never grades; a soft-requirement language dim with no CV signal omits', () => {
+      // No cvProfileSignals supplied (CV silent). A PREFERRED language dim → omit; work_mode → never.
       expect(
         gradeJdDimensions({
           jdDimensions: [
@@ -269,7 +270,7 @@ describe('gradeJdDimensions (PR3, seniority-only, pure)', () => {
               value_text: 'English B2',
               level_hint: 'B2',
               min_years: null,
-              importance: 'REQUIRED',
+              importance: 'PREFERRED',
               deal_breaker: false,
               evidence_text: 'English B2',
             },
@@ -533,5 +534,96 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
     expect(gradeNonSkillDimensions([], sig())).toEqual([]);
     // null signals = CV silent: a PREFERRED dim omits; a REQUIRED dim would be a silent-missing (covered above).
     expect(gradeNonSkillDimensions([langDim({ importance: 'PREFERRED' })], null)).toEqual([]);
+  });
+});
+
+describe('gradeJdDimensions — non-skill GapItem mapping (PR3c)', () => {
+  it('language missing → correct GapItem fields (reuses computeSeverity, evidence_risk none)', () => {
+    const items = gradeJdDimensions({
+      jdDimensions: [langDim()],
+      cvProfileSignals: sig({ english: eng('A2') }),
+      source: 'jd',
+    });
+    const g = items.find((i) => i.type === 'language');
+    expect(g).toBeDefined();
+    expect(g!.requirement_id).toBe('jd:language:language');
+    expect(g!.canonical_name).toBe('language');
+    expect(g!.display_name).toBe('Tiếng Anh');
+    expect(g!.cv_status).toBe('missing');
+    expect(g!.evidence_risk).toBe('none');
+    expect(g!.fixability).toBe('learn');
+    expect(g!.severity).toBeGreaterThan(0);
+    expect(g!.recommended_next_action).not.toBe('');
+    expect(g!.confidence).toBeLessThan(1);
+  });
+  it('language matched → severity 0, no action, not_fixable_now', () => {
+    const [g] = gradeJdDimensions({
+      jdDimensions: [langDim()],
+      cvProfileSignals: sig({ english: eng('C1') }),
+      source: 'jd',
+    });
+    expect(g.cv_status).toBe('matched');
+    expect(g.severity).toBe(0);
+    expect(g.recommended_next_action).toBe('');
+    expect(g.fixability).toBe('not_fixable_now');
+  });
+  it('CV-silent missing uses honest wording (not an accusation)', () => {
+    const [g] = gradeJdDimensions({
+      jdDimensions: [langDim({ importance: 'REQUIRED' })],
+      cvProfileSignals: sig(),
+      source: 'jd',
+    });
+    expect(g.cv_status).toBe('missing');
+    expect(g.recommended_next_action).toMatch(/chưa thể hiện/i);
+  });
+  it('education + domain map too; work_mode never produces a GapItem', () => {
+    const items = gradeJdDimensions({
+      jdDimensions: [eduDim(), domDim(), wmDim()],
+      cvProfileSignals: sig({ education: eduSig('associate'), domain: domSig(['ecommerce']) }),
+      source: 'jd',
+    });
+    expect(items.map((i) => i.type).sort()).toEqual(['domain', 'education']);
+    expect(items.find((i) => i.type === 'domain')!.requirement_id).toBe('jd:domain:domain');
+  });
+  it('seniority + non-skill grade together off one call', () => {
+    const items = gradeJdDimensions({
+      jdDimensions: [dim(), langDim()],
+      cvSeniority: sen({ bucket: 'fresher', confidence: 'high' }),
+      cvProfileSignals: sig({ english: eng('A2') }),
+      source: 'jd',
+    });
+    expect(items.map((i) => i.type).sort()).toEqual(['language', 'seniority']);
+  });
+});
+
+describe('buildGapItems — non-skill grading integration (PR3c)', () => {
+  it('emits a language gap that interleaves with skills by severity', () => {
+    const items = buildGapItems({
+      match: emptyMatch(),
+      jdDimensions: [langDim()],
+      cvProfileSignals: sig({ english: eng('A2') }),
+    });
+    const lang = items.find((g) => g.type === 'language');
+    expect(lang).toBeDefined();
+    expect(lang!.cv_status).toBe('missing');
+    expect(lang!.severity).toBeGreaterThan(0);
+  });
+  it('ADDITIVE: no jdDimensions ⇒ byte-identical (cvProfileSignals ignored without dims)', () => {
+    const base = buildGapItems({ match: emptyMatch() });
+    const withSignals = buildGapItems({
+      match: emptyMatch(),
+      cvProfileSignals: sig({ english: eng('A2'), education: eduSig('associate') }),
+    });
+    expect(withSignals).toEqual(base);
+  });
+  it('matched language is a strength (severity 0), still emitted', () => {
+    const items = buildGapItems({
+      match: emptyMatch(),
+      jdDimensions: [langDim()],
+      cvProfileSignals: sig({ english: eng('C2') }),
+    });
+    const lang = items.find((g) => g.type === 'language');
+    expect(lang!.cv_status).toBe('matched');
+    expect(lang!.severity).toBe(0);
   });
 });

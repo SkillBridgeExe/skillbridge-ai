@@ -16,7 +16,13 @@ import { Importance } from '../../common/services/role-rubric.service';
 import { CvSeniority } from '../../common/services/seniority';
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { MATCH_TUNING } from '../cv-jd-match/skill-diff.service';
-import { JdDimension, gradeSeniority } from './jd-dimensions';
+import {
+  JdDimension,
+  DimensionGrade,
+  gradeSeniority,
+  gradeNonSkillDimensions,
+} from './jd-dimensions';
+import { CvProfileSignals } from '../../common/services/cv-profile-signals';
 
 export type GapSource = 'jd' | 'role_rubric' | 'market_implied';
 export type GapType =
@@ -73,6 +79,9 @@ export interface BuildGapItemsInput {
   jdDimensions?: JdDimension[] | null;
   /** Evidence-based CV seniority (deriveCvSeniority) — the CV-side signal for the seniority gap. */
   cvSeniority?: CvSeniority | null;
+  /** CV-side profile signals (PR3b) — the CV-side input for language/education/domain grading (PR3c).
+   *  Optional — absent ⇒ only seniority can grade; work_mode is never graded (disclosure-only). */
+  cvProfileSignals?: CvProfileSignals | null;
 }
 
 const importanceWeight = (importance: GapImportance): number =>
@@ -161,27 +170,50 @@ const SENIORITY_ACTION: Partial<Record<CvStatus, string>> = {
   matched: '',
 };
 
+/** Static Vietnamese display names for the non-skill GapItems (parallels the seniority label). */
+const NONSKILL_DISPLAY: Record<DimensionGrade['type'], string> = {
+  language: 'Tiếng Anh',
+  education: 'Học vấn / Bằng cấp',
+  domain: 'Lĩnh vực',
+};
+
+/** Honest, Vietnamese next-action label per non-skill grade. A CV-silent gap is framed as "CV chưa
+ *  thể hiện … — bổ sung minh chứng" (NOT "bạn thiếu"): we infer it from absence, not from evidence. */
+function nonSkillAction(g: DimensionGrade): string {
+  if (g.cv_status === 'matched') return '';
+  if (g.type === 'language')
+    return g.from_silence
+      ? 'CV chưa thể hiện trình độ tiếng Anh JD yêu cầu — bổ sung chứng chỉ/minh chứng.'
+      : 'Nâng trình độ tiếng Anh để đạt mức JD yêu cầu.';
+  if (g.type === 'education')
+    return g.from_silence
+      ? 'CV chưa thể hiện bằng cấp JD yêu cầu — bổ sung thông tin học vấn/minh chứng.'
+      : 'Học vấn dưới mức JD yêu cầu — cân nhắc bổ sung bằng cấp/khóa học tương đương.';
+  return 'CV đang thể hiện lĩnh vực khác — nêu bật kinh nghiệm/kỹ năng liên quan tới lĩnh vực JD.';
+}
+
 /**
- * PURE: grade the extracted non-skill JD dimensions into canonical GapItems. PR3 (JD-Intelligence v2)
- * grades ONLY `seniority` — the sole dimension with a real CV-side signal (deriveCvSeniority); the
- * other four are extracted-but-not-graded (PR3b), never fabricated. The single grading DECISION lives
- * in gradeSeniority() (shared with the report's jd_intelligence so the two can never contradict): it
- * reuses the product-wide computeExperienceFit ±1 tolerance — within ±1 = matched, ≥2 below = missing —
- * and collapses duplicate seniority dims to one. HONEST-BY-DEFAULT: returns [] when the CV signal is
- * absent, low-confidence, or the JD states no parseable level. Reuses computeSeverity UNCHANGED by
- * mapping the rank diff onto the same 0-5 gap_levels scale skills use, so no severity constant moves.
+ * PURE: grade the extracted non-skill JD dimensions into canonical GapItems. PR3 graded `seniority`;
+ * PR3c adds `language`/`education`/`domain` (work_mode stays disclosure-only). The grading DECISIONS
+ * live in jd-dimensions.ts (gradeSeniority + gradeNonSkillDimensions) — SHARED with the report's
+ * jd_intelligence so the two can never contradict. HONEST-BY-DEFAULT: each grader returns nothing when
+ * the JD level is unparseable, the CV signal is absent on a soft requirement, etc. Reuses computeSeverity
+ * UNCHANGED by mapping every rank diff onto the same 0-5 gap_levels scale skills use; evidence_risk is
+ * always 'none' for non-skill items, so no severity constant moves.
  */
 export function gradeJdDimensions(input: {
   jdDimensions?: JdDimension[] | null;
   cvSeniority?: CvSeniority | null;
+  cvProfileSignals?: CvProfileSignals | null;
   source: GapSource;
 }): GapItem[] {
-  const { jdDimensions, cvSeniority, source } = input;
-  const g = gradeSeniority(jdDimensions, cvSeniority);
-  if (!g) return [];
+  const { jdDimensions, cvSeniority, cvProfileSignals, source } = input;
+  const out: GapItem[] = [];
   const evidence_risk: EvidenceRisk = 'none';
-  return [
-    {
+
+  const g = gradeSeniority(jdDimensions, cvSeniority);
+  if (g) {
+    out.push({
       requirement_id: `${source}:seniority:seniority`,
       source,
       type: 'seniority',
@@ -208,8 +240,41 @@ export function gradeJdDimensions(input: {
       // <1 for a non-deterministic (LLM-extracted) requirement — the GapItem contract reserves this.
       confidence: cvSeniority?.confidence === 'high' ? 0.8 : 0.6,
       recommended_next_action: SENIORITY_ACTION[g.cv_status] ?? '',
-    },
-  ];
+    });
+  }
+
+  // PR3c: language/education/domain. Same SHARED graders the disclosure uses; work_mode never grades.
+  for (const ng of gradeNonSkillDimensions(jdDimensions, cvProfileSignals)) {
+    out.push({
+      requirement_id: `${source}:${ng.type}:${ng.canonical_name}`,
+      source,
+      type: ng.type,
+      canonical_name: ng.canonical_name,
+      display_name: NONSKILL_DISPLAY[ng.type],
+      importance: ng.importance,
+      cv_status: ng.cv_status,
+      cv_level: ng.cv_level,
+      required_level: ng.required_level,
+      gap_levels: ng.gap_levels,
+      satisfied_by: null,
+      evidence_refs: [],
+      evidence_risk,
+      // Language/education/domain gaps are closed by learning / experience, never a rewrite.
+      fixability: ng.cv_status === 'matched' ? 'not_fixable_now' : 'learn',
+      market_demand: null,
+      severity: computeSeverity({
+        importance: ng.importance,
+        gap_levels: ng.gap_levels,
+        evidence_risk,
+        cv_status: ng.cv_status,
+        market_demand: null,
+      }),
+      confidence: ng.confidence,
+      recommended_next_action: nonSkillAction(ng),
+    });
+  }
+
+  return out;
 }
 
 /**
@@ -223,7 +288,7 @@ export function gradeJdDimensions(input: {
  * every gap type.
  */
 export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
-  const { match, ledger, marketDemand, jdDimensions, cvSeniority } = input;
+  const { match, ledger, marketDemand, jdDimensions, cvSeniority, cvProfileSignals } = input;
   const source: GapSource = match.source_of_requirements === 'jd_extraction' ? 'jd' : 'role_rubric';
 
   const evidenceGap = new Set(ledger?.evidence_gap ?? []);
@@ -346,10 +411,18 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     });
   }
 
-  // PR3: append non-skill GapItems (seniority only is graded). With jdDimensions absent — every PR1/PR2
-  // caller — this is a no-op and output stays byte-identical. They join the SAME sort below.
+  // PR3/PR3c: append non-skill GapItems (seniority + language/education/domain; work_mode is
+  // disclosure-only). With jdDimensions absent — every PR1/PR2 caller — this is a no-op and output
+  // stays byte-identical. They join the SAME sort below.
   if (jdDimensions?.length) {
-    items.push(...gradeJdDimensions({ jdDimensions, cvSeniority: cvSeniority ?? null, source }));
+    items.push(
+      ...gradeJdDimensions({
+        jdDimensions,
+        cvSeniority: cvSeniority ?? null,
+        cvProfileSignals: cvProfileSignals ?? null,
+        source,
+      }),
+    );
   }
 
   // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
