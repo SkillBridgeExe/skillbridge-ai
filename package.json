@@ -50,6 +50,7 @@
     "eval:patch": "ts-node -r tsconfig-paths/register src/calibration/eval-patch.ts",
     "eval:proficiency": "ts-node -r tsconfig-paths/register src/calibration/eval-proficiency.ts",
     "eval:cv-signals": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-signals.ts",
+    "ab:match-template": "ts-node -r tsconfig-paths/register src/calibration/ab-match-template.ts",
     "report:unnormalized": "ts-node -r tsconfig-paths/register src/calibration/report-unnormalized.ts",
     "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts"
   },
