@@ -14,6 +14,7 @@ import {
 } from '../../../src/modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { EvidenceLedger } from '../../../src/common/services/evidence-ledger';
 import { CvSeniority } from '../../../src/common/services/seniority';
+import { CvProfileSignals } from '../../../src/common/services/cv-profile-signals';
 
 const matched = (c: string, w = 0.2, cv = 4, req = 3): MatchedSkill => ({
   skill_id: c,
@@ -106,7 +107,7 @@ describe('buildGapReportCore (pure)', () => {
       missing_skills: [missing('html'), missing('graphql', 'PREFERRED')],
       partial_skills: [partial('react', 2, 4)],
     });
-    const core = buildGapReportCore(m, null, null, 'vi');
+    const core = buildGapReportCore(m, null, null, null, 'vi');
     expect(core.explicit_gaps).toEqual(m.missing_skills); // verbatim echo, PREFERRED included
     expect(core.proficiency_gaps).toEqual(m.partial_skills);
     expect(core.overall_score).toBe(61);
@@ -119,7 +120,7 @@ describe('buildGapReportCore (pure)', () => {
       partial_skills: [partial('sql', 2, 4)],
       bonus_skills: [bonus('unity')],
     });
-    const core = buildGapReportCore(m, ledgerOf(['docker', 'sql', 'unity'], []), null, 'vi');
+    const core = buildGapReportCore(m, ledgerOf(['docker', 'sql', 'unity'], []), null, null, 'vi');
     expect(core.evidence_gaps.map((e) => e.skill_canonical).sort()).toEqual(['docker', 'sql']);
     // unity is bonus (JD doesn't require) → NOT an evidence GAP for this JD
     const sqlItem = core.evidence_gaps.find((e) => e.skill_canonical === 'sql')!;
@@ -132,24 +133,24 @@ describe('buildGapReportCore (pure)', () => {
       matched_skills: [matched('a'), matched('b'), matched('c'), matched('d')],
       keyword_frequency: [kf('a', 0, 2), kf('b', 1, 3), kf('c', 2, 5), kf('d', 0, 1)],
     });
-    const core = buildGapReportCore(m, null, null, 'vi');
+    const core = buildGapReportCore(m, null, null, null, 'vi');
     expect(core.jd_emphasis_gaps.map((e) => e.skill_canonical).sort()).toEqual(['a', 'b']);
     expect(core.jd_emphasis_gaps[0].jd_count).toBeGreaterThanOrEqual(2);
   });
 
   it('strengths: matched verbatim + demonstrated canonicals from ledger + bonus', () => {
     const m = baseMatch({ matched_skills: [matched('react')], bonus_skills: [bonus('unity')] });
-    const core = buildGapReportCore(m, ledgerOf([], ['react']), null, 'vi');
+    const core = buildGapReportCore(m, ledgerOf([], ['react']), null, null, 'vi');
     expect(core.strengths.matched).toEqual(m.matched_skills);
     expect(core.strengths.demonstrated).toEqual(['react']);
     expect(core.strengths.bonus).toEqual(m.bonus_skills);
   });
 
   it('seniority block is honest: cv side only, jd_level null, verdict unknown; null-safe', () => {
-    const withCv = buildGapReportCore(baseMatch({}), null, seniority, 'vi');
+    const withCv = buildGapReportCore(baseMatch({}), null, seniority, null, 'vi');
     expect(withCv.seniority).toMatchObject({ cv: seniority, jd_level: null, verdict: 'unknown' });
     expect(withCv.seniority.note.length).toBeGreaterThan(0);
-    const without = buildGapReportCore(baseMatch({}), null, null, 'en');
+    const without = buildGapReportCore(baseMatch({}), null, null, null, 'en');
     expect(without.seniority.cv).toBeNull();
   });
 
@@ -158,10 +159,80 @@ describe('buildGapReportCore (pure)', () => {
       baseMatch({ matched_skills: [matched('x')] }),
       null,
       null,
+      null,
       'vi',
     );
     expect(core.evidence_gaps).toEqual([]);
     expect(core.strengths.demonstrated).toEqual([]);
+  });
+
+  it('PR3b: fills jd_intelligence.cv_signal from CV profile signals (graded still false for non-seniority)', () => {
+    const m = baseMatch({
+      jd_dimensions: [
+        {
+          dimension: 'language',
+          value_text: 'English B2',
+          level_hint: 'B2',
+          min_years: null,
+          importance: 'PREFERRED',
+          deal_breaker: false,
+          evidence_text: 'English B2 preferred',
+        },
+        {
+          dimension: 'domain',
+          value_text: 'E-commerce',
+          level_hint: null,
+          min_years: null,
+          importance: 'PREFERRED',
+          deal_breaker: false,
+          evidence_text: 'e-commerce background a plus',
+        },
+      ],
+    });
+    const signals: CvProfileSignals = {
+      english: {
+        cefr: 'B2',
+        source_kind: 'ielts',
+        raw: 'English (IELTS 6.5)',
+        confidence: 'high',
+        signals: [],
+      },
+      education: null,
+      domain: { domains: ['ecommerce'], confidence: 'low', signals: [] },
+      work_mode: null,
+    };
+    const core = buildGapReportCore(m, null, null, signals, 'en');
+    const byDim = Object.fromEntries(
+      (core.jd_intelligence?.dimensions ?? []).map((d) => [d.dimension, d]),
+    );
+    expect(byDim.language.cv_signal).toBe('B2 (ielts) · high');
+    expect(byDim.language.graded).toBe(false); // grading the 4 non-seniority dims is a later PR
+    expect(byDim.language.verdict).toBeNull();
+    expect(byDim.domain.cv_signal).toBe('ecommerce · low');
+  });
+
+  it('PR3b: cv_signal stays null when the CV has no signal for that dimension (no fabrication)', () => {
+    const m = baseMatch({
+      jd_dimensions: [
+        {
+          dimension: 'work_mode',
+          value_text: 'Onsite',
+          level_hint: null,
+          min_years: null,
+          importance: 'PREFERRED',
+          deal_breaker: false,
+          evidence_text: 'onsite in HCMC',
+        },
+      ],
+    });
+    const core = buildGapReportCore(
+      m,
+      null,
+      null,
+      { english: null, education: null, domain: null, work_mode: null },
+      'en',
+    );
+    expect(core.jd_intelligence?.dimensions[0].cv_signal).toBeNull();
   });
 });
 
@@ -171,7 +242,7 @@ describe('toRoadmapSkillRequirements (the P0 roadmap-trust fix)', () => {
       missing_skills: [missing('html')],
       partial_skills: [partial('react', 2, 4)],
     });
-    const core = buildGapReportCore(m, null, null, 'vi');
+    const core = buildGapReportCore(m, null, null, null, 'vi');
     const out = toRoadmapSkillRequirements(core);
     expect(out.missing_skills).toEqual([
       {

@@ -9,6 +9,7 @@ import {
 } from '../jobs/trends/jd-market-position.service';
 import { ImpliedSkill } from '../jobs/trends/jd-market-position';
 import { deriveCvSeniority } from '../../common/services/seniority';
+import { deriveCvProfileSignals } from '../../common/services/cv-profile-signals';
 import { buildGapReportCore, GapReportCore } from './gap-report';
 import { buildGapItems, GapItem } from '../gap-engine/gap-item';
 
@@ -54,8 +55,13 @@ export class GapReportService {
     const cvSeniority = input.review?.document
       ? deriveCvSeniority(input.review.document, new Date().getFullYear())
       : null;
+    // PR3b: CV-side profile signals (english/education/domain/work_mode) for the jd_intelligence
+    // disclosure. Derived once from the parsed CV; additive (only fills cv_signal, no score change).
+    const cvProfileSignals = input.review?.document
+      ? deriveCvProfileSignals(input.review.document)
+      : null;
 
-    const core = buildGapReportCore(input.match, ledger, cvSeniority, lang);
+    const core = buildGapReportCore(input.match, ledger, cvSeniority, cvProfileSignals, lang);
     const checklist = this.tailor.build({ match: input.match, review: input.review, lang });
     const marketDto = await this.market.build({ match: input.match, lang });
 
