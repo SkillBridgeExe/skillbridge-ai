@@ -1,0 +1,113 @@
+{
+  "$note": "CV Profile Signals (PR3b) accuracy + non-fabrication cases. Offline, 0 LLM. Gate: pnpm eval:cv-signals (strict: EVAL_CV_SIGNALS_STRICT=1). Each case runs deriveCvProfileSignals(document) and asserts the per-family expectation. expect.<fam>=null asserts NO signal (anti-fabrication). expect.domain.includes asserts those domains are present. No PII.",
+  "version": "eval-cv-signals-v1",
+  "cases": [
+    {
+      "id": "ielts-65-en",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English (IELTS 6.5)"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "ielts", "confidence": "high" }, "education": null, "domain": null, "work_mode": null }
+    },
+    {
+      "id": "toeic-750-en",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC 750"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "toeic", "confidence": "high" } }
+    },
+    {
+      "id": "cefr-b2-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Anh B2"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "cefr", "confidence": "high" } }
+    },
+    {
+      "id": "ielts-cert-en",
+      "lang": "en",
+      "document": { "certifications": [{ "name": "IELTS Academic 7.0", "issuer": "British Council", "date": "2024" }] },
+      "expect": { "english": { "cefr": "C1", "source_kind": "ielts" } }
+    },
+    {
+      "id": "textual-giao-tiep-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Anh giao tiếp"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "textual", "confidence": "low" } }
+    },
+    {
+      "id": "driving-b2-negative-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Bằng lái xe hạng B2"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "japanese-negative-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Nhật N3"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "fpt-se-edu-en",
+      "lang": "en",
+      "document": { "education": [{ "school": "FPT University", "degree": null, "field": "Software Engineering", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "bachelor", "field": "Software Engineering", "confidence": "medium" }, "english": null }
+    },
+    {
+      "id": "cu-nhan-edu-vi",
+      "lang": "vi",
+      "document": { "education": [{ "school": "Đại học Bách Khoa", "degree": "Cử nhân", "field": "Kỹ thuật phần mềm", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "bachelor", "field": "Kỹ thuật phần mềm", "confidence": "high" } }
+    },
+    {
+      "id": "master-edu-en",
+      "lang": "en",
+      "document": { "education": [{ "school": "ABC", "degree": "Master of Computer Science", "field": "Computer Science", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "master", "confidence": "high" } }
+    },
+    {
+      "id": "ecommerce-domain-en",
+      "lang": "en",
+      "document": { "projects": [{ "name": "E-commerce booking platform", "role": null, "tech": [], "bullets": ["payment checkout + order management", "shopping cart"], "link": null }] },
+      "expect": { "domain": { "includes": ["ecommerce"] } }
+    },
+    {
+      "id": "fintech-domain-vi",
+      "lang": "vi",
+      "document": { "experience": [{ "org": "VPBank", "role": "Backend", "start": null, "end": null, "location": null, "bullets": ["xây dựng ví điện tử thanh toán", "banking core"] }] },
+      "expect": { "domain": { "includes": ["fintech"] } }
+    },
+    {
+      "id": "no-domain-negative-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["internal tooling and refactors"] }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "remote-workmode-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Remote", "bullets": [] }] },
+      "expect": { "work_mode": { "mode": "remote", "confidence": "low" } }
+    },
+    {
+      "id": "no-workmode-negative-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Hồ Chí Minh", "bullets": [] }] },
+      "expect": { "work_mode": null }
+    },
+    {
+      "id": "all-null-no-signal",
+      "lang": "en",
+      "document": { "summary": "Motivated student seeking opportunities.", "skills": { "technical": ["Java"], "soft": [], "languages": [], "tools": [] } },
+      "expect": { "english": null, "education": null, "domain": null, "work_mode": null }
+    },
+    {
+      "id": "combined-all-four-en",
+      "lang": "en",
+      "document": {
+        "skills": { "technical": [], "soft": [], "languages": ["English (IELTS 6.5)"], "tools": [] },
+        "education": [{ "school": "FPT University", "degree": "Bachelor", "field": "Software Engineering", "start": null, "end": null, "gpa": null, "highlights": [] }],
+        "projects": [{ "name": "E-commerce platform", "role": null, "tech": [], "bullets": ["payment checkout"], "link": null }],
+        "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Remote", "bullets": [] }]
+      },
+      "expect": { "english": { "cefr": "B2" }, "education": { "level": "bachelor" }, "domain": { "includes": ["ecommerce"] }, "work_mode": { "mode": "remote" } }
+    }
+  ]
+}
