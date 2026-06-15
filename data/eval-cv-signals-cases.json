@@ -108,6 +108,48 @@
         "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Remote", "bullets": [] }]
       },
       "expect": { "english": { "cefr": "B2" }, "education": { "level": "bachelor" }, "domain": { "includes": ["ecommerce"] }, "work_mode": { "mode": "remote" } }
+    },
+    {
+      "id": "adv-ielts-prep-negative",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["IELTS preparation, 2 years"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "adv-toeic-speaking-negative",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Speaking 180"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "adv-toeic-subscore-total",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English - TOEIC Listening 495, Reading 480 = 975"], "tools": [] } },
+      "expect": { "english": { "cefr": "C1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "adv-multilang-french-english",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["French - fluent, English - basic"], "tools": [] } },
+      "expect": { "english": { "cefr": "A2", "source_kind": "textual" } }
+    },
+    {
+      "id": "adv-domain-generic-negative",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["Continuous delivery pipeline (CI/CD)", "shipping the MVP"] }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "adv-workmode-bullet-negative",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["Built a remote procedure call (RPC) service", "hybrid cloud architecture"] }] },
+      "expect": { "work_mode": null }
+    },
+    {
+      "id": "adv-highschool-diploma",
+      "lang": "en",
+      "document": { "education": [{ "school": "X", "degree": "High School Diploma", "field": null, "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "high_school" } }
     }
   ]
 }

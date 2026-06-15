@@ -212,3 +212,58 @@ describe('deriveCvProfileSignals (aggregator)', () => {
     expect(out.work_mode).toMatchObject({ mode: 'remote' });
   });
 });
+
+describe('anti-fabrication regression (adversarial review w77s4r9nb)', () => {
+  it('english: aspiration/duration/sub-test/stray-year do NOT fabricate', () => {
+    expect(deriveCvEnglishLevel(langs('IELTS preparation, 2 years'))).toBeNull(); // duration + prep
+    expect(deriveCvEnglishLevel(langs('TOEIC target 990 by 2025'))).toBeNull(); // aspiration
+    expect(deriveCvEnglishLevel(langs('TOEIC Speaking 180'))).toBeNull(); // wrong scale gated
+    expect(deriveCvEnglishLevel(langs('IELTS 3'))).toBeNull(); // below B1 floor
+  });
+  it('english: picks the highest valid band in a window (sub-scores / leading year)', () => {
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 495, Reading 480 = 975'))).toMatchObject({
+      cefr: 'C1',
+    });
+    expect(deriveCvEnglishLevel(langs('IELTS 2023 score 7.0'))).toMatchObject({ cefr: 'C1' });
+  });
+  it('english: textual must be ADJACENT to the english cue (no cross-language / negation / unrelated adj)', () => {
+    expect(deriveCvEnglishLevel(langs('French - fluent, English - basic'))).toMatchObject({
+      cefr: 'A2',
+    }); // not C1
+    expect(deriveCvEnglishLevel(langs('English - not very good'))).toBeNull(); // negation breaks adjacency
+    expect(deriveCvEnglishLevel(langs('English Java advanced developer'))).toBeNull(); // 'advanced' not the english level
+    expect(deriveCvEnglishLevel(langs('English: khác với người bản xứ'))).toBeNull(); // 'khá' must not match inside 'khác'
+  });
+  it('domain: generic engineering vocabulary does NOT fabricate an industry', () => {
+    expect(deriveCvDomain(exp({ bullets: ['Continuous delivery pipeline (CI/CD)'] }))).toBeNull();
+    expect(deriveCvDomain(exp({ bullets: ['Shipping the MVP to production'] }))).toBeNull();
+    expect(
+      deriveCvDomain(proj({ name: 'Game theory research', bullets: ['optimize bidding'] })),
+    ).toBeNull();
+    expect(deriveCvDomain(exp({ bullets: ['Education: BSc Computer Science'] }))).toBeNull();
+  });
+  it('work_mode: technical "remote"/"hybrid" in bullets does NOT fabricate (location-only)', () => {
+    expect(
+      deriveCvWorkMode(
+        exp({
+          location: null,
+          bullets: ['Built a remote procedure call (RPC) service', 'hybrid cloud architecture'],
+        }),
+      ),
+    ).toBeNull();
+  });
+  it('education: High School Diploma → high_school (not associate); bootcamp Diploma → field-only', () => {
+    expect(deriveCvEducation(edu({ school: 'X', degree: 'High School Diploma' }))).toMatchObject({
+      level: 'high_school',
+    });
+    expect(
+      deriveCvEducation(
+        edu({ school: 'X', degree: 'Diploma in Web Development', field: 'Web Development' }),
+      ),
+    ).toMatchObject({ level: null, field: 'Web Development' });
+    expect(
+      deriveCvEducation(edu({ school: 'Greenfield University High School', degree: null })),
+    ).toMatchObject({ level: 'high_school' }); // not bachelor
+    expect(deriveCvEducation(edu({ school: 'X', degree: 'Mastering React course' }))).toBeNull(); // not master, no field → no signal
+  });
+});

@@ -6,13 +6,17 @@
  * `CanonicalCvDocument`, so a later PR can grade them into GapItems the way `gradeSeniority`
  * grades the seniority dimension today.
  *
- * ⚠️ ANTI-FABRICATION (load-bearing): every helper returns `null` when the CV gives no clear
- * signal — never a default. It NEVER touches any score; PR3b only fills the `cv_signal` disclosure
- * field. (Seniority is handled separately by `deriveCvSeniority` in seniority.ts.)
+ * ⚠️ ANTI-FABRICATION (load-bearing — adversarially reviewed): every helper returns `null` when the
+ * CV gives no clear signal — never a default. Specifically: numeric tests must be ACHIEVED scores on
+ * the right scale (aspirations/targets, durations, sub-test scales, and stray years are rejected);
+ * textual/CEFR cues must be ADJACENT to an explicit english cue (no cross-language contamination,
+ * negation, or unrelated adjectives); domain/work_mode require specific multi-word anchors, not
+ * generic engineering vocabulary. It NEVER touches any score; PR3b only fills `cv_signal` disclosure.
  *
- * Shape mirrors `CvSeniority` (value + `confidence` + `signals[]`). Confidence: explicit test
- * score / CEFR / degree keyword = high; school-inferred degree = medium; textual / keyword-only =
- * low. English level mapping uses the official Cambridge/IELTS and ETS/TOEIC → CEFR alignments.
+ * Shape mirrors `CvSeniority` (value + `confidence` + `signals[]`). Confidence: explicit test score /
+ * CEFR / degree keyword = high; school-inferred degree = medium; textual / keyword-only = low.
+ * English level mapping uses the official Cambridge/IELTS and ETS/TOEIC (Listening+Reading) → CEFR
+ * alignments. Vietnamese diacritics need explicit Unicode boundaries (JS `\b` is ASCII-only).
  */
 import { CanonicalCvDocument } from '../types/canonical-cv';
 import { Confidence } from './seniority';
@@ -20,6 +24,7 @@ import { Confidence } from './seniority';
 export type SignalConfidence = Confidence; // 'low' | 'medium' | 'high'
 export type Cefr = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 const CEFR_RANK: Record<Cefr, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
+const CONF_RANK: Record<SignalConfidence, number> = { low: 0, medium: 1, high: 2 };
 
 export type EnglishSourceKind = 'ielts' | 'toeic' | 'cefr' | 'textual';
 export interface CvEnglishSignal {
@@ -65,19 +70,18 @@ export interface CvProfileSignals {
   work_mode: CvWorkModeSignal | null;
 }
 
-const CONF_RANK: Record<SignalConfidence, number> = { low: 0, medium: 1, high: 2 };
-
 // ── english ────────────────────────────────────────────────────────────────
-/** IELTS overall band → CEFR (Cambridge/IELTS alignment). Out-of-range → null. */
+/** IELTS overall band → CEFR (Cambridge/IELTS alignment). Below the official B1 floor (4.0) we do
+ *  NOT assert a band — returns null — which also blocks stray small integers (a "2" from "2 years"). */
 function ieltsToCefr(score: number): Cefr | null {
-  if (Number.isNaN(score) || score < 1 || score > 9) return null;
+  if (Number.isNaN(score) || score < 4 || score > 9) return null;
   if (score >= 8.5) return 'C2';
   if (score >= 7.0) return 'C1';
   if (score >= 5.5) return 'B2';
-  if (score >= 4.0) return 'B1';
-  return 'A2';
+  return 'B1'; // 4.0–5.0
 }
-/** TOEIC Listening+Reading total (10–990) → CEFR (ETS alignment). Out-of-range → null. */
+/** TOEIC Listening+Reading total (10–990) → CEFR (ETS alignment). Out-of-range → null. The CALLER
+ *  must gate out Speaking/Writing/Bridge (different scales) before using this. */
 function toeicToCefr(score: number): Cefr | null {
   if (Number.isNaN(score) || score < 10 || score > 990) return null;
   if (score >= 945) return 'C1';
@@ -87,62 +91,96 @@ function toeicToCefr(score: number): Cefr | null {
   return 'A1';
 }
 
-const EN_CUE = /english|tiếng anh|tieng anh/u;
-const CEFR_TOKEN = /(?<![\p{L}\p{N}])(a1|a2|b1|b2|c1|c2)(?![\p{L}\p{N}])/u;
+/** An aspiration/preparation qualifier near the test keyword ⇒ not an ACHIEVED score ⇒ reject. */
+const ASPIRATION =
+  /\btarget\b|\baim(ing)?\b|\bgoal\b|\bexpected\b|\bpreparing\b|\bprep\b|\bpreparation\b|studying for|dự kiến|du kien|mục tiêu|muc tieu|chuẩn bị|chuan bi|ôn thi|on thi|ôn luyện|on luyen/u;
+/** A duration/time unit immediately AFTER a number ⇒ it's a duration, not a band ⇒ skip that number. */
+const DURATION_AFTER =
+  /^\s*(years?|yrs?|months?|tháng|thang|năm|nam|weeks?|tuần|tuan|hours?|giờ|gio|days?|ngày|ngay)\b/u;
 
-/** Conservative textual descriptor → CEFR (LOW confidence). Only used when an english cue is present. */
-function textualToCefr(lower: string): Cefr | null {
-  if (/fluent|proficient|advanced|thông thạo|thanh thao|lưu loát|luu loat/u.test(lower))
-    return 'C1';
-  if (/intermediate|good|giao tiếp|giao tiep|khá|\bkha\b/u.test(lower)) return 'B1';
-  if (/basic|beginner|cơ bản|co ban/u.test(lower)) return 'A2';
+/** All plausible ACHIEVED score numbers within a 40-char window after `keyword` (drops aspirations
+ *  entirely and skips duration numbers). Scanning ALL numbers lets the caller pick the best valid
+ *  band, so a sub-score or a leading year cannot shadow the real total. */
+function bandScoresInWindow(lower: string, keyword: string): number[] {
+  const idx = lower.indexOf(keyword);
+  if (idx === -1) return [];
+  const window = lower.slice(idx + keyword.length, idx + keyword.length + 40);
+  if (ASPIRATION.test(window)) return [];
+  const out: number[] = [];
+  const re = /\d{1,4}(?:[.,]\d)?/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(window)) !== null) {
+    if (DURATION_AFTER.test(window.slice(re.lastIndex))) continue;
+    out.push(parseFloat(m[0].replace(',', '.')));
+  }
+  return out;
+}
+
+function bestBand(cefrs: Array<Cefr | null>): Cefr | null {
+  const valid = cefrs.filter((c): c is Cefr => c !== null);
+  return valid.length ? valid.reduce((a, b) => (CEFR_RANK[b] > CEFR_RANK[a] ? b : a)) : null;
+}
+
+// CEFR/textual cues must sit ADJACENT to an english cue, separated only by spaces/punctuation (NOT a
+// comma/clause break — that would let another language's level leak in: "French - fluent, English - basic").
+const ENG = '(?:english|tiếng anh|tieng anh)';
+const SEP = '[\\s:()\\-–—]{1,4}';
+const NB = '(?![\\p{L}\\p{N}])'; // right boundary
+const NBB = '(?<![\\p{L}\\p{N}])'; // left boundary
+
+function cefrAdjacentToEnglish(lower: string): Cefr | null {
+  const after = lower.match(new RegExp(`${ENG}${SEP}(a1|a2|b1|b2|c1|c2)${NB}`, 'u'));
+  if (after) return after[1].toUpperCase() as Cefr;
+  const before = lower.match(new RegExp(`${NBB}(a1|a2|b1|b2|c1|c2)${SEP}${ENG}`, 'u'));
+  if (before) return before[1].toUpperCase() as Cefr;
   return null;
 }
 
-/**
- * First numeric token within a short window after `keyword` (tolerates "IELTS Academic 7.0",
- * "TOEIC L&R: 750"). Out-of-range scores are rejected downstream by the band mappers, so a stray
- * year ("…in 2024") maps to null rather than a fabricated band.
- */
-function scoreAfter(lower: string, keyword: string): number | null {
-  const idx = lower.indexOf(keyword);
-  if (idx === -1) return null;
-  const window = lower.slice(idx + keyword.length, idx + keyword.length + 30);
-  const m = window.match(/(\d{1,4}(?:[.,]\d)?)/);
-  return m ? parseFloat(m[1].replace(',', '.')) : null;
+function textualAdjacentToEnglish(lower: string): Cefr | null {
+  const groups: ReadonlyArray<readonly [Cefr, string]> = [
+    ['C1', 'fluent|proficient|advanced|thông thạo|thanh thao|lưu loát|luu loat'],
+    ['B1', 'intermediate|good|khá|giao tiếp|giao tiep'],
+    ['A2', 'basic|beginner|cơ bản|co ban'],
+  ];
+  for (const [cefr, desc] of groups) {
+    const d = `${NBB}(?:${desc})${NB}`;
+    if (new RegExp(`${ENG}${SEP}${d}`, 'u').test(lower)) return cefr;
+    if (new RegExp(`${d}${SEP}${ENG}`, 'u').test(lower)) return cefr;
+  }
+  return null;
 }
 
 function englishFromString(s: string): CvEnglishSignal | null {
   const raw = s.trim();
   if (!raw) return null;
   const lower = raw.toLowerCase();
-  const mkSignal = `language: ${raw}`;
+  const mk = (
+    cefr: Cefr,
+    kind: EnglishSourceKind,
+    confidence: SignalConfidence,
+  ): CvEnglishSignal => ({
+    cefr,
+    source_kind: kind,
+    raw,
+    confidence,
+    signals: [`language: ${raw}`],
+  });
 
-  const ielts = scoreAfter(lower, 'ielts');
-  if (ielts !== null) {
-    const cefr = ieltsToCefr(ielts);
-    if (cefr) return { cefr, source_kind: 'ielts', raw, confidence: 'high', signals: [mkSignal] };
+  const ielts = bestBand(bandScoresInWindow(lower, 'ielts').map(ieltsToCefr));
+  if (ielts) return mk(ielts, 'ielts', 'high');
+
+  // TOEIC L&R only — Speaking/Writing/Bridge use different scales, so gate them out (no fabrication).
+  if (!/speaking|writing|s&w|s & w|bridge|4 skills|four skills|nói|noi|viết|viet/u.test(lower)) {
+    const toeic = bestBand(bandScoresInWindow(lower, 'toeic').map(toeicToCefr));
+    if (toeic) return mk(toeic, 'toeic', 'high');
   }
-  const toeic = scoreAfter(lower, 'toeic');
-  if (toeic !== null) {
-    const cefr = toeicToCefr(toeic);
-    if (cefr) return { cefr, source_kind: 'toeic', raw, confidence: 'high', signals: [mkSignal] };
-  }
-  // CEFR token & textual require an english cue (so "Bằng lái xe B2" never reads as english).
-  if (EN_CUE.test(lower)) {
-    const band = lower.match(CEFR_TOKEN);
-    if (band)
-      return {
-        cefr: band[1].toUpperCase() as Cefr,
-        source_kind: 'cefr',
-        raw,
-        confidence: 'high',
-        signals: [mkSignal],
-      };
-    const textual = textualToCefr(lower);
-    if (textual)
-      return { cefr: textual, source_kind: 'textual', raw, confidence: 'low', signals: [mkSignal] };
-  }
+
+  const cefr = cefrAdjacentToEnglish(lower);
+  if (cefr) return mk(cefr, 'cefr', 'high');
+
+  const textual = textualAdjacentToEnglish(lower);
+  if (textual) return mk(textual, 'textual', 'low');
+
   return null;
 }
 
@@ -162,15 +200,17 @@ export function deriveCvEnglishLevel(doc: CanonicalCvDocument): CvEnglishSignal 
 }
 
 // ── education ────────────────────────────────────────────────────────────────
+// high_school BEFORE associate so "High School Diploma" is not mis-read as associate via /diploma/.
+// Bare "diploma" is dropped (covers bootcamp/attendance diplomas); "master(?!ing)" avoids "Mastering X".
 const DEGREE_PATTERNS: ReadonlyArray<readonly [DegreeLevel, RegExp]> = [
-  ['phd', /ph\.?d|doctor(al|ate)?|tiến sĩ|tien si/u],
-  ['master', /master|m\.?sc|m\.?eng|\bmba\b|thạc sĩ|thac si/u],
+  ['phd', /ph\.?d|doctora(l|te)|tiến sĩ|tien si/u],
+  ['master', /thạc sĩ|thac si|\bmba\b|\bm\.?sc\b|\bm\.?eng\b|master(?!ing)/u],
   [
     'bachelor',
-    /bachelor|b\.?sc|b\.?eng|cử nhân|cu nhan|kỹ sư|ky su|đại học|dai hoc|engineer'?s degree/u,
+    /bachelor|\bb\.?sc\b|\bb\.?eng\b|cử nhân|cu nhan|kỹ sư|ky su|đại học|dai hoc|engineer'?s degree/u,
   ],
-  ['associate', /associate|cao đẳng|cao dang|diploma/u],
-  ['high_school', /high school|thpt|trung học phổ thông|trung hoc pho thong|secondary school/u],
+  ['high_school', /high school|secondary school|thpt|trung học phổ thông|trung hoc pho thong/u],
+  ['associate', /associate|cao đẳng|cao dang|\bcollege\b/u],
 ];
 
 function classifyDegree(text: string): DegreeLevel | null {
@@ -192,21 +232,29 @@ export function deriveCvEducation(doc: CanonicalCvDocument): CvEducationSignal |
     if (!field && e.field) field = e.field.trim();
     let level = e.degree ? classifyDegree(e.degree) : null;
     let conf: SignalConfidence = level ? 'high' : 'low';
+    // Infer ONLY when no degree string was supplied. Check high-school FIRST so a school literally
+    // named "... High School" (even with "University" in it) is never upgraded to bachelor.
     if (!level && !e.degree) {
       const school = (e.school ?? '').toLowerCase();
-      if (/university|đại học|dai hoc/u.test(school)) {
+      if (/high school|secondary school|thpt|trung học/u.test(school)) {
+        level = 'high_school';
+        conf = 'low';
+      } else if (/university|đại học|dai hoc/u.test(school)) {
         level = 'bachelor';
         conf = 'medium';
-      } else if (/college|cao đẳng|cao dang/u.test(school)) {
+      } else if (/\bcollege\b|cao đẳng|cao dang/u.test(school)) {
         level = 'associate';
         conf = 'medium';
       }
     }
     if (level) {
       signals.push(`education: ${[e.degree, e.school].filter(Boolean).join(' @ ') || level}`);
-      if (bestLevel === null || DEGREE_RANK[level] > DEGREE_RANK[bestLevel]) {
+      const rank = DEGREE_RANK[level];
+      if (bestLevel === null || rank > DEGREE_RANK[bestLevel]) {
         bestLevel = level;
         bestConf = conf;
+      } else if (rank === DEGREE_RANK[bestLevel] && CONF_RANK[conf] > CONF_RANK[bestConf]) {
+        bestConf = conf; // a same-level explicit degree upgrades an inferred one
       }
     }
   }
@@ -220,30 +268,38 @@ export function deriveCvEducation(doc: CanonicalCvDocument): CvEducationSignal |
 }
 
 // ── domain ────────────────────────────────────────────────────────────────
+// Multi-word / specific anchors only — bare generic dev words (delivery, shipping, payment, trading,
+// wallet, game, messaging, retail, booking, "education") fabricate industries from ordinary prose.
 const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   [
     'ecommerce',
-    /e-?commerce|thương mại điện tử|thuong mai dien tu|marketplace|shopping cart|\bcheckout\b|\bcart\b|retail/u,
+    /e-?commerce|thương mại điện tử|thuong mai dien tu|marketplace|shopping cart|giỏ hàng|sàn thương mại/u,
   ],
   [
     'fintech',
-    /fintech|banking|ngân hàng|ngan hang|payment|thanh toán|thanh toan|wallet|ví điện tử|vi dien tu|lending|trading|chứng khoán|chung khoan|insurance|insurtech/u,
+    /fintech|payment gateway|payment processing|cổng thanh toán|thanh toán|ví điện tử|vi dien tu|e-wallet|digital banking|ngân hàng số|sàn giao dịch|chứng khoán|chung khoan|insurtech|lending platform/u,
   ],
   [
     'healthcare',
-    /health\s?care|healthtech|medical|y tế|y te|hospital|bệnh viện|benh vien|clinic|phòng khám|phong kham|patient|pharma/u,
+    /health\s?care|healthtech|medical|y tế|y te|hospital|bệnh viện|benh vien|clinic|phòng khám|phong kham|telemedicine|pharma/u,
   ],
   [
     'education',
-    /\beducation\b|edtech|e-?learning|\blms\b|giáo dục|giao duc|trường học|truong hoc|tutoring/u,
+    /edtech|e-?learning|\blms\b|learning management|khóa học trực tuyến|nền tảng giáo dục|tutoring platform/u,
   ],
   [
     'logistics',
-    /logistics|shipping|giao hàng|giao hang|delivery|warehouse|supply chain|chuỗi cung ứng|chuoi cung ung/u,
+    /logistics|supply chain|chuỗi cung ứng|chuoi cung ung|last-mile|warehouse|kho bãi|fleet|fulfillment|giao nhận|vận chuyển|van chuyen/u,
   ],
-  ['social', /social network|mạng xã hội|mang xa hoi|messaging|chat app/u],
-  ['gaming', /\bgame\b|gaming|trò chơi|tro choi/u],
-  ['travel', /\btravel\b|du lịch|du lich|hotel|khách sạn|khach san|\bflight\b|\btour\b|booking/u],
+  ['social', /social network|mạng xã hội|mang xa hoi|social media|chat app|messaging platform/u],
+  [
+    'gaming',
+    /game development|gamedev|game studio|\bunity\b|\bunreal\b|trò chơi điện tử|phát triển game/u,
+  ],
+  [
+    'travel',
+    /travel booking|online travel|\bota\b|airline|hotel booking|đặt phòng|đặt vé|du lịch trực tuyến|tour operator/u,
+  ],
 ];
 
 export function deriveCvDomain(doc: CanonicalCvDocument): CvDomainSignal | null {
@@ -264,16 +320,17 @@ export function deriveCvDomain(doc: CanonicalCvDocument): CvDomainSignal | null 
 }
 
 // ── work_mode ────────────────────────────────────────────────────────────────
+// LOCATION field ONLY — scanning achievement bullets fabricates a work mode from technical jargon
+// ("remote git", "hybrid cloud", "kết hợp công nghệ"). Require employment-mode phrasing.
 const WORKMODE_PATTERNS: ReadonlyArray<readonly [WorkMode, RegExp]> = [
-  ['remote', /\bremote\b|làm việc từ xa|lam viec tu xa|work from home|\bwfh\b|từ xa|tu xa/u],
-  ['hybrid', /\bhybrid\b|kết hợp|ket hop/u],
+  ['remote', /\bremote\b|làm việc từ xa|lam viec tu xa|work from home|\bwfh\b|remote-first/u],
+  ['hybrid', /\bhybrid\b|làm việc kết hợp|lam viec ket hop/u],
   ['onsite', /\bon-?site\b|tại văn phòng|tai van phong|tại công ty|tai cong ty/u],
 ];
 
 export function deriveCvWorkMode(doc: CanonicalCvDocument): CvWorkModeSignal | null {
-  const texts: string[] = [];
-  for (const e of doc.experience ?? []) texts.push(e.location ?? '', ...(e.bullets ?? []));
-  const hay = texts.join(' \n ').toLowerCase();
+  const locations = (doc.experience ?? []).map((e) => (e.location ?? '').toLowerCase());
+  const hay = locations.join(' \n ');
   for (const [mode, re] of WORKMODE_PATTERNS) {
     if (re.test(hay)) return { mode, confidence: 'low', signals: [`work_mode:${mode}`] };
   }

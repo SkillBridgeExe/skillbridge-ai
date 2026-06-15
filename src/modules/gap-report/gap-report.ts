@@ -106,7 +106,7 @@ function cvSignalFor(
     case 'education': {
       const ed = signals?.education;
       return ed
-        ? `${ed.level ?? 'degree'}${ed.field ? ` · ${ed.field}` : ''} · ${ed.confidence}`
+        ? `${ed.level ?? 'field-only'}${ed.field ? ` · ${ed.field}` : ''} · ${ed.confidence}`
         : null;
     }
     case 'domain': {
