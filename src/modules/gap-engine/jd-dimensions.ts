@@ -21,6 +21,17 @@ import {
   JOB_LEVEL_RANK,
   computeExperienceFit,
 } from '../../common/services/seniority';
+import {
+  Cefr,
+  CEFR_RANK,
+  DegreeLevel,
+  DEGREE_RANK,
+  SignalConfidence,
+  CvProfileSignals,
+  classifyDegree,
+  classifyDomains,
+  parseEnglishRequirement,
+} from '../../common/services/cv-profile-signals';
 
 export type JdDimensionType = 'seniority' | 'language' | 'education' | 'domain' | 'work_mode';
 
@@ -173,4 +184,234 @@ export function gradeSeniority(
     cv_status: isGap ? 'missing' : 'matched',
     verdict,
   };
+}
+
+// ── Non-skill graders (PR3c): language / education / domain ─────────────────────────────────────
+// The CV-side mirror of gradeSeniority for the three remaining dimensions WITH a CV-side signal.
+// work_mode is deliberately NOT graded (disclosure-only) — its CV signal is structurally low-confidence
+// and a logistics preference, not a capability gap. HONEST-BY-DEFAULT: returns null when the JD level
+// is unparseable, or (per the confirmed policy) when the CV is SILENT and the JD requirement is not a
+// hard one. Reuses computeSeverity UNCHANGED downstream by mapping rank diffs onto 0-5 gap_levels.
+
+export type NonSkillStatus = 'matched' | 'partial' | 'missing';
+
+/** A graded non-skill dimension decision — SHARED by gap-item (→ GapItem) and gap-report
+ *  (→ jd_intelligence.graded), so the two can never contradict. `dims` are the JD dims it consumed. */
+export interface DimensionGrade {
+  type: 'language' | 'education' | 'domain';
+  canonical_name: string;
+  dims: JdDimension[];
+  cv_status: NonSkillStatus;
+  /** Rank on the dimension's scale (CEFR 1-6 / degree 1-5); null when unknown (CV silent) or N/A (domain). */
+  cv_level: number | null;
+  required_level: number | null;
+  gap_levels: number;
+  importance: Importance;
+  /** 0-1, <1 (LLM-extracted JD requirement). From the CV signal's confidence, or 0.5 inferred-from-silence. */
+  confidence: number;
+  /** true when the gap was inferred from CV SILENCE (not an evidenced lower signal) — drives wording. */
+  from_silence: boolean;
+}
+
+const confFromSignal = (c: SignalConfidence): number =>
+  c === 'high' ? 0.8 : c === 'medium' ? 0.7 : 0.6;
+const SILENCE_CONFIDENCE = 0.5;
+/** A CV-silent gap is only surfaced for a HARD requirement (REQUIRED or deal-breaker) — conservative. */
+const isHardRequirement = (d: JdDimension): boolean =>
+  d.importance === 'REQUIRED' || d.deal_breaker;
+
+/** Pick the STRICTEST candidate: highest rank, tie → deal-breaker then importance (order-independent). */
+function pickStrictest<T extends { dim: JdDimension; rank: number }>(cands: T[]): T {
+  return cands.reduce((a, b) => {
+    if (b.rank !== a.rank) return b.rank > a.rank ? b : a;
+    if (a.dim.deal_breaker !== b.dim.deal_breaker) return b.dim.deal_breaker ? b : a;
+    const ia = IMPORTANCE_ORDER[a.dim.importance] ?? 0;
+    const ib = IMPORTANCE_ORDER[b.dim.importance] ?? 0;
+    return ib > ia ? b : a;
+  });
+}
+
+/** Pick the HIGHEST-RISK candidate: importance desc FIRST, then rank desc, then deal-breaker. Used to
+ *  decide which unmet requirement a CV is graded against — so failing a lower REQUIRED outranks falling
+ *  short of a higher PREFERRED (the screening risk lives in the hard requirement). Order-independent. */
+function pickByRisk<T extends { dim: JdDimension; rank: number }>(cands: T[]): T {
+  return cands.reduce((a, b) => {
+    const ia = IMPORTANCE_ORDER[a.dim.importance] ?? 0;
+    const ib = IMPORTANCE_ORDER[b.dim.importance] ?? 0;
+    if (ib !== ia) return ib > ia ? b : a;
+    if (b.rank !== a.rank) return b.rank > a.rank ? b : a;
+    if (a.dim.deal_breaker !== b.dim.deal_breaker) return b.dim.deal_breaker ? b : a;
+    return a;
+  });
+}
+
+/** PURE: grade the JD's English requirement against the CV english signal (CEFR ordered scale). */
+export function gradeLanguage(
+  dims: JdDimension[] | null | undefined,
+  signals: CvProfileSignals | null | undefined,
+): DimensionGrade | null {
+  const cands = (dims ?? [])
+    .filter((d) => d.dimension === 'language')
+    .map((d) => ({
+      dim: d,
+      cefr: parseEnglishRequirement(`${d.value_text} ${d.level_hint ?? ''} ${d.evidence_text}`),
+    }))
+    .filter((c): c is { dim: JdDimension; cefr: Cefr } => c.cefr !== null)
+    .map((c) => ({ dim: c.dim, rank: CEFR_RANK[c.cefr] }));
+  if (cands.length === 0) return null;
+  const cv = signals?.english ?? null;
+  if (cv) {
+    const cvRank = CEFR_RANK[cv.cefr];
+    // Grade against the requirement that matters most: among those the CV FAILS, the highest-RISK one
+    // (importance desc, then level desc) — so failing a lower REQUIRED outranks falling short of a
+    // higher PREFERRED. If the CV meets every requirement, grade against the strictest (→ matched).
+    const failed = cands.filter((c) => cvRank < c.rank);
+    const target = failed.length ? pickByRisk(failed) : pickStrictest(cands);
+    const jdRank = target.rank;
+    let cv_status: NonSkillStatus;
+    let gap_levels: number;
+    if (cvRank >= jdRank) {
+      cv_status = 'matched';
+      gap_levels = 0;
+    } else if (cvRank === jdRank - 1) {
+      cv_status = 'partial';
+      gap_levels = 1;
+    } else {
+      cv_status = 'missing';
+      gap_levels = jdRank - cvRank;
+    }
+    return {
+      type: 'language',
+      canonical_name: 'language',
+      dims: [target.dim],
+      cv_status,
+      cv_level: cvRank,
+      required_level: jdRank,
+      gap_levels,
+      importance: target.dim.importance,
+      confidence: confFromSignal(cv.confidence),
+      from_silence: false,
+    };
+  }
+  // CV silent: emit only for a HARD requirement, graded against the strictest HARD one — a higher
+  // PREFERRED requirement must NOT hide a lower REQUIRED one (multi-dim mixed-importance case).
+  const hard = cands.filter((c) => isHardRequirement(c.dim));
+  if (hard.length === 0) return null; // no hard requirement → honest omission
+  const bestHard = pickStrictest(hard);
+  return {
+    type: 'language',
+    canonical_name: 'language',
+    dims: [bestHard.dim],
+    cv_status: 'missing',
+    cv_level: null,
+    required_level: bestHard.rank,
+    gap_levels: bestHard.rank,
+    importance: bestHard.dim.importance,
+    confidence: SILENCE_CONFIDENCE,
+    from_silence: true,
+  };
+}
+
+/** PURE: grade the JD's education requirement against the CV degree signal (degree ordered scale,
+ *  NO partial bucket — at/above = matched, below = missing). field-only (level null) is treated as silent. */
+export function gradeEducation(
+  dims: JdDimension[] | null | undefined,
+  signals: CvProfileSignals | null | undefined,
+): DimensionGrade | null {
+  const cands = (dims ?? [])
+    .filter((d) => d.dimension === 'education')
+    .map((d) => ({
+      dim: d,
+      level: classifyDegree(`${d.value_text} ${d.level_hint ?? ''} ${d.evidence_text}`),
+    }))
+    .filter((c): c is { dim: JdDimension; level: DegreeLevel } => c.level !== null)
+    .map((c) => ({ dim: c.dim, rank: DEGREE_RANK[c.level] }));
+  if (cands.length === 0) return null;
+  const edu = signals?.education ?? null;
+  const cvLevel = edu?.level ?? null;
+  if (edu && cvLevel) {
+    const cvRank = DEGREE_RANK[cvLevel];
+    // Same risk policy as language: grade against the highest-RISK unmet degree requirement (importance
+    // desc, then level desc); if the CV meets all, grade against the strictest (→ matched).
+    const failed = cands.filter((c) => cvRank < c.rank);
+    const target = failed.length ? pickByRisk(failed) : pickStrictest(cands);
+    const jdRank = target.rank;
+    const matched = cvRank >= jdRank;
+    return {
+      type: 'education',
+      canonical_name: 'education',
+      dims: [target.dim],
+      cv_status: matched ? 'matched' : 'missing',
+      cv_level: cvRank,
+      required_level: jdRank,
+      gap_levels: matched ? 0 : jdRank - cvRank,
+      importance: target.dim.importance,
+      confidence: confFromSignal(edu.confidence),
+      from_silence: false,
+    };
+  }
+  // CV silent / field-only: emit only for a HARD requirement, graded against the strictest HARD one
+  // (a higher PREFERRED degree must NOT hide a lower REQUIRED one).
+  const hard = cands.filter((c) => isHardRequirement(c.dim));
+  if (hard.length === 0) return null;
+  const bestHard = pickStrictest(hard);
+  return {
+    type: 'education',
+    canonical_name: 'education',
+    dims: [bestHard.dim],
+    cv_status: 'missing',
+    cv_level: null,
+    required_level: bestHard.rank,
+    gap_levels: bestHard.rank,
+    importance: bestHard.dim.importance,
+    confidence: SILENCE_CONFIDENCE,
+    from_silence: true,
+  };
+}
+
+/** PURE: grade the JD's domain requirement by EXACT canonical overlap (no fuzzy/semantic). CV silent
+ *  (no domain signal) is ALWAYS omitted — a missing domain is asserted only against an evidenced
+ *  CV domain that differs. One collective GapItem per report (`jd:domain:domain`). */
+export function gradeDomain(
+  dims: JdDimension[] | null | undefined,
+  signals: CvProfileSignals | null | undefined,
+): DimensionGrade | null {
+  // Keep ONLY the dims whose industry actually canonicalises — so `dims` (which drives the disclosure
+  // `graded` flag) never marks a non-canonicalising domain quote as graded. classifyDomains runs once per dim.
+  const canonicalising = (dims ?? [])
+    .filter((d) => d.dimension === 'domain')
+    .map((d) => ({ dim: d, domains: classifyDomains(`${d.value_text} ${d.evidence_text}`) }))
+    .filter((x) => x.domains.length > 0);
+  if (canonicalising.length === 0) return null; // JD industry not canonicalisable → can't grade
+  const cv = signals?.domain ?? null;
+  if (!cv) return null; // CV silent → always omit (honest)
+  const jdDomains = [...new Set(canonicalising.flatMap((x) => x.domains))];
+  const cvDomains = new Set(cv.domains);
+  const matched = jdDomains.some((d) => cvDomains.has(d));
+  const best = pickStrictest(canonicalising.map((x) => ({ dim: x.dim, rank: 0 })));
+  return {
+    type: 'domain',
+    canonical_name: 'domain',
+    dims: canonicalising.map((x) => x.dim),
+    cv_status: matched ? 'matched' : 'missing',
+    cv_level: null,
+    required_level: null,
+    gap_levels: matched ? 0 : 1,
+    importance: best.dim.importance,
+    confidence: confFromSignal(cv.confidence),
+    from_silence: false,
+  };
+}
+
+/** PURE: grade ALL non-skill dimensions with a CV-side signal (language/education/domain). work_mode is
+ *  intentionally excluded (disclosure-only). Returns at most one grade per dimension type. */
+export function gradeNonSkillDimensions(
+  dims: JdDimension[] | null | undefined,
+  signals: CvProfileSignals | null | undefined,
+): DimensionGrade[] {
+  return [
+    gradeLanguage(dims, signals),
+    gradeEducation(dims, signals),
+    gradeDomain(dims, signals),
+  ].filter((g): g is DimensionGrade => g !== null);
 }

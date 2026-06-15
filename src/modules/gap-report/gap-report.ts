@@ -7,7 +7,12 @@ import {
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { EvidenceLedger } from '../../common/services/evidence-ledger';
 import { CvSeniority, ExperienceVerdict } from '../../common/services/seniority';
-import { JdDimension, JdDimensionType, gradeSeniority } from '../gap-engine/jd-dimensions';
+import {
+  JdDimension,
+  JdDimensionType,
+  gradeSeniority,
+  gradeNonSkillDimensions,
+} from '../gap-engine/jd-dimensions';
 import { CvProfileSignals } from '../../common/services/cv-profile-signals';
 
 export interface EvidenceGapItem {
@@ -45,11 +50,12 @@ export interface JdIntelligenceItem {
   deal_breaker: boolean;
   /** Exact JD quote backing this requirement (never fabricated — un-quoted dims are dropped upstream). */
   evidence_text: string;
-  /** true only when a gap_item was actually emitted for it — PR3: seniority with a usable CV signal. */
+  /** true only when a gap_item was actually emitted for it — seniority + (PR3c) language/education/
+   *  domain with a usable CV signal. work_mode is disclosure-only ⇒ always false. */
   graded: boolean;
-  /** Human-readable CV-side signal (seniority only); null for dims with no CV parser yet (PR3b). */
+  /** Human-readable CV-side signal for the dimension (PR3b); null when the CV gives no signal. */
   cv_signal: string | null;
-  /** Seniority fit verdict; null for the not-yet-graded dimensions. */
+  /** Seniority fit verdict (ExperienceVerdict); null for language/education/domain/work_mode. */
   verdict: ExperienceVerdict | null;
 }
 /** JD-Intelligence disclosure block: what the JD requires beyond skills. Only seniority is graded into
@@ -82,8 +88,8 @@ const SENIORITY_NOTE = {
 } as const;
 
 const JD_INTEL_NOTE = {
-  vi: 'Hiện mới chấm gap cho cấp độ/kinh nghiệm (có bằng chứng từ CV). Ngôn ngữ, học vấn, lĩnh vực và hình thức làm việc đã đọc được từ JD nhưng CHƯA chấm gap — chờ bổ sung phân tích phía CV.',
-  en: 'Only seniority is graded so far (it has CV-side evidence). Language, education, domain and work mode are read from the JD but NOT yet graded — pending CV-side parsing.',
+  vi: 'Đã chấm gap cho cấp độ/kinh nghiệm, ngôn ngữ, học vấn và lĩnh vực khi CV có tín hiệu tương ứng. Hình thức làm việc chỉ hiển thị (không chấm gap). Các mục không đủ tín hiệu phía CV được bỏ qua một cách trung thực.',
+  en: 'Seniority, language, education and domain are graded when the CV carries a matching signal. Work mode is disclosure-only (not graded). Dimensions without enough CV-side signal are honestly omitted.',
 } as const;
 
 /** Human-readable CV-side signal per dimension (enums/derived values only — never raw CV text).
@@ -131,11 +137,17 @@ function buildJdIntelligence(
   cvSignals: CvProfileSignals | null,
   lang: 'vi' | 'en',
 ): JdIntelligenceBlock {
-  // The ONE seniority dim that actually became a gap_item — via the SHARED gradeSeniority decision,
-  // so `graded`/`verdict` here can NEVER contradict gap_items. null when omitted (no/low CV signal).
+  // The graded dims come from the SHARED graders (gradeSeniority + gradeNonSkillDimensions), so
+  // `graded`/`verdict` here can NEVER contradict gap_items. seniority → ExperienceVerdict; the
+  // PR3c dims (language/education/domain) are graded but carry no ExperienceVerdict (verdict stays
+  // null — honest). work_mode is never graded (disclosure-only).
   const grade = gradeSeniority(dims, cvSeniority);
+  const nonSkillGraded = new Set<JdDimension>(
+    gradeNonSkillDimensions(dims, cvSignals).flatMap((g) => g.dims),
+  );
   const dimensions: JdIntelligenceItem[] = dims.map((d) => {
-    const isGraded = !!grade && d === grade.dim;
+    const isSeniorityGraded = !!grade && d === grade.dim;
+    const isGraded = isSeniorityGraded || nonSkillGraded.has(d);
     return {
       dimension: d.dimension,
       value_text: d.value_text,
@@ -146,9 +158,9 @@ function buildJdIntelligence(
       evidence_text: d.evidence_text,
       graded: isGraded,
       cv_signal: cvSignalFor(d.dimension, cvSeniority, cvSignals),
-      // Assert a verdict ONLY for the dim we actually graded; a weak/omitted signal stays null so the
-      // disclosure never claims a fit the grader declined to make (honesty).
-      verdict: isGraded ? grade.verdict : null,
+      // Assert a verdict ONLY for the seniority dim we graded (ExperienceVerdict); the PR3c dims have
+      // no such verdict and a weak/omitted signal stays null so the disclosure never overclaims.
+      verdict: isSeniorityGraded ? grade.verdict : null,
     };
   });
   return { dimensions, note: JD_INTEL_NOTE[lang] };

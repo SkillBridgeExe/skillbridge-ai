@@ -71,15 +71,17 @@ export class GapReportService {
       ? new Map(marketDto.jd_skills.map((s) => [s.skill_canonical, s.pct_of_postings] as const))
       : null;
 
-    // PR3: feed extracted JD dimensions + CV seniority — only `seniority` becomes a graded GapItem;
-    // absent (v1 path) ⇒ byte-identical to before. The other dims surface in core.jd_intelligence.
-    // Built ONCE here and reused for BOTH gap_items and the PR4 patch decorator (no recomputation).
+    // PR3/PR3c: feed extracted JD dimensions + CV seniority + CV profile signals — seniority/language/
+    // education/domain grade into GapItems (work_mode is disclosure-only); absent (v1 path) ⇒
+    // byte-identical to before. Built ONCE here and reused for BOTH gap_items and the PR4 patch
+    // decorator (no recomputation).
     const gapItems = buildGapItems({
       match: input.match,
       ledger,
       marketDemand,
       jdDimensions: input.match.jd_dimensions ?? null,
       cvSeniority,
+      cvProfileSignals,
     });
 
     return {

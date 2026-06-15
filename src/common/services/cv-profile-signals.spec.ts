@@ -5,6 +5,11 @@ import {
   deriveCvDomain,
   deriveCvWorkMode,
   deriveCvProfileSignals,
+  parseEnglishRequirement,
+  classifyDomains,
+  classifyDegree,
+  CEFR_RANK,
+  DEGREE_RANK,
 } from './cv-profile-signals';
 
 const doc = (over: Partial<CanonicalCvDocument> = {}): CanonicalCvDocument => ({
@@ -355,5 +360,60 @@ describe('review round 2 regression (MUST 1–4)', () => {
         }),
       ),
     ).toMatchObject({ mode: 'remote' });
+  });
+});
+
+// ── PR3c — JD-side shared primitives ────────────────────────────────────────────
+describe('parseEnglishRequirement (PR3c, JD-side, English-only)', () => {
+  it('English + CEFR token → CEFR', () => {
+    expect(parseEnglishRequirement('English B2 required')).toBe('B2');
+    expect(parseEnglishRequirement('Tiếng Anh C1')).toBe('C1');
+  });
+  it('IELTS / TOEIC scores → CEFR (inherently English)', () => {
+    expect(parseEnglishRequirement('IELTS 6.5+')).toBe('B2');
+    expect(parseEnglishRequirement('TOEIC 800')).toBe('B2');
+  });
+  it('bare CEFR with NO english cue → null (no fabrication)', () => {
+    expect(parseEnglishRequirement('B2 level')).toBeNull();
+  });
+  it('a non-English language requirement → null (English-only by design)', () => {
+    expect(parseEnglishRequirement('Japanese N2')).toBeNull();
+    expect(parseEnglishRequirement('Tiếng Nhật N2')).toBeNull();
+  });
+  it('English but no parseable level → null (honest omission upstream)', () => {
+    expect(parseEnglishRequirement('Good English communication')).toBeNull();
+  });
+  it('empty/whitespace → null', () => {
+    expect(parseEnglishRequirement('')).toBeNull();
+    expect(parseEnglishRequirement('   ')).toBeNull();
+  });
+});
+
+describe('classifyDomains (PR3c, shared)', () => {
+  it('canonicalises a JD industry phrase', () => {
+    expect(classifyDomains('experience in fintech / payment gateway')).toContain('fintech');
+    expect(classifyDomains('e-commerce marketplace')).toContain('ecommerce');
+  });
+  it('generic prose → [] (no fabrication)', () => {
+    expect(classifyDomains('built scalable backend services')).toEqual([]);
+  });
+  it('deriveCvDomain still works after refactor (byte-identical behaviour)', () => {
+    expect(
+      deriveCvDomain(proj({ name: 'Ecommerce store', bullets: ['checkout cart'] }))?.domains,
+    ).toContain('ecommerce');
+  });
+});
+
+describe('exported rank maps + classifyDegree (PR3c)', () => {
+  it('ranks are ordered', () => {
+    expect(CEFR_RANK.C2).toBeGreaterThan(CEFR_RANK.B2);
+    expect(CEFR_RANK.B2).toBeGreaterThan(CEFR_RANK.B1);
+    expect(DEGREE_RANK.phd).toBeGreaterThan(DEGREE_RANK.bachelor);
+    expect(DEGREE_RANK.bachelor).toBeGreaterThan(DEGREE_RANK.associate);
+  });
+  it('classifyDegree maps JD degree text', () => {
+    expect(classifyDegree("Bachelor's degree in Computer Science")).toBe('bachelor');
+    expect(classifyDegree('Thạc sĩ CNTT')).toBe('master');
+    expect(classifyDegree('No degree text here')).toBeNull();
   });
 });

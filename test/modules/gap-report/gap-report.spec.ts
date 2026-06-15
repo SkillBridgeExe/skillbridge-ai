@@ -15,6 +15,7 @@ import {
 import { EvidenceLedger } from '../../../src/common/services/evidence-ledger';
 import { CvSeniority } from '../../../src/common/services/seniority';
 import { CvProfileSignals } from '../../../src/common/services/cv-profile-signals';
+import { buildGapItems } from '../../../src/modules/gap-engine/gap-item';
 
 const matched = (c: string, w = 0.2, cv = 4, req = 3): MatchedSkill => ({
   skill_id: c,
@@ -166,7 +167,7 @@ describe('buildGapReportCore (pure)', () => {
     expect(core.strengths.demonstrated).toEqual([]);
   });
 
-  it('PR3b: fills jd_intelligence.cv_signal from CV profile signals (graded still false for non-seniority)', () => {
+  it('PR3c: grades language/domain (graded=true), keeps cv_signal, verdict stays seniority-only', () => {
     const m = baseMatch({
       jd_dimensions: [
         {
@@ -205,10 +206,96 @@ describe('buildGapReportCore (pure)', () => {
     const byDim = Object.fromEntries(
       (core.jd_intelligence?.dimensions ?? []).map((d) => [d.dimension, d]),
     );
+    // CV B2 == JD B2 → matched; CV ecommerce == JD ecommerce → matched. Both are graded now.
     expect(byDim.language.cv_signal).toBe('B2 (ielts) · high');
-    expect(byDim.language.graded).toBe(false); // grading the 4 non-seniority dims is a later PR
-    expect(byDim.language.verdict).toBeNull();
+    expect(byDim.language.graded).toBe(true);
+    expect(byDim.language.verdict).toBeNull(); // verdict is seniority-only (ExperienceVerdict)
     expect(byDim.domain.cv_signal).toBe('ecommerce · low');
+    expect(byDim.domain.graded).toBe(true);
+    expect(byDim.domain.verdict).toBeNull();
+  });
+
+  it('PR3c: work_mode is never graded; a CV-silent PREFERRED dim stays graded=false', () => {
+    const m = baseMatch({
+      jd_dimensions: [
+        {
+          dimension: 'work_mode',
+          value_text: 'Onsite',
+          level_hint: null,
+          min_years: null,
+          importance: 'REQUIRED',
+          deal_breaker: true,
+          evidence_text: 'Onsite only',
+        },
+        {
+          dimension: 'language',
+          value_text: 'English B2',
+          level_hint: 'B2',
+          min_years: null,
+          importance: 'PREFERRED',
+          deal_breaker: false,
+          evidence_text: 'English B2 preferred',
+        },
+      ],
+    });
+    const signals: CvProfileSignals = {
+      english: null, // CV silent + PREFERRED language → omitted (graded=false)
+      education: null,
+      domain: null,
+      work_mode: { mode: 'remote', confidence: 'low', signals: [] },
+    };
+    const core = buildGapReportCore(m, null, null, signals, 'en');
+    const byDim = Object.fromEntries(
+      (core.jd_intelligence?.dimensions ?? []).map((d) => [d.dimension, d]),
+    );
+    expect(byDim.work_mode.graded).toBe(false); // disclosure-only, even as a deal-breaker
+    expect(byDim.work_mode.cv_signal).toBe('remote · low');
+    expect(byDim.language.graded).toBe(false); // CV silent + PREFERRED → omitted
+  });
+
+  it('PR3c: jd_intelligence.graded never contradicts gap_items (shared graders)', () => {
+    const jd_dimensions = [
+      {
+        dimension: 'language' as const,
+        value_text: 'English B2',
+        level_hint: 'B2',
+        min_years: null,
+        importance: 'REQUIRED' as const,
+        deal_breaker: false,
+        evidence_text: 'English B2 required',
+      },
+      {
+        dimension: 'work_mode' as const,
+        value_text: 'Onsite',
+        level_hint: null,
+        min_years: null,
+        importance: 'REQUIRED' as const,
+        deal_breaker: true,
+        evidence_text: 'Onsite only',
+      },
+    ];
+    const m = baseMatch({ jd_dimensions });
+    const signals: CvProfileSignals = {
+      english: { cefr: 'A2', source_kind: 'cefr', raw: '', confidence: 'low', signals: [] },
+      education: null,
+      domain: null,
+      work_mode: null,
+    };
+    const core = buildGapReportCore(m, null, null, signals, 'en');
+    const gapItems = buildGapItems({
+      match: m,
+      jdDimensions: jd_dimensions,
+      cvProfileSignals: signals,
+    });
+    const gradedDims = new Set(
+      (core.jd_intelligence?.dimensions ?? []).filter((d) => d.graded).map((d) => d.dimension),
+    );
+    const gapTypes = new Set(gapItems.map((g) => g.type));
+    // language A2 vs B2 REQUIRED → a missing language GapItem + graded language; work_mode neither.
+    expect(gradedDims.has('language')).toBe(true);
+    expect(gapTypes.has('language')).toBe(true);
+    expect(gradedDims.has('work_mode')).toBe(false);
+    expect(gapTypes.has('work_mode')).toBe(false);
   });
 
   it('PR3b: cv_signal stays null when the CV has no signal for that dimension (no fabrication)', () => {

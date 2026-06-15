@@ -168,6 +168,149 @@
         { "canonical": "kubernetes", "cv_status": "missing" }
       ],
       "expect_severity_order": ["seniority", "kubernetes"]
+    },
+    {
+      "id": "lang-required-silent-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "language", "value_text": "English B2", "level_hint": "B2", "importance_hint": "REQUIRED", "evidence_text": "English B2 required" }
+      ],
+      "rationale": "PR3c: JD requires English B2 (REQUIRED) but the CV evidences no English level → conservative 'missing' (CV silent + hard requirement), honestly framed as 'CV chưa thể hiện'.",
+      "expect": [{ "canonical": "language", "cv_status": "missing", "fixability": "learn", "evidence_risk": "none" }]
+    },
+    {
+      "id": "lang-preferred-silent-omitted",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "language", "value_text": "English B2", "level_hint": "B2", "importance_hint": "PREFERRED", "evidence_text": "English B2 a plus" }
+      ],
+      "rationale": "PR3c: JD only PREFERS English B2 and the CV is silent → omit (no nagging about a soft requirement the CV doesn't address).",
+      "expect": [{ "canonical": "git", "cv_status": "matched" }],
+      "expect_absent": ["language"]
+    },
+    {
+      "id": "lang-matched",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "language", "value_text": "English B2", "level_hint": "B2", "importance_hint": "PREFERRED", "evidence_text": "English B2 preferred" }
+      ],
+      "cv_profile_signals": { "english": { "cefr": "C1", "confidence": "high" } },
+      "rationale": "PR3c: CV C1 ≥ JD B2 → matched (a strength, severity 0). A present CV signal grades even at PREFERRED.",
+      "expect": [{ "canonical": "language", "cv_status": "matched", "fixability": "not_fixable_now" }]
+    },
+    {
+      "id": "lang-partial",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "language", "value_text": "English B2", "level_hint": "B2", "importance_hint": "PREFERRED", "evidence_text": "English B2 preferred" }
+      ],
+      "cv_profile_signals": { "english": { "cefr": "B1", "confidence": "high" } },
+      "rationale": "PR3c: CV B1 is exactly one CEFR rank below JD B2 → partial (gap 1).",
+      "expect": [{ "canonical": "language", "cv_status": "partial", "fixability": "learn" }]
+    },
+    {
+      "id": "lang-evidenced-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "language", "value_text": "English B2", "level_hint": "B2", "importance_hint": "PREFERRED", "evidence_text": "English B2 preferred" }
+      ],
+      "cv_profile_signals": { "english": { "cefr": "A2", "confidence": "high" } },
+      "rationale": "PR3c: CV A2 is ≥2 CEFR ranks below JD B2 → missing (evidenced, not from silence).",
+      "expect": [{ "canonical": "language", "cv_status": "missing", "fixability": "learn" }]
+    },
+    {
+      "id": "edu-required-silent-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "education", "value_text": "Bachelor's degree", "importance_hint": "REQUIRED", "evidence_text": "Bachelor's degree in Computer Science required" }
+      ],
+      "rationale": "PR3c: JD requires a Bachelor (REQUIRED) but the CV evidences no degree → conservative 'missing' (CV silent + hard requirement).",
+      "expect": [{ "canonical": "education", "cv_status": "missing", "fixability": "learn", "evidence_risk": "none" }]
+    },
+    {
+      "id": "edu-preferred-silent-omitted",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "education", "value_text": "Bachelor's degree", "importance_hint": "PREFERRED", "evidence_text": "Bachelor's degree preferred" }
+      ],
+      "rationale": "PR3c: JD only PREFERS a Bachelor and the CV is silent → omit.",
+      "expect": [{ "canonical": "git", "cv_status": "matched" }],
+      "expect_absent": ["education"]
+    },
+    {
+      "id": "edu-matched",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "education", "value_text": "Bachelor's degree", "importance_hint": "REQUIRED", "evidence_text": "Bachelor's degree in CS required" }
+      ],
+      "cv_profile_signals": { "education": { "level": "master", "confidence": "high" } },
+      "rationale": "PR3c: CV master ≥ JD bachelor → matched (no partial tolerance for education).",
+      "expect": [{ "canonical": "education", "cv_status": "matched", "fixability": "not_fixable_now" }]
+    },
+    {
+      "id": "dom-silent-omitted",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "domain", "value_text": "fintech", "importance_hint": "REQUIRED", "deal_breaker": true, "evidence_text": "fintech / payment gateway experience required" }
+      ],
+      "rationale": "PR3c: domain CV-silent ALWAYS omits — a missing domain is asserted only against an evidenced CV domain that differs, never from absence (even for a deal-breaker).",
+      "expect": [{ "canonical": "git", "cv_status": "matched" }],
+      "expect_absent": ["domain"]
+    },
+    {
+      "id": "dom-mismatch-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "domain", "value_text": "fintech", "importance_hint": "PREFERRED", "evidence_text": "fintech / payment gateway experience" }
+      ],
+      "cv_profile_signals": { "domain": { "domains": ["ecommerce"], "confidence": "low" } },
+      "rationale": "PR3c: JD fintech vs CV ecommerce → missing (exact overlap only, no fuzzy/partial).",
+      "expect": [{ "canonical": "domain", "cv_status": "missing", "fixability": "learn" }]
+    },
+    {
+      "id": "dom-matched",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "domain", "value_text": "fintech", "importance_hint": "PREFERRED", "evidence_text": "fintech / payment gateway experience" }
+      ],
+      "cv_profile_signals": { "domain": { "domains": ["fintech"], "confidence": "low" } },
+      "rationale": "PR3c: JD fintech ∈ CV domains → matched.",
+      "expect": [{ "canonical": "domain", "cv_status": "matched", "fixability": "not_fixable_now" }]
+    },
+    {
+      "id": "workmode-never-graded",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "jd_dimensions": [
+        { "dimension": "work_mode", "value_text": "Onsite", "importance_hint": "REQUIRED", "deal_breaker": true, "evidence_text": "Onsite only" }
+      ],
+      "cv_profile_signals": { "work_mode": { "mode": "remote", "confidence": "low" } },
+      "rationale": "PR3c: work_mode is disclosure-only — even a deal-breaker onsite JD vs a remote CV produces NO GapItem.",
+      "expect": [{ "canonical": "git", "cv_status": "matched" }],
+      "expect_absent": ["work_mode"]
     }
   ]
 }
