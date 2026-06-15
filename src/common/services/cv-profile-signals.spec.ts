@@ -292,6 +292,16 @@ describe('review round 2 regression (MUST 1–4)', () => {
     expect(deriveCvEnglishLevel(langs('TOEIC Listening 495'))).toBeNull();
     expect(deriveCvEnglishLevel(langs('TOEIC Speaking 180'))).toBeNull();
   });
+  it('TOEIC L/R sections must each be 5..495 — out-of-range → null (no fake total)', () => {
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 500, Reading 480'))).toBeNull(); // L > 495
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 600, Reading 390'))).toBeNull(); // L > 495
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 495, Reading 480'))).toMatchObject({
+      cefr: 'C1',
+    }); // valid
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 5, Reading 5'))).toMatchObject({
+      cefr: 'A1',
+    }); // low boundary, total 10
+  });
 
   // MUST 3 — domain overmatch
   it('ecommerce checkout + thanh toán đơn hàng → ecommerce only, NO fintech', () => {

@@ -192,6 +192,18 @@
       "lang": "en",
       "document": { "experience": [{ "org": "A", "role": null, "start": null, "end": null, "location": "Remote", "bullets": [] }, { "org": "B", "role": null, "start": null, "end": null, "location": "On-site, HCMC", "bullets": [] }] },
       "expect": { "work_mode": null }
+    },
+    {
+      "id": "must2b-toeic-section-over-495-null",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 500, Reading 480"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "must2b-toeic-section-low-boundary",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 5, Reading 5"], "tools": [] } },
+      "expect": { "english": { "cefr": "A1", "source_kind": "toeic" } }
     }
   ]
 }

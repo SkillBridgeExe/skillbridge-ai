@@ -133,7 +133,7 @@ function parseIeltsScore(window: string): number | null {
  * TOEIC Listening+Reading TOTAL (10–990) from the window. Honest about notation:
  *  - "750/990" (score/max) → the numerator (750).
  *  - explicit total "= 975" / "total 975" → that total.
- *  - both "Listening N" and "Reading M" present → the intentional sum N+M (the L&R total).
+ *  - both "Listening N" and "Reading M" present, each in 5–495 → the intentional sum (out-of-range → null).
  *  - a SINGLE labelled section (only Listening OR only Reading) → null (a section ≠ a total).
  *  - otherwise a single bare number → it; ambiguous-multiple → null.
  * The CALLER gates out Speaking/Writing/Bridge (different scales) before calling this.
@@ -147,9 +147,15 @@ function parseToeicScore(window: string): number | null {
   const hasL = /listening/u.test(window);
   const hasR = /reading/u.test(window);
   if (hasL && hasR) {
-    const l = window.match(/listening\D{0,6}(\d{2,4})/u);
-    const r = window.match(/reading\D{0,6}(\d{2,4})/u);
-    return l && r ? parseInt(l[1], 10) + parseInt(r[1], 10) : null;
+    const l = window.match(/listening\D{0,6}(\d{1,4})/u);
+    const r = window.match(/reading\D{0,6}(\d{1,4})/u);
+    if (!l || !r) return null;
+    const lv = parseInt(l[1], 10);
+    const rv = parseInt(r[1], 10);
+    // Each TOEIC L/R section is scored 5–495; an out-of-range section is not a real score, so do
+    // NOT sum it into a fake total — return null.
+    if (lv < 5 || lv > 495 || rv < 5 || rv > 495) return null;
+    return lv + rv;
   }
   if (hasL || hasR) return null;
   const nums: number[] = [];
