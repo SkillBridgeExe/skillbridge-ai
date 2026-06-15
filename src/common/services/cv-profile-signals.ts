@@ -23,7 +23,7 @@ import { Confidence } from './seniority';
 
 export type SignalConfidence = Confidence; // 'low' | 'medium' | 'high'
 export type Cefr = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-const CEFR_RANK: Record<Cefr, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
+export const CEFR_RANK: Record<Cefr, number> = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5, C2: 6 };
 const CONF_RANK: Record<SignalConfidence, number> = { low: 0, medium: 1, high: 2 };
 
 export type EnglishSourceKind = 'ielts' | 'toeic' | 'cefr' | 'textual';
@@ -36,7 +36,7 @@ export interface CvEnglishSignal {
 }
 
 export type DegreeLevel = 'high_school' | 'associate' | 'bachelor' | 'master' | 'phd';
-const DEGREE_RANK: Record<DegreeLevel, number> = {
+export const DEGREE_RANK: Record<DegreeLevel, number> = {
   high_school: 1,
   associate: 2,
   bachelor: 3,
@@ -255,6 +255,34 @@ export function deriveCvEnglishLevel(doc: CanonicalCvDocument): CvEnglishSignal 
   return candidates[0] ?? null;
 }
 
+/**
+ * JD-SIDE English requirement → CEFR (PR3c). English-ONLY by design: an IELTS/TOEIC score is
+ * inherently English; a bare CEFR token is accepted ONLY when adjacent to an english cue
+ * (cefrAdjacentToEnglish) so "Japanese N2" / "French B2" / a stray "B2 level" can never fabricate an
+ * English requirement (the CV-side signal is English-only). Returns null when no English level is
+ * parseable — the caller then omits the language gap (honest). Reuses the hardened CV-side helpers.
+ */
+export function parseEnglishRequirement(text: string): Cefr | null {
+  const lower = (text ?? '').trim().toLowerCase();
+  if (!lower) return null;
+  const iw = windowAfter(lower, 'ielts');
+  if (iw !== null) {
+    const s = parseIeltsScore(iw);
+    const c = s !== null ? ieltsToCefr(s) : null;
+    if (c) return c;
+  }
+  const tw = windowAfter(lower, 'toeic');
+  if (
+    tw !== null &&
+    !/speaking|writing|s&w|s & w|bridge|4 skills|four skills|nói|noi|viết|viet/u.test(lower)
+  ) {
+    const s = parseToeicScore(tw);
+    const c = s !== null ? toeicToCefr(s) : null;
+    if (c) return c;
+  }
+  return cefrAdjacentToEnglish(lower);
+}
+
 // ── education ────────────────────────────────────────────────────────────────
 // high_school BEFORE associate so "High School Diploma" is not mis-read as associate via /diploma/.
 // Bare "diploma" is dropped (covers bootcamp/attendance diplomas); "master(?!ing)" avoids "Mastering X".
@@ -269,7 +297,7 @@ const DEGREE_PATTERNS: ReadonlyArray<readonly [DegreeLevel, RegExp]> = [
   ['associate', /associate|cao đẳng|cao dang|\bcollege\b/u],
 ];
 
-function classifyDegree(text: string): DegreeLevel | null {
+export function classifyDegree(text: string): DegreeLevel | null {
   const lower = text.toLowerCase();
   for (const [level, re] of DEGREE_PATTERNS) if (re.test(lower)) return level;
   return null;
@@ -361,6 +389,13 @@ const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ],
 ];
 
+/** PURE: canonical industry domains present in a free-text blob (shared by the CV-side derivation and
+ *  the JD-side grader). Exact multi-word anchors only — generic dev vocabulary never fabricates one. */
+export function classifyDomains(text: string): string[] {
+  const lower = (text ?? '').toLowerCase();
+  return DOMAIN_PATTERNS.filter(([, re]) => re.test(lower)).map(([dom]) => dom);
+}
+
 export function deriveCvDomain(doc: CanonicalCvDocument): CvDomainSignal | null {
   const texts: string[] = [doc.summary ?? ''];
   for (const e of doc.experience ?? []) texts.push(e.org ?? '', e.role ?? '', ...(e.bullets ?? []));
@@ -368,7 +403,7 @@ export function deriveCvDomain(doc: CanonicalCvDocument): CvDomainSignal | null 
     texts.push(p.name ?? '', ...(p.bullets ?? []), ...(p.tech ?? []));
   const hay = texts.join(' \n ').toLowerCase();
 
-  const domains = DOMAIN_PATTERNS.filter(([, re]) => re.test(hay)).map(([dom]) => dom);
+  const domains = classifyDomains(hay);
   if (domains.length === 0) return null;
   domains.sort();
   return {
