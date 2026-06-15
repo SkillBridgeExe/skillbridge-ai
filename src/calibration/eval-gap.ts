@@ -34,6 +34,14 @@ import {
   SeniorityBucket,
   Confidence,
 } from '../common/services/seniority';
+import {
+  Cefr,
+  CEFR_RANK,
+  DegreeLevel,
+  DEGREE_RANK,
+  CvProfileSignals,
+  SignalConfidence,
+} from '../common/services/cv-profile-signals';
 
 interface GapCase {
   id: string;
@@ -50,6 +58,14 @@ interface GapCase {
   jd_dimensions?: RawJdDimension[];
   /** PR3: fixture CV seniority (the deriveCvSeniority output) — the CV-side signal for the gap. */
   cv_seniority?: { bucket: string; est_years?: number | null; confidence: string };
+  /** PR3c: fixture CV profile signals (deriveCvProfileSignals output) — the CV-side input for grading
+   *  language/education/domain. Omit a sub-field to model "CV silent" on that dimension. */
+  cv_profile_signals?: {
+    english?: { cefr: string; confidence?: string };
+    education?: { level: string | null; field?: string | null; confidence?: string };
+    domain?: { domains: string[]; confidence?: string };
+    work_mode?: { mode: string; confidence?: string };
+  };
   expect: Array<{
     canonical: string;
     cv_status: string;
@@ -147,6 +163,54 @@ async function main(): Promise<void> {
         signals: [],
       };
     }
+    // PR3c: build the fixture CV profile signals (the deriveCvProfileSignals output). Omit a sub-field
+    // to model CV silence on that dimension. Data-sanity validates the enums so a typo can't pass.
+    let cvProfileSignals: CvProfileSignals | null = null;
+    const cps = c.cv_profile_signals;
+    if (cps) {
+      if (cps.english && !(cps.english.cefr in CEFR_RANK)) {
+        dataErrors.push(`  ${c.id}: cv_profile_signals.english.cefr "${cps.english.cefr}" is not a CEFR level`);
+      }
+      if (cps.education && cps.education.level !== null && !(cps.education.level in DEGREE_RANK)) {
+        dataErrors.push(
+          `  ${c.id}: cv_profile_signals.education.level "${String(cps.education.level)}" is not a DegreeLevel`,
+        );
+      }
+      cvProfileSignals = {
+        english: cps.english
+          ? {
+              cefr: cps.english.cefr as Cefr,
+              source_kind: 'cefr',
+              raw: '',
+              confidence: (cps.english.confidence ?? 'high') as SignalConfidence,
+              signals: [],
+            }
+          : null,
+        education: cps.education
+          ? {
+              level: cps.education.level as DegreeLevel | null,
+              field: cps.education.field ?? null,
+              confidence: (cps.education.confidence ?? 'high') as SignalConfidence,
+              signals: [],
+            }
+          : null,
+        domain: cps.domain
+          ? {
+              domains: cps.domain.domains,
+              confidence: (cps.domain.confidence ?? 'low') as SignalConfidence,
+              signals: [],
+            }
+          : null,
+        work_mode: cps.work_mode
+          ? {
+              mode: cps.work_mode.mode as 'remote' | 'hybrid' | 'onsite',
+              confidence: (cps.work_mode.confidence ?? 'low') as SignalConfidence,
+              signals: [],
+            }
+          : null,
+      };
+    }
+
     // Data sanity: a seniority fixture that PROVIDES a level_hint must coerce to a known rank, else it
     // would silently never grade (a missing level_hint is a deliberate omission case — allowed).
     for (const d of c.jd_dimensions ?? []) {
@@ -168,6 +232,7 @@ async function main(): Promise<void> {
       marketDemand: c.market_demand ? new Map(Object.entries(c.market_demand)) : null,
       jdDimensions,
       cvSeniority,
+      cvProfileSignals,
     });
     const byCanonical = new Map(items.map((g) => [g.canonical_name, g]));
 
