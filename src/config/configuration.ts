@@ -48,6 +48,7 @@ export default () => ({
   // to v1|v2 at boot. Flip to v2 here (after A/B drift check) or override via Cloud Run env.
   cvJdMatch: {
     templateCode: process.env.CV_JD_MATCH_TEMPLATE_CODE ?? 'cv_jd_match_v1',
+    extractionCacheEnabled: process.env.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED !== 'false',
   },
 
   database: {

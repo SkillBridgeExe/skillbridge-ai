@@ -407,3 +407,187 @@ describe('CvJdMatchService — jd_dimensions extraction (PR3)', () => {
     expect(res.parsed_response.jd_dimensions).toEqual([]);
   });
 });
+
+describe('CvJdMatchService — extraction cache', () => {
+  const diffResult = {
+    matched_skills: [{ name: 'React', required_level: 3, cv_level: 4, importance: 'REQUIRED' }],
+    partial_skills: [],
+    missing_skills: [],
+    bonus_skills: [],
+    unnormalized_cv_skills: [],
+    unnormalized_jd_requirements: [],
+    match_ratio: 1,
+    required_coverage: 1,
+    overall_score: 88,
+    requirements_source: 'jd',
+    scoring_breakdown: {
+      total_requirements: 1,
+      matched_count: 1,
+      partial_count: 0,
+      missing_count: 0,
+      weight_sum: 3,
+      achieved_weight: 3,
+      required_total: 1,
+      required_met: 1,
+      raw_weighted_score: 88,
+      cap_applied: false,
+    },
+    inferred_skills: [],
+  };
+
+  const extraction = {
+    cv_skills_raw: [
+      { name: 'React', proficiency_hint: 'ADVANCED', evidence_text: 'Built React UI' },
+    ],
+    jd_requirements_raw: [
+      { name: 'React', importance: 'REQUIRED', evidence_text: 'React is required' },
+    ],
+    jd_dimensions_raw: [],
+    jd_dimensions: [],
+  };
+
+  const baseInput = {
+    cv_id: 'cv-1',
+    cv_text:
+      'Frontend developer with React and TypeScript experience building production dashboards at FPT Software.',
+    jd_text:
+      'We are hiring a frontend developer to build React dashboards, maintain TypeScript components, collaborate with backend engineers, and improve product quality.',
+    scoring_template_code: 'cv_jd_match_v1',
+    target_role: 'frontend_developer',
+  };
+
+  const build = (opts?: { cacheRead?: unknown; llmExtraction?: unknown }) => {
+    const llm = {
+      complete: jest.fn().mockResolvedValue({
+        parsedJson: opts?.llmExtraction ?? {
+          cv_skills_raw: extraction.cv_skills_raw,
+          jd_requirements_raw: extraction.jd_requirements_raw,
+        },
+        rawResponse: '{"ok":true}',
+        tokenUsage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+        estimatedCostUsd: 0.001,
+        latencyMs: 42,
+        modelCode: 'gpt-5.4-mini',
+      }),
+    };
+    const prompts = {
+      get: jest.fn().mockReturnValue({ code: 'cv_jd_match_v1', version: 1, meta: { system: 's' } }),
+      render: jest.fn().mockReturnValue('rendered'),
+    };
+    const tracing = {
+      startAiRequest: jest.fn().mockResolvedValue('req-1'),
+      saveAiResult: jest.fn().mockResolvedValue('res-1'),
+      completeAiRequest: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+    };
+    const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
+    const scanner = { scan: jest.fn().mockReturnValue([]) };
+    const config = {
+      get: jest.fn((key: string) => {
+        const values: Record<string, string | boolean> = {
+          'llm.providerDefault': 'openai',
+          'llm.openai.modelDefault': 'gpt-5.4-mini',
+          'cvJdMatch.extractionCacheEnabled': true,
+        };
+        return values[key];
+      }),
+    };
+    const cache = {
+      hashKey: jest.fn().mockReturnValue('cache-key'),
+      read: jest.fn().mockResolvedValue(opts?.cacheRead ?? null),
+      write: jest.fn().mockResolvedValue(undefined),
+      recordHit: jest.fn().mockResolvedValue(undefined),
+    };
+    const svc = new CvJdMatchService(
+      llm as never,
+      prompts as never,
+      tracing as never,
+      skillDiff as never,
+      scanner as never,
+      config as never,
+      cache as never,
+    );
+    return { svc, llm, prompts, tracing, skillDiff, cache };
+  };
+
+  it('cache miss calls the LLM once, writes extraction, and persists the full match result', async () => {
+    const { svc, llm, cache, tracing } = build();
+
+    const res = await svc.match('user-1', baseInput as never);
+
+    expect(cache.hashKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cvText: baseInput.cv_text,
+        jdText: baseInput.jd_text,
+        templateCode: 'cv_jd_match_v1',
+        provider: 'openai',
+        modelCode: 'gpt-5.4-mini',
+      }),
+    );
+    expect(cache.read).toHaveBeenCalledWith('cache-key');
+    expect(llm.complete).toHaveBeenCalledTimes(1);
+    expect(cache.write).toHaveBeenCalledWith(
+      'cache-key',
+      expect.objectContaining({
+        cv_skills_raw: extraction.cv_skills_raw,
+        jd_requirements_raw: extraction.jd_requirements_raw,
+        jd_dimensions_raw: [],
+        jd_dimensions: [],
+      }),
+      expect.objectContaining({
+        provider: 'openai',
+        modelCode: 'gpt-5.4-mini',
+        templateCode: 'cv_jd_match_v1',
+        promptTemplateVersion: 1,
+      }),
+    );
+    expect(tracing.saveAiResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parsedResponse: expect.objectContaining({ overall_score: 88 }),
+      }),
+    );
+    expect(res.parsed_response.overall_score).toBe(88);
+  });
+
+  it('cache hit bypasses the LLM and completes tracing with zero tokens', async () => {
+    const { svc, llm, cache, tracing } = build({ cacheRead: extraction });
+
+    const res = await svc.match('user-1', baseInput as never);
+
+    expect(llm.complete).not.toHaveBeenCalled();
+    expect(cache.recordHit).toHaveBeenCalledWith('cache-key');
+    expect(tracing.completeAiRequest).toHaveBeenCalledWith(
+      'req-1',
+      expect.objectContaining({
+        status: 'SUCCESS',
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        modelCode: 'gpt-5.4-mini',
+      }),
+    );
+    expect(res.parsed_response.overall_score).toBe(88);
+  });
+
+  it('off-topic JD guard still rejects cached extraction with zero JD requirements', async () => {
+    const { svc, llm, tracing, skillDiff } = build({
+      cacheRead: {
+        cv_skills_raw: extraction.cv_skills_raw,
+        jd_requirements_raw: [],
+        jd_dimensions_raw: [],
+        jd_dimensions: [],
+      },
+    });
+
+    await expect(svc.match('user-1', baseInput as never)).rejects.toMatchObject({
+      response: { code: 'JD_CONTENT_INSUFFICIENT' },
+    });
+
+    expect(llm.complete).not.toHaveBeenCalled();
+    expect(skillDiff.diff).not.toHaveBeenCalled();
+    expect(tracing.completeAiRequest).toHaveBeenCalledWith(
+      'req-1',
+      expect.objectContaining({ status: 'SUCCESS', totalTokens: 0 }),
+    );
+  });
+});
