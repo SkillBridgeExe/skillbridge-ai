@@ -459,6 +459,30 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
       expect(g.cv_status).toBe('partial'); // CV B2(4) is one below C1(5) → partial
       expect(g.gap_levels).toBe(1);
     });
+    it('multi-dim CV-silent: a higher PREFERRED must NOT hide a lower REQUIRED (grade vs strictest HARD)', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          langDim({
+            value_text: 'English C1',
+            level_hint: 'C1',
+            evidence_text: 'English C1 a plus',
+            importance: 'PREFERRED',
+          }),
+          langDim({
+            value_text: 'English B1',
+            level_hint: 'B1',
+            evidence_text: 'English B1 required',
+            importance: 'REQUIRED',
+          }),
+        ],
+        sig(),
+      );
+      expect(g).toBeDefined();
+      expect(g.cv_status).toBe('missing');
+      expect(g.from_silence).toBe(true);
+      expect(g.importance).toBe('REQUIRED');
+      expect(g.required_level).toBe(3); // B1 rank (the HARD requirement), NOT C1
+    });
   });
 
   describe('education (degree ordered scale, no partial)', () => {
@@ -492,6 +516,27 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
           sig({ education: eduSig('bachelor') }),
         ),
       ).toEqual([]);
+    });
+    it('multi-dim CV-silent: a higher PREFERRED must NOT hide a lower REQUIRED', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          eduDim({
+            value_text: "Master's degree",
+            evidence_text: "Master's preferred",
+            importance: 'PREFERRED',
+          }),
+          eduDim({
+            value_text: "Bachelor's degree",
+            evidence_text: "Bachelor's required",
+            importance: 'REQUIRED',
+          }),
+        ],
+        sig(),
+      );
+      expect(g.cv_status).toBe('missing');
+      expect(g.from_silence).toBe(true);
+      expect(g.importance).toBe('REQUIRED');
+      expect(g.required_level).toBe(3); // bachelor rank (the HARD requirement), NOT master
     });
   });
 

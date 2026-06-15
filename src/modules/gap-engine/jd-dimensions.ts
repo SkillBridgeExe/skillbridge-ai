@@ -275,16 +275,20 @@ export function gradeLanguage(
       from_silence: false,
     };
   }
-  if (!isHardRequirement(best.dim)) return null; // CV silent + soft requirement → honest omission
+  // CV silent: emit only for a HARD requirement, graded against the strictest HARD one — a higher
+  // PREFERRED requirement must NOT hide a lower REQUIRED one (multi-dim mixed-importance case).
+  const hard = cands.filter((c) => isHardRequirement(c.dim));
+  if (hard.length === 0) return null; // no hard requirement → honest omission
+  const bestHard = pickStrictest(hard);
   return {
     type: 'language',
     canonical_name: 'language',
-    dims: [best.dim],
+    dims: [bestHard.dim],
     cv_status: 'missing',
     cv_level: null,
-    required_level: jdRank,
-    gap_levels: jdRank,
-    importance: best.dim.importance,
+    required_level: bestHard.rank,
+    gap_levels: bestHard.rank,
+    importance: bestHard.dim.importance,
     confidence: SILENCE_CONFIDENCE,
     from_silence: true,
   };
@@ -325,16 +329,20 @@ export function gradeEducation(
       from_silence: false,
     };
   }
-  if (!isHardRequirement(best.dim)) return null; // CV silent / field-only + soft requirement → omit
+  // CV silent / field-only: emit only for a HARD requirement, graded against the strictest HARD one
+  // (a higher PREFERRED degree must NOT hide a lower REQUIRED one).
+  const hard = cands.filter((c) => isHardRequirement(c.dim));
+  if (hard.length === 0) return null;
+  const bestHard = pickStrictest(hard);
   return {
     type: 'education',
     canonical_name: 'education',
-    dims: [best.dim],
+    dims: [bestHard.dim],
     cv_status: 'missing',
     cv_level: null,
-    required_level: jdRank,
-    gap_levels: jdRank,
-    importance: best.dim.importance,
+    required_level: bestHard.rank,
+    gap_levels: bestHard.rank,
+    importance: bestHard.dim.importance,
     confidence: SILENCE_CONFIDENCE,
     from_silence: true,
   };
