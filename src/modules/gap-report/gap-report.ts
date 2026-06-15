@@ -8,6 +8,7 @@ import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response
 import { EvidenceLedger } from '../../common/services/evidence-ledger';
 import { CvSeniority, ExperienceVerdict } from '../../common/services/seniority';
 import { JdDimension, JdDimensionType, gradeSeniority } from '../gap-engine/jd-dimensions';
+import { CvProfileSignals } from '../../common/services/cv-profile-signals';
 
 export interface EvidenceGapItem {
   skill_canonical: string;
@@ -85,11 +86,49 @@ const JD_INTEL_NOTE = {
   en: 'Only seniority is graded so far (it has CV-side evidence). Language, education, domain and work mode are read from the JD but NOT yet graded — pending CV-side parsing.',
 } as const;
 
+/** Human-readable CV-side signal per dimension (enums/derived values only — never raw CV text).
+ *  The seniority format is UNCHANGED (byte-identical); PR3b fills language/education/domain/work_mode
+ *  from the CV profile signals. Returns null when the CV gives no signal for that dimension. */
+function cvSignalFor(
+  dimension: JdDimensionType,
+  cvSeniority: CvSeniority | null,
+  signals: CvProfileSignals | null,
+): string | null {
+  switch (dimension) {
+    case 'seniority':
+      return cvSeniority
+        ? `${cvSeniority.bucket}${cvSeniority.est_years != null ? ` (~${cvSeniority.est_years}y)` : ''} · ${cvSeniority.confidence}`
+        : null;
+    case 'language': {
+      const e = signals?.english;
+      return e ? `${e.cefr} (${e.source_kind}) · ${e.confidence}` : null;
+    }
+    case 'education': {
+      const ed = signals?.education;
+      return ed
+        ? `${ed.level ?? 'field-only'}${ed.field ? ` · ${ed.field}` : ''} · ${ed.confidence}`
+        : null;
+    }
+    case 'domain': {
+      const dm = signals?.domain;
+      return dm ? `${dm.domains.join(', ')} · ${dm.confidence}` : null;
+    }
+    case 'work_mode': {
+      const w = signals?.work_mode;
+      return w ? `${w.mode} · ${w.confidence}` : null;
+    }
+    default:
+      return null;
+  }
+}
+
 /** Pure: turn the extracted JD dimensions into the disclosure block. Seniority gets a fit verdict +
- *  CV signal (and graded=true when a gap_item was emitted); the other dims are read-only for now. */
+ *  graded=true when a gap_item was emitted; PR3b fills cv_signal for the other four from the CV
+ *  profile signals (still graded=false / verdict=null — grading those is a later PR). */
 function buildJdIntelligence(
   dims: JdDimension[],
   cvSeniority: CvSeniority | null,
+  cvSignals: CvProfileSignals | null,
   lang: 'vi' | 'en',
 ): JdIntelligenceBlock {
   // The ONE seniority dim that actually became a gap_item — via the SHARED gradeSeniority decision,
@@ -97,10 +136,6 @@ function buildJdIntelligence(
   const grade = gradeSeniority(dims, cvSeniority);
   const dimensions: JdIntelligenceItem[] = dims.map((d) => {
     const isGraded = !!grade && d === grade.dim;
-    const cv_signal =
-      d.dimension === 'seniority' && cvSeniority
-        ? `${cvSeniority.bucket}${cvSeniority.est_years != null ? ` (~${cvSeniority.est_years}y)` : ''} · ${cvSeniority.confidence}`
-        : null;
     return {
       dimension: d.dimension,
       value_text: d.value_text,
@@ -110,7 +145,7 @@ function buildJdIntelligence(
       deal_breaker: d.deal_breaker,
       evidence_text: d.evidence_text,
       graded: isGraded,
-      cv_signal,
+      cv_signal: cvSignalFor(d.dimension, cvSeniority, cvSignals),
       // Assert a verdict ONLY for the dim we actually graded; a weak/omitted signal stays null so the
       // disclosure never claims a fit the grader declined to make (honesty).
       verdict: isGraded ? grade.verdict : null,
@@ -131,6 +166,7 @@ export function buildGapReportCore(
   match: CvJdMatchParsedResponse,
   ledger: EvidenceLedger | null,
   cvSeniority: CvSeniority | null,
+  cvSignals: CvProfileSignals | null,
   lang: 'vi' | 'en',
 ): GapReportCore {
   const present: Array<MatchedSkill | PartialSkill> = [
@@ -172,7 +208,7 @@ export function buildGapReportCore(
   // the v1 path so legacy output is byte-identical (additive, cross-lane-safe).
   const jdDims = match.jd_dimensions ?? [];
   const jd_intelligence = jdDims.length
-    ? buildJdIntelligence(jdDims, cvSeniority, lang)
+    ? buildJdIntelligence(jdDims, cvSeniority, cvSignals, lang)
     : undefined;
 
   return {

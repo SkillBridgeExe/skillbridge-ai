@@ -1,0 +1,209 @@
+{
+  "$note": "CV Profile Signals (PR3b) accuracy + non-fabrication cases. Offline, 0 LLM. Gate: pnpm eval:cv-signals (strict: EVAL_CV_SIGNALS_STRICT=1). Each case runs deriveCvProfileSignals(document) and asserts the per-family expectation. expect.<fam>=null asserts NO signal (anti-fabrication). expect.domain.includes asserts those domains are present. No PII.",
+  "version": "eval-cv-signals-v1",
+  "cases": [
+    {
+      "id": "ielts-65-en",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English (IELTS 6.5)"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "ielts", "confidence": "high" }, "education": null, "domain": null, "work_mode": null }
+    },
+    {
+      "id": "toeic-750-en",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC 750"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "toeic", "confidence": "high" } }
+    },
+    {
+      "id": "cefr-b2-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Anh B2"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "cefr", "confidence": "high" } }
+    },
+    {
+      "id": "ielts-cert-en",
+      "lang": "en",
+      "document": { "certifications": [{ "name": "IELTS Academic 7.0", "issuer": "British Council", "date": "2024" }] },
+      "expect": { "english": { "cefr": "C1", "source_kind": "ielts" } }
+    },
+    {
+      "id": "textual-giao-tiep-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Anh giao tiếp"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "textual", "confidence": "low" } }
+    },
+    {
+      "id": "driving-b2-negative-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Bằng lái xe hạng B2"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "japanese-negative-vi",
+      "lang": "vi",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["Tiếng Nhật N3"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "fpt-se-edu-en",
+      "lang": "en",
+      "document": { "education": [{ "school": "FPT University", "degree": null, "field": "Software Engineering", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "bachelor", "field": "Software Engineering", "confidence": "medium" }, "english": null }
+    },
+    {
+      "id": "cu-nhan-edu-vi",
+      "lang": "vi",
+      "document": { "education": [{ "school": "Đại học Bách Khoa", "degree": "Cử nhân", "field": "Kỹ thuật phần mềm", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "bachelor", "field": "Kỹ thuật phần mềm", "confidence": "high" } }
+    },
+    {
+      "id": "master-edu-en",
+      "lang": "en",
+      "document": { "education": [{ "school": "ABC", "degree": "Master of Computer Science", "field": "Computer Science", "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "master", "confidence": "high" } }
+    },
+    {
+      "id": "ecommerce-domain-en",
+      "lang": "en",
+      "document": { "projects": [{ "name": "E-commerce booking platform", "role": null, "tech": [], "bullets": ["payment checkout + order management", "shopping cart"], "link": null }] },
+      "expect": { "domain": { "includes": ["ecommerce"] } }
+    },
+    {
+      "id": "fintech-domain-vi",
+      "lang": "vi",
+      "document": { "experience": [{ "org": "VPBank", "role": "Backend", "start": null, "end": null, "location": null, "bullets": ["xây dựng ví điện tử thanh toán", "banking core"] }] },
+      "expect": { "domain": { "includes": ["fintech"] } }
+    },
+    {
+      "id": "no-domain-negative-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["internal tooling and refactors"] }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "remote-workmode-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Remote", "bullets": [] }] },
+      "expect": { "work_mode": { "mode": "remote", "confidence": "low" } }
+    },
+    {
+      "id": "no-workmode-negative-en",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Hồ Chí Minh", "bullets": [] }] },
+      "expect": { "work_mode": null }
+    },
+    {
+      "id": "all-null-no-signal",
+      "lang": "en",
+      "document": { "summary": "Motivated student seeking opportunities.", "skills": { "technical": ["Java"], "soft": [], "languages": [], "tools": [] } },
+      "expect": { "english": null, "education": null, "domain": null, "work_mode": null }
+    },
+    {
+      "id": "combined-all-four-en",
+      "lang": "en",
+      "document": {
+        "skills": { "technical": [], "soft": [], "languages": ["English (IELTS 6.5)"], "tools": [] },
+        "education": [{ "school": "FPT University", "degree": "Bachelor", "field": "Software Engineering", "start": null, "end": null, "gpa": null, "highlights": [] }],
+        "projects": [{ "name": "E-commerce platform", "role": null, "tech": [], "bullets": ["payment checkout"], "link": null }],
+        "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": "Remote", "bullets": [] }]
+      },
+      "expect": { "english": { "cefr": "B2" }, "education": { "level": "bachelor" }, "domain": { "includes": ["ecommerce"] }, "work_mode": { "mode": "remote" } }
+    },
+    {
+      "id": "adv-ielts-prep-negative",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["IELTS preparation, 2 years"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "adv-toeic-speaking-negative",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Speaking 180"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "adv-toeic-subscore-total",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English - TOEIC Listening 495, Reading 480 = 975"], "tools": [] } },
+      "expect": { "english": { "cefr": "C1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "adv-multilang-french-english",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["French - fluent, English - basic"], "tools": [] } },
+      "expect": { "english": { "cefr": "A2", "source_kind": "textual" } }
+    },
+    {
+      "id": "adv-domain-generic-negative",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["Continuous delivery pipeline (CI/CD)", "shipping the MVP"] }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "adv-workmode-bullet-negative",
+      "lang": "en",
+      "document": { "experience": [{ "org": "X", "role": "Dev", "start": null, "end": null, "location": null, "bullets": ["Built a remote procedure call (RPC) service", "hybrid cloud architecture"] }] },
+      "expect": { "work_mode": null }
+    },
+    {
+      "id": "adv-highschool-diploma",
+      "lang": "en",
+      "document": { "education": [{ "school": "X", "degree": "High School Diploma", "field": null, "start": null, "end": null, "gpa": null, "highlights": [] }] },
+      "expect": { "education": { "level": "high_school" } }
+    },
+    {
+      "id": "must1-ielts-score-max",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English IELTS 6.5/9.0"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "ielts" } }
+    },
+    {
+      "id": "must1-toeic-score-max",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC 750/990"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "must2-toeic-lr-sum-no-total",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English - TOEIC Listening 495, Reading 480"], "tools": [] } },
+      "expect": { "english": { "cefr": "C1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "must2-toeic-single-section-null",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 495"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "must3-ecommerce-not-fintech",
+      "lang": "vi",
+      "document": { "projects": [{ "name": "Ecommerce store", "role": null, "tech": [], "bullets": ["checkout + thanh toán đơn hàng"], "link": null }] },
+      "expect": { "domain": { "includes": ["ecommerce"] } }
+    },
+    {
+      "id": "must3-unity-not-gaming",
+      "lang": "en",
+      "document": { "projects": [{ "name": "Unity AR training simulator", "role": null, "tech": ["Unity"], "bullets": ["VR sim"], "link": null }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "must4-workmode-conflict-null",
+      "lang": "en",
+      "document": { "experience": [{ "org": "A", "role": null, "start": null, "end": null, "location": "Remote", "bullets": [] }, { "org": "B", "role": null, "start": null, "end": null, "location": "On-site, HCMC", "bullets": [] }] },
+      "expect": { "work_mode": null }
+    },
+    {
+      "id": "must2b-toeic-section-over-495-null",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 500, Reading 480"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "must2b-toeic-section-low-boundary",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 5, Reading 5"], "tools": [] } },
+      "expect": { "english": { "cefr": "A1", "source_kind": "toeic" } }
+    }
+  ]
+}
