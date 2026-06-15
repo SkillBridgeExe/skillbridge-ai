@@ -282,7 +282,11 @@ describe('buildGapReportCore (pure)', () => {
       work_mode: null,
     };
     const core = buildGapReportCore(m, null, null, signals, 'en');
-    const gapItems = buildGapItems({ match: m, jdDimensions: jd_dimensions, cvProfileSignals: signals });
+    const gapItems = buildGapItems({
+      match: m,
+      jdDimensions: jd_dimensions,
+      cvProfileSignals: signals,
+    });
     const gradedDims = new Set(
       (core.jd_intelligence?.dimensions ?? []).filter((d) => d.graded).map((d) => d.dimension),
     );

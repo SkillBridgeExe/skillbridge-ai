@@ -169,7 +169,9 @@ async function main(): Promise<void> {
     const cps = c.cv_profile_signals;
     if (cps) {
       if (cps.english && !(cps.english.cefr in CEFR_RANK)) {
-        dataErrors.push(`  ${c.id}: cv_profile_signals.english.cefr "${cps.english.cefr}" is not a CEFR level`);
+        dataErrors.push(
+          `  ${c.id}: cv_profile_signals.english.cefr "${cps.english.cefr}" is not a CEFR level`,
+        );
       }
       if (cps.education && cps.education.level !== null && !(cps.education.level in DEGREE_RANK)) {
         dataErrors.push(

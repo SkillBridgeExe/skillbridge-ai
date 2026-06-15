@@ -523,7 +523,10 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
   describe('work_mode is disclosure-only — NEVER graded', () => {
     it('any work_mode dim + any signal → []', () => {
       expect(
-        gradeNonSkillDimensions([wmDim()], sig({ work_mode: { mode: 'remote', confidence: 'low', signals: [] } })),
+        gradeNonSkillDimensions(
+          [wmDim()],
+          sig({ work_mode: { mode: 'remote', confidence: 'low', signals: [] } }),
+        ),
       ).toEqual([]);
       expect(gradeNonSkillDimensions([wmDim()], sig())).toEqual([]);
     });
