@@ -2872,14 +2872,6 @@
       "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. 'artificial neural network'. Deliberately NOT 'mạng nơ-ron' (that IS a deep_learning alias -> would resolve). 'mạng thần kinh nhân tạo' is unindexed; 4 tokens none aliased. -> deep_learning."
     },
     {
-      "mention": "CEFR",
-      "lang": "en",
-      "expected": ["english_proficiency"],
-      "category": "alias",
-      "requires": [],
-      "note": "NEW (RED before alias add): contextual CEFR token -> english_proficiency."
-    },
-    {
       "mention": "CEFR B2",
       "lang": "en",
       "expected": ["english_proficiency"],
