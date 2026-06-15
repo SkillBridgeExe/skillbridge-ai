@@ -483,6 +483,69 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
       expect(g.importance).toBe('REQUIRED');
       expect(g.required_level).toBe(3); // B1 rank (the HARD requirement), NOT C1
     });
+    it('multi-dim CV-present below BOTH: a lower REQUIRED outranks a higher PREFERRED (report the hard miss)', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          langDim({
+            value_text: 'English C1',
+            level_hint: 'C1',
+            evidence_text: 'English C1 a plus',
+            importance: 'PREFERRED',
+          }),
+          langDim({
+            value_text: 'English B2',
+            level_hint: 'B2',
+            evidence_text: 'English B2 required',
+            importance: 'REQUIRED',
+          }),
+        ],
+        sig({ english: eng('A2') }),
+      );
+      expect(g.cv_status).toBe('missing');
+      expect(g.importance).toBe('REQUIRED'); // graded against the hard B2, not the soft C1
+      expect(g.required_level).toBe(4); // B2 rank
+    });
+    it('multi-dim CV-present meets REQUIRED but below PREFERRED → report the preferred gap (partial)', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          langDim({
+            value_text: 'English B1',
+            level_hint: 'B1',
+            evidence_text: 'English B1 required',
+            importance: 'REQUIRED',
+          }),
+          langDim({
+            value_text: 'English C1',
+            level_hint: 'C1',
+            evidence_text: 'English C1 preferred',
+            importance: 'PREFERRED',
+          }),
+        ],
+        sig({ english: eng('B2') }),
+      );
+      expect(g.importance).toBe('PREFERRED'); // meets B1-required; graded vs the C1-preferred shortfall
+      expect(g.cv_status).toBe('partial'); // B2 one below C1
+    });
+    it('multi-dim CV-present meets ALL requirements → matched', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          langDim({
+            value_text: 'English B1',
+            level_hint: 'B1',
+            evidence_text: 'English B1 required',
+            importance: 'REQUIRED',
+          }),
+          langDim({
+            value_text: 'English C1',
+            level_hint: 'C1',
+            evidence_text: 'English C1 preferred',
+            importance: 'PREFERRED',
+          }),
+        ],
+        sig({ english: eng('C2') }),
+      );
+      expect(g.cv_status).toBe('matched');
+    });
   });
 
   describe('education (degree ordered scale, no partial)', () => {
@@ -516,6 +579,41 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
           sig({ education: eduSig('bachelor') }),
         ),
       ).toEqual([]);
+    });
+    it('multi-dim CV-present below BOTH: a lower REQUIRED outranks a higher PREFERRED', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          eduDim({
+            value_text: "Master's degree",
+            evidence_text: "Master's preferred",
+            importance: 'PREFERRED',
+          }),
+          eduDim({
+            value_text: "Bachelor's degree",
+            evidence_text: "Bachelor's required",
+            importance: 'REQUIRED',
+          }),
+        ],
+        sig({ education: eduSig('high_school') }),
+      );
+      expect(g.cv_status).toBe('missing');
+      expect(g.importance).toBe('REQUIRED');
+      expect(g.required_level).toBe(3); // bachelor rank, not master
+    });
+    it('multi-dim CV-present meets REQUIRED but below PREFERRED → missing vs preferred (edu has no partial)', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          eduDim({
+            value_text: "Bachelor's degree",
+            evidence_text: "Bachelor's required",
+            importance: 'REQUIRED',
+          }),
+          eduDim({ value_text: 'PhD', evidence_text: 'PhD preferred', importance: 'PREFERRED' }),
+        ],
+        sig({ education: eduSig('master') }),
+      );
+      expect(g.importance).toBe('PREFERRED'); // meets Bachelor-required; graded vs the PhD-preferred shortfall
+      expect(g.cv_status).toBe('missing'); // master < phd; education has no partial bucket
     });
     it('multi-dim CV-silent: a higher PREFERRED must NOT hide a lower REQUIRED', () => {
       const [g] = gradeNonSkillDimensions(

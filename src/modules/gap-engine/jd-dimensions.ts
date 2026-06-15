@@ -231,6 +231,20 @@ function pickStrictest<T extends { dim: JdDimension; rank: number }>(cands: T[])
   });
 }
 
+/** Pick the HIGHEST-RISK candidate: importance desc FIRST, then rank desc, then deal-breaker. Used to
+ *  decide which unmet requirement a CV is graded against — so failing a lower REQUIRED outranks falling
+ *  short of a higher PREFERRED (the screening risk lives in the hard requirement). Order-independent. */
+function pickByRisk<T extends { dim: JdDimension; rank: number }>(cands: T[]): T {
+  return cands.reduce((a, b) => {
+    const ia = IMPORTANCE_ORDER[a.dim.importance] ?? 0;
+    const ib = IMPORTANCE_ORDER[b.dim.importance] ?? 0;
+    if (ib !== ia) return ib > ia ? b : a;
+    if (b.rank !== a.rank) return b.rank > a.rank ? b : a;
+    if (a.dim.deal_breaker !== b.dim.deal_breaker) return b.dim.deal_breaker ? b : a;
+    return a;
+  });
+}
+
 /** PURE: grade the JD's English requirement against the CV english signal (CEFR ordered scale). */
 export function gradeLanguage(
   dims: JdDimension[] | null | undefined,
@@ -245,11 +259,15 @@ export function gradeLanguage(
     .filter((c): c is { dim: JdDimension; cefr: Cefr } => c.cefr !== null)
     .map((c) => ({ dim: c.dim, rank: CEFR_RANK[c.cefr] }));
   if (cands.length === 0) return null;
-  const best = pickStrictest(cands);
-  const jdRank = best.rank;
   const cv = signals?.english ?? null;
   if (cv) {
     const cvRank = CEFR_RANK[cv.cefr];
+    // Grade against the requirement that matters most: among those the CV FAILS, the highest-RISK one
+    // (importance desc, then level desc) — so failing a lower REQUIRED outranks falling short of a
+    // higher PREFERRED. If the CV meets every requirement, grade against the strictest (→ matched).
+    const failed = cands.filter((c) => cvRank < c.rank);
+    const target = failed.length ? pickByRisk(failed) : pickStrictest(cands);
+    const jdRank = target.rank;
     let cv_status: NonSkillStatus;
     let gap_levels: number;
     if (cvRank >= jdRank) {
@@ -265,12 +283,12 @@ export function gradeLanguage(
     return {
       type: 'language',
       canonical_name: 'language',
-      dims: [best.dim],
+      dims: [target.dim],
       cv_status,
       cv_level: cvRank,
       required_level: jdRank,
       gap_levels,
-      importance: best.dim.importance,
+      importance: target.dim.importance,
       confidence: confFromSignal(cv.confidence),
       from_silence: false,
     };
@@ -309,22 +327,25 @@ export function gradeEducation(
     .filter((c): c is { dim: JdDimension; level: DegreeLevel } => c.level !== null)
     .map((c) => ({ dim: c.dim, rank: DEGREE_RANK[c.level] }));
   if (cands.length === 0) return null;
-  const best = pickStrictest(cands);
-  const jdRank = best.rank;
   const edu = signals?.education ?? null;
   const cvLevel = edu?.level ?? null;
   if (edu && cvLevel) {
     const cvRank = DEGREE_RANK[cvLevel];
+    // Same risk policy as language: grade against the highest-RISK unmet degree requirement (importance
+    // desc, then level desc); if the CV meets all, grade against the strictest (→ matched).
+    const failed = cands.filter((c) => cvRank < c.rank);
+    const target = failed.length ? pickByRisk(failed) : pickStrictest(cands);
+    const jdRank = target.rank;
     const matched = cvRank >= jdRank;
     return {
       type: 'education',
       canonical_name: 'education',
-      dims: [best.dim],
+      dims: [target.dim],
       cv_status: matched ? 'matched' : 'missing',
       cv_level: cvRank,
       required_level: jdRank,
       gap_levels: matched ? 0 : jdRank - cvRank,
-      importance: best.dim.importance,
+      importance: target.dim.importance,
       confidence: confFromSignal(edu.confidence),
       from_silence: false,
     };
