@@ -207,9 +207,33 @@ describe('GapReportService', () => {
     // A v2-shaped match: skill arrays unchanged + normalized jd_dimensions (what cv_jd_match_v2 yields).
     const match = baseMatch();
     match.jd_dimensions = [
-      { dimension: 'language', value_text: 'English B2', level_hint: 'B2', min_years: null, importance: 'REQUIRED', deal_breaker: false, evidence_text: 'English B2 required' },
-      { dimension: 'education', value_text: "Bachelor's degree", level_hint: null, min_years: null, importance: 'REQUIRED', deal_breaker: false, evidence_text: "Bachelor's degree in Computer Science required" },
-      { dimension: 'domain', value_text: 'fintech', level_hint: null, min_years: null, importance: 'PREFERRED', deal_breaker: false, evidence_text: 'fintech / payment gateway experience' },
+      {
+        dimension: 'language',
+        value_text: 'English B2',
+        level_hint: 'B2',
+        min_years: null,
+        importance: 'REQUIRED',
+        deal_breaker: false,
+        evidence_text: 'English B2 required',
+      },
+      {
+        dimension: 'education',
+        value_text: "Bachelor's degree",
+        level_hint: null,
+        min_years: null,
+        importance: 'REQUIRED',
+        deal_breaker: false,
+        evidence_text: "Bachelor's degree in Computer Science required",
+      },
+      {
+        dimension: 'domain',
+        value_text: 'fintech',
+        level_hint: null,
+        min_years: null,
+        importance: 'PREFERRED',
+        deal_breaker: false,
+        evidence_text: 'fintech / payment gateway experience',
+      },
     ] as never;
 
     // CV: English B1 (below B2), no degree (silent), ecommerce domain (≠ fintech).
@@ -220,7 +244,13 @@ describe('GapReportService', () => {
       education: [],
       experience: [],
       projects: [
-        { name: 'Shop', role: null, tech: [], bullets: ['Built an e-commerce marketplace'], link: null },
+        {
+          name: 'Shop',
+          role: null,
+          tech: [],
+          bullets: ['Built an e-commerce marketplace'],
+          link: null,
+        },
       ],
       skills: { technical: [], soft: [], languages: ['English (B1)'], tools: [] },
       certifications: [],
