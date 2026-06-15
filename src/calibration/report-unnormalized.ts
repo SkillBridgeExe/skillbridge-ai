@@ -3,9 +3,14 @@
  * deterministic normalizer DB-less, and prints a FREQUENCY-RANKED list of strings that fail to
  * normalize — the curation input for expanding taxonomy aliases (Component 1).
  *
- *   pnpm report:unnormalized                                  # default corpus: data/eval-mentions.json
+ *   pnpm report:unnormalized                                  # default corpus: data/eval-mentions.json POSITIVE rows
+ *   pnpm report:unnormalized -- --include-negatives           # also audit the negative-control rows (expected=[])
  *   pnpm report:unnormalized -- --corpus data/my-skills.json  # JSON { "skills": string[] } or { "mentions": [{mention}] }
  *   pnpm report:unnormalized -- --corpus=raw.txt              # newline-delimited .txt
+ *
+ * On the DEFAULT corpus (eval-mentions.json), rows with `expected: []` are NEGATIVE CONTROLS — they
+ * are SUPPOSED to stay unresolved, so listing them as "alias gaps to fill" would be misleading.
+ * They are skipped unless `--include-negatives` is passed.
  *
  * Report, NOT a gate (exit 0 on success). Committed corpora ONLY — no DB, no ai_results read,
  * AI-lane. PII-safe: skill strings only.
@@ -25,31 +30,56 @@ function parseCorpusArg(argv: string[]): string | null {
   return null;
 }
 
-function loadCorpus(corpusPath: string | null): string[] {
+interface Corpus {
+  strings: string[];
+  mode: string;
+}
+
+function loadCorpus(corpusPath: string | null, includeNegatives: boolean): Corpus {
   if (!corpusPath) {
     const file = path.join(process.cwd(), 'data', 'eval-mentions.json');
     const { mentions } = JSON.parse(fs.readFileSync(file, 'utf-8')) as {
-      mentions: Array<{ mention: string }>;
+      mentions: Array<{ mention: string; expected?: string[] }>;
     };
-    return mentions.map((m) => m.mention);
+    // expected=[] rows are negative controls (intentionally unresolved) — skip unless audited.
+    const rows = includeNegatives
+      ? mentions
+      : mentions.filter((m) => (m.expected?.length ?? 0) > 0);
+    return {
+      strings: rows.map((m) => m.mention),
+      mode: includeNegatives
+        ? 'data/eval-mentions.json (positive + negative-control rows)'
+        : 'data/eval-mentions.json (positive rows only — negative controls skipped; --include-negatives to audit)',
+    };
   }
   const abs = path.isAbsolute(corpusPath) ? corpusPath : path.join(process.cwd(), corpusPath);
   const raw = fs.readFileSync(abs, 'utf-8');
   if (abs.endsWith('.json')) {
     const parsed = JSON.parse(raw) as { skills?: string[]; mentions?: Array<{ mention: string }> };
-    if (Array.isArray(parsed.skills)) return parsed.skills;
-    if (Array.isArray(parsed.mentions)) return parsed.mentions.map((m) => m.mention);
-    throw new Error(`Corpus JSON ${abs} must have "skills": string[] or "mentions": [{mention}]`);
+    const strings = Array.isArray(parsed.skills)
+      ? parsed.skills
+      : Array.isArray(parsed.mentions)
+        ? parsed.mentions.map((m) => m.mention)
+        : null;
+    if (!strings) {
+      throw new Error(`Corpus JSON ${abs} must have "skills": string[] or "mentions": [{mention}]`);
+    }
+    return { strings, mode: `${corpusPath} (custom corpus — all rows)` };
   }
-  return raw
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return {
+    strings: raw
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+    mode: `${corpusPath} (custom corpus — all rows)`,
+  };
 }
 
 async function main(): Promise<void> {
-  const corpusPath = parseCorpusArg(process.argv.slice(2));
-  const corpus = loadCorpus(corpusPath);
+  const argv = process.argv.slice(2);
+  const corpusPath = parseCorpusArg(argv);
+  const includeNegatives = argv.includes('--include-negatives');
+  const { strings, mode } = loadCorpus(corpusPath, includeNegatives);
 
   const taxonomy = new SkillTaxonomyService();
   await taxonomy.onModuleInit();
@@ -61,7 +91,7 @@ async function main(): Promise<void> {
 
   const freq = new Map<string, number>();
   let scanned = 0;
-  for (const rawName of corpus) {
+  for (const rawName of strings) {
     const trimmed = rawName.trim();
     if (!trimmed) continue;
     scanned += 1;
@@ -73,9 +103,7 @@ async function main(): Promise<void> {
 
   const ranked = [...freq.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-  console.log(
-    `\nUnnormalized raw-skill report — corpus: ${corpusPath ?? 'data/eval-mentions.json (default)'}\n`,
-  );
+  console.log(`\nUnnormalized raw-skill report — corpus: ${mode}\n`);
   console.log(`  ${scanned} raw strings · ${ranked.length} distinct unresolved\n`);
   if (ranked.length === 0) {
     console.log('  (everything resolved — no taxonomy gaps in this corpus)');
