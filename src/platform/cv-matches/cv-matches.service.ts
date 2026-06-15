@@ -4,6 +4,7 @@ import {
   NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -44,6 +45,9 @@ export class CvMatchesService {
     private readonly entitlements: EntitlementsService,
     private readonly gapReport?: GapReportService,
     private readonly platformCvs?: CvsService,
+    // Optional for positional unit-test construction; Nest injects it in the app (ConfigModule is
+    // global). Drives the cv-jd-match prompt version (v1|v2) server-side. No @Optional() needed.
+    private readonly config?: ConfigService,
   ) {}
 
   async createMatch(
@@ -79,7 +83,9 @@ export class CvMatchesService {
       cv_text: cv.parsedText,
       jd_id: jd.id,
       jd_text: jdText,
-      scoring_template_code: 'cv_jd_match_v1',
+      // Server-side prompt version (CV_JD_MATCH_TEMPLATE_CODE). Default v1 when unconfigured (unit
+      // tests / unset env); prod sets it via the typed config. FE never sends this.
+      scoring_template_code: this.config?.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v1',
       target_role: targetRole ?? undefined,
       target_band: dto.targetBand ?? undefined,
     });

@@ -96,6 +96,9 @@ describe('CvMatchesService', () => {
     const platformCvs = {
       getLatestReview: jest.fn().mockResolvedValue({ evidence_ledger: null }),
     };
+    const config = {
+      get: jest.fn().mockReturnValue('cv_jd_match_v1'),
+    };
 
     const service = new CvMatchesService(
       cvsRepo as never,
@@ -108,6 +111,7 @@ describe('CvMatchesService', () => {
       entitlements as never,
       gapReport as never,
       platformCvs as never,
+      config as never,
     );
 
     return {
@@ -122,8 +126,20 @@ describe('CvMatchesService', () => {
       entitlements,
       gapReport,
       platformCvs,
+      config,
     };
   }
+
+  it('forwards the configured scoring_template_code to the matcher', async () => {
+    const { service, matcher, config } = build();
+    config.get.mockReturnValue('cv_jd_match_v2'); // prod flips this via CV_JD_MATCH_TEMPLATE_CODE
+    await service.createMatch('user-1', 'cv-1', { jdText: 'JD text here' } as never);
+    expect(config.get).toHaveBeenCalledWith('cvJdMatch.templateCode');
+    expect(matcher.match).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ scoring_template_code: 'cv_jd_match_v2' }),
+    );
+  });
 
   it('persists a pasted JD match and score breakdown for an owned CV', async () => {
     const { service, jobDescriptionsRepo, matchesRepo, scoresRepo, matcher, entitlements } =
