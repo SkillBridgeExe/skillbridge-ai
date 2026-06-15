@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "be-eng-b1",
+      "target_role": "backend_developer",
+      "cv_text": "Backend developer with 2 years of experience. Built REST APIs with Node.js, Express, PostgreSQL and Redis. Containerised services with Docker and set up CI/CD with GitHub Actions. Worked on an e-commerce marketplace handling product catalogue and checkout. English: B1 (intermediate). Bachelor of Information Technology.",
+      "jd_text": "We are hiring a Senior Backend Engineer (5+ years). Strong Node.js, PostgreSQL, Docker and Kubernetes. Experience in fintech / payment gateway integration is required. English B2 or higher is required for cross-team communication. Bachelor's degree in Computer Science or related field required."
+    },
+    {
+      "id": "be-no-eng",
+      "target_role": "backend_developer",
+      "cv_text": "Software engineer focused on backend. Skills: Java, Spring Boot, MySQL, Docker, RabbitMQ. Built an internal logistics tracking system and a warehouse fulfilment dashboard. Two years at a product startup. Bachelor of Software Engineering.",
+      "jd_text": "Looking for a Backend Developer. Required: Java, Spring Boot, SQL, Docker. Nice to have: Kafka, AWS. English B2 required. Bachelor's degree required. Fintech / payment gateway experience preferred."
+    },
+    {
+      "id": "fe-eng-c1",
+      "target_role": "frontend_developer",
+      "cv_text": "Frontend developer, 3 years. React, TypeScript, Redux, Tailwind CSS, Vite. Built a SaaS analytics dashboard and a design-system component library. English: IELTS 7.0. Master of Computer Science.",
+      "jd_text": "Frontend Engineer wanted. Must have React, TypeScript and modern CSS. Testing with Jest a plus. English B2 required. Bachelor's degree in a relevant field required."
+    }
+  ]
+}
