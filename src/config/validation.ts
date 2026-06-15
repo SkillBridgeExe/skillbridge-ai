@@ -115,6 +115,7 @@ export const configValidationSchema = Joi.object({
   CV_JD_MATCH_TEMPLATE_CODE: Joi.string()
     .valid('cv_jd_match_v1', 'cv_jd_match_v2')
     .default('cv_jd_match_v1'),
+  CV_JD_MATCH_EXTRACTION_CACHE_ENABLED: Joi.boolean().default(true),
 
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only

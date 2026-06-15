@@ -61,3 +61,20 @@ describe('configValidationSchema — CV_JD_MATCH_TEMPLATE_CODE', () => {
     expect(error).toBeDefined();
   });
 });
+
+describe('configValidationSchema — CV_JD_MATCH_EXTRACTION_CACHE_ENABLED', () => {
+  it('defaults to enabled so repeated identical matches reuse extraction', () => {
+    const { error, value } = configValidationSchema.validate(base, { allowUnknown: true });
+    expect(error).toBeUndefined();
+    expect(value.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED).toBe(true);
+  });
+
+  it('accepts false for emergency rollback', () => {
+    const { error, value } = configValidationSchema.validate(
+      { ...base, CV_JD_MATCH_EXTRACTION_CACHE_ENABLED: 'false' },
+      { allowUnknown: true },
+    );
+    expect(error).toBeUndefined();
+    expect(value.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED).toBe(false);
+  });
+});
