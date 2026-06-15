@@ -2870,6 +2870,54 @@
       "category": "vi",
       "requires": [],
       "note": "Moved from eval-semantic after adversarial label review (2026-06-05): alias added to taxonomy, deterministic tier owns it now. 'artificial neural network'. Deliberately NOT 'mạng nơ-ron' (that IS a deep_learning alias -> would resolve). 'mạng thần kinh nhân tạo' is unindexed; 4 tokens none aliased. -> deep_learning."
+    },
+    {
+      "mention": "CEFR B2",
+      "lang": "en",
+      "expected": ["english_proficiency"],
+      "category": "alias",
+      "requires": [],
+      "note": "NEW (RED before alias add): CEFR band bound to the CEFR context word."
+    },
+    {
+      "mention": "Tieng Anh B2",
+      "lang": "vi",
+      "expected": ["english_proficiency"],
+      "category": "alias",
+      "requires": [],
+      "note": "NEW (RED before alias add): diacritic-stripped twin key 'tienganhb2'."
+    },
+    {
+      "mention": "English B2",
+      "lang": "en",
+      "expected": ["english_proficiency"],
+      "category": "alias",
+      "requires": [],
+      "note": "UPGRADE: already fuzzy-resolves (key 'englishb2' is d=2 from 'english'); alias lifts matched_via 0.65 -> 0.9."
+    },
+    {
+      "mention": "Tiếng Anh B2",
+      "lang": "vi",
+      "expected": ["english_proficiency"],
+      "category": "alias",
+      "requires": [],
+      "note": "UPGRADE: diacritic form already fuzzy-resolves; alias makes it an exact alias hit."
+    },
+    {
+      "mention": "B2 English",
+      "lang": "en",
+      "expected": ["english_proficiency"],
+      "category": "alias",
+      "requires": [],
+      "note": "UPGRADE: already fuzzy-resolves (key 'b2english' d=2 from 'english')."
+    },
+    {
+      "mention": "building B2",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: B2 = a building/floor label; len-10 token exercises the maxD=2 fuzzy band against the new 9-char keys; contextual-only CEFR must NOT fire here. (lái xe B2 + english club member are the other load-bearing guards already in the corpus.)"
     }
   ]
 }
