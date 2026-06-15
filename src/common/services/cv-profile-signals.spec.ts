@@ -146,10 +146,11 @@ describe('deriveCvDomain (industry from experience/projects, null when no keywor
       )?.domains,
     ).toContain('ecommerce');
   });
-  it('payment experience → fintech', () => {
+  it('explicit fintech anchor (e-wallet / payment gateway) → fintech', () => {
     expect(
-      deriveCvDomain(exp({ org: 'PayCo', bullets: ['built payment / thanh toán wallet'] }))
-        ?.domains,
+      deriveCvDomain(
+        exp({ org: 'PayCo', bullets: ['built a payment gateway for a ví điện tử (e-wallet)'] }),
+      )?.domains,
     ).toContain('fintech');
   });
   it('no domain keyword → null', () => {
@@ -265,5 +266,84 @@ describe('anti-fabrication regression (adversarial review w77s4r9nb)', () => {
       deriveCvEducation(edu({ school: 'Greenfield University High School', degree: null })),
     ).toMatchObject({ level: 'high_school' }); // not bachelor
     expect(deriveCvEducation(edu({ school: 'X', degree: 'Mastering React course' }))).toBeNull(); // not master, no field → no signal
+  });
+});
+
+describe('review round 2 regression (MUST 1–4)', () => {
+  // MUST 1 — score/max notation: take the SCORE, never the max
+  it('IELTS 6.5/9.0 → B2 (not C2); TOEIC 750/990 → B1 (not C1)', () => {
+    expect(deriveCvEnglishLevel(langs('English IELTS 6.5/9.0'))).toMatchObject({ cefr: 'B2' });
+    expect(deriveCvEnglishLevel(langs('TOEIC 750/990'))).toMatchObject({ cefr: 'B1' });
+  });
+  it('unclear score/max → null (do not pick max)', () => {
+    expect(deriveCvEnglishLevel(langs('IELTS 7/10'))).toBeNull();
+  });
+
+  // MUST 2 — TOEIC L/R sub-scores
+  it('TOEIC L 495 R 480 = 975 → C1 (total); no total → intentional sum 975 → C1', () => {
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 495, Reading 480 = 975'))).toMatchObject({
+      cefr: 'C1',
+    });
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 495, Reading 480'))).toMatchObject({
+      cefr: 'C1',
+    });
+  });
+  it('a single TOEIC section score is NOT mapped (→ null); Speaking still rejected', () => {
+    expect(deriveCvEnglishLevel(langs('TOEIC Listening 495'))).toBeNull();
+    expect(deriveCvEnglishLevel(langs('TOEIC Speaking 180'))).toBeNull();
+  });
+
+  // MUST 3 — domain overmatch
+  it('ecommerce checkout + thanh toán đơn hàng → ecommerce only, NO fintech', () => {
+    const d = deriveCvDomain(
+      proj({ name: 'Ecommerce store', bullets: ['checkout + thanh toán đơn hàng'] }),
+    );
+    expect(d?.domains).toContain('ecommerce');
+    expect(d?.domains).not.toContain('fintech');
+  });
+  it('Unity AR / training simulator → NO gaming', () => {
+    expect(
+      deriveCvDomain(
+        proj({ name: 'Unity AR training simulator', tech: ['Unity'], bullets: ['VR sim'] }),
+      ),
+    ).toBeNull();
+  });
+
+  // MUST 4 — work_mode conflict
+  it('conflicting locations (Remote + On-site) → null; consistent → mode', () => {
+    expect(
+      deriveCvWorkMode(
+        doc({
+          experience: [
+            { org: 'A', role: null, start: null, end: null, location: 'Remote', bullets: [] },
+            {
+              org: 'B',
+              role: null,
+              start: null,
+              end: null,
+              location: 'On-site, HCMC',
+              bullets: [],
+            },
+          ],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      deriveCvWorkMode(
+        doc({
+          experience: [
+            { org: 'A', role: null, start: null, end: null, location: 'Remote', bullets: [] },
+            {
+              org: 'B',
+              role: null,
+              start: null,
+              end: null,
+              location: 'Work from home',
+              bullets: [],
+            },
+          ],
+        }),
+      ),
+    ).toMatchObject({ mode: 'remote' });
   });
 });

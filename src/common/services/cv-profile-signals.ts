@@ -98,27 +98,68 @@ const ASPIRATION =
 const DURATION_AFTER =
   /^\s*(years?|yrs?|months?|tháng|thang|năm|nam|weeks?|tuần|tuan|hours?|giờ|gio|days?|ngày|ngay)\b/u;
 
-/** All plausible ACHIEVED score numbers within a 40-char window after `keyword` (drops aspirations
- *  entirely and skips duration numbers). Scanning ALL numbers lets the caller pick the best valid
- *  band, so a sub-score or a leading year cannot shadow the real total. */
-function bandScoresInWindow(lower: string, keyword: string): number[] {
+/** 40-char window after `keyword`, or null when the keyword is absent. */
+function windowAfter(lower: string, keyword: string): string | null {
   const idx = lower.indexOf(keyword);
-  if (idx === -1) return [];
-  const window = lower.slice(idx + keyword.length, idx + keyword.length + 40);
-  if (ASPIRATION.test(window)) return [];
-  const out: number[] = [];
-  const re = /\d{1,4}(?:[.,]\d)?/g;
+  return idx === -1 ? null : lower.slice(idx + keyword.length, idx + keyword.length + 40);
+}
+
+/**
+ * IELTS OVERALL band (0–9) from the window. Honest about notation:
+ *  - "6.5/9.0" (score/max) → the numerator (6.5), never the max.
+ *  - "overall/band X" → X.
+ *  - otherwise a single band-shaped number (decimals preferred); ambiguous-multiple → null.
+ * Aspirations are rejected and durations skipped so a "2 years" never becomes a band.
+ */
+function parseIeltsScore(window: string): number | null {
+  if (ASPIRATION.test(window)) return null;
+  const sm = window.match(/(\d(?:[.,]\d)?)\s*\/\s*9(?:[.,]0)?(?![\d.])/u);
+  if (sm) return parseFloat(sm[1].replace(',', '.'));
+  const lbl = window.match(/(?:overall|band|tổng|tong)\D{0,6}(\d(?:[.,]\d)?)/u);
+  if (lbl) return parseFloat(lbl[1].replace(',', '.'));
+  const nums: Array<{ v: number; dec: boolean }> = [];
+  const re = /\d(?:[.,]\d)?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(window)) !== null) {
     if (DURATION_AFTER.test(window.slice(re.lastIndex))) continue;
-    out.push(parseFloat(m[0].replace(',', '.')));
+    const v = parseFloat(m[0].replace(',', '.'));
+    if (v >= 1 && v <= 9) nums.push({ v, dec: /[.,]/.test(m[0]) });
   }
-  return out;
+  const pool = nums.some((n) => n.dec) ? nums.filter((n) => n.dec) : nums;
+  return pool.length === 1 ? pool[0].v : null;
 }
 
-function bestBand(cefrs: Array<Cefr | null>): Cefr | null {
-  const valid = cefrs.filter((c): c is Cefr => c !== null);
-  return valid.length ? valid.reduce((a, b) => (CEFR_RANK[b] > CEFR_RANK[a] ? b : a)) : null;
+/**
+ * TOEIC Listening+Reading TOTAL (10–990) from the window. Honest about notation:
+ *  - "750/990" (score/max) → the numerator (750).
+ *  - explicit total "= 975" / "total 975" → that total.
+ *  - both "Listening N" and "Reading M" present → the intentional sum N+M (the L&R total).
+ *  - a SINGLE labelled section (only Listening OR only Reading) → null (a section ≠ a total).
+ *  - otherwise a single bare number → it; ambiguous-multiple → null.
+ * The CALLER gates out Speaking/Writing/Bridge (different scales) before calling this.
+ */
+function parseToeicScore(window: string): number | null {
+  if (ASPIRATION.test(window)) return null;
+  const sm = window.match(/(\d{2,4})\s*\/\s*990(?!\d)/u);
+  if (sm) return parseInt(sm[1], 10);
+  const total = window.match(/(?:=|total|tổng|tong)\D{0,4}(\d{2,4})/u);
+  if (total) return parseInt(total[1], 10);
+  const hasL = /listening/u.test(window);
+  const hasR = /reading/u.test(window);
+  if (hasL && hasR) {
+    const l = window.match(/listening\D{0,6}(\d{2,4})/u);
+    const r = window.match(/reading\D{0,6}(\d{2,4})/u);
+    return l && r ? parseInt(l[1], 10) + parseInt(r[1], 10) : null;
+  }
+  if (hasL || hasR) return null;
+  const nums: number[] = [];
+  const re = /\d{2,4}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(window)) !== null) {
+    if (DURATION_AFTER.test(window.slice(re.lastIndex))) continue;
+    nums.push(parseInt(m[0], 10));
+  }
+  return nums.length === 1 ? nums[0] : null;
 }
 
 // CEFR/textual cues must sit ADJACENT to an english cue, separated only by spaces/punctuation (NOT a
@@ -166,13 +207,22 @@ function englishFromString(s: string): CvEnglishSignal | null {
     signals: [`language: ${raw}`],
   });
 
-  const ielts = bestBand(bandScoresInWindow(lower, 'ielts').map(ieltsToCefr));
-  if (ielts) return mk(ielts, 'ielts', 'high');
+  const iw = windowAfter(lower, 'ielts');
+  if (iw !== null) {
+    const score = parseIeltsScore(iw);
+    const cefr = score !== null ? ieltsToCefr(score) : null;
+    if (cefr) return mk(cefr, 'ielts', 'high');
+  }
 
   // TOEIC L&R only — Speaking/Writing/Bridge use different scales, so gate them out (no fabrication).
-  if (!/speaking|writing|s&w|s & w|bridge|4 skills|four skills|nói|noi|viết|viet/u.test(lower)) {
-    const toeic = bestBand(bandScoresInWindow(lower, 'toeic').map(toeicToCefr));
-    if (toeic) return mk(toeic, 'toeic', 'high');
+  const tw = windowAfter(lower, 'toeic');
+  if (
+    tw !== null &&
+    !/speaking|writing|s&w|s & w|bridge|4 skills|four skills|nói|noi|viết|viet/u.test(lower)
+  ) {
+    const score = parseToeicScore(tw);
+    const cefr = score !== null ? toeicToCefr(score) : null;
+    if (cefr) return mk(cefr, 'toeic', 'high');
   }
 
   const cefr = cefrAdjacentToEnglish(lower);
@@ -276,8 +326,10 @@ const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
     /e-?commerce|thương mại điện tử|thuong mai dien tu|marketplace|shopping cart|giỏ hàng|sàn thương mại/u,
   ],
   [
+    // No bare "payment"/"thanh toán" — those are e-commerce checkout, not the fintech industry.
+    // Require an explicit banking/wallet/gateway/securities anchor.
     'fintech',
-    /fintech|payment gateway|payment processing|cổng thanh toán|thanh toán|ví điện tử|vi dien tu|e-wallet|digital banking|ngân hàng số|sàn giao dịch|chứng khoán|chung khoan|insurtech|lending platform/u,
+    /fintech|payment gateway|payment processing|cổng thanh toán|ví điện tử|vi dien tu|e-wallet|digital banking|ngân hàng số|sàn giao dịch|chứng khoán|chung khoan|insurtech|lending platform/u,
   ],
   [
     'healthcare',
@@ -293,8 +345,9 @@ const DOMAIN_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ],
   ['social', /social network|mạng xã hội|mang xa hoi|social media|chat app|messaging platform/u],
   [
+    // No bare "Unity"/"Unreal" — those engines are used for AR/VR/training/sims, not only games.
     'gaming',
-    /game development|gamedev|game studio|\bunity\b|\bunreal\b|trò chơi điện tử|phát triển game/u,
+    /game development|gamedev|game studio|trò chơi điện tử|phát triển game/u,
   ],
   [
     'travel',
@@ -329,12 +382,11 @@ const WORKMODE_PATTERNS: ReadonlyArray<readonly [WorkMode, RegExp]> = [
 ];
 
 export function deriveCvWorkMode(doc: CanonicalCvDocument): CvWorkModeSignal | null {
-  const locations = (doc.experience ?? []).map((e) => (e.location ?? '').toLowerCase());
-  const hay = locations.join(' \n ');
-  for (const [mode, re] of WORKMODE_PATTERNS) {
-    if (re.test(hay)) return { mode, confidence: 'low', signals: [`work_mode:${mode}`] };
-  }
-  return null;
+  const hay = (doc.experience ?? []).map((e) => (e.location ?? '').toLowerCase()).join(' \n ');
+  const distinct = [...new Set(WORKMODE_PATTERNS.filter(([, re]) => re.test(hay)).map(([m]) => m))];
+  // Only assert a mode when the signal is consistent — conflicting modes (e.g. Remote + On-site) → null.
+  if (distinct.length !== 1) return null;
+  return { mode: distinct[0], confidence: 'low', signals: [`work_mode:${distinct[0]}`] };
 }
 
 // ── aggregator ────────────────────────────────────────────────────────────────

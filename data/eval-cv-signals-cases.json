@@ -150,6 +150,48 @@
       "lang": "en",
       "document": { "education": [{ "school": "X", "degree": "High School Diploma", "field": null, "start": null, "end": null, "gpa": null, "highlights": [] }] },
       "expect": { "education": { "level": "high_school" } }
+    },
+    {
+      "id": "must1-ielts-score-max",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English IELTS 6.5/9.0"], "tools": [] } },
+      "expect": { "english": { "cefr": "B2", "source_kind": "ielts" } }
+    },
+    {
+      "id": "must1-toeic-score-max",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC 750/990"], "tools": [] } },
+      "expect": { "english": { "cefr": "B1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "must2-toeic-lr-sum-no-total",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["English - TOEIC Listening 495, Reading 480"], "tools": [] } },
+      "expect": { "english": { "cefr": "C1", "source_kind": "toeic" } }
+    },
+    {
+      "id": "must2-toeic-single-section-null",
+      "lang": "en",
+      "document": { "skills": { "technical": [], "soft": [], "languages": ["TOEIC Listening 495"], "tools": [] } },
+      "expect": { "english": null }
+    },
+    {
+      "id": "must3-ecommerce-not-fintech",
+      "lang": "vi",
+      "document": { "projects": [{ "name": "Ecommerce store", "role": null, "tech": [], "bullets": ["checkout + thanh toán đơn hàng"], "link": null }] },
+      "expect": { "domain": { "includes": ["ecommerce"] } }
+    },
+    {
+      "id": "must3-unity-not-gaming",
+      "lang": "en",
+      "document": { "projects": [{ "name": "Unity AR training simulator", "role": null, "tech": ["Unity"], "bullets": ["VR sim"], "link": null }] },
+      "expect": { "domain": null }
+    },
+    {
+      "id": "must4-workmode-conflict-null",
+      "lang": "en",
+      "document": { "experience": [{ "org": "A", "role": null, "start": null, "end": null, "location": "Remote", "bullets": [] }, { "org": "B", "role": null, "start": null, "end": null, "location": "On-site, HCMC", "bullets": [] }] },
+      "expect": { "work_mode": null }
     }
   ]
 }
