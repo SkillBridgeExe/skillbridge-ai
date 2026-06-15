@@ -36,3 +36,28 @@ describe('configValidationSchema — OCR fallback defaults', () => {
     expect(error).toBeDefined();
   });
 });
+
+describe('configValidationSchema — CV_JD_MATCH_TEMPLATE_CODE', () => {
+  it('defaults to cv_jd_match_v1 when unset (safe baseline; flip is a deliberate change)', () => {
+    const { error, value } = configValidationSchema.validate(base, { allowUnknown: true });
+    expect(error).toBeUndefined();
+    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v1');
+  });
+
+  it('accepts cv_jd_match_v2', () => {
+    const { error, value } = configValidationSchema.validate(
+      { ...base, CV_JD_MATCH_TEMPLATE_CODE: 'cv_jd_match_v2' },
+      { allowUnknown: true },
+    );
+    expect(error).toBeUndefined();
+    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v2');
+  });
+
+  it('rejects an unknown template code', () => {
+    const { error } = configValidationSchema.validate(
+      { ...base, CV_JD_MATCH_TEMPLATE_CODE: 'cv_jd_match_v3' },
+      { allowUnknown: true },
+    );
+    expect(error).toBeDefined();
+  });
+});

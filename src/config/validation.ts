@@ -108,6 +108,14 @@ export const configValidationSchema = Joi.object({
   // CvAnalysisQuotaGuard against the ai_requests trace (no separate usage table).
   CV_REVIEW_DAILY_LIMIT: Joi.number().integer().min(0).default(5),
 
+  // CV-JD match prompt template. v2 adds JD-Intelligence (jd_dimensions) extraction; v1 is the
+  // skill-only legacy path. SERVER-SIDE only (FE never sends it). Default v1 = safe baseline; flip
+  // to v2 in code after the A/B drift check, OR via this env on Cloud Run. Joi restricts to the 2
+  // valid codes so a typo can never reach prompts.get().
+  CV_JD_MATCH_TEMPLATE_CODE: Joi.string()
+    .valid('cv_jd_match_v1', 'cv_jd_match_v2')
+    .default('cv_jd_match_v1'),
+
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
   // when deterministic metrics say it is better. All bounded to protect Cloud Run resources.
