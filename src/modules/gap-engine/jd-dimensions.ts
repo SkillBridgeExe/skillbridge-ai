@@ -347,20 +347,23 @@ export function gradeDomain(
   dims: JdDimension[] | null | undefined,
   signals: CvProfileSignals | null | undefined,
 ): DimensionGrade | null {
-  const domainDims = (dims ?? []).filter((d) => d.dimension === 'domain');
-  const jdDomains = [
-    ...new Set(domainDims.flatMap((d) => classifyDomains(`${d.value_text} ${d.evidence_text}`))),
-  ];
-  if (jdDomains.length === 0) return null; // JD industry not canonicalisable → can't grade
+  // Keep ONLY the dims whose industry actually canonicalises — so `dims` (which drives the disclosure
+  // `graded` flag) never marks a non-canonicalising domain quote as graded. classifyDomains runs once per dim.
+  const canonicalising = (dims ?? [])
+    .filter((d) => d.dimension === 'domain')
+    .map((d) => ({ dim: d, domains: classifyDomains(`${d.value_text} ${d.evidence_text}`) }))
+    .filter((x) => x.domains.length > 0);
+  if (canonicalising.length === 0) return null; // JD industry not canonicalisable → can't grade
   const cv = signals?.domain ?? null;
   if (!cv) return null; // CV silent → always omit (honest)
+  const jdDomains = [...new Set(canonicalising.flatMap((x) => x.domains))];
   const cvDomains = new Set(cv.domains);
   const matched = jdDomains.some((d) => cvDomains.has(d));
-  const best = pickStrictest(domainDims.map((d) => ({ dim: d, rank: 0 })));
+  const best = pickStrictest(canonicalising.map((x) => ({ dim: x.dim, rank: 0 })));
   return {
     type: 'domain',
     canonical_name: 'domain',
-    dims: domainDims,
+    dims: canonicalising.map((x) => x.dim),
     cv_status: matched ? 'matched' : 'missing',
     cv_level: null,
     required_level: null,

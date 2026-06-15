@@ -518,6 +518,17 @@ describe('gradeNonSkillDimensions (PR3c, pure)', () => {
         ),
       ).toEqual([]);
     });
+    it('grade.dims contains ONLY the canonicalising domain dims (disclosure fidelity)', () => {
+      const [g] = gradeNonSkillDimensions(
+        [
+          domDim(), // fintech — canonicalises
+          domDim({ value_text: 'general work', evidence_text: 'general backend work' }), // does NOT
+        ],
+        sig({ domain: domSig(['fintech']) }),
+      );
+      expect(g.dims).toHaveLength(1);
+      expect(g.dims[0].value_text).toBe('fintech');
+    });
   });
 
   describe('work_mode is disclosure-only — NEVER graded', () => {
