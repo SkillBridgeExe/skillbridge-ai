@@ -73,7 +73,7 @@ export function normalizeCompanyName(raw: string): string {
   return tokens.slice(start, end).join(' ').trim();
 }
 
-/** The 8 pilot role codes (role-rubrics-pilot.json) — keep in sync with RoleRubricService. */
+/** The 9 pilot role codes (role-rubrics-pilot.json) — keep in sync with RoleRubricService. */
 export type RoleCode =
   | 'frontend_developer'
   | 'backend_developer'
@@ -82,7 +82,8 @@ export type RoleCode =
   | 'mobile_developer'
   | 'devops_engineer'
   | 'qa_tester'
-  | 'ai_ml_engineer';
+  | 'ai_ml_engineer'
+  | 'ai_app_engineer';
 
 /**
  * Ordered: more specific patterns FIRST. AI/ML + QA + DevOps + Data are checked BEFORE the
@@ -92,6 +93,13 @@ export type RoleCode =
  * Developer" never matched; review finding).
  */
 const ROLE_PATTERNS: Array<[RegExp, RoleCode]> = [
+  // AI-APPLICATION roles FIRST — specific tokens (LLM/RAG/GenAI/Applied-AI/AI-Application/Prompt)
+  // win over the generic ai_ml pattern below. Deliberately does NOT match bare "AI Engineer" /
+  // "ML Engineer", so classic ML / NLP / CV / on-device titles fall through to ai_ml_engineer.
+  [
+    /llm\s+(?:engineer|developer)|rag\s+(?:engineer|developer)|gen[\s-]?ai|generative\s+ai|applied\s+ai\s+(?:engineer|developer)|ai\s+app(?:lication)?\s+(?:engineer|developer)|prompt\s+engineer/i,
+    'ai_app_engineer',
+  ],
   [
     /\bai\b|machine\s+learning|\bml\b|deep\s+learning|data\s+scientist|\bllm\b|\bnlp\b|computer\s+vision/i,
     'ai_ml_engineer',
