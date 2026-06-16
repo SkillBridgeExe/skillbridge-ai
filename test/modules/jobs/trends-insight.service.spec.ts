@@ -8,6 +8,8 @@ function deps() {
       role_code: 'backend_developer',
       period: '2026-06-07',
       total_active_jobs: 200,
+      sample_size: 200,
+      data_confidence: 'high',
       skills: [
         {
           canonical_name: 'security',
@@ -101,5 +103,26 @@ describe('TrendsInsightService', () => {
     expect(tracing.markFailed).toHaveBeenCalled();
     expect(out.insights[0].skill).toBe('security');
     expect(out.insights[0].comment).toBe('');
+  });
+
+  it('thin pool: surfaces data_confidence=low + sample_size, and feeds both into the prompt FACTS', async () => {
+    const { svc, demand, prompts, db } = deps();
+    demand.getTrends.mockResolvedValue({
+      role_code: 'ai_app_engineer',
+      period: '2026-06-16',
+      total_active_jobs: 8,
+      sample_size: 8,
+      data_confidence: 'low',
+      skills: [],
+    });
+    db.query.mockResolvedValueOnce([]); // readCache → miss
+    db.query.mockResolvedValueOnce([]); // writeCache
+    const out = await svc.generate({ role_code: 'ai_app_engineer', user_id: 'u1' });
+    expect(out.sample_size).toBe(8);
+    expect(out.data_confidence).toBe('low');
+    // FACTS (the single source) fed to the prompt carry the signal so the LLM can hedge:
+    const factsArg = (prompts.render as jest.Mock).mock.calls[0][1].facts as string;
+    expect(factsArg).toContain('"data_confidence": "low"');
+    expect(factsArg).toContain('"sample_size": 8');
   });
 });

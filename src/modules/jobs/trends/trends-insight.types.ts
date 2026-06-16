@@ -22,6 +22,9 @@ export interface TrendsInsightFacts {
   role_code: string;
   period: string;
   total_active_jobs: number;
+  /** Active postings IN THE ROLE SCOPE (= total_active_jobs); basis for data_confidence. */
+  sample_size: number;
+  data_confidence: 'high' | 'medium' | 'low';
   personalized: boolean;
   skills: Array<{
     skill: string; // canonical_name
@@ -59,6 +62,9 @@ export interface SkillPairInsight extends CoOccurrencePair {
 export interface TrendsInsightResponse {
   role_code: string;
   period: string;
+  /** Active postings in the role scope + reliability flag (low ⇒ thin pool, narrative hedges). */
+  sample_size: number;
+  data_confidence: 'high' | 'medium' | 'low';
   personalized: boolean;
   summary: string;
   insights: InsightItem[];

@@ -20,6 +20,7 @@ Nhiệm vụ: viết một "nhận định" ngắn, hữu ích, dựa HOÀN TOÀ
 - `insights`: tối đa 5 phần tử, mỗi phần tử là một skill LẤY TỪ FACTS (`skill` = canonical trong FACTS) + `comment` 1 câu tiếng Việt về skill đó. KHÔNG ghi số trong comment.
 - `recommended_skills`: danh sách `skill` (canonical) nên ưu tiên học, CHỌN TỪ FACTS. Nếu `personalized`, chỉ chọn skill `covered` = false.
 - `skill_pairs`: tối đa 4 phần tử — nhận định về CẶP kỹ năng đi cùng nhau, CHỈ chọn cặp có trong `FACTS.co_occurrence` (đúng canonical `a` và `b` của cặp đó). `comment` 1 câu tiếng Việt về vì sao nên học/kết hợp cặp này. KHÔNG ghi số trong comment (hệ thống tự gắn pair_count/% thật). Bỏ trống mảng nếu không có cặp nào đáng nói.
+- Độ tin cậy dữ liệu: nếu `FACTS.data_confidence` = `low` (mẫu mỏng — chỉ `FACTS.sample_size` tin tuyển dụng trong phạm vi vai trò này), `summary` PHẢI nói rõ mẫu còn nhỏ và KHÔNG khẳng định mạnh về xu hướng (dùng từ thận trọng như "dữ liệu còn ít", "chỉ mang tính tham khảo"). Vẫn TUYỆT ĐỐI không bịa số/kỹ năng ngoài FACTS.
 
 ## Output schema — trả về ĐÚNG JSON này
 
