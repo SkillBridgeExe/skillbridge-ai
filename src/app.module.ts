@@ -9,6 +9,7 @@ import { BillingModule } from './platform/billing/billing.module';
 import { CvMatchesModule } from './platform/cv-matches/cv-matches.module';
 import { CvsModule } from './platform/cvs/cvs.module';
 import { InterviewsModule } from './platform/interviews/interviews.module';
+import { MentorsModule } from './platform/mentors/mentors.module';
 import { UsersModule } from './platform/users/users.module';
 
 import configuration from './config/configuration';
@@ -41,7 +42,15 @@ import { GapReportModule } from './modules/gap-report/gap-report.module';
 const PLATFORM_MODULES =
   process.env.NODE_ENV === 'test'
     ? []
-    : [AuthModule, UsersModule, BillingModule, CvsModule, CvMatchesModule, InterviewsModule];
+    : [
+        AuthModule,
+        UsersModule,
+        BillingModule,
+        CvsModule,
+        CvMatchesModule,
+        InterviewsModule,
+        MentorsModule,
+      ];
 
 @Module({
   imports: [
