@@ -26,7 +26,6 @@ if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENA
 import * as fs from 'fs';
 import * as path from 'path';
 import { CanonicalCvDocument } from '../common/types/canonical-cv';
-import { pdfParseExtract } from './extractors/pdf-parse.extractor';
 import { withRetry } from './retry';
 
 process.env.NODE_ENV = 'test';
@@ -114,6 +113,7 @@ interface RowResult {
   skills: number;
   lang_detected: string;
   lang_ok: boolean | null; // null = manifest lang unknown (not asserted)
+  ocr_used: boolean; // true when the prod path fell back to OCR (thin/scanned)
   healthy: boolean;
   error?: string;
 }
@@ -147,8 +147,27 @@ async function main(): Promise<void> {
   const { NestFactory } = await import('@nestjs/core');
   const { AppModule } = await import('../app.module');
   const { CvParserService } = await import('../modules/cv-review/cv-parser.service');
+  const { SkillTaxonomyService } = await import('../common/services/skill-taxonomy.service');
+  const { SkillTextScannerService } = await import('../common/services/skill-text-scanner.service');
+  const { ScannedPdfOcrService } = await import('../common/services/scanned-pdf-ocr.service');
+  const { TextExtractorService } = await import('../platform/cvs/text-extractor.service');
+
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   const parser = app.get(CvParserService);
+
+  // The PROD extractor path: pdf-parse → OCR-rescue when the text layer is thin (mirrors a real
+  // upload). Constructed DB-less here (same pattern as eval:extractors) — TextExtractorService is a
+  // CvsModule-internal provider, not resolvable from the root context. Config stub ⇒ OCR uses its
+  // Joi defaults (enabled, dpi 200) so scanned/image CVs are measured exactly as prod would.
+  const taxonomy = new SkillTaxonomyService();
+  await taxonomy.onModuleInit();
+  const scanner = new SkillTextScannerService(taxonomy);
+  scanner.buildMatchers();
+  const ocr = new ScannedPdfOcrService(
+    { get: () => undefined } as unknown as ConstructorParameters<typeof ScannedPdfOcrService>[0],
+    scanner,
+  );
+  const extractor = new TextExtractorService(ocr);
 
   console.log(
     `\nCV input-quality (file→text→parsed) — ${pdfs.length} PDF(s)${STRICT ? ' [STRICT]' : ''}\n`,
@@ -159,8 +178,15 @@ async function main(): Promise<void> {
     const meta = manifest.get(file) ?? DEFAULT_ENTRY;
     const buffer = fs.readFileSync(path.join(dir, file));
     let text = '';
+    let ocrUsed = false;
     try {
-      text = await pdfParseExtract(buffer);
+      const extracted = await extractor.extract({
+        buffer,
+        mimetype: 'application/pdf',
+        originalname: file,
+      } as Express.Multer.File);
+      text = extracted.text;
+      ocrUsed = extracted.isOcrOnly;
     } catch (e) {
       rows.push({
         file,
@@ -171,6 +197,7 @@ async function main(): Promise<void> {
         skills: 0,
         lang_detected: 'none',
         lang_ok: null,
+        ocr_used: false,
         healthy: false,
         error: `extract: ${(e as Error).message}`,
       });
@@ -196,6 +223,7 @@ async function main(): Promise<void> {
         skills: 0,
         lang_detected: 'none',
         lang_ok: null,
+        ocr_used: ocrUsed,
         healthy: false,
         error: `parse: ${(e as Error).message}`,
       });
@@ -217,13 +245,14 @@ async function main(): Promise<void> {
       skills: skillCount(doc),
       lang_detected: doc.language,
       lang_ok: langOk,
+      ocr_used: ocrUsed,
       healthy,
     });
     console.log(
       `  ${file.padEnd(28)} [${meta.layout}/${meta.lang}]  ` +
         `sections=${populated.length}/8  skills=${String(skillCount(doc)).padStart(3)}  ` +
         `lang=${doc.language}${langOk === false ? `≠${meta.lang}✗` : ''}  chars=${text.length}  ` +
-        `${healthy ? 'healthy ✓' : 'DEGRADED ✗'}`,
+        `${ocrUsed ? 'OCR ' : ''}${healthy ? 'healthy ✓' : 'DEGRADED ✗'}`,
     );
     if (DELAY_MS > 0) await new Promise((r) => setTimeout(r, DELAY_MS));
   }
