@@ -99,6 +99,27 @@
       "rationale": "Balanced fresher fullstack with real frontend and shallow backend. Good enough for junior screening, but still missing auth, Docker, system-design breadth."
     },
     {
+      "id": "rubric-fs-fresher-vue-spring",
+      "target_role": "fullstack_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "proficiency_hint": "NOVICE" },
+        { "name": "Vue", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Java", "proficiency_hint": "NOVICE" },
+        { "name": "Spring Boot", "proficiency_hint": "NOVICE" },
+        { "name": "PostgreSQL", "proficiency_hint": "NOVICE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [74, 86],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "Vue + Java/Spring fullstack fresher — must reach PARITY with the balanced (React/Node) case. Same profile with Vue in place of React and Java/Spring in place of Node/Express, via the frontend-framework + backend-language OR-groups."
+    },
+    {
       "id": "rubric-da-fresher-sql-excel",
       "target_role": "data_analyst",
       "target_band": "fresher",

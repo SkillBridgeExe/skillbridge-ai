@@ -208,12 +208,25 @@
         },
         {
           "skill_canonical_name": "react",
+          "any_of": [
+            "react",
+            "vue",
+            "angular"
+          ],
           "required_level": 3,
           "importance": "REQUIRED",
           "weight": 0.1
         },
         {
           "skill_canonical_name": "node_js",
+          "any_of": [
+            "node_js",
+            "dotnet",
+            "java",
+            "php",
+            "laravel",
+            "python"
+          ],
           "required_level": 3,
           "importance": "PREFERRED",
           "weight": 0.1
