@@ -7,6 +7,7 @@ import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entit
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
+import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvsModule } from '../cvs/cvs.module';
 import { CvMatchReportsController, CvMatchesController } from './cv-matches.controller';
@@ -25,6 +26,7 @@ import { JdTextExtractorService } from './jd-text-extractor.service';
     CvJdMatchModule,
     BillingModule,
     GapReportModule,
+    RoadmapModule,
     CvsModule,
   ],
   controllers: [CvMatchesController, CvMatchReportsController],
