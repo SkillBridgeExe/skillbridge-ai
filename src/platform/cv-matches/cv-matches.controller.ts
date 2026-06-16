@@ -26,8 +26,10 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListQueryDto } from './dto/cv-match-list-query.dto';
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
+import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { CvMatchesService } from './cv-matches.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
+import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -188,6 +190,19 @@ export class CvMatchReportsController {
     @Body() dto: RoadmapFromMatchDto,
   ): Promise<RoadmapGenerateResponseDto> {
     return this.matches.generateRoadmapFromMatch(user.userId, matchId, dto);
+  }
+
+  @Post(':matchId/interview-plan')
+  @ApiOperation({
+    summary: 'Generate a gap-targeted interview practice plan from a match (server-derived, skill-only)',
+  })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  interviewPlanFromMatch(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+    @Body() dto: InterviewPlanFromMatchDto,
+  ): Promise<InterviewPlanResponseDto> {
+    return this.matches.generateInterviewPlanFromMatch(user.userId, matchId, dto);
   }
 }
 

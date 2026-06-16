@@ -23,11 +23,15 @@ import {
 import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
+import { buildInterviewPlanFromGapItems } from '../../modules/interview/interview-planner';
+import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
+import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.dto';
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
+import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { JdTextExtractorService } from './jd-text-extractor.service';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
@@ -55,6 +59,9 @@ export class CvMatchesService {
     // Optional for positional unit-test construction; Nest injects it via RoadmapModule. Used only
     // by generateRoadmapFromMatch (server-derived learning roadmap).
     private readonly roadmap?: RoadmapService,
+    // Optional for positional unit-test construction; Nest injects it via InterviewModule. Used only
+    // by generateInterviewPlanFromMatch (server-derived interview practice plan).
+    private readonly interviewPlan?: InterviewPlanService,
   ) {}
 
   async createMatch(
@@ -266,6 +273,40 @@ export class CvMatchesService {
       partial_skills,
       user_profile: dto.user_profile,
     });
+  }
+
+  /**
+   * Generate a gap-targeted interview practice plan from the match's GapReport. The probe topics are
+   * derived SERVER-SIDE from the canonical gap_items (skill-type only, evidence-priority, deduped) —
+   * the client supplies no skills. Reuses getGapReport for load + ownership; delegates phrasing to the
+   * unchanged AI-lane InterviewPlanService (deterministic plan, LLM only words it). When there are no
+   * skill-type gaps to probe, returns an honest empty-state with no LLM call.
+   */
+  async generateInterviewPlanFromMatch(
+    userId: string,
+    matchId: string,
+    dto: InterviewPlanFromMatchDto,
+  ): Promise<InterviewPlanResponseDto> {
+    const lang = dto.lang ?? 'vi';
+    const report = await this.getGapReport(userId, matchId, lang);
+    const focusAreas = buildInterviewPlanFromGapItems(report.gap_items, lang);
+
+    if (focusAreas.length === 0) {
+      return {
+        ai_request_id: '',
+        target_role: report.target_role ?? '',
+        language: lang,
+        items: [],
+        llm_enhanced: false,
+        token_usage: 0,
+        no_focus_areas: true,
+      };
+    }
+
+    if (!this.interviewPlan) {
+      throw new Error('Interview plan dependency is not configured');
+    }
+    return this.interviewPlan.phrasePlan(userId, focusAreas, report.target_role ?? '', lang);
   }
 
   private async findOwnedCv(userId: string, cvId: string): Promise<CvEntity> {
