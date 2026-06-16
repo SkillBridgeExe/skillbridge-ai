@@ -6,6 +6,8 @@ const TRENDS: SkillTrendsResponse = {
   role_code: 'backend_developer',
   period: '2026-06-07',
   total_active_jobs: 200,
+  sample_size: 200,
+  data_confidence: 'high',
   skills: [
     {
       canonical_name: 'security',
@@ -48,6 +50,8 @@ const FACTS: TrendsInsightFacts = {
   role_code: 'backend_developer',
   period: '2026-06-07',
   total_active_jobs: 200,
+  sample_size: 200,
+  data_confidence: 'high',
   personalized: true,
   co_occurrence: [],
   skills: [

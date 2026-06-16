@@ -22,6 +22,8 @@ export function buildFacts(
     role_code: trends.role_code,
     period: trends.period,
     total_active_jobs: trends.total_active_jobs,
+    sample_size: trends.sample_size,
+    data_confidence: trends.data_confidence,
     personalized: coveredCanonicals !== null,
     skills: trends.skills.map((s) => ({
       skill: s.canonical_name,
@@ -70,6 +72,8 @@ function fallback(facts: TrendsInsightFacts): TrendsInsightResponse {
   return {
     role_code: facts.role_code,
     period: facts.period,
+    sample_size: facts.sample_size,
+    data_confidence: facts.data_confidence,
     personalized: facts.personalized,
     summary: fallbackSummary(facts),
     insights,
@@ -156,6 +160,8 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
   return {
     role_code: facts.role_code,
     period: facts.period,
+    sample_size: facts.sample_size,
+    data_confidence: facts.data_confidence,
     personalized: facts.personalized,
     summary,
     insights: insights.slice(0, MAX_INSIGHTS),

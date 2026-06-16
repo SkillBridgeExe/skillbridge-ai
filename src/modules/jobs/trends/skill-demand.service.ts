@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CoOccurrencePair } from './trends-insight.types';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
+import { dataConfidence, DataConfidence } from './data-confidence';
 
 export interface SkillDemandRow {
   canonical_name: string;
@@ -19,7 +20,11 @@ export interface SkillDemandRow {
 export interface SkillTrendsResponse {
   role_code: string;
   period: string;
+  /** Active postings IN THE ROLE SCOPE (role=all → whole active pool). Basis for data_confidence. */
+  sample_size: number;
+  /** Kept for back-compat; equals sample_size (role-scoped active jobs, NOT the whole platform). */
   total_active_jobs: number;
+  data_confidence: DataConfidence;
   skills: SkillDemandRow[];
 }
 
@@ -156,10 +161,13 @@ export class SkillDemandService {
       [roleCode],
     );
 
+    const sampleSize = Number(totalRows[0].total);
     return {
       role_code: roleCode,
       period: rows[0].period,
-      total_active_jobs: Number(totalRows[0].total),
+      sample_size: sampleSize,
+      total_active_jobs: sampleSize,
+      data_confidence: dataConfidence(sampleSize),
       skills: rows.map((r) => ({
         canonical_name: r.canonical_name,
         display_name: r.display_name,
