@@ -279,11 +279,25 @@ export function toRoadmapSkillRequirements(core: GapReportCore): {
 }
 
 /**
- * Derive the LEARNING roadmap input from canonical GapItems. ONLY `fixability === 'learn'` gaps
- * become learning skills — `rewrite` / `add_evidence` / `not_fixable_now` are CV-tailoring / evidence
- * / unfixable, NOT learning needs. Preserves the incoming order (gap_items are already severity-ranked
- * by buildGapItems). Used by the platform from-match roadmap route (gaps derived server-side, never
- * trusting client-supplied skills).
+ * GapItem types that map to a learnable skill the course catalog can address. hard_skill / soft_skill
+ * carry a real taxonomy canonical; language maps to a single English-proficiency canonical (below).
+ * seniority / education / domain / work_mode are advisory / experience / credential / preference gaps
+ * with no course skill in the current catalog — they are NOT promoted to roadmap learning skills (v1).
+ */
+const COURSE_ADDRESSABLE_TYPES: ReadonlySet<GapItem['type']> = new Set([
+  'hard_skill',
+  'soft_skill',
+  'language',
+]);
+
+/**
+ * Derive the LEARNING roadmap input from canonical GapItems. A gap becomes a learning skill ONLY when
+ * it is both (1) `fixability === 'learn'` — `rewrite` / `add_evidence` / `not_fixable_now` are
+ * CV-tailoring / evidence / unfixable, not learning needs — and (2) a course-addressable `type`
+ * (see COURSE_ADDRESSABLE_TYPES). `language` gaps map to the `english_proficiency` canonical so the
+ * CourseMatcher can find English courses (IT/VN context → the JD language requirement is English).
+ * Preserves the incoming order (gap_items are already severity-ranked by buildGapItems). Used by the
+ * platform from-match roadmap route (gaps derived server-side, never trusting client-supplied skills).
  */
 export function deriveRoadmapGapsFromReport(gapItems: GapItem[]): {
   missing_skills: RoadmapSkillRequirementInput[];
@@ -293,8 +307,9 @@ export function deriveRoadmapGapsFromReport(gapItems: GapItem[]): {
   const partial_skills: RoadmapSkillRequirementInput[] = [];
   for (const g of gapItems) {
     if (g.fixability !== 'learn' || g.required_level == null) continue;
+    if (!COURSE_ADDRESSABLE_TYPES.has(g.type)) continue;
     const req: RoadmapSkillRequirementInput = {
-      skill_canonical_name: g.canonical_name,
+      skill_canonical_name: g.type === 'language' ? 'english_proficiency' : g.canonical_name,
       display_name: g.display_name,
       required_level: g.required_level,
       current_level: g.cv_level ?? 0,

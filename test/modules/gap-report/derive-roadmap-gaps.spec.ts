@@ -69,3 +69,42 @@ describe('deriveRoadmapGapsFromReport — only fixability=learn, severity order 
     expect(out).toEqual({ missing_skills: [], partial_skills: [] });
   });
 });
+
+describe('deriveRoadmapGapsFromReport — only course-addressable types become learning skills', () => {
+  it('seniority-only learn gap → empty (experience gap, not a course skill)', () => {
+    const out = deriveRoadmapGapsFromReport([
+      g({ type: 'seniority', canonical_name: 'seniority', fixability: 'learn', required_level: 4 }),
+    ]);
+    expect(out).toEqual({ missing_skills: [], partial_skills: [] });
+  });
+
+  it('also excludes education / domain learn gaps (credential / experience, not course skills)', () => {
+    const out = deriveRoadmapGapsFromReport([
+      g({ type: 'education', canonical_name: 'education', fixability: 'learn', required_level: 4 }),
+      g({ type: 'domain', canonical_name: 'fintech', fixability: 'learn', required_level: 4 }),
+    ]);
+    expect(out).toEqual({ missing_skills: [], partial_skills: [] });
+  });
+
+  it('language learn gap → skill_canonical_name is english_proficiency (not the raw language canonical)', () => {
+    const out = deriveRoadmapGapsFromReport([
+      g({ type: 'language', canonical_name: 'language', fixability: 'learn', required_level: 4 }),
+    ]);
+    expect(out.missing_skills.map((s) => s.skill_canonical_name)).toEqual(['english_proficiency']);
+  });
+
+  it('hard_skill learn gap still passes through unchanged (canonical preserved)', () => {
+    const out = deriveRoadmapGapsFromReport([
+      g({ type: 'hard_skill', canonical_name: 'react', fixability: 'learn', required_level: 4 }),
+    ]);
+    expect(out.missing_skills.map((s) => s.skill_canonical_name)).toEqual(['react']);
+  });
+
+  it('rewrite / add_evidence still excluded even on a course-addressable type', () => {
+    const out = deriveRoadmapGapsFromReport([
+      g({ type: 'hard_skill', canonical_name: 'docker', fixability: 'rewrite' }),
+      g({ type: 'hard_skill', canonical_name: 'git', fixability: 'add_evidence' }),
+    ]);
+    expect(out).toEqual({ missing_skills: [], partial_skills: [] });
+  });
+});
