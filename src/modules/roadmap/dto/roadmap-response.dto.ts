@@ -31,6 +31,8 @@ export interface RoadmapParsedResponse {
   uncovered_skills: string[];
   /** Skills with zero catalog hits — flag for course curation team */
   skills_without_courses: string[];
+  /** True when there were no LEARNING gaps to build a roadmap from (honest empty-state, no LLM call). */
+  no_learning_gaps?: boolean;
 }
 
 export interface RoadmapGenerateResponseDto {
