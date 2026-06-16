@@ -19,6 +19,23 @@
       ]
     },
     {
+      "id": "deeplearningai-chatgpt-prompt-engineering-for-developers",
+      "title": "ChatGPT Prompt Engineering for Developers (DeepLearning.AI)",
+      "url": "https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 90,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "apache-maven-getting-started-guide",
       "title": "Maven Getting Started Guide",
       "url": "https://maven.apache.org/guides/getting-started/",
