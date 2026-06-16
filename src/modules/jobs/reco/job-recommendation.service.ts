@@ -10,6 +10,7 @@ import {
   deriveCvSeniority,
   computeExperienceFit,
   experienceNudge,
+  recommendationSeniorityPolicy,
   ExperienceFit,
   CvSeniority,
 } from '../../../common/services/seniority';
@@ -26,8 +27,16 @@ export interface JobRecommendation {
   currency: string;
   source_url: string | null;
   posted_at: string | null;
-  /** Deterministic MATCH_TUNING score (0-100) — same engine as CV/JD match. */
+  /** Deterministic MATCH_TUNING score (0-100) — same engine as CV/JD match. SKILL match only;
+   *  unchanged by the seniority guard so the card stays explainable. */
   match_score: number;
+  /** Seniority-adjusted ranking score (0-100) = match_score × recommendation seniority factor.
+   *  Equals match_score when the candidate fits; demoted for `stretch` (esp. severe). What the
+   *  ranking is actually sorted by — surfaced so the FE can show why a high-skill job ranks low. */
+  recommendation_score: number;
+  /** True when the job sits ≥ 3 seniority levels above the candidate (e.g. fresher → LEAD) — a severe
+   *  stretch the FE can badge / filter from the default list. */
+  severe_stretch: boolean;
   /** Cosine similarity of skill-set embeddings (null when the job has no vector). */
   semantic_similarity: number | null;
   /** RRF-fused rank position (1 = best). */
@@ -68,14 +77,27 @@ interface CandidateJobRow {
   skills: Array<{ canonical: string; importance: string }>;
 }
 
-/** Tie-breaker re-rank: adjusted = rrf + experienceNudge(fit); sort desc, stable by id.
- *  The nudge is ~one RRF rank-step, so only near-ties reorder — a clear skill-winner is never displaced. */
+/**
+ * Seniority-aware re-rank: adjusted = rrf × seniorityFactor + experienceNudge; sort desc, stable by id.
+ *
+ *  - The MULTIPLICATIVE factor (recommendationSeniorityPolicy) is a real demotion: a `stretch` job is
+ *    scaled by 0.4–0.85, which reliably sinks it BELOW every full-factor (`fits`/`unknown`/`over`) job
+ *    — so a fresher does not get SENIOR/LEAD jobs as normal top recommendations even on high skill
+ *    overlap. Within one factor tier the RRF order (skill + semantic) is preserved (constant multiplier).
+ *  - The additive nudge is retained as the original ~one-rank-step tie-breaker among same-factor jobs.
+ *  When the whole pool is a stretch (e.g. only senior jobs exist), they are demoted equally and still
+ *  surface — honest — flagged via `severe_stretch` on the response rather than hidden.
+ */
 export function rerankByExperience(
   fused: Map<string, number>,
   fitByJob: Map<string, ExperienceFit>,
 ): Array<[string, number]> {
   return [...fused.entries()]
-    .map(([id, score]): [string, number] => [id, score + experienceNudge(fitByJob.get(id))])
+    .map(([id, score]): [string, number] => {
+      const fit = fitByJob.get(id);
+      const { factor } = recommendationSeniorityPolicy(fit);
+      return [id, score * factor + experienceNudge(fit)];
+    })
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
@@ -260,6 +282,7 @@ export function buildJobRecommendation(
   semanticSimilarity: number | null,
   experienceFit: ExperienceFit,
 ): JobRecommendation {
+  const policy = recommendationSeniorityPolicy(experienceFit);
   return {
     job_id: job.id,
     title: job.title,
@@ -273,6 +296,8 @@ export function buildJobRecommendation(
     source_url: job.source_url,
     posted_at: job.posted_at,
     match_score: diff.overall_score,
+    recommendation_score: Math.round(diff.overall_score * policy.factor),
+    severe_stretch: policy.severe_stretch,
     semantic_similarity: semanticSimilarity,
     rank,
     matched_skills: diff.matched_skills.map((s) => s.display_name),
