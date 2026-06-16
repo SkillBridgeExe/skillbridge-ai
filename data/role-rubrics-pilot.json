@@ -97,15 +97,17 @@
       "skills": [
         {
           "skill_canonical_name": "node_js",
+          "any_of": [
+            "node_js",
+            "dotnet",
+            "java",
+            "php",
+            "laravel",
+            "python"
+          ],
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.08
-        },
-        {
-          "skill_canonical_name": "dotnet",
-          "required_level": 3,
-          "importance": "NICE_TO_HAVE",
-          "weight": 0.05
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "sql",
@@ -206,12 +208,25 @@
         },
         {
           "skill_canonical_name": "react",
+          "any_of": [
+            "react",
+            "vue",
+            "angular"
+          ],
           "required_level": 3,
           "importance": "REQUIRED",
           "weight": 0.1
         },
         {
           "skill_canonical_name": "node_js",
+          "any_of": [
+            "node_js",
+            "dotnet",
+            "java",
+            "php",
+            "laravel",
+            "python"
+          ],
           "required_level": 3,
           "importance": "PREFERRED",
           "weight": 0.1
@@ -348,7 +363,9 @@
           "skill_canonical_name": "swift",
           "any_of": [
             "swift",
-            "kotlin"
+            "kotlin",
+            "flutter",
+            "react_native"
           ],
           "required_level": 4,
           "importance": "REQUIRED",
@@ -631,13 +648,19 @@
           "skill_canonical_name": "pandas",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.09
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "data_preprocessing",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.08
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "llm_engineering",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "problem_solving",

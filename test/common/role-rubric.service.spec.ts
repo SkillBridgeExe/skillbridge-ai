@@ -54,13 +54,16 @@ describe('RoleRubricService — seniority bands', () => {
     expect(base.skills.some((s) => s.required_level >= 3)).toBe(true); // base intact
   });
 
-  it('mobile rubric carries the swift/kotlin OR-group (any_of) after the dual-platform fix', () => {
+  it('mobile platform OR-group makes Flutter/React Native first-class alongside Swift/Kotlin (any_of)', () => {
     const mobile = svc.getRubric('mobile_developer')!;
-    const group = mobile.skills.find((s) => s.any_of && s.any_of.length === 2);
+    const group = mobile.skills.find((s) => s.any_of && s.importance === 'REQUIRED');
     expect(group).toBeDefined();
-    expect(group?.any_of).toEqual(expect.arrayContaining(['swift', 'kotlin']));
+    // Rubric-tuning 2026-06-16: cross-platform (Flutter/RN) is now first-class in the REQUIRED slot.
+    expect(group?.any_of).toEqual(
+      expect.arrayContaining(['swift', 'kotlin', 'flutter', 'react_native']),
+    );
     expect(group?.importance).toBe('REQUIRED');
-    // the two platform skills remain as light PREFERRED entries
+    // native platforms still appear as light PREFERRED standalone entries
     const swift = mobile.skills.find((s) => s.skill_canonical_name === 'swift' && !s.any_of);
     const kotlin = mobile.skills.find((s) => s.skill_canonical_name === 'kotlin' && !s.any_of);
     expect(swift?.importance).toBe('PREFERRED');

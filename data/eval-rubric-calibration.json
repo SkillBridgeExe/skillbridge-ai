@@ -43,6 +43,41 @@
       "rationale": ".NET backend fresher with SQL/REST/auth/git. Should be employable but not high because DB design, Linux, NoSQL/cache breadth are still thin."
     },
     {
+      "id": "rubric-be-fresher-java-spring",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Java", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Spring Boot", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JWT Authentication", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Postman", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [64, 78],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "Java/Spring backend fresher — must reach PARITY with the .NET case. Spring is a Java alias; the backend-language OR-group makes Java a first-class runtime alongside Node/.NET."
+    },
+    {
+      "id": "rubric-be-fresher-php-laravel",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "PHP", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Laravel", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "MySQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JWT Authentication", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [64, 78],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "PHP/Laravel backend fresher — must reach PARITY with the .NET case. The backend-language OR-group makes PHP/Laravel a first-class runtime."
+    },
+    {
       "id": "rubric-fs-fresher-balanced",
       "target_role": "fullstack_developer",
       "target_band": "fresher",
@@ -62,6 +97,27 @@
       "expected_overall": [74, 86],
       "expected_required_coverage": [0.75, 0.9],
       "rationale": "Balanced fresher fullstack with real frontend and shallow backend. Good enough for junior screening, but still missing auth, Docker, system-design breadth."
+    },
+    {
+      "id": "rubric-fs-fresher-vue-spring",
+      "target_role": "fullstack_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "proficiency_hint": "NOVICE" },
+        { "name": "Vue", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Java", "proficiency_hint": "NOVICE" },
+        { "name": "Spring Boot", "proficiency_hint": "NOVICE" },
+        { "name": "PostgreSQL", "proficiency_hint": "NOVICE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [74, 86],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "Vue + Java/Spring fullstack fresher — must reach PARITY with the balanced (React/Node) case. Same profile with Vue in place of React and Java/Spring in place of Node/Express, via the frontend-framework + backend-language OR-groups."
     },
     {
       "id": "rubric-da-fresher-sql-excel",
@@ -100,6 +156,24 @@
       "expected_overall": [62, 76],
       "expected_required_coverage": [0.95, 1],
       "rationale": "Android fresher hits the required Kotlin/REST/Git/problem-solving/communication/English bar, but misses cross-platform and testing breadth."
+    },
+    {
+      "id": "rubric-mobile-fresher-flutter",
+      "target_role": "mobile_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Flutter", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Dart", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Firebase", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [62, 76],
+      "expected_required_coverage": [0.95, 1],
+      "rationale": "Flutter-only fresher: a cross-platform path that must reach PARITY with the Android case. Same skill profile as rubric-mobile-fresher-android with Flutter in place of Kotlin — first-class via the mobile platform OR-group."
     },
     {
       "id": "rubric-devops-intern-basics",
@@ -156,6 +230,26 @@
       "expected_overall": [68, 80],
       "expected_required_coverage": [0.6, 0.75],
       "rationale": "AI/ML fresher with Python/ML/Pandas and beginner stats/SQL. Fair mid band for internship/fresher; not high due to framework and stats depth."
+    },
+    {
+      "id": "rubric-aiml-fresher-llm-rag",
+      "target_role": "ai_ml_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "LLM Engineering", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "OpenAI API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Vector Database", "proficiency_hint": "NOVICE" },
+        { "name": "RAG", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "LangChain", "proficiency_hint": "NOVICE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "NOVICE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [38, 50],
+      "expected_required_coverage": [0.4, 0.6],
+      "rationale": "HONEST low band (produced 44 / coverage 0.5). AI-app/RAG fresher under ai_ml_engineer gets only LIGHT credit (llm_engineering PREFERRED, w0.06) because the classic-ML REQUIRED core (pytorch_tensorflow/machine_learning/statistics, ~0.39 weight) is intentionally NOT replaced — per the conservative directive. This case is a regression GUARD documenting the current state, NOT parity. Full AI-app parity is deferred to a future ai_app_engineer role (see spec)."
     }
   ]
 }

@@ -2,6 +2,23 @@
   "_note": "CURATED catalog (2026-06-10): real, well-known courses; every URL live-fetch-verified at curation time. rating = editorial reputation score (4.0-4.8), NOT user reviews. Replaces course-catalog-mock.json.",
   "courses": [
     {
+      "id": "deeplearningai-langchain-for-llm-application-development",
+      "title": "LangChain for LLM Application Development (DeepLearning.AI)",
+      "url": "https://www.deeplearning.ai/short-courses/langchain-for-llm-application-development/",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 90,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "apache-maven-getting-started-guide",
       "title": "Maven Getting Started Guide",
       "url": "https://maven.apache.org/guides/getting-started/",
