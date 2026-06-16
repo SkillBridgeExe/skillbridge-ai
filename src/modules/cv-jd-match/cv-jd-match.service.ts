@@ -16,6 +16,7 @@ import {
 } from '../../common/services/skill-text-scanner.service';
 import { RawCvSkill, RawJdRequirement, SkillDiffService } from './skill-diff.service';
 import { detectProficiencyInflation, summarizeInflation } from './proficiency-crosscheck';
+import { resolveExtractionModel } from './extraction-model';
 import { assessTextQuality } from '../../common/services/text-quality';
 import { JdDimension, normalizeJdDimensions } from '../gap-engine/jd-dimensions';
 import { maskPii, maskPiiDeep } from '../../common/services/pii-mask';
@@ -145,8 +146,9 @@ export class CvJdMatchService {
             provider: llmIdentity.provider,
             model: llmIdentity.modelCode,
             jsonMode: true,
-            temperature: 0.1,
+            temperature: llmIdentity.temperature,
             maxOutputTokens: 3000,
+            ...(llmIdentity.seed !== undefined ? { seed: llmIdentity.seed } : {}),
           },
         );
 
@@ -309,14 +311,31 @@ export class CvJdMatchService {
     }
   }
 
-  private resolveLlmIdentity(): { provider: LlmProvider; modelCode: string } {
+  private resolveLlmIdentity(): {
+    provider: LlmProvider;
+    modelCode: string;
+    temperature: number;
+    seed?: number;
+  } {
     const provider = (this.config?.get<LlmProvider>('llm.providerDefault') ??
       'openai') as LlmProvider;
-    const modelCode =
+    const defaultModel =
       provider === 'openai'
         ? (this.config?.get<string>('llm.openai.modelDefault') ?? 'gpt-5.4-mini')
         : (this.config?.get<string>('llm.gemini.modelDefault') ?? 'gemini-2.5-flash');
-    return { provider, modelCode };
+    // Phase 2 toggle: an override model (non-reasoning) switches extraction to temp-0 (+ optional
+    // seed) for determinism. Unset → legacy default model + temp 0.1 (byte-identical).
+    const resolved = resolveExtractionModel({
+      defaultModel,
+      overrideModel: this.config?.get<string>('cvJdMatch.extractionModel'),
+      seed: this.config?.get<number>('cvJdMatch.extractionSeed'),
+    });
+    return {
+      provider,
+      modelCode: resolved.model,
+      temperature: resolved.temperature,
+      seed: resolved.seed,
+    };
   }
 
   private async safeReadCache(cacheKey: string): Promise<LlmExtractionOutput | null> {
