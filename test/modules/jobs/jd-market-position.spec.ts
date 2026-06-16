@@ -8,6 +8,7 @@ import {
   SkillDemandRow,
   SkillTrendsResponse,
 } from '../../../src/modules/jobs/trends/skill-demand.service';
+import { dataConfidence } from '../../../src/modules/jobs/trends/data-confidence';
 import {
   MatchedSkill,
   MissingSkill,
@@ -49,6 +50,8 @@ const trendsOf = (skills: SkillDemandRow[]): SkillTrendsResponse => ({
   role_code: 'frontend_developer',
   period: '2026-06-10',
   total_active_jobs: 800,
+  sample_size: 800,
+  data_confidence: dataConfidence(800),
   skills,
 });
 const baseMatch = (over: Partial<CvJdMatchParsedResponse>): CvJdMatchParsedResponse =>
