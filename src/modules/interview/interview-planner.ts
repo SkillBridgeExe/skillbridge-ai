@@ -1,4 +1,5 @@
 import { DiffResult } from '../cv-jd-match/skill-diff.service';
+import { GapItem } from '../gap-engine/gap-item';
 
 export type FocusType = 'gap_probe' | 'depth_probe' | 'evidence_probe' | 'strength_showcase';
 export type FocusDifficulty = 'foundation' | 'applied';
@@ -165,4 +166,87 @@ export function buildInterviewPlan(
   }
 
   return plan;
+}
+
+/** Interview-probe-able gap types. Non-skill dimensions (seniority/language/education/domain/
+ *  work_mode) are advisory/experience/credential/preference gaps, NOT interview skill probes in v1. */
+const SKILL_TYPES: ReadonlySet<GapItem['type']> = new Set(['hard_skill', 'soft_skill']);
+
+/**
+ * Gap-driven interview plan: select probe topics from canonical GapItems (already severity-ranked by
+ * buildGapItems). Only hard_skill/soft_skill gaps are interview probes (non-skill dimensions excluded
+ * in v1). Each item is assigned ONE focus_type with priority evidence > gap > depth > showcase — so a
+ * `partial` skill that ALSO has weak evidence becomes an evidence_probe ("you claim it but never
+ * showed it"), not a depth_probe. Dedupe by canonical (the same skill can appear in multiple gap_items
+ * from jd + role_rubric sources). Mirrors buildInterviewPlan's caps & output order; the output type is
+ * identical, so the LLM phrasing prompt (interview_plan_v1.md) is unchanged. The upgrade over the
+ * diff-based planner: `unproven`/`overclaimed` (GapEngine-v2 statuses the old DiffResult lacked) now
+ * drive evidence probes.
+ */
+export function buildInterviewPlanFromGapItems(items: GapItem[], lang: Lang): InterviewFocusArea[] {
+  const t = T[lang];
+  const taken = new Set<string>();
+  const gap: InterviewFocusArea[] = [];
+  const depth: InterviewFocusArea[] = [];
+  const evidence: InterviewFocusArea[] = [];
+  const showcase: InterviewFocusArea[] = [];
+
+  for (const g of items) {
+    if (!SKILL_TYPES.has(g.type) || taken.has(g.canonical_name)) continue;
+    const weakEvidence = g.evidence_risk === 'listed_only' || g.evidence_risk === 'unproven';
+    if (
+      g.cv_status === 'unproven' ||
+      g.cv_status === 'overclaimed' ||
+      (weakEvidence && g.cv_status !== 'missing')
+    ) {
+      taken.add(g.canonical_name);
+      evidence.push({
+        skill_canonical: g.canonical_name,
+        display_name: g.display_name,
+        focus_type: 'evidence_probe',
+        reason: t.evidenceReason(g.display_name),
+        difficulty: 'applied',
+        template_question: t.evidenceQ(g.display_name),
+      });
+    } else if (g.cv_status === 'missing' && g.importance === 'REQUIRED') {
+      taken.add(g.canonical_name);
+      gap.push({
+        skill_canonical: g.canonical_name,
+        display_name: g.display_name,
+        focus_type: 'gap_probe',
+        reason: t.gapReason(g.display_name),
+        difficulty: 'foundation',
+        template_question: t.gapQ(g.display_name),
+      });
+    } else if (g.cv_status === 'partial') {
+      taken.add(g.canonical_name);
+      depth.push({
+        skill_canonical: g.canonical_name,
+        display_name: g.display_name,
+        focus_type: 'depth_probe',
+        reason: t.depthReason(g.display_name, g.cv_level ?? 0, g.required_level ?? 0),
+        difficulty: g.gap_levels >= 2 ? 'foundation' : 'applied',
+        template_question: t.depthQ(g.display_name),
+      });
+    } else if (g.cv_status === 'matched') {
+      taken.add(g.canonical_name);
+      showcase.push({
+        skill_canonical: g.canonical_name,
+        display_name: g.display_name,
+        focus_type: 'strength_showcase',
+        reason: t.strengthReason(g.display_name),
+        difficulty: 'applied',
+        template_question: t.strengthQ(g.display_name),
+      });
+    }
+    // else: missing & not REQUIRED → skip (parity with buildInterviewPlan)
+  }
+
+  const probes = [
+    ...gap.slice(0, MAX_PER_PROBE),
+    ...depth.slice(0, MAX_PER_PROBE),
+    ...evidence.slice(0, MAX_PER_PROBE),
+  ].slice(0, MAX_PROBES);
+  if (showcase.length > 0) probes.push(showcase[0]);
+  return probes;
 }
