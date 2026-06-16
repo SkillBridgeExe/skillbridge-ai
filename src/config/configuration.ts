@@ -49,6 +49,13 @@ export default () => ({
   cvJdMatch: {
     templateCode: process.env.CV_JD_MATCH_TEMPLATE_CODE ?? 'cv_jd_match_v1',
     extractionCacheEnabled: process.env.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED !== 'false',
+    // Phase 2 determinism toggle: override model for the EXTRACTION call only. Empty = OFF (use the
+    // llm default + temp 0.1, byte-identical legacy). Set to a non-reasoning model (e.g. gpt-4o-mini)
+    // to get temperature-0 (+ optional seed) deterministic extraction. Does NOT change scoring.
+    extractionModel: process.env.CV_JD_MATCH_EXTRACTION_MODEL ?? '',
+    extractionSeed: process.env.CV_JD_MATCH_EXTRACTION_SEED
+      ? Number(process.env.CV_JD_MATCH_EXTRACTION_SEED)
+      : undefined,
   },
 
   database: {

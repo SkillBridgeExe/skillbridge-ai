@@ -116,6 +116,10 @@ export const configValidationSchema = Joi.object({
     .valid('cv_jd_match_v1', 'cv_jd_match_v2')
     .default('cv_jd_match_v1'),
   CV_JD_MATCH_EXTRACTION_CACHE_ENABLED: Joi.boolean().default(true),
+  // Phase 2 determinism toggle. Empty/unset = OFF (legacy default model + temp 0.1, byte-identical).
+  // Set to a non-reasoning model (e.g. gpt-4o-mini) → temperature-0 (+ optional seed) extraction.
+  CV_JD_MATCH_EXTRACTION_MODEL: Joi.string().allow('').default(''),
+  CV_JD_MATCH_EXTRACTION_SEED: Joi.number().integer().optional(),
 
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
