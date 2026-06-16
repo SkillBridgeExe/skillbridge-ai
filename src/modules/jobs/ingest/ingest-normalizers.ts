@@ -96,8 +96,11 @@ const ROLE_PATTERNS: Array<[RegExp, RoleCode]> = [
   // AI-APPLICATION roles FIRST — specific tokens (LLM/RAG/GenAI/Applied-AI/AI-Application/Prompt)
   // win over the generic ai_ml pattern below. Deliberately does NOT match bare "AI Engineer" /
   // "ML Engineer", so classic ML / NLP / CV / on-device titles fall through to ai_ml_engineer.
+  // Precision: every ambiguous token requires an engineer/developer head — `gen[\s-]?ai\s+(?:...)`
+  // (NOT bare `gen ai`) so a "GenAI"/"Gen AI" SKILL mention in a Data-Scientist/QC/Android title
+  // does not hijack it to ai_app. The spelled-out `generative ai` head stays loose (real role head).
   [
-    /llm\s+(?:engineer|developer)|rag\s+(?:engineer|developer)|gen[\s-]?ai|generative\s+ai|applied\s+ai\s+(?:engineer|developer)|ai\s+app(?:lication)?\s+(?:engineer|developer)|prompt\s+engineer/i,
+    /llm\s+(?:engineer|developer)|rag\s+(?:engineer|developer)|gen[\s-]?ai\s+(?:engineer|developer)|generative\s+ai|applied\s+ai\s+(?:engineer|developer)|ai\s+app(?:lication)?\s+(?:engineer|developer)|prompt\s+engineer/i,
     'ai_app_engineer',
   ],
   [
