@@ -77,6 +77,22 @@ describe('RoleRubricService — seniority bands', () => {
     expect(sum).toBeLessThanOrEqual(1.05);
   });
 
+  it('loads ai_app_engineer with an LLM/app REQUIRED core (not classic-ML) and weight sum ~1.0', () => {
+    const role = svc.getRubric('ai_app_engineer');
+    expect(role).toBeTruthy();
+    const sum = role!.skills.reduce((s, r) => s + r.weight, 0);
+    expect(sum).toBeGreaterThanOrEqual(0.95);
+    expect(sum).toBeLessThanOrEqual(1.05);
+    const required = role!.skills
+      .filter((s) => s.importance === 'REQUIRED')
+      .map((s) => s.skill_canonical_name);
+    // The LLM/app spine is REQUIRED — this is what makes it ai_app_engineer, not ai_ml_engineer.
+    expect(required).toEqual(expect.arrayContaining(['llm_engineering', 'prompt_engineering']));
+    // classic ML is light PREFERRED literacy here, never REQUIRED.
+    const ml = role!.skills.find((s) => s.skill_canonical_name === 'machine_learning');
+    expect(ml?.importance).toBe('PREFERRED');
+  });
+
   it('every band value is typed and produces a rubric for every role', () => {
     const bands: RubricBand[] = ['intern', 'fresher', 'mid'];
     for (const role of svc.listRoleCodes()) {
