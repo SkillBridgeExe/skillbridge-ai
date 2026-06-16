@@ -29,9 +29,20 @@ describe('determinism-metrics', () => {
   });
 
   it('jaccardAcrossTrials = mean pairwise Jaccard of the trial sets (1.0 when identical)', () => {
-    expect(jaccardAcrossTrials([['a', 'b'], ['a', 'b'], ['a', 'b']])).toBeCloseTo(1.0, 5);
+    expect(
+      jaccardAcrossTrials([
+        ['a', 'b'],
+        ['a', 'b'],
+        ['a', 'b'],
+      ]),
+    ).toBeCloseTo(1.0, 5);
     // {a,b} vs {a,c}: |∩|=1 |∪|=3 → 1/3
-    expect(jaccardAcrossTrials([['a', 'b'], ['a', 'c']])).toBeCloseTo(1 / 3, 5);
+    expect(
+      jaccardAcrossTrials([
+        ['a', 'b'],
+        ['a', 'c'],
+      ]),
+    ).toBeCloseTo(1 / 3, 5);
   });
 
   it('jaccardAcrossTrials with <2 trials → 1', () => {

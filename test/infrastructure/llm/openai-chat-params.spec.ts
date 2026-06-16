@@ -2,7 +2,11 @@ import { buildChatParams } from '../../../src/infrastructure/llm/providers/opena
 
 describe('buildChatParams (OpenAI param assembly)', () => {
   it('reasoning model (gpt-5.4-mini): no temperature, no seed, uses max_completion_tokens', () => {
-    const p = buildChatParams('gpt-5.4-mini', { temperature: 0.1, maxOutputTokens: 3000, seed: 42 });
+    const p = buildChatParams('gpt-5.4-mini', {
+      temperature: 0.1,
+      maxOutputTokens: 3000,
+      seed: 42,
+    });
     expect('temperature' in p).toBe(false);
     expect('seed' in p).toBe(false);
     expect(p.max_completion_tokens as number).toBeGreaterThanOrEqual(8192);
