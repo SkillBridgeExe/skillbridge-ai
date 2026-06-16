@@ -230,6 +230,26 @@
       "expected_overall": [68, 80],
       "expected_required_coverage": [0.6, 0.75],
       "rationale": "AI/ML fresher with Python/ML/Pandas and beginner stats/SQL. Fair mid band for internship/fresher; not high due to framework and stats depth."
+    },
+    {
+      "id": "rubric-aiml-fresher-llm-rag",
+      "target_role": "ai_ml_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "LLM Engineering", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "OpenAI API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Vector Database", "proficiency_hint": "NOVICE" },
+        { "name": "RAG", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "LangChain", "proficiency_hint": "NOVICE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "NOVICE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [38, 50],
+      "expected_required_coverage": [0.4, 0.6],
+      "rationale": "HONEST low band (produced 44 / coverage 0.5). AI-app/RAG fresher under ai_ml_engineer gets only LIGHT credit (llm_engineering PREFERRED, w0.06) because the classic-ML REQUIRED core (pytorch_tensorflow/machine_learning/statistics, ~0.39 weight) is intentionally NOT replaced — per the conservative directive. This case is a regression GUARD documenting the current state, NOT parity. Full AI-app parity is deferred to a future ai_app_engineer role (see spec)."
     }
   ]
 }
