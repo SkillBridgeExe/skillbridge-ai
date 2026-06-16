@@ -47,7 +47,9 @@ describe('classifyRole — ai_app_engineer routing', () => {
 describe('classifyRole — AI-app precision: a GenAI skill-mention must NOT override a non-AI-app primary role', () => {
   // Real titles from the live pool (skill-laden): "GenAI"/"Gen AI" appears as a SKILL, not the role head.
   it('"Senior Data Scientist AI, GenAI, Machine Learning" → ai_ml_engineer (not ai_app)', () => {
-    expect(classifyRole('Senior Data Scientist AI, GenAI, Machine Learning')).toBe('ai_ml_engineer');
+    expect(classifyRole('Senior Data Scientist AI, GenAI, Machine Learning')).toBe(
+      'ai_ml_engineer',
+    );
   });
   it('"Lead QC Engineer Automation Gen AI" → NOT ai_app_engineer', () => {
     expect(classifyRole('Lead QC Engineer Automation Gen AI')).not.toBe('ai_app_engineer');
