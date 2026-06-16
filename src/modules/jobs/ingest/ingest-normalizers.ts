@@ -137,6 +137,40 @@ export function classifyRole(title: string): RoleCode | null {
   return null;
 }
 
+/** Seniority band stored on jobs.experience_level — keys match JOB_LEVEL_RANK in common/services/seniority.ts. */
+export type SeniorityLevel = 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD';
+
+/**
+ * Title-derived seniority for jobs.experience_level — the input the job-rec seniority guard
+ * (recommendationSeniorityPolicy) needs but that crawl sources almost never provide (prod: ~0/803
+ * jobs had it, while 34% are SENIOR/LEAD by TITLE). Ordered MOST-SENIOR first so a title's strongest
+ * level word wins. CONSERVATIVE: only classifies when the title clearly states a level; a level-less
+ * title → null (= unknown → the guard does NOT demote — honest, no fabricated seniority). Word-bounded
+ * to avoid substring hits; LEAD needs a tech head so "lead generation"/"team leader (sales)" don't
+ * false-fire. The pool is already IT-role-filtered, so these words are reliable seniority signals.
+ */
+const SENIORITY_PATTERNS: Array<[RegExp, SeniorityLevel]> = [
+  [
+    /\bprincipal\b|\bstaff\s+(?:engineer|developer|dev)\b|\b(?:tech|technical|team|engineering)\s+lead\b|\blead\s+(?:engineer|developer|dev|back[\s-]?end|front[\s-]?end|full[\s-]?stack|software|mobile|data|qa|devops)\b|trưởng\s+nhóm/i,
+    'LEAD',
+  ],
+  [/\bsenior\b|\bsr\b|cao\s+cấp/i, 'SENIOR'],
+  [/\bmiddle\b|\bmid[\s-]?level\b/i, 'MIDDLE'],
+  [/\bjunior\b|\bjr\b/i, 'JUNIOR'],
+  [/\bfresher\b|\bentry[\s-]?level\b|mới\s+ra\s+trường/i, 'FRESHER'],
+  [/\bintern(?:ship)?\b|\btrainee\b|thực\s*tập/i, 'INTERN'],
+];
+
+/** Title → seniority level (null when the title states no clear level → guard treats it as unknown). */
+export function classifySeniority(title: string): SeniorityLevel | null {
+  const t = (title ?? '').trim();
+  if (t.length === 0) return null;
+  for (const [re, level] of SENIORITY_PATTERNS) {
+    if (re.test(t)) return level;
+  }
+  return null;
+}
+
 /**
  * Importance heuristic per text line: skills mentioned on an "advantage" line are
  * NICE_TO_HAVE; everything else defaults REQUIRED (matches MATCH_TUNING multipliers).
