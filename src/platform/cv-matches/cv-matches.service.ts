@@ -20,10 +20,14 @@ import {
   GapReportService,
   SkillBridgeGapReport,
 } from '../../modules/gap-report/gap-report.service';
+import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
+import { RoadmapService } from '../../modules/roadmap/roadmap.service';
+import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.dto';
+import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
 import { JdTextExtractorService } from './jd-text-extractor.service';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
@@ -48,6 +52,9 @@ export class CvMatchesService {
     // Optional for positional unit-test construction; Nest injects it in the app (ConfigModule is
     // global). Drives the cv-jd-match prompt version (v1|v2) server-side. No @Optional() needed.
     private readonly config?: ConfigService,
+    // Optional for positional unit-test construction; Nest injects it via RoadmapModule. Used only
+    // by generateRoadmapFromMatch (server-derived learning roadmap).
+    private readonly roadmap?: RoadmapService,
   ) {}
 
   async createMatch(
@@ -208,6 +215,56 @@ export class CvMatchesService {
       match: parsed,
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
+    });
+  }
+
+  /**
+   * Generate a learning roadmap whose skills are derived SERVER-SIDE from the match's GapReport
+   * (only fixability==='learn' gaps, severity-ordered) — the client cannot inject arbitrary skills.
+   * Reuses getGapReport for load + ownership; delegates generation to the unchanged AI-lane
+   * RoadmapService.generate. When there are no learning gaps, returns an honest empty-state with
+   * no LLM call (remaining gaps are CV-tailoring/evidence, not new skills to learn).
+   */
+  async generateRoadmapFromMatch(
+    userId: string,
+    matchId: string,
+    dto: RoadmapFromMatchDto,
+  ): Promise<RoadmapGenerateResponseDto> {
+    const report = await this.getGapReport(userId, matchId);
+    const { missing_skills, partial_skills } = deriveRoadmapGapsFromReport(report.gap_items);
+
+    if (missing_skills.length === 0 && partial_skills.length === 0) {
+      return {
+        ai_request_id: '',
+        retrieval_log_id: null,
+        retrieved_chunks_count: 0,
+        token_usage: 0,
+        parsed_response: {
+          title: 'Lộ trình học',
+          total_weeks: 0,
+          phases: [],
+          steps: [],
+          ai_summary:
+            'Không có khoảng trống kỹ năng cần HỌC cho vai trò này — kỹ năng của bạn đã đáp ứng yêu cầu. ' +
+            'Nếu vẫn còn khoảng cách, đó là về minh chứng/diễn đạt trong CV (xem mục chỉnh sửa CV), không phải học kỹ năng mới.',
+          ai_advice: '',
+          uncovered_skills: [],
+          skills_without_courses: [],
+          no_learning_gaps: true,
+        },
+      };
+    }
+
+    if (!this.roadmap) {
+      throw new Error('Roadmap dependency is not configured');
+    }
+    return this.roadmap.generate(userId, {
+      target_role: report.target_role ?? '',
+      hours_per_week: dto.hours_per_week ?? 8,
+      prompt_template_code: dto.prompt_template_code ?? 'roadmap_v1',
+      missing_skills,
+      partial_skills,
+      user_profile: dto.user_profile,
     });
   }
 

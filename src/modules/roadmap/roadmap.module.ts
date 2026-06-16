@@ -8,5 +8,6 @@ import { RagModule } from '../rag/rag.module';
   imports: [RagModule],
   controllers: [RoadmapController],
   providers: [RoadmapService, CourseMatcherService],
+  exports: [RoadmapService],
 })
 export class RoadmapModule {}

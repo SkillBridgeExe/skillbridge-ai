@@ -25,7 +25,9 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListQueryDto } from './dto/cv-match-list-query.dto';
+import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
 import { CvMatchesService } from './cv-matches.service';
+import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -173,6 +175,19 @@ export class CvMatchReportsController {
     @Query('lang') lang?: string,
   ) {
     return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang));
+  }
+
+  @Post(':matchId/roadmap')
+  @ApiOperation({
+    summary: 'Generate a learning roadmap from a match (server-derived gaps; learn-only)',
+  })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  roadmapFromMatch(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+    @Body() dto: RoadmapFromMatchDto,
+  ): Promise<RoadmapGenerateResponseDto> {
+    return this.matches.generateRoadmapFromMatch(user.userId, matchId, dto);
   }
 }
 
