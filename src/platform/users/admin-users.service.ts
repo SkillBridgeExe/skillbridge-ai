@@ -1,6 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, ILike, In, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import {
+  Between,
+  FindOptionsWhere,
+  ILike,
+  In,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { AccountEntity } from '../../database/entities/account.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
@@ -41,7 +49,18 @@ type AdminUserListItem = {
   activePlanCodes: string[];
 };
 
-type UserWithOptionalDates = Pick<UserEntity, 'id' | 'email' | 'fullName' | 'avatarUrl' | 'status' | 'isEmailVerified' | 'isActive' | 'lastLoginAt' | 'createdAt'>;
+type UserWithOptionalDates = Pick<
+  UserEntity,
+  | 'id'
+  | 'email'
+  | 'fullName'
+  | 'avatarUrl'
+  | 'status'
+  | 'isEmailVerified'
+  | 'isActive'
+  | 'lastLoginAt'
+  | 'createdAt'
+>;
 
 @Injectable()
 export class AdminUsersService {
@@ -147,7 +166,10 @@ export class AdminUsersService {
         interviewCount,
       },
       roleDistribution: Object.entries(roleCounts).map(([role, count]) => ({ role, count })),
-      statusDistribution: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
+      statusDistribution: Object.entries(statusCounts).map(([status, count]) => ({
+        status,
+        count,
+      })),
       registrationTrend: this.countByDay(users, (user) => user.createdAt),
       activityFunnel: [
         { label: 'Users', value: users.length },
@@ -263,7 +285,9 @@ export class AdminUsersService {
       await this.assertCanRemoveAdmin(actorUserId, id);
     }
 
-    const availableRoles = await this.roles.find({ where: { code: In(dto.roles) as unknown as RoleCode } });
+    const availableRoles = await this.roles.find({
+      where: { code: In(dto.roles) as unknown as RoleCode },
+    });
     const rolesByCode = new Map(availableRoles.map((role) => [role.code, role]));
     const missing = dto.roles.filter((role) => !rolesByCode.has(role));
     if (missing.length) {
@@ -337,7 +361,10 @@ export class AdminUsersService {
     return user;
   }
 
-  private async toListItem(user: UserWithOptionalDates, roles: RoleCode[]): Promise<AdminUserListItem> {
+  private async toListItem(
+    user: UserWithOptionalDates,
+    roles: RoleCode[],
+  ): Promise<AdminUserListItem> {
     const cvs = await this.cvs.find({ where: { userId: user.id } });
     const cvIds = cvs.map((cv) => cv.id);
     const [matchCount, interviewCount, paidOrders, activeSubscriptions] = await Promise.all([
@@ -361,16 +388,22 @@ export class AdminUsersService {
       matchCount,
       interviewCount,
       paidAmountVnd: paidOrders.reduce((sum, order) => sum + Number(order.amountVnd ?? 0), 0),
-      activePlanCodes: [...new Set(activeSubscriptions.map((subscription) => subscription.planCode))],
+      activePlanCodes: [
+        ...new Set(activeSubscriptions.map((subscription) => subscription.planCode)),
+      ],
     };
   }
 
   private async rolesByUserId(userIds: string[]): Promise<Map<string, RoleCode[]>> {
     const result = new Map<string, RoleCode[]>();
     if (!userIds.length) return result;
-    const userRoles = await this.userRoles.find({ where: { userId: In(userIds) as unknown as string } });
+    const userRoles = await this.userRoles.find({
+      where: { userId: In(userIds) as unknown as string },
+    });
     const roleIds = [...new Set(userRoles.map((userRole) => userRole.roleId))];
-    const roles = roleIds.length ? await this.roles.find({ where: { id: In(roleIds) as unknown as string } }) : [];
+    const roles = roleIds.length
+      ? await this.roles.find({ where: { id: In(roleIds) as unknown as string } })
+      : [];
     const roleById = new Map(
       roles.filter((role) => roleIds.includes(role.id)).map((role) => [role.id, role.code]),
     );
@@ -435,7 +468,9 @@ export class AdminUsersService {
     }
   }
 
-  private deriveStatus(user: Pick<UserEntity, 'status' | 'isActive' | 'isEmailVerified'>): AdminUserStatusFilter {
+  private deriveStatus(
+    user: Pick<UserEntity, 'status' | 'isActive' | 'isEmailVerified'>,
+  ): AdminUserStatusFilter {
     if (!user.isActive || user.status === 'SUSPENDED') return 'SUSPENDED';
     if (!user.isEmailVerified) return 'UNVERIFIED';
     return 'ACTIVE';
@@ -474,10 +509,18 @@ export class AdminUsersService {
     interviews: InterviewSessionEntity[],
     orders: PaymentOrderEntity[],
   ) {
-    const buckets = new Map<string, { month: string; cvCount: number; interviewCount: number; paidAmountVnd: number }>();
+    const buckets = new Map<
+      string,
+      { month: string; cvCount: number; interviewCount: number; paidAmountVnd: number }
+    >();
     const ensure = (date: Date | null | undefined) => {
       const month = date ? date.toISOString().slice(0, 7) : 'unknown';
-      const bucket = buckets.get(month) ?? { month, cvCount: 0, interviewCount: 0, paidAmountVnd: 0 };
+      const bucket = buckets.get(month) ?? {
+        month,
+        cvCount: 0,
+        interviewCount: 0,
+        paidAmountVnd: 0,
+      };
       buckets.set(month, bucket);
       return bucket;
     };

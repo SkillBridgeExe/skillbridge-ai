@@ -1,7 +1,7 @@
 import { rerankByExperience } from '../../../src/modules/jobs/reco/job-recommendation.service';
 import { ExperienceFit } from '../../../src/common/services/seniority';
 
-const fit = (verdict: any): ExperienceFit => ({
+const fit = (verdict: ExperienceFit['verdict']): ExperienceFit => ({
   cv_seniority: 'fresher',
   job_level: 'X',
   verdict,

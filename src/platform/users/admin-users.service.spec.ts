@@ -216,7 +216,9 @@ describe('AdminUsersService', () => {
     users.findOne.mockResolvedValue({ ...baseUser });
     userRoles.find.mockResolvedValue([{ id: 'ur-1', userId: 'user-1', roleId: 'role-user' }]);
 
-    const result = await service.replaceUserRoles('admin-1', 'user-1', { roles: ['USER', 'MENTOR'] });
+    const result = await service.replaceUserRoles('admin-1', 'user-1', {
+      roles: ['USER', 'MENTOR'],
+    });
 
     expect(userRoles.delete).toHaveBeenCalledWith({ userId: 'user-1' });
     expect(userRoles.save).toHaveBeenCalledWith([
@@ -280,8 +282,17 @@ describe('AdminUsersService', () => {
   });
 
   it('returns user detail with profile, providers, usage, and recent activity', async () => {
-    const { service, users, profiles, userSkills, skills, userRoles, roles, accounts, usageEvents } =
-      setup();
+    const {
+      service,
+      users,
+      profiles,
+      userSkills,
+      skills,
+      userRoles,
+      roles,
+      accounts,
+      usageEvents,
+    } = setup();
     users.findOne.mockResolvedValue({ ...baseUser });
     profiles.findOne.mockResolvedValue({ userId: 'user-1', university: 'FPT University' });
     userRoles.find.mockResolvedValue([{ id: 'ur-1', userId: 'user-1', roleId: 'role-user' }]);

@@ -3,6 +3,8 @@ import {
   deriveCvSeniority,
   computeExperienceFit,
   experienceNudge,
+  type CvSeniority,
+  type ExperienceFit,
 } from '../../src/common/services/seniority';
 
 const doc = (over: Partial<CanonicalCvDocument>): CanonicalCvDocument => ({
@@ -65,7 +67,7 @@ describe('deriveCvSeniority', () => {
 });
 
 describe('computeExperienceFit', () => {
-  const sen = (bucket: any) => ({
+  const sen = (bucket: CvSeniority['bucket']): CvSeniority => ({
     bucket,
     est_years: null,
     confidence: 'high' as const,
@@ -88,7 +90,10 @@ describe('computeExperienceFit', () => {
 
 describe('experienceNudge', () => {
   it('fits positive, stretch negative, unknown zero; confidence scales magnitude', () => {
-    const f = (verdict: any, confidence: any = 'high') => ({
+    const f = (
+      verdict: ExperienceFit['verdict'],
+      confidence: ExperienceFit['confidence'] = 'high',
+    ): ExperienceFit => ({
       cv_seniority: 'mid' as const,
       job_level: 'MIDDLE',
       verdict,
