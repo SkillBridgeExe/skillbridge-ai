@@ -28,6 +28,12 @@ export interface LlmCompleteOptions {
    * accepts the schema before relying on it.
    */
   responseSchema?: Record<string, unknown>;
+  /**
+   * Best-effort determinism hint. ONLY applied to NON-reasoning OpenAI models (gpt-4o family) —
+   * reasoning models (gpt-5 or o-series) reject it, so the provider omits it for them. Prod call sites do not set
+   * this, so prod behavior is unchanged; it exists for the determinism harness / candidate path.
+   */
+  seed?: number;
 }
 
 export interface LlmCompleteResult {
