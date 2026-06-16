@@ -34,6 +34,7 @@
     "taxonomy:validate": "ts-node -r tsconfig-paths/register src/tools/validate-taxonomy.ts",
     "report:role-drift": "ts-node -r tsconfig-paths/register src/tools/report-role-drift.ts",
     "backfill:role-code": "ts-node -r tsconfig-paths/register src/tools/backfill-role-code.ts",
+    "backfill:experience-level": "ts-node -r tsconfig-paths/register src/tools/backfill-experience-level.ts",
     "dev": "nest start --watch",
     "eval:semantic": "ts-node -r tsconfig-paths/register src/calibration/eval-semantic.ts",
     "embeddings:backfill": "ts-node -r tsconfig-paths/register src/tools/backfill-skill-embeddings.ts",
