@@ -25,4 +25,6 @@ export interface InterviewPlanResponseDto {
   /** false = LLM unavailable; questions are the deterministic templates. */
   llm_enhanced: boolean;
   token_usage: number;
+  /** True when there were no skill-type gaps to probe (honest empty-state, no LLM call). */
+  no_focus_areas?: boolean;
 }
