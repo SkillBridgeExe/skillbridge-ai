@@ -303,16 +303,21 @@ async function main(): Promise<void> {
       console.log(`  wrote ${filename}`);
     }
 
-    // scanned: render single-column to PNG, embed as an image-only PDF (no text layer) → OCR path.
+    // scanned: render single-column to a HIGH-DPI PNG, embed as an image-only PDF (no text layer) →
+    // exercises the OCR-rescue path. deviceScaleFactor 3 over a 794px (A4-width) viewport ⇒ a 2382px
+    // image mapped onto a true-A4 (595.28pt = 8.27in) page ⇒ ~288 PPI — a realistic scan resolution,
+    // NOT the ~72 PPI a 1× screenshot would give (which no OCR engine can read).
+    const A4_W = 595.28; // points
     const page = await browser.newPage();
-    await page.setViewport({ width: 794, height: 1123 }); // ~A4 @ 96dpi
+    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 3 });
     await page.setContent(singleColumnHtml(cv), { waitUntil: 'load' });
     const png = (await page.screenshot({ fullPage: true, type: 'png' })) as Uint8Array;
     await page.close();
     const doc = await PDFDocument.create();
     const img = await doc.embedPng(png);
-    const pg = doc.addPage([img.width, img.height]);
-    pg.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+    const pageH = A4_W * (img.height / img.width);
+    const pg = doc.addPage([A4_W, pageH]);
+    pg.drawImage(img, { x: 0, y: 0, width: A4_W, height: pageH });
     const bytes = await doc.save();
     const scannedName = `synthetic-${cv.key}-scanned.pdf`;
     fs.writeFileSync(path.join(outDir, scannedName), bytes);
