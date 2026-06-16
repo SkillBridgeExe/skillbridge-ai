@@ -2140,6 +2140,36 @@
       "note": "DANGER: 'llm' fuzzy-matches java at d=2 (wrong!). LLM/RAG app building is a real emerging VN AI role. Propose canonical llm_engineering (ai_ml). [unlocked by step-3 expansion]"
     },
     {
+      "mention": "OpenAI API",
+      "lang": "en",
+      "expected": [
+        "llm_engineering"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "AI-app/RAG signal → llm_engineering (alias added 2026-06-16 rubric tuning)."
+    },
+    {
+      "mention": "Vector Database",
+      "lang": "en",
+      "expected": [
+        "llm_engineering"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "RAG-stack signal → llm_engineering (alias added 2026-06-16 rubric tuning)."
+    },
+    {
+      "mention": "pgvector",
+      "lang": "en",
+      "expected": [
+        "llm_engineering"
+      ],
+      "category": "expansion",
+      "requires": [],
+      "note": "Postgres vector ext → RAG stack → llm_engineering (alias added 2026-06-16 rubric tuning)."
+    },
+    {
       "mention": "Computer Vision",
       "lang": "en",
       "expected": [
