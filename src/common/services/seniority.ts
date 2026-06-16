@@ -127,3 +127,39 @@ export function experienceNudge(fit: ExperienceFit | undefined): number {
         : -EXPERIENCE_NUDGE / 2;
   return base * CONF_SCALE[fit.confidence];
 }
+
+/**
+ * Job-recommendation seniority POLICY (separate from the tiny RRF nudge above). The nudge only breaks
+ * near-ties; this returns a real DEMOTION factor so a fresher's CV does not surface SENIOR/LEAD jobs as
+ * normal top recommendations even when the skill overlap is high.
+ *
+ *   factor — multiplier in (0,1] applied to the ranking score AND to surface `recommendation_score`
+ *            (= skill match_score × factor). 1.0 = no demotion.
+ *   severe_stretch — gap ≥ 3 levels (e.g. fresher → LEAD); the FE can badge / filter these.
+ *   level_gap — job_level rank − cv rank (positive = the job sits ABOVE the candidate).
+ *
+ * Only `stretch` (CV ≥ 2 levels below the job) is demoted. `fits`, `over_qualified`, and crucially
+ * `unknown` (no reliable signal) are NEVER penalized. Low CV-seniority confidence softens the demotion
+ * so an uncertain estimate cannot hard-bury an otherwise strong skill match. Pure + deterministic.
+ */
+export interface RecommendationSeniorityPolicy {
+  factor: number;
+  severe_stretch: boolean;
+  level_gap: number;
+}
+
+export function recommendationSeniorityPolicy(
+  fit: ExperienceFit | undefined,
+): RecommendationSeniorityPolicy {
+  const NEUTRAL: RecommendationSeniorityPolicy = { factor: 1, severe_stretch: false, level_gap: 0 };
+  if (!fit || fit.verdict === 'unknown' || !fit.job_level) return NEUTRAL;
+  const jobRank = JOB_LEVEL_RANK[fit.job_level.toUpperCase()];
+  if (jobRank === undefined) return NEUTRAL;
+  const level_gap = jobRank - BUCKET_RANK[fit.cv_seniority];
+  if (fit.verdict !== 'stretch') return { factor: 1, severe_stretch: false, level_gap };
+
+  const severe = level_gap >= 3;
+  const low = fit.confidence === 'low';
+  const factor = severe ? (low ? 0.7 : 0.4) : low ? 0.85 : 0.65;
+  return { factor, severe_stretch: severe, level_gap };
+}

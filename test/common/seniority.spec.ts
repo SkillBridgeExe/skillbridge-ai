@@ -3,6 +3,7 @@ import {
   deriveCvSeniority,
   computeExperienceFit,
   experienceNudge,
+  recommendationSeniorityPolicy,
   type CvSeniority,
   type ExperienceFit,
 } from '../../src/common/services/seniority';
@@ -105,5 +106,49 @@ describe('experienceNudge', () => {
     expect(Math.abs(experienceNudge(f('fits', 'low')))).toBeLessThan(
       Math.abs(experienceNudge(f('fits', 'high'))),
     );
+  });
+});
+
+describe('recommendationSeniorityPolicy', () => {
+  const fit = (
+    cv_seniority: ExperienceFit['cv_seniority'],
+    job_level: string | null,
+    verdict: ExperienceFit['verdict'],
+    confidence: ExperienceFit['confidence'] = 'high',
+  ): ExperienceFit => ({ cv_seniority, job_level, verdict, confidence });
+
+  it('fits / over_qualified / unknown are NOT penalized (factor 1.0)', () => {
+    expect(recommendationSeniorityPolicy(fit('mid', 'MIDDLE', 'fits')).factor).toBe(1);
+    expect(recommendationSeniorityPolicy(fit('senior', 'JUNIOR', 'over_qualified')).factor).toBe(1);
+    expect(recommendationSeniorityPolicy(fit('mid', null, 'unknown')).factor).toBe(1);
+    expect(recommendationSeniorityPolicy(undefined).factor).toBe(1);
+  });
+
+  it('stretch gap 2 (junior→SENIOR) is demoted but not severe', () => {
+    const p = recommendationSeniorityPolicy(fit('junior', 'SENIOR', 'stretch'));
+    expect(p.level_gap).toBe(2);
+    expect(p.severe_stretch).toBe(false);
+    expect(p.factor).toBeLessThan(1);
+    expect(p.factor).toBeGreaterThan(0.5);
+  });
+
+  it('severe stretch gap ≥ 3 (fresher→SENIOR, intern→LEAD) → severe + harder demotion', () => {
+    const fresherSenior = recommendationSeniorityPolicy(fit('fresher', 'SENIOR', 'stretch'));
+    expect(fresherSenior.level_gap).toBe(3);
+    expect(fresherSenior.severe_stretch).toBe(true);
+
+    const internLead = recommendationSeniorityPolicy(fit('intern', 'LEAD', 'stretch'));
+    expect(internLead.level_gap).toBe(5);
+    expect(internLead.severe_stretch).toBe(true);
+    // severe is demoted harder than a gap-2 stretch
+    expect(internLead.factor).toBeLessThan(
+      recommendationSeniorityPolicy(fit('junior', 'SENIOR', 'stretch')).factor,
+    );
+  });
+
+  it('low CV-seniority confidence softens the demotion (does not over-penalize an uncertain estimate)', () => {
+    const high = recommendationSeniorityPolicy(fit('fresher', 'SENIOR', 'stretch', 'high'));
+    const low = recommendationSeniorityPolicy(fit('fresher', 'SENIOR', 'stretch', 'low'));
+    expect(low.factor).toBeGreaterThan(high.factor);
   });
 });
