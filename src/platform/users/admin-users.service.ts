@@ -446,6 +446,10 @@ export class AdminUsersService {
   }
 
   private async assertCanRemoveAdmin(actorUserId: string, targetUserId: string) {
+    if (actorUserId === targetUserId) {
+      throw new BadRequestException('Cannot lock out your own admin role');
+    }
+
     const adminRole = await this.roles.findOne({ where: { code: 'ADMIN' } });
     if (!adminRole) throw new BadRequestException('Admin role is not configured');
 
@@ -462,9 +466,6 @@ export class AdminUsersService {
       : 0;
     if (activeAdminCount <= 1) {
       throw new BadRequestException('Cannot remove or suspend the last active admin');
-    }
-    if (actorUserId === targetUserId && activeAdminCount <= 1) {
-      throw new BadRequestException('Cannot lock out your own only admin role');
     }
   }
 

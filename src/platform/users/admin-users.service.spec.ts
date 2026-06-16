@@ -243,6 +243,24 @@ describe('AdminUsersService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('prevents an admin from removing their own admin role even when another active admin exists', async () => {
+    const { service, users, userRoles, roles } = setup();
+    users.findOne.mockResolvedValue({ ...baseUser, id: 'admin-1' });
+    userRoles.find
+      .mockResolvedValueOnce([{ id: 'ur-1', userId: 'admin-1', roleId: 'role-admin' }])
+      .mockResolvedValueOnce([
+        { id: 'ur-1', userId: 'admin-1', roleId: 'role-admin' },
+        { id: 'ur-2', userId: 'admin-2', roleId: 'role-admin' },
+      ]);
+    roles.find.mockResolvedValueOnce([adminRole]).mockResolvedValueOnce([userRole]);
+    users.count.mockResolvedValue(2);
+
+    await expect(
+      service.replaceUserRoles('admin-1', 'admin-1', { roles: ['USER'] }),
+    ).rejects.toThrow('Cannot lock out your own admin role');
+    expect(userRoles.manager.transaction).not.toHaveBeenCalled();
+  });
+
   it('returns a summary for charts and KPI cards', async () => {
     const { service, users, userRoles, roles, cvs, matches, interviews, orders } = setup();
     users.find.mockResolvedValue([
