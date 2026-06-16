@@ -43,6 +43,41 @@
       "rationale": ".NET backend fresher with SQL/REST/auth/git. Should be employable but not high because DB design, Linux, NoSQL/cache breadth are still thin."
     },
     {
+      "id": "rubric-be-fresher-java-spring",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Java", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Spring Boot", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JWT Authentication", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Postman", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [64, 78],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "Java/Spring backend fresher — must reach PARITY with the .NET case. Spring is a Java alias; the backend-language OR-group makes Java a first-class runtime alongside Node/.NET."
+    },
+    {
+      "id": "rubric-be-fresher-php-laravel",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "PHP", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Laravel", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "MySQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JWT Authentication", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [64, 78],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "PHP/Laravel backend fresher — must reach PARITY with the .NET case. The backend-language OR-group makes PHP/Laravel a first-class runtime."
+    },
+    {
       "id": "rubric-fs-fresher-balanced",
       "target_role": "fullstack_developer",
       "target_band": "fresher",
