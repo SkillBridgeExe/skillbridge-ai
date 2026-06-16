@@ -60,7 +60,20 @@ export class InterviewPlanService {
         )
       : null;
     const plan = buildInterviewPlan(diff, ledger?.evidence_gap ?? null, demonstrated, lang);
+    return this.phrasePlan(userId, plan, input.target_role, lang);
+  }
 
+  /**
+   * Phrase a pre-built deterministic focus plan via the ONE guarded LLM call; on any failure the
+   * template pack still ships (llm_enhanced: false). Shared by generatePlan (review-driven) and the
+   * platform from-match route (GapReport-driven) — the only difference is how `plan` was built.
+   */
+  async phrasePlan(
+    userId: string,
+    plan: InterviewFocusArea[],
+    target_role: string,
+    lang: 'vi' | 'en',
+  ): Promise<InterviewPlanResponseDto> {
     const template = this.prompts.get(PROMPT_CODE);
     const aiRequestId = await this.tracing.startAiRequest({
       userId,
@@ -68,7 +81,7 @@ export class InterviewPlanService {
       promptTemplateCode: template.code,
       promptTemplateVersion: template.version,
       requestType: 'interview_plan',
-      requestPayload: { target_role: input.target_role, focus_count: plan.length, lang },
+      requestPayload: { target_role, focus_count: plan.length, lang },
     });
 
     const startedAt = Date.now();
@@ -101,7 +114,7 @@ export class InterviewPlanService {
             ? llmResult.rawResponse
             : JSON.stringify(llmResult.rawResponse),
         ),
-        parsedResponse: { target_role: input.target_role, language: lang, items },
+        parsedResponse: { target_role, language: lang, items },
         totalScore: 0,
         tokenUsage: tokens,
       });
@@ -122,7 +135,7 @@ export class InterviewPlanService {
 
     return {
       ai_request_id: aiRequestId,
-      target_role: input.target_role,
+      target_role,
       language: lang,
       items,
       llm_enhanced: llmEnhanced,

@@ -8,6 +8,7 @@ import { JobDescriptionEntity } from '../../database/entities/job-description.en
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
 import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
+import { InterviewModule } from '../../modules/interview/interview.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvsModule } from '../cvs/cvs.module';
 import { CvMatchReportsController, CvMatchesController } from './cv-matches.controller';
@@ -27,6 +28,7 @@ import { JdTextExtractorService } from './jd-text-extractor.service';
     BillingModule,
     GapReportModule,
     RoadmapModule,
+    InterviewModule,
     CvsModule,
   ],
   controllers: [CvMatchesController, CvMatchReportsController],
