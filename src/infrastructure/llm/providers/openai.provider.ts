@@ -10,6 +10,29 @@ import {
   LlmProviderClient,
 } from '../types/llm.types';
 
+/**
+ * Pure: assemble the chat.completions params for a model + options. Exported for unit testing.
+ *
+ * GPT-5 family + o-series are REASONING models: per the OpenAI docs they REJECT `temperature`/`seed`
+ * (and top_p/penalties) and require `max_completion_tokens` instead of `max_tokens`. Non-reasoning
+ * models (gpt-4o, gpt-4o-mini) keep the classic params AND honor `seed` (best-effort determinism).
+ * Prod call sites pass no `seed`, so prod behavior is unchanged; `seed` exists for the determinism path.
+ */
+export function buildChatParams(
+  model: string,
+  options: { temperature?: number; maxOutputTokens?: number; seed?: number },
+): Record<string, unknown> {
+  const reasoning = /^(gpt-5|o\d)/i.test(model);
+  if (reasoning) {
+    return { max_completion_tokens: Math.max(options.maxOutputTokens ?? 8192, 8192) };
+  }
+  return {
+    temperature: options.temperature ?? 0.2,
+    max_tokens: options.maxOutputTokens ?? 2048,
+    ...(options.seed !== undefined ? { seed: options.seed } : {}),
+  };
+}
+
 @Injectable()
 export class OpenAiProvider implements LlmProviderClient {
   readonly name = 'openai' as const;
@@ -32,28 +55,18 @@ export class OpenAiProvider implements LlmProviderClient {
     return this.client;
   }
 
-  /**
-   * GPT-5 family + o-series are REASONING models: per the OpenAI docs they REJECT `temperature`
-   * (and top_p/penalties) and require `max_completion_tokens` instead of `max_tokens`. Sending the
-   * old params returns a 400. Non-reasoning models (gpt-4o, gpt-4o-mini) keep the classic params.
-   */
-  private isReasoningModel(model: string): boolean {
-    return /^(gpt-5|o\d)/i.test(model);
-  }
-
   async complete(messages: LlmMessage[], options: LlmCompleteOptions): Promise<LlmCompleteResult> {
     const modelCode = options.model ?? this.config.get<string>('llm.openai.modelDefault') ?? '';
-    const reasoning = this.isReasoningModel(modelCode);
 
     const start = Date.now();
     const response = await this.getClient().chat.completions.create({
       model: modelCode,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      // Reasoning models: no temperature (only default supported); cap via max_completion_tokens
-      // with headroom for the hidden reasoning tokens + the visible JSON. Classic models: as before.
-      ...(reasoning
-        ? { max_completion_tokens: Math.max(options.maxOutputTokens ?? 8192, 8192) }
-        : { temperature: options.temperature ?? 0.2, max_tokens: options.maxOutputTokens ?? 2048 }),
+      ...buildChatParams(modelCode, {
+        temperature: options.temperature,
+        maxOutputTokens: options.maxOutputTokens,
+        seed: options.seed,
+      }),
       ...(options.jsonMode
         ? {
             response_format: options.responseSchema
