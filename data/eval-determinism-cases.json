@@ -1,0 +1,77 @@
+{
+  "version": "eval-determinism-cases-v1",
+  "_note": "PII-free synthetic CV+JD cases for the cv-jd-match determinism harness (Phase 0). expected_* use taxonomy canonical names. NOT a CI gate; consumed by pnpm determinism:cv-jd-match.",
+  "cases": [
+    {
+      "id": "det-fe-react",
+      "lang": "en",
+      "target_role": "frontend_developer",
+      "category": "fe",
+      "cv_text": "Frontend developer. Skills: HTML5, CSS3, JavaScript, TypeScript, React, Redux, responsive design, Git, unit testing with Jest. Built a dashboard single-page app in React and TypeScript consuming a REST API.",
+      "jd_text": "Frontend Developer. Required: React, TypeScript, HTML and CSS, REST API integration, Git. Nice to have: testing and responsive design.",
+      "expected_cv_skills": ["html", "css", "javascript", "typescript", "react", "git"],
+      "expected_jd_requirements": ["react", "typescript", "html", "css", "rest_api", "git"]
+    },
+    {
+      "id": "det-aiapp-rag",
+      "lang": "en",
+      "target_role": "ai_app_engineer",
+      "category": "ai_app",
+      "cv_text": "AI application engineer. Built a retrieval-augmented chatbot using Python, the OpenAI API, LangChain and a pgvector vector database. Designed prompt templates and exposed the service through a REST API. Comfortable with SQL and Git.",
+      "jd_text": "AI Application Engineer. Required: LLM application development including RAG and prompt engineering, Python, REST API, SQL. Nice to have: vector databases and Docker.",
+      "expected_cv_skills": ["python", "llm_engineering", "prompt_engineering", "rest_api", "sql", "git"],
+      "expected_jd_requirements": ["llm_engineering", "prompt_engineering", "python", "rest_api", "sql"]
+    },
+    {
+      "id": "det-be-spring",
+      "lang": "en",
+      "target_role": "backend_developer",
+      "category": "be",
+      "cv_text": "Backend developer working with Java and the Spring Boot framework. Designed RESTful APIs backed by SQL databases, implemented JWT authentication and authorization, containerized services with Docker, and used Git for version control.",
+      "jd_text": "Backend Developer. Required: Java (Spring Boot), SQL, REST API design, authentication and authorization. Nice to have: Docker.",
+      "expected_cv_skills": ["java", "rest_api", "sql", "authentication_authorization", "docker", "git"],
+      "expected_jd_requirements": ["java", "sql", "rest_api", "authentication_authorization"]
+    },
+    {
+      "id": "det-mobile-flutter",
+      "lang": "en",
+      "target_role": "mobile_developer",
+      "category": "mobile",
+      "cv_text": "Mobile developer specializing in cross-platform apps with Flutter and Dart. Integrated REST APIs, handled local storage and push notifications, and managed source code with Git.",
+      "jd_text": "Mobile Developer. Required: Flutter, REST API integration, Git. Nice to have: state management and CI for mobile.",
+      "expected_cv_skills": ["flutter", "rest_api", "git"],
+      "expected_jd_requirements": ["flutter", "rest_api"]
+    },
+    {
+      "id": "det-offtopic-jd",
+      "lang": "en",
+      "target_role": "backend_developer",
+      "category": "off_topic",
+      "cv_text": "Backend developer. Skills: Python, SQL, REST API design, Git. Built data services and internal APIs.",
+      "jd_text": "Graphic Designer. Required: Adobe Photoshop, Illustrator, branding, typography, visual design and a strong portfolio. This role is not a software engineering role.",
+      "expected_cv_skills": ["python", "sql", "rest_api", "git"],
+      "expected_jd_requirements": [],
+      "note": "Deliberate mismatch (backend CV vs a graphic-designer JD whose skills are not IT canonicals). Tests that extraction stays stable on an off-topic pair; expected_jd_requirements is empty by design."
+    },
+    {
+      "id": "det-bilingual-vi",
+      "lang": "vi",
+      "target_role": "data_analyst",
+      "category": "bilingual",
+      "cv_text": "Ứng viên phân tích dữ liệu. Thành thạo SQL, Excel, Python (thư viện Pandas), trực quan hoá dữ liệu bằng Power BI và thống kê cơ bản. Kỹ năng giao tiếp và trình bày tốt.",
+      "jd_text": "Tuyển Data Analyst. Yêu cầu: SQL, Excel, trực quan hoá dữ liệu. Ưu tiên: Python và kỹ năng giao tiếp.",
+      "expected_cv_skills": ["sql", "excel", "python", "data_visualization", "communication"],
+      "expected_jd_requirements": ["sql", "excel", "data_visualization"]
+    },
+    {
+      "id": "det-bilingual-mixed",
+      "lang": "mixed",
+      "target_role": "fullstack_developer",
+      "category": "bilingual",
+      "cv_text": "Ứng viên fullstack developer, có kinh nghiệm xây dựng web app. Frontend dùng JavaScript và React; backend dùng Node.js, Express và REST API; cơ sở dữ liệu SQL. Quản lý mã nguồn bằng Git.",
+      "jd_text": "Fullstack Developer. Required: React, Node.js, REST API, SQL. Nice to have: TypeScript and Git.",
+      "expected_cv_skills": ["javascript", "react", "node_js", "rest_api", "sql", "git"],
+      "expected_jd_requirements": ["react", "node_js", "rest_api", "sql"]
+    }
+  ]
+}
