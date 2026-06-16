@@ -194,7 +194,8 @@ export class CvMatchReportsController {
 
   @Post(':matchId/interview-plan')
   @ApiOperation({
-    summary: 'Generate a gap-targeted interview practice plan from a match (server-derived, skill-only)',
+    summary:
+      'Generate a gap-targeted interview practice plan from a match (server-derived, skill-only)',
   })
   @ApiParam({ name: 'matchId', format: 'uuid' })
   interviewPlanFromMatch(

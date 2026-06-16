@@ -59,7 +59,10 @@ describe('buildInterviewPlanFromGapItems', () => {
 
   it('unproven / overclaimed → evidence_probe', () => {
     const out = buildInterviewPlanFromGapItems(
-      [g({ canonical_name: 'aws', cv_status: 'unproven' }), g({ canonical_name: 'k8s', cv_status: 'overclaimed' })],
+      [
+        g({ canonical_name: 'aws', cv_status: 'unproven' }),
+        g({ canonical_name: 'k8s', cv_status: 'overclaimed' }),
+      ],
       'vi',
     );
     expect(out.map((a) => a.focus_type)).toEqual(['evidence_probe', 'evidence_probe']);
@@ -113,7 +116,12 @@ describe('buildInterviewPlanFromGapItems', () => {
     const out = buildInterviewPlanFromGapItems(
       [
         g({ source: 'jd', canonical_name: 'react', cv_status: 'missing', importance: 'REQUIRED' }),
-        g({ source: 'role_rubric', canonical_name: 'react', cv_status: 'missing', importance: 'REQUIRED' }),
+        g({
+          source: 'role_rubric',
+          canonical_name: 'react',
+          cv_status: 'missing',
+          importance: 'REQUIRED',
+        }),
       ],
       'vi',
     );

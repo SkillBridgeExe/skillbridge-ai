@@ -36,7 +36,9 @@ function build() {
       ai_request_id: 'req-1',
       target_role: 'backend_developer',
       language: 'vi',
-      items: [{ skill_canonical: 'react', focus_type: 'gap_probe', question: 'Q', good_answer_hints: [] }],
+      items: [
+        { skill_canonical: 'react', focus_type: 'gap_probe', question: 'Q', good_answer_hints: [] },
+      ],
       llm_enhanced: true,
       token_usage: 50,
     }),
@@ -112,7 +114,9 @@ describe('CvMatchesService.generateInterviewPlanFromMatch — server-derived gap
   it('forwards lang override to getGapReport and phrasePlan', async () => {
     const { service, interviewPlan } = build();
     jest.spyOn(service, 'getGapReport').mockResolvedValue(
-      report({ gap_items: [gap({ canonical_name: 'react', cv_status: 'missing', importance: 'REQUIRED' })] }),
+      report({
+        gap_items: [gap({ canonical_name: 'react', cv_status: 'missing', importance: 'REQUIRED' })],
+      }),
     );
 
     await service.generateInterviewPlanFromMatch('user-1', 'match-1', { lang: 'en' });
