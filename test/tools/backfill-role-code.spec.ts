@@ -15,17 +15,23 @@ describe('computeRoleBackfill — rule: change iff classifyRole(title) non-null 
 
   it('mobile + "Mobile AI Engineer" (classifyRole→ai_ml) → re-sync to ai_ml_engineer', () => {
     expect(
-      computeRoleBackfill([{ id: '3', title: 'Mobile AI Engineer', role_code: 'mobile_developer' }])[0],
+      computeRoleBackfill([
+        { id: '3', title: 'Mobile AI Engineer', role_code: 'mobile_developer' },
+      ])[0],
     ).toMatchObject({ from: 'mobile_developer', to: 'ai_ml_engineer' });
   });
 
   it('null + "Project Manager" (classifyRole→null) → NO change (NULL untouched)', () => {
-    expect(computeRoleBackfill([{ id: '4', title: 'Project Manager', role_code: null }])).toEqual([]);
+    expect(computeRoleBackfill([{ id: '4', title: 'Project Manager', role_code: null }])).toEqual(
+      [],
+    );
   });
 
   it('already-matching ("Backend Developer" + backend_developer) → NO change', () => {
     expect(
-      computeRoleBackfill([{ id: '5', title: 'Backend Developer', role_code: 'backend_developer' }]),
+      computeRoleBackfill([
+        { id: '5', title: 'Backend Developer', role_code: 'backend_developer' },
+      ]),
     ).toEqual([]);
   });
 
