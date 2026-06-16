@@ -14,6 +14,7 @@ import {
   gradeNonSkillDimensions,
 } from '../gap-engine/jd-dimensions';
 import { CvProfileSignals } from '../../common/services/cv-profile-signals';
+import { GapItem } from '../gap-engine/gap-item';
 
 export interface EvidenceGapItem {
   skill_canonical: string;
@@ -275,4 +276,32 @@ export function toRoadmapSkillRequirements(core: GapReportCore): {
       weight: p.weight,
     })),
   };
+}
+
+/**
+ * Derive the LEARNING roadmap input from canonical GapItems. ONLY `fixability === 'learn'` gaps
+ * become learning skills — `rewrite` / `add_evidence` / `not_fixable_now` are CV-tailoring / evidence
+ * / unfixable, NOT learning needs. Preserves the incoming order (gap_items are already severity-ranked
+ * by buildGapItems). Used by the platform from-match roadmap route (gaps derived server-side, never
+ * trusting client-supplied skills).
+ */
+export function deriveRoadmapGapsFromReport(gapItems: GapItem[]): {
+  missing_skills: RoadmapSkillRequirementInput[];
+  partial_skills: RoadmapSkillRequirementInput[];
+} {
+  const missing_skills: RoadmapSkillRequirementInput[] = [];
+  const partial_skills: RoadmapSkillRequirementInput[] = [];
+  for (const g of gapItems) {
+    if (g.fixability !== 'learn' || g.required_level == null) continue;
+    const req: RoadmapSkillRequirementInput = {
+      skill_canonical_name: g.canonical_name,
+      display_name: g.display_name,
+      required_level: g.required_level,
+      current_level: g.cv_level ?? 0,
+      importance: g.importance,
+    };
+    if (g.cv_status === 'partial') partial_skills.push(req);
+    else missing_skills.push(req);
+  }
+  return { missing_skills, partial_skills };
 }
