@@ -693,6 +693,85 @@
           "weight": 0.01
         }
       ]
+    },
+    "ai_app_engineer": {
+      "display_name_vi": "Kỹ sư Ứng dụng AI",
+      "display_name_en": "AI Application Engineer",
+      "description": "Builds production applications on top of large language models — RAG pipelines, agents, prompt engineering and API integration — using Python and REST APIs, with working ML literacy.",
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.2
+        },
+        {
+          "skill_canonical_name": "python",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.14
+        },
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.12
+        },
+        {
+          "skill_canonical_name": "sql",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.09
+        },
+        {
+          "skill_canonical_name": "problem_solving",
+          "required_level": 4,
+          "importance": "REQUIRED",
+          "weight": 0.07
+        },
+        {
+          "skill_canonical_name": "machine_learning",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.06
+        },
+        {
+          "skill_canonical_name": "data_preprocessing",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.05
+        },
+        {
+          "skill_canonical_name": "communication",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "critical_thinking",
+          "required_level": 3,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.02
+        }
+      ]
     }
   }
 }
