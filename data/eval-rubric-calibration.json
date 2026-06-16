@@ -250,6 +250,42 @@
       "expected_overall": [38, 50],
       "expected_required_coverage": [0.4, 0.6],
       "rationale": "HONEST low band (produced 44 / coverage 0.5). AI-app/RAG fresher under ai_ml_engineer gets only LIGHT credit (llm_engineering PREFERRED, w0.06) because the classic-ML REQUIRED core (pytorch_tensorflow/machine_learning/statistics, ~0.39 weight) is intentionally NOT replaced — per the conservative directive. This case is a regression GUARD documenting the current state, NOT parity. Full AI-app parity is deferred to a future ai_app_engineer role (see spec)."
+    },
+    {
+      "id": "rubric-aiapp-fresher-llm-rag",
+      "target_role": "ai_app_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "LLM Engineering", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Prompt Engineering", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "OpenAI API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Vector Database", "proficiency_hint": "NOVICE" },
+        { "name": "RAG", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "NOVICE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [82, 92],
+      "expected_required_coverage": [0.9, 1.0],
+      "rationale": "Produced 87 / coverage 1.0 (matched 7/12). AI-app/RAG fresher hits the full LLM/app REQUIRED core (llm_engineering 0.20 + prompt_engineering 0.12 + python 0.14 + rest_api 0.12 + sql 0.09 + problem_solving 0.07). OpenAI API/Vector Database/RAG normalize to llm_engineering. Strong dev-role parity — the gap that scored 44 under ai_ml_engineer is closed. Contrast with rubric-aiapp-fresher-classic-ml-only (20) shows the role discriminates."
+    },
+    {
+      "id": "rubric-aiapp-fresher-classic-ml-only",
+      "target_role": "ai_app_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "PyTorch", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Machine Learning", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Statistics", "proficiency_hint": "NOVICE" },
+        { "name": "Pandas", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "scikit-learn", "proficiency_hint": "NOVICE" }
+      ],
+      "expected_overall": [10, 32],
+      "expected_required_coverage": [0.08, 0.3],
+      "rationale": "Produced 20 / coverage 0.167 (matched 2/12: python + machine_learning only). Identity guard: classic-ML-only CV (no llm_engineering/prompt_engineering/rest_api) misses the 0.32+ LLM/app REQUIRED core, so it scores LOW here. pytorch_tensorflow/statistics/pandas are NOT in this rubric and contribute nothing. This person's home is ai_ml_engineer (where the same CV scores ~70), not ai_app_engineer."
     }
   ]
 }
