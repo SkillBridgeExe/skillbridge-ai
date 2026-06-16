@@ -102,6 +102,24 @@
       "rationale": "Android fresher hits the required Kotlin/REST/Git/problem-solving/communication/English bar, but misses cross-platform and testing breadth."
     },
     {
+      "id": "rubric-mobile-fresher-flutter",
+      "target_role": "mobile_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Flutter", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Dart", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Firebase", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [62, 76],
+      "expected_required_coverage": [0.95, 1],
+      "rationale": "Flutter-only fresher: a cross-platform path that must reach PARITY with the Android case. Same skill profile as rubric-mobile-fresher-android with Flutter in place of Kotlin — first-class via the mobile platform OR-group."
+    },
+    {
       "id": "rubric-devops-intern-basics",
       "target_role": "devops_engineer",
       "target_band": "intern",

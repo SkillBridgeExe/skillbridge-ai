@@ -348,7 +348,9 @@
           "skill_canonical_name": "swift",
           "any_of": [
             "swift",
-            "kotlin"
+            "kotlin",
+            "flutter",
+            "react_native"
           ],
           "required_level": 4,
           "importance": "REQUIRED",
