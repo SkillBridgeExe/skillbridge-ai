@@ -1,5 +1,6 @@
 import {
   classifyRole,
+  classifySeniority,
   isAdvantageLine,
   normalizeCompanyName,
   scrubPii,
@@ -71,6 +72,39 @@ describe('JD ingest normalizers (pure)', () => {
       ['Nhân viên kinh doanh', null], // non-IT → unclassified
     ])('"%s" → %s', (title, expected) => {
       expect(classifyRole(title)).toBe(expected);
+    });
+  });
+
+  describe('classifySeniority', () => {
+    it.each([
+      ['Senior Backend Developer', 'SENIOR'],
+      ['Sr. Frontend Engineer', 'SENIOR'],
+      ['Lead Software Engineer', 'LEAD'],
+      ['Tech Lead (Backend)', 'LEAD'],
+      ['Principal Engineer', 'LEAD'],
+      ['Staff Engineer', 'LEAD'],
+      ['Trưởng nhóm Backend', 'LEAD'],
+      ['Middle Java Developer', 'MIDDLE'],
+      ['Mid-level Frontend Developer', 'MIDDLE'],
+      ['Junior QA Engineer', 'JUNIOR'],
+      ['Jr Mobile Developer', 'JUNIOR'],
+      ['Fresher Backend Developer', 'FRESHER'],
+      ['Entry-level Developer', 'FRESHER'],
+      ['Backend Developer Intern', 'INTERN'],
+      ['Thực tập sinh lập trình', 'INTERN'],
+      // level-less titles → null (guard treats as unknown — no fabricated seniority):
+      ['Backend Developer', null],
+      ['ReactJS Developer', null],
+      // word-boundary / false-positive safety:
+      ['Middleware Engineer', null], // "mid" not a level here
+      ['Lead Generation Specialist', null], // "lead" without a tech head → not LEAD
+      ['Senior moments aside, build APIs', 'SENIOR'], // "senior" present (acceptable — title rarely this)
+    ])('"%s" → %s', (title, expected) => {
+      expect(classifySeniority(title)).toBe(expected);
+    });
+
+    it('most-senior word wins when multiple appear', () => {
+      expect(classifySeniority('Senior / Lead Backend Engineer')).toBe('LEAD');
     });
   });
 

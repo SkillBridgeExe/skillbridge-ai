@@ -7,6 +7,7 @@ import { SkillTextScannerService } from '../../../common/services/skill-text-sca
 import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.service';
 import {
   classifyRole,
+  classifySeniority,
   isAdvantageLine,
   normalizeCompanyName,
   normalizeForHash,
@@ -184,6 +185,9 @@ export class JdIngestService {
       .digest('hex');
     const externalId = item.external_id ?? identityHash;
     const roleCode = classifyRole(item.title);
+    // experience_level: trust an explicit crawl value; else derive deterministically from the title
+    // (crawl sources almost never set it → the job-rec seniority guard had no data to act on).
+    const experienceLevel = item.experience_level ?? classifySeniority(item.title) ?? null;
 
     // 5-7. ATOMIC: job upsert + cross-source canonical link + job_skills replacement run in
     // ONE transaction so a new job row never becomes visible WITHOUT its skills (a crash
@@ -218,7 +222,7 @@ export class JdIngestService {
           roleCode,
           item.location?.slice(0, 255) ?? null,
           item.employment_type ?? null,
-          item.experience_level ?? null,
+          experienceLevel,
           this.clampSalary(item.salary_min),
           this.clampSalary(item.salary_max),
           item.currency ?? null,
