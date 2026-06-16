@@ -1,0 +1,24 @@
+{
+  "_README": [
+    "Example manifest for the CV input-quality corpus. The real corpus dir data/eval-cvs-pdf/ is",
+    "GITIGNORED (PII/PDPL). To use: 1) drop real CV *.pdf files into data/eval-cvs-pdf/, 2) copy this",
+    "file to data/eval-cvs-pdf/manifest.json and edit `files` to match your filenames, 3) run",
+    "`pnpm eval:extractors` (file->text) and `pnpm eval:cv-input-quality` (file->text->parsed).",
+    "Both read the SAME manifest. Target coverage: layout x lang = {single_column, two_column, canva,",
+    "scanned} x {vi, en}. The harness ALWAYS prints a thin-corpus disclaimer + lists missing coverage.",
+    "PII: never commit the PDFs or the generated *-report.json; only metrics/section-names/lang persist.",
+    "layout: single_column | two_column | canva | scanned | unknown",
+    "lang:   vi | en | mixed | unknown",
+    "source: real | synthetic | redacted | unknown"
+  ],
+  "files": [
+    { "filename": "cv-fe-single-vi.pdf", "layout": "single_column", "lang": "vi", "source": "real" },
+    { "filename": "cv-be-single-en.pdf", "layout": "single_column", "lang": "en", "source": "real" },
+    { "filename": "cv-twocol-vi.pdf", "layout": "two_column", "lang": "vi", "source": "real" },
+    { "filename": "cv-twocol-en.pdf", "layout": "two_column", "lang": "en", "source": "real" },
+    { "filename": "cv-canva-vi.pdf", "layout": "canva", "lang": "vi", "source": "real" },
+    { "filename": "cv-canva-en.pdf", "layout": "canva", "lang": "en", "source": "real" },
+    { "filename": "cv-scanned-vi.pdf", "layout": "scanned", "lang": "vi", "source": "real" },
+    { "filename": "cv-scanned-en.pdf", "layout": "scanned", "lang": "en", "source": "real" }
+  ]
+}
