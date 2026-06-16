@@ -1,0 +1,161 @@
+{
+  "$note": "No-JD role-rubric calibration cases for student/intern/fresher fairness. Offline, 0 LLM. Gate: pnpm eval:rubric. These are synthetic, PII-free profiles; they complement eval-match-pairs.json rather than replacing it.",
+  "version": "eval-rubric-calibration-v1",
+  "created_at": "2026-06-16",
+  "cases": [
+    {
+      "id": "rubric-fe-fresher-react",
+      "target_role": "frontend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "HTML5", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS3", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "proficiency_hint": "NOVICE" },
+        { "name": "ReactJS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Responsive Design", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Jest", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [84, 96],
+      "expected_required_coverage": [0.95, 1],
+      "rationale": "Solid frontend fresher: covers the required FE spine, misses only optional/low-bar breadth like a11y/Next.js."
+    },
+    {
+      "id": "rubric-be-fresher-dotnet",
+      "target_role": "backend_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "C#", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "ASP.NET Core", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Entity Framework Core", "proficiency_hint": "NOVICE" },
+        { "name": "SQL Server", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "RESTful API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JWT Authentication", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Docker", "proficiency_hint": "NOVICE" },
+        { "name": "Postman", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [64, 78],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": ".NET backend fresher with SQL/REST/auth/git. Should be employable but not high because DB design, Linux, NoSQL/cache breadth are still thin."
+    },
+    {
+      "id": "rubric-fs-fresher-balanced",
+      "target_role": "fullstack_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "proficiency_hint": "NOVICE" },
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Node.js", "proficiency_hint": "NOVICE" },
+        { "name": "Express", "proficiency_hint": "NOVICE" },
+        { "name": "PostgreSQL", "proficiency_hint": "NOVICE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [74, 86],
+      "expected_required_coverage": [0.75, 0.9],
+      "rationale": "Balanced fresher fullstack with real frontend and shallow backend. Good enough for junior screening, but still missing auth, Docker, system-design breadth."
+    },
+    {
+      "id": "rubric-da-fresher-sql-excel",
+      "target_role": "data_analyst",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Excel", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Python", "proficiency_hint": "NOVICE" },
+        { "name": "Pandas", "proficiency_hint": "NOVICE" },
+        { "name": "Power BI", "proficiency_hint": "NOVICE" },
+        { "name": "Data Visualization", "proficiency_hint": "NOVICE" },
+        { "name": "Statistics", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [86, 96],
+      "expected_required_coverage": [0.8, 0.95],
+      "rationale": "Typical DA fresher with SQL/Excel core and light BI/Python. Strong against a fresher bar; still not mid-level because visualization/stats depth is shallow."
+    },
+    {
+      "id": "rubric-mobile-fresher-android",
+      "target_role": "mobile_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Kotlin", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Android SDK", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Jetpack Compose", "proficiency_hint": "NOVICE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Firebase", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [62, 76],
+      "expected_required_coverage": [0.95, 1],
+      "rationale": "Android fresher hits the required Kotlin/REST/Git/problem-solving/communication/English bar, but misses cross-platform and testing breadth."
+    },
+    {
+      "id": "rubric-devops-intern-basics",
+      "target_role": "devops_engineer",
+      "target_band": "intern",
+      "cv_skills": [
+        { "name": "Docker", "proficiency_hint": "NOVICE" },
+        { "name": "Linux", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "proficiency_hint": "NOVICE" },
+        { "name": "AWS", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Bash scripting", "proficiency_hint": "NOVICE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [50, 66],
+      "expected_required_coverage": [0.7, 0.8],
+      "rationale": "DevOps intern with basics: Docker/Linux/Git/CI/AWS exposure. Should be moderate, not high, because Kubernetes/IaC/monitoring/networking are missing."
+    },
+    {
+      "id": "rubric-qa-intern-manual-api",
+      "target_role": "qa_tester",
+      "target_band": "intern",
+      "cv_skills": [
+        { "name": "Manual Testing", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Test case design", "proficiency_hint": "NOVICE" },
+        { "name": "Postman", "proficiency_hint": "NOVICE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Jira", "proficiency_hint": "NOVICE" },
+        { "name": "Agile/Scrum", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "NOVICE" }
+      ],
+      "expected_overall": [58, 72],
+      "expected_required_coverage": [0.6, 0.75],
+      "rationale": "QA intern with manual testing plus API/SQL exposure. Should be screening-ready for internship, but not strong without automation depth."
+    },
+    {
+      "id": "rubric-aiml-fresher-python-ml",
+      "target_role": "ai_ml_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Machine Learning", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "scikit-learn", "proficiency_hint": "NOVICE" },
+        { "name": "Pandas", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Statistics", "proficiency_hint": "NOVICE" },
+        { "name": "Data preprocessing", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "NOVICE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [68, 80],
+      "expected_required_coverage": [0.6, 0.75],
+      "rationale": "AI/ML fresher with Python/ML/Pandas and beginner stats/SQL. Fair mid band for internship/fresher; not high due to framework and stats depth."
+    }
+  ]
+}
