@@ -59,12 +59,8 @@ Parse the following CV text into the structured schema below.
     "languages": ["spoken languages, e.g. 'English (IELTS 7.0)'"],
     "tools": ["tools/platforms, e.g. 'Figma', 'Docker'"]
   },
-  "certifications": [
-    { "name": "string", "issuer": "string or null", "date": "string or null" }
-  ],
-  "activities": [
-    { "org": "string", "role": "string or null", "bullets": ["..."] }
-  ]
+  "certifications": [{ "name": "string", "issuer": "string or null", "date": "string or null" }],
+  "activities": [{ "org": "string", "role": "string or null", "bullets": ["..."] }]
 }
 ```
 
@@ -76,4 +72,6 @@ Parse the following CV text into the structured schema below.
 - **Classify skills sensibly.** Programming languages/frameworks → `technical`. "Teamwork"/"Leadership" → `soft`. "Figma"/"Git"/"Jira" → `tools`. Spoken languages → `languages`. If unsure, put in `technical`.
 - **`language` detection:** judge by the majority of the CV body (section content), not just headers. A CV with Vietnamese descriptions but English section titles is `"vi"`.
 - **Do not drop information.** If text doesn't fit any section cleanly, prefer putting it in the closest section's bullets over discarding it. Section headings you don't recognize → map to the nearest standard section.
+- **Expect extracted PDF text to be out of visual order.** Multi-column layouts can place bullets before or after their heading in the raw text. Use section headings, organization/project names, dates, and nearby entry context to group bullets into the closest supported `experience` or `projects` entry instead of relying only on raw line order.
+- **Never fabricate an entry to repair ordering.** Only create experience, project, education, or contact data when the raw text contains direct evidence for it.
 - Return strictly the JSON object. No leading text, no code fence in the actual output.

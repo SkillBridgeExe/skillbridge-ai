@@ -109,4 +109,50 @@ describe('CvParserService.coerce', () => {
     const doc = svc.coerce({ certifications: [{ name: 'AWS SAA', issuer: null, date: null }] });
     expect(doc.certifications[0]).toEqual({ name: 'AWS SAA', issuer: null, date: null });
   });
+
+  it('fills missing contact fields from extracted CV text without overwriting model data', () => {
+    const text = [
+      'ANONYMIZED CANDIDATE',
+      '0912.345.678 | candidate@example.com | LinkedIn | GitHub | Thu Duc, Ho Chi Minh City',
+      'Summary',
+      'Backend developer focused on ASP.NET Core.',
+    ].join('\n');
+
+    const coerce = svc.coerce as (
+      raw: unknown,
+      extractedText?: string,
+    ) => ReturnType<typeof svc.coerce>;
+    const doc = coerce.call(
+      svc,
+      {
+        contact: {
+          name: 'Model Name',
+          email: null,
+          phone: null,
+          location: null,
+          links: [],
+        },
+      },
+      text,
+    );
+
+    expect(doc.contact.name).toBe('Model Name');
+    expect(doc.contact.email).toBe('candidate@example.com');
+    expect(doc.contact.phone).toBe('0912.345.678');
+    expect(doc.contact.location).toBe('Thu Duc, Ho Chi Minh City');
+  });
+
+  it('fills a missing contact name from the first resume-like line', () => {
+    const coerce = svc.coerce as (
+      raw: unknown,
+      extractedText?: string,
+    ) => ReturnType<typeof svc.coerce>;
+    const doc = coerce.call(
+      svc,
+      { contact: { name: null, email: null, phone: null, location: null, links: [] } },
+      'ANONYMIZED CANDIDATE\ncandidate@example.com',
+    );
+
+    expect(doc.contact.name).toBe('ANONYMIZED CANDIDATE');
+  });
 });

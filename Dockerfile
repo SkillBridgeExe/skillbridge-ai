@@ -9,7 +9,7 @@
 FROM node:22-alpine AS builder
 
 # Non-interactive CI: skip corepack's download confirmation prompt.
-ENV CI=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+ENV CI=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 PUPPETEER_SKIP_DOWNLOAD=true
 
 # bcrypt / node-gyp native builds need python3 + a C toolchain on alpine.
 RUN apk add --no-cache python3 make g++ && corepack enable
@@ -35,7 +35,17 @@ RUN pnpm prune --prod
 # ----- Stage 2: production -----
 FROM node:22-alpine AS production
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production PUPPETEER_SKIP_DOWNLOAD=true
+
+# Puppeteer uses system Chromium instead of a browser cache from the build stage.
+RUN apk add --no-cache \
+    ca-certificates \
+    chromium \
+    fontconfig \
+    font-noto-cjk \
+    freetype \
+    harfbuzz \
+    nss
 
 WORKDIR /app
 
