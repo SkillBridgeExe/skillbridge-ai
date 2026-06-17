@@ -33,5 +33,6 @@ import { JdTextExtractorService } from './jd-text-extractor.service';
   ],
   controllers: [CvMatchesController, CvMatchReportsController],
   providers: [CvMatchesService, JdTextExtractorService],
+  exports: [CvMatchesService],
 })
 export class CvMatchesModule {}
