@@ -3,17 +3,21 @@
  * under-rate skills vs the prod baseline (gpt-5.4-mini) on a REAL CV corpus? Answers whether the
  * synthetic fe-react "score drop" generalises before activating the determinism toggle in prod.
  *
+ * Uses the PROD text-extraction path — TextExtractorService: pdf-parse → OCR-rescue (Tesseract) when
+ * the text layer is thin → picks the better text — so a "parse fail" here is a TRUE prod fail (empty
+ * even after OCR), not just a missing text layer. Mirrors eval:cv-input-quality's wiring.
+ *
  * CV-ONLY (no JD pairing / no labels needed): the cv_jd_match prompt extracts cv_skills_raw with a
  * "(no JD provided)" JD, so we measure the two leading indicators of the fe-react score gap directly:
  *   (1) skill COUNT + canonical SET (under-extraction of prose skills), and
  *   (2) mean proficiency_hint (the calibration difference that drove fe-react 100→41).
- * Plus L1 self-consistency across trials (is L1 deterministic on messy real CVs?) and parse health
- * (does pdf-parse choke on e.g. the Canva CV?).
+ * Plus L1 self-consistency across trials (is L1 deterministic on messy real CVs?), OCR-rescue rate,
+ * and true parse-fail rate.
  *
  * PII / PDPL: reads PDFs from data/corpus/ (gitignored). Prints/persists ONLY metrics + taxonomy
  * canonical skill names + an anonymous CV## index — NEVER raw CV text and NEVER the filename (which
- * can be a real person's name). DB-less (NODE_ENV=test). Needs LLM keys. Usage:
- *   DRIFT_TRIALS=2 DRIFT_CANDIDATE_MODEL=gpt-4o-mini DRIFT_SEED=7 pnpm drift:cv-corpus
+ * can be a real person's name). DB-less (NODE_ENV=test). Needs LLM keys (+ Tesseract for OCR). Usage:
+ *   DRIFT_TRIALS=2 DRIFT_CANDIDATE_MODEL=gpt-4o-mini DRIFT_CANDIDATE_PROVIDER=openai DRIFT_SEED=7 pnpm drift:cv-corpus
  */
 import * as dotenv from 'dotenv';
 // Surgical override (parity with the other calibration harnesses): a stale OS-level key must not
@@ -23,18 +27,22 @@ if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENA
 import * as fs from 'fs';
 import * as path from 'path';
 import { withRetry } from './retry';
-import { pdfParseExtract } from './extractors/pdf-parse.extractor';
 
 process.env.NODE_ENV = 'test'; // DB-less BEFORE AppModule import — we measure extraction, not persistence.
+
+type Provider = 'openai' | 'gemini';
 
 const CORPUS_DIR = path.join(process.cwd(), 'data', 'corpus', 'cv');
 const TEMPLATE = process.env.DRIFT_TEMPLATE ?? 'cv_jd_match_v2'; // the live prod template.
 const CANDIDATE_MODEL = process.env.DRIFT_CANDIDATE_MODEL ?? 'gpt-4o-mini';
+// Force providers explicitly — LlmService resolves an unset provider from config default (fallback
+// gemini), which would mis-route an OpenAI model name. Both default to openai (both models are OpenAI).
+const CANDIDATE_PROVIDER = (process.env.DRIFT_CANDIDATE_PROVIDER ?? 'openai') as Provider;
+const BASELINE_PROVIDER = (process.env.DRIFT_BASELINE_PROVIDER ?? 'openai') as Provider;
 const SEED = process.env.DRIFT_SEED !== undefined ? Number(process.env.DRIFT_SEED) : 7;
 const TRIALS = Number(process.env.DRIFT_TRIALS ?? 2);
 const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 700);
 const NO_JD = '(no JD provided)';
-const MIN_CHARS = 120; // below this the PDF almost certainly failed to yield a usable text layer.
 
 const PROF_RANK: Record<string, number> = {
   BEGINNER: 1,
@@ -84,6 +92,10 @@ async function main(): Promise<void> {
   const { LlmService } = await import('../infrastructure/llm/llm.service');
   const { PromptsService } = await import('../modules/prompts/prompts.service');
   const { SkillNormalizerService } = await import('../common/services/skill-normalizer.service');
+  const { SkillTaxonomyService } = await import('../common/services/skill-taxonomy.service');
+  const { SkillTextScannerService } = await import('../common/services/skill-text-scanner.service');
+  const { ScannedPdfOcrService } = await import('../common/services/scanned-pdf-ocr.service');
+  const { TextExtractorService } = await import('../platform/cvs/text-extractor.service');
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   const llm = app.get(LlmService);
@@ -91,6 +103,19 @@ async function main(): Promise<void> {
   const normalizer = app.get(SkillNormalizerService);
   const baselineModel =
     app.get(ConfigService).get<string>('llm.openai.modelDefault') ?? 'gpt-5.4-mini';
+
+  // PROD extractor path (pdf-parse → OCR-rescue when thin). TextExtractorService is a CvsModule-internal
+  // provider not resolvable from the root context, so build it manually exactly like eval:cv-input-quality;
+  // the config stub makes OCR use its Joi defaults (enabled) so scanned/image CVs are measured as prod would.
+  const taxonomy = new SkillTaxonomyService();
+  await taxonomy.onModuleInit();
+  const scanner = new SkillTextScannerService(taxonomy);
+  scanner.buildMatchers();
+  const ocr = new ScannedPdfOcrService(
+    { get: () => undefined } as unknown as ConstructorParameters<typeof ScannedPdfOcrService>[0],
+    scanner,
+  );
+  const extractor = new TextExtractorService(ocr);
 
   const toCanon = (raw: Array<{ name?: string }>): string[] => {
     const out = new Set<string>();
@@ -106,6 +131,7 @@ async function main(): Promise<void> {
   const extractOnce = async (
     cvText: string,
     model: string,
+    provider: Provider,
     temperature: number,
     seed?: number,
   ): Promise<ExtractResult> => {
@@ -120,6 +146,7 @@ async function main(): Promise<void> {
               { role: 'user', content: user },
             ],
             {
+              provider,
               model,
               jsonMode: true,
               temperature,
@@ -141,10 +168,16 @@ async function main(): Promise<void> {
     }
   };
 
-  const runN = async (cvText: string, model: string, temperature: number, seed?: number) => {
+  const runN = async (
+    cvText: string,
+    model: string,
+    provider: Provider,
+    temperature: number,
+    seed?: number,
+  ) => {
     const out: ExtractResult[] = [];
     for (let i = 0; i < TRIALS; i++) {
-      out.push(await extractOnce(cvText, model, temperature, seed));
+      out.push(await extractOnce(cvText, model, provider, temperature, seed));
       if (DELAY_MS > 0) await new Promise((r) => setTimeout(r, DELAY_MS));
     }
     return out;
@@ -153,7 +186,8 @@ async function main(): Promise<void> {
   interface Row {
     cv: string; // anonymous index, never the filename
     parseChars: number;
-    parseOk: boolean;
+    parseOk: boolean; // false ONLY when the prod extractor throws (empty even after OCR)
+    ocrUsed: boolean; // prod path fell back to OCR (thin text layer)
     baselineCount: number;
     l1Count: number;
     countDelta: number; // l1 - baseline (negative = L1 extracts fewer)
@@ -165,55 +199,66 @@ async function main(): Promise<void> {
     profDelta: number; // l1 - baseline (negative = L1 rates lower)
     missVsBaseline: string[]; // canonical skills baseline found but L1 did not
     extraVsBaseline: string[]; // canonical skills L1 found but baseline did not
+    parseError?: string;
   }
   const rows: Row[] = [];
 
+  const emptyMetrics = {
+    baselineCount: 0,
+    l1Count: 0,
+    countDelta: 0,
+    crossJaccard: 0,
+    baselineSelfJac: 0,
+    l1SelfJac: 0,
+    baselineProf: 0,
+    l1Prof: 0,
+    profDelta: 0,
+    missVsBaseline: [] as string[],
+    extraVsBaseline: [] as string[],
+  };
+
   console.log(
-    `\nDrift-prevalence cv_jd_match — ${pdfs.length} real CVs × ${TRIALS} trials (DB-less, real LLM) — template=${TEMPLATE}`,
+    `\nDrift-prevalence cv_jd_match — ${pdfs.length} real CVs × ${TRIALS} trials (DB-less, real LLM + prod extractor/OCR) — template=${TEMPLATE}`,
   );
   console.log(
-    `baseline=${baselineModel} (temp 0.1) | candidate=${CANDIDATE_MODEL} (temp 0, seed=${SEED}) | CV## = alphabetical order in data/corpus/cv/\n`,
+    `baseline=${baselineModel}@${BASELINE_PROVIDER} (temp 0.1) | candidate=${CANDIDATE_MODEL}@${CANDIDATE_PROVIDER} (temp 0, seed=${SEED}) | CV## = alphabetical order in data/corpus/cv/\n`,
   );
 
   for (let i = 0; i < pdfs.length; i++) {
     const cvId = `CV${String(i + 1).padStart(2, '0')}`;
+    // Prod extraction: pdf-parse → OCR-rescue when thin; throws only on empty-after-OCR.
     let text = '';
+    let ocrUsed = false;
     try {
-      text = await pdfParseExtract(fs.readFileSync(path.join(CORPUS_DIR, pdfs[i])));
+      const extracted = await extractor.extract({
+        buffer: fs.readFileSync(path.join(CORPUS_DIR, pdfs[i])),
+        mimetype: 'application/pdf',
+        originalname: pdfs[i],
+      } as Express.Multer.File);
+      text = extracted.text;
+      ocrUsed = extracted.isOcrOnly;
     } catch (e) {
-      text = '';
-      console.log(`${cvId}  PARSE-ERROR: ${(e as Error).message}`);
-    }
-    const parseOk = text.trim().length >= MIN_CHARS;
-    if (!parseOk) {
       rows.push({
         cv: cvId,
-        parseChars: text.trim().length,
+        parseChars: 0,
         parseOk: false,
-        baselineCount: 0,
-        l1Count: 0,
-        countDelta: 0,
-        crossJaccard: 0,
-        baselineSelfJac: 0,
-        l1SelfJac: 0,
-        baselineProf: 0,
-        l1Prof: 0,
-        profDelta: 0,
-        missVsBaseline: [],
-        extraVsBaseline: [],
+        ocrUsed: false,
+        ...emptyMetrics,
+        parseError: (e as Error).message,
       });
-      console.log(`${cvId}  parse_chars=${text.trim().length} → SKIP (no usable text layer)`);
+      console.log(`${cvId}  PARSE-FAIL (empty even after OCR): ${(e as Error).message}`);
       continue;
     }
 
-    const base = await runN(text, baselineModel, 0.1, undefined);
-    const l1 = await runN(text, CANDIDATE_MODEL, 0, SEED);
+    const base = await runN(text, baselineModel, BASELINE_PROVIDER, 0.1, undefined);
+    const l1 = await runN(text, CANDIDATE_MODEL, CANDIDATE_PROVIDER, 0, SEED);
     const baseCanon = base[0].canon;
     const l1Canon = l1[0].canon;
     const row: Row = {
       cv: cvId,
       parseChars: text.trim().length,
       parseOk: true,
+      ocrUsed,
       baselineCount: baseCanon.length,
       l1Count: l1Canon.length,
       countDelta: l1Canon.length - baseCanon.length,
@@ -228,7 +273,7 @@ async function main(): Promise<void> {
     };
     rows.push(row);
     console.log(
-      `${cvId}  chars=${String(row.parseChars).padStart(5)} | ` +
+      `${cvId}  chars=${String(row.parseChars).padStart(5)}${ocrUsed ? ' OCR' : '   '} | ` +
         `skills base=${String(row.baselineCount).padStart(2)} L1=${String(row.l1Count).padStart(2)} (Δ${row.countDelta >= 0 ? '+' : ''}${row.countDelta}) | ` +
         `crossJac=${row.crossJaccard.toFixed(2)} | prof base=${row.baselineProf.toFixed(1)} L1=${row.l1Prof.toFixed(1)} (Δ${row.profDelta >= 0 ? '+' : ''}${row.profDelta.toFixed(1)}) | ` +
         `selfJac base=${row.baselineSelfJac.toFixed(2)} L1=${row.l1SelfJac.toFixed(2)}` +
@@ -239,12 +284,14 @@ async function main(): Promise<void> {
   // ── Aggregate ─────────────────────────────────────────────────────────────
   const ok = rows.filter((r) => r.parseOk);
   const parseFailed = rows.filter((r) => !r.parseOk).map((r) => r.cv);
+  const ocrRescued = ok.filter((r) => r.ocrUsed).map((r) => r.cv);
   const underExtract = ok.filter((r) => r.countDelta < 0);
   const lowerProf = ok.filter((r) => r.profDelta < 0);
   const agg = {
     corpus_size: rows.length,
     parsed_ok: ok.length,
-    parse_failed: parseFailed,
+    parse_failed: parseFailed, // TRUE prod fail (empty even after OCR)
+    ocr_rescued: ocrRescued, // thin text layer, recovered by OCR
     mean_cross_jaccard: r2(mean(ok.map((r) => r.crossJaccard))),
     cvs_l1_under_extracts: underExtract.length,
     mean_count_delta: r2(mean(ok.map((r) => r.countDelta))),
@@ -255,10 +302,14 @@ async function main(): Promise<void> {
     l1_fully_deterministic_cvs: ok.filter((r) => r.l1SelfJac === 1).length,
   };
 
-  console.log('\n=== AGGREGATE (real-CV drift, baseline → L1) ===');
+  console.log('\n=== AGGREGATE (real-CV drift, baseline → L1; prod extractor + OCR) ===');
   console.log(
     `  parsed ok:            ${agg.parsed_ok}/${agg.corpus_size}` +
-      (parseFailed.length ? ` (parse-failed: ${parseFailed.join(', ')})` : ''),
+      (parseFailed.length ? ` (TRUE parse-fail after OCR: ${parseFailed.join(', ')})` : ''),
+  );
+  console.log(
+    `  OCR-rescued:          ${ocrRescued.length}/${agg.parsed_ok}` +
+      (ocrRescued.length ? ` (${ocrRescued.join(', ')})` : ''),
   );
   console.log(
     `  mean cross-Jaccard:   ${agg.mean_cross_jaccard}  (1.0 = L1 extracts the same canonical skills as baseline)`,
@@ -285,7 +336,9 @@ async function main(): Promise<void> {
       {
         template: TEMPLATE,
         baselineModel,
+        baselineProvider: BASELINE_PROVIDER,
         candidateModel: CANDIDATE_MODEL,
+        candidateProvider: CANDIDATE_PROVIDER,
         trials: TRIALS,
         aggregate: agg,
         rows,
