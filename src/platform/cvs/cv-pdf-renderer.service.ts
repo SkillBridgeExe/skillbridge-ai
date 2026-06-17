@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { existsSync } from 'fs';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PDFDocument } from 'pdf-lib';
 import { ERROR_CODES } from '../../common/constants/error-codes';
@@ -6,6 +7,11 @@ import { CanonicalCvDocument } from '../../common/types/canonical-cv';
 import { CvEntity } from '../../database/entities/cv.entity';
 
 const FINGERPRINT_PREFIX = 'skillbridge:cv:';
+const CHROME_EXECUTABLE_CANDIDATES = [
+  '/usr/bin/chromium-browser',
+  '/usr/bin/chromium',
+  '/usr/bin/google-chrome-stable',
+] as const;
 
 export interface RenderedCvPdf {
   buffer: Buffer;
@@ -24,12 +30,12 @@ export class CvPdfRendererService {
       });
     }
 
-    const executablePath = this.config.get<string>('PUPPETEER_EXECUTABLE_PATH') || undefined;
+    const executablePath = this.resolveExecutablePath();
     const puppeteer = await this.loadPuppeteer();
     const browser = await puppeteer.launch({
       headless: true,
       executablePath,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     });
 
     try {
@@ -75,6 +81,21 @@ export class CvPdfRendererService {
       return null;
     }
     return null;
+  }
+
+  private resolveExecutablePath(): string {
+    const configuredPath = this.config.get<string>('PUPPETEER_EXECUTABLE_PATH')?.trim();
+    const candidates = configuredPath
+      ? [configuredPath, ...CHROME_EXECUTABLE_CANDIDATES]
+      : [...CHROME_EXECUTABLE_CANDIDATES];
+    const executablePath = candidates.find((candidate) => existsSync(candidate));
+
+    if (executablePath) return executablePath;
+
+    throw new ServiceUnavailableException({
+      errorCode: ERROR_CODES.PDF_RENDERER_UNAVAILABLE,
+      message: 'PDF rendering is unavailable because Chrome or Chromium is not installed.',
+    });
   }
 
   private buildHarvardHtml(doc: CanonicalCvDocument): string {
@@ -140,7 +161,7 @@ export class CvPdfRendererService {
     return `<h2>Projects</h2>${doc.projects
       .map(
         (entry) =>
-          `<div class="row"><div><span class="main">${this.escape(entry.name)}</span>${entry.tech.length ? ` | ${this.escape(entry.tech.join(', '))}` : ''}</div><div class="meta">${this.escape(entry.role ?? '')}</div></div>${this.bullets(entry.bullets)}`,
+          `<div class="row"><div><span class="main">${this.escape(entry.name)}</span>${entry.tech.length ? ` | ${this.escape(entry.tech.join(', '))}` : ''}</div><div class="meta">${this.escape(entry.role ?? '')}</div></div>${entry.link ? `<p>${this.escape(entry.link)}</p>` : ''}${this.bullets(entry.bullets)}`,
       )
       .join('')}`;
   }

@@ -72,7 +72,7 @@ export class CvParserService {
         message: 'CV parse failed: model returned no usable JSON object',
       });
     }
-    const document = this.coerce(pj);
+    const document = this.coerce(pj, cvText);
 
     return {
       document,
@@ -88,16 +88,16 @@ export class CvParserService {
    * Missing/wrong-typed fields fall back to safe empties — downstream never
    * has to guard against a missing section.
    */
-  coerce(raw: unknown): CanonicalCvDocument {
+  coerce(raw: unknown, extractedText?: string): CanonicalCvDocument {
     const base = emptyCanonicalCv();
     if (!raw || typeof raw !== 'object') {
       this.logger.warn('cv_parse LLM output was not an object; returning empty document.');
-      return base;
+      return this.fillMissingContact(base, extractedText);
     }
     const o = raw as Record<string, unknown>;
     const contact = this.asObj(o.contact);
 
-    return {
+    const document: CanonicalCvDocument = {
       language: this.normalizeLang(o.language),
       contact: {
         name: this.asStrOrNull(contact.name),
@@ -116,6 +116,75 @@ export class CvParserService {
       certifications: this.asArray(o.certifications).map((c) => this.coerceCert(c)),
       activities: this.asArray(o.activities).map((a) => this.coerceActivity(a)),
     };
+
+    return this.fillMissingContact(document, extractedText);
+  }
+
+  private fillMissingContact(
+    document: CanonicalCvDocument,
+    extractedText?: string,
+  ): CanonicalCvDocument {
+    if (!extractedText?.trim()) return document;
+
+    const lines = extractedText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const contact = { ...document.contact };
+
+    contact.email ??= extractedText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? null;
+    contact.phone ??=
+      extractedText.match(/(?:\+?84|0)(?:[\s().-]?\d){8,10}\b/)?.[0]?.trim() ?? null;
+    contact.name ??= this.extractContactName(lines);
+    contact.location ??= this.extractContactLocation(lines);
+
+    return { ...document, contact };
+  }
+
+  private extractContactName(lines: string[]): string | null {
+    const sectionHeadings = new Set([
+      'summary',
+      'objective',
+      'education',
+      'experience',
+      'work experience',
+      'projects',
+      'skills',
+      'certifications',
+      'activities',
+    ]);
+
+    for (const line of lines.slice(0, 8)) {
+      const normalized = line.toLowerCase().replace(/:$/, '').trim();
+      if (line.length > 80 || sectionHeadings.has(normalized)) continue;
+      if (/@|https?:\/\/|www\.|linkedin|github/i.test(line)) continue;
+      if (/(?:\+?84|0)(?:[\s().-]?\d){8,10}\b/.test(line)) continue;
+      if (!/[A-Za-zÀ-ỹ]/.test(line)) continue;
+      return line;
+    }
+
+    return null;
+  }
+
+  private extractContactLocation(lines: string[]): string | null {
+    for (const line of lines.slice(0, 8)) {
+      if (!/[|•·]/.test(line)) continue;
+
+      const segments = line
+        .split(/[|•·]/)
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+        .reverse();
+
+      for (const segment of segments) {
+        if (!/[A-Za-zÀ-ỹ]/.test(segment)) continue;
+        if (/@|https?:\/\/|www\.|linkedin|github|portfolio/i.test(segment)) continue;
+        if (/(?:\+?84|0)(?:[\s().-]?\d){8,10}\b/.test(segment)) continue;
+        return segment;
+      }
+    }
+
+    return null;
   }
 
   // ─── Section coercers ────────────────────────────────────────────────────
