@@ -43,6 +43,19 @@ const SEED = process.env.DRIFT_SEED !== undefined ? Number(process.env.DRIFT_SEE
 const TRIALS = Number(process.env.DRIFT_TRIALS ?? 2);
 const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 700);
 const NO_JD = '(no JD provided)';
+// OCR-quality knobs (prod ScannedPdfOcrService config; unset = Joi defaults dpi 200 / maxPages 3).
+// Used to probe whether a cheap config bump rescues the degraded OCR tail.
+const OCR_DPI = process.env.DRIFT_OCR_DPI ? Number(process.env.DRIFT_OCR_DPI) : undefined;
+const OCR_MAXPAGES = process.env.DRIFT_OCR_MAXPAGES
+  ? Number(process.env.DRIFT_OCR_MAXPAGES)
+  : undefined;
+// Optional 1-based CV-index filter (e.g. "9,12,13"), preserving CV## numbering. Takes precedence over LIMIT.
+const ONLY = new Set(
+  (process.env.DRIFT_ONLY ?? '')
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0),
+);
 
 const PROF_RANK: Record<string, number> = {
   BEGINNER: 1,
@@ -79,8 +92,7 @@ async function main(): Promise<void> {
   const pdfs = fs
     .readdirSync(CORPUS_DIR)
     .filter((f) => f.toLowerCase().endsWith('.pdf'))
-    .sort()
-    .slice(0, LIMIT);
+    .sort();
   if (pdfs.length === 0) {
     console.log(`No PDFs in ${CORPUS_DIR}.`);
     return;
@@ -111,8 +123,13 @@ async function main(): Promise<void> {
   await taxonomy.onModuleInit();
   const scanner = new SkillTextScannerService(taxonomy);
   scanner.buildMatchers();
+  const ocrOverrides: Record<string, unknown> = {};
+  if (OCR_DPI !== undefined) ocrOverrides['ocrFallback.dpi'] = OCR_DPI;
+  if (OCR_MAXPAGES !== undefined) ocrOverrides['ocrFallback.maxPages'] = OCR_MAXPAGES;
   const ocr = new ScannedPdfOcrService(
-    { get: () => undefined } as unknown as ConstructorParameters<typeof ScannedPdfOcrService>[0],
+    { get: (k: string) => ocrOverrides[k] } as unknown as ConstructorParameters<
+      typeof ScannedPdfOcrService
+    >[0],
     scanner,
   );
   const extractor = new TextExtractorService(ocr);
@@ -221,11 +238,15 @@ async function main(): Promise<void> {
     `\nDrift-prevalence cv_jd_match — ${pdfs.length} real CVs × ${TRIALS} trials (DB-less, real LLM + prod extractor/OCR) — template=${TEMPLATE}`,
   );
   console.log(
-    `baseline=${baselineModel}@${BASELINE_PROVIDER} (temp 0.1) | candidate=${CANDIDATE_MODEL}@${CANDIDATE_PROVIDER} (temp 0, seed=${SEED}) | CV## = alphabetical order in data/corpus/cv/\n`,
+    `baseline=${baselineModel}@${BASELINE_PROVIDER} (temp 0.1) | candidate=${CANDIDATE_MODEL}@${CANDIDATE_PROVIDER} (temp 0, seed=${SEED})` +
+      `${OCR_DPI || OCR_MAXPAGES ? ` | OCR dpi=${OCR_DPI ?? 200} maxPages=${OCR_MAXPAGES ?? 3}` : ''}` +
+      `${ONLY.size ? ` | ONLY=[${[...ONLY].join(',')}]` : ''} | CV## = alphabetical order in data/corpus/cv/\n`,
   );
 
   for (let i = 0; i < pdfs.length; i++) {
     const cvId = `CV${String(i + 1).padStart(2, '0')}`;
+    // Index filter (ONLY takes precedence over LIMIT), preserving CV## numbering across the full corpus.
+    if (ONLY.size ? !ONLY.has(i + 1) : i >= LIMIT) continue;
     // Prod extraction: pdf-parse → OCR-rescue when thin; throws only on empty-after-OCR.
     let text = '';
     let ocrUsed = false;
