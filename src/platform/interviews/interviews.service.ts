@@ -9,8 +9,10 @@ import { InterviewSessionEntity } from '../../database/entities/interview-sessio
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
+import { InterviewFocusArea } from '../../modules/interview/interview-planner';
 import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-interview.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
+import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import {
   AnswerInterviewResponseDto,
   AnswerPlatformInterviewDto,
@@ -29,6 +31,19 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
 const MAX_ANSWER_HISTORY_TURNS = 6;
+
+/**
+ * Render the canonical gap focus areas (severity-ranked, evidence-priority — the SAME ones the prep-plan
+ * uses) into a prompt block so the LIVE interviewer probes those gaps first. Returns '' when there are none
+ * (caller then falls back to the raw match weaknesses).
+ */
+export function formatGapFocusForPrompt(focusAreas: InterviewFocusArea[]): string {
+  if (!focusAreas.length) return '';
+  const lines = focusAreas.map(
+    (f, i) => `${i + 1}. [${f.focus_type}] ${f.display_name} — ${f.reason}`,
+  );
+  return `Priority focus areas (canonical skill gaps — probe these first, in this order):\n${lines.join('\n')}`;
+}
 
 interface InterviewContextSnapshot {
   cv: { id: string; title: string | null; targetRole: string | null } | null;
@@ -74,6 +89,9 @@ export class InterviewsService {
     private readonly entitlements: EntitlementsService,
     private readonly realtime: OpenAiRealtimeTokenService,
     private readonly questionAudio?: OpenAiQuestionAudioService,
+    // Optional positionally (keeps existing unit-test constructions valid) but always DI-provided in
+    // prod via CvMatchesModule — used to inject the canonical gap focus areas into the live interview.
+    private readonly cvMatches?: CvMatchesService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -359,13 +377,25 @@ export class InterviewsService {
       targetRole,
     };
 
+    // Best-effort: the SAME canonical, severity-ranked gap focus areas the prep-plan uses, so the live
+    // interviewer probes the real gaps (not just the raw match weaknesses). Never blocks interview start.
+    const lang = dto.language === 'en' ? 'en' : 'vi';
+    let focusAreas: InterviewFocusArea[] = [];
+    if (match && this.cvMatches) {
+      try {
+        focusAreas = await this.cvMatches.getInterviewFocusAreas(userId, match.id, lang);
+      } catch {
+        focusAreas = [];
+      }
+    }
+
     return {
       cv,
       match,
       jd,
       targetRole,
       snapshot,
-      promptContext: this.buildPromptContext(cv, jd, match, targetRole),
+      promptContext: this.buildPromptContext(cv, jd, match, targetRole, focusAreas),
     };
   }
 
@@ -374,14 +404,18 @@ export class InterviewsService {
     jd: JobDescriptionEntity | null,
     match: CvMatchEntity | null,
     targetRole: string,
+    focusAreas: InterviewFocusArea[],
   ): string {
+    const gapFocus = formatGapFocusForPrompt(focusAreas);
     return [
       `Target role: ${targetRole}`,
       jd ? `Job description title: ${jd.title ?? '(untitled)'}` : 'Job description: not provided',
       jd?.rawText ? `Job description excerpt:\n${this.limit(jd.rawText, 3000)}` : '',
       cv?.parsedText ? `Candidate CV excerpt:\n${this.limit(cv.parsedText, 4000)}` : '',
       match?.strengths ? `CV/JD matched strengths:\n${JSON.stringify(match.strengths)}` : '',
-      match?.weaknesses ? `CV/JD gaps to probe:\n${JSON.stringify(match.weaknesses)}` : '',
+      // Prefer the canonical gap focus areas (severity-ranked); fall back to raw match weaknesses.
+      gapFocus ||
+        (match?.weaknesses ? `CV/JD gaps to probe:\n${JSON.stringify(match.weaknesses)}` : ''),
       match?.suggestions ? `Tailoring suggestions:\n${JSON.stringify(match.suggestions)}` : '',
       'Interview rule: ask one question at a time, probe the most important job gaps first, and adapt to the candidate answer.',
     ]

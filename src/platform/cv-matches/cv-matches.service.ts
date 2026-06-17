@@ -23,7 +23,10 @@ import {
 import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
-import { buildInterviewPlanFromGapItems } from '../../modules/interview/interview-planner';
+import {
+  buildInterviewPlanFromGapItems,
+  InterviewFocusArea,
+} from '../../modules/interview/interview-planner';
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
@@ -307,6 +310,20 @@ export class CvMatchesService {
       throw new Error('Interview plan dependency is not configured');
     }
     return this.interviewPlan.phrasePlan(userId, focusAreas, report.target_role ?? '', lang);
+  }
+
+  /**
+   * Deterministic gap-targeted interview focus areas for a match — the SAME canonical, evidence-priority,
+   * severity-ranked focus areas the prep-plan uses (buildInterviewPlanFromGapItems), so the LIVE interview
+   * probes the same gaps. Reuses getGapReport for load + ownership. Returns [] when there are no skill gaps.
+   */
+  async getInterviewFocusAreas(
+    userId: string,
+    matchId: string,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<InterviewFocusArea[]> {
+    const report = await this.getGapReport(userId, matchId, lang);
+    return buildInterviewPlanFromGapItems(report.gap_items, lang);
   }
 
   private async findOwnedCv(userId: string, cvId: string): Promise<CvEntity> {
