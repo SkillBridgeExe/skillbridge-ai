@@ -17,10 +17,21 @@ process.env.NODE_ENV = 'test'; // DB-less BEFORE AppModule import — we measure
 
 const TRIALS = Number(process.env.DETERMINISM_TRIALS ?? 5);
 const CANDIDATE_MODEL = process.env.DETERMINISM_CANDIDATE_MODEL ?? 'gpt-4o-mini';
+// Candidate may live on a different provider (e.g. gemini for stronger VN recall). Provider is
+// resolved from config default unless set here — the model name alone does NOT pick the provider.
+const CANDIDATE_PROVIDER =
+  (process.env.DETERMINISM_CANDIDATE_PROVIDER as 'openai' | 'gemini' | undefined) || undefined;
 const SEED =
   process.env.DETERMINISM_SEED !== undefined ? Number(process.env.DETERMINISM_SEED) : undefined;
 const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 2000);
-const TEMPLATE = 'cv_jd_match_v1'; // prod default template; not flipping v2 here.
+// prod default template; override to cv_jd_match_v2 (the live prod template) for prod-parity runs.
+const TEMPLATE = process.env.DETERMINISM_TEMPLATE ?? 'cv_jd_match_v1';
+// Optional comma-separated case-id filter (e.g. det-bilingual-vi) to probe one case cheaply.
+const ONLY = (process.env.DETERMINISM_ONLY ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const DEBUG = process.env.DETERMINISM_DEBUG === '1';
 
 interface DetCase {
   id: string;
@@ -36,6 +47,7 @@ interface Trial {
   score: number | null;
   cvSkills: string[];
   jdReqs: string[];
+  rawCvNames: string[]; // pre-normalization model output — distinguishes recall miss vs normalize gap
   compTokens: number;
   latencyMs: number;
   cost?: number;
@@ -79,6 +91,7 @@ async function main(): Promise<void> {
     model: string,
     temperature: number,
     seed?: number,
+    provider?: 'openai' | 'gemini',
   ): Promise<Trial> => {
     const startedAt = Date.now();
     try {
@@ -97,6 +110,7 @@ async function main(): Promise<void> {
               temperature,
               maxOutputTokens: 3000,
               ...(seed !== undefined ? { seed } : {}),
+              ...(provider ? { provider } : {}),
             },
           ),
         2,
@@ -105,6 +119,7 @@ async function main(): Promise<void> {
       const obj = (
         res.parsedJson && typeof res.parsedJson === 'object' ? res.parsedJson : {}
       ) as Record<string, unknown>;
+      const rawCv = (obj.cv_skills_raw ?? []) as Array<{ name?: string }>;
       const diff = skillDiff.diff({
         cv_skills_raw: (obj.cv_skills_raw ?? []) as never,
         jd_requirements_raw: (obj.jd_requirements_raw ?? []) as never,
@@ -113,8 +128,9 @@ async function main(): Promise<void> {
       });
       return {
         score: diff.overall_score,
-        cvSkills: toCanon((obj.cv_skills_raw ?? []) as Array<{ name?: string }>),
+        cvSkills: toCanon(rawCv),
         jdReqs: toCanon((obj.jd_requirements_raw ?? []) as Array<{ name?: string }>),
+        rawCvNames: rawCv.map((r) => r?.name ?? '').filter(Boolean),
         compTokens: res.tokenUsage.completionTokens,
         latencyMs: res.latencyMs,
         cost: res.estimatedCostUsd,
@@ -124,6 +140,7 @@ async function main(): Promise<void> {
         score: null,
         cvSkills: [],
         jdReqs: [],
+        rawCvNames: [],
         compTokens: 0,
         latencyMs: Date.now() - startedAt,
         error: (e as Error).message,
@@ -136,10 +153,11 @@ async function main(): Promise<void> {
     model: string,
     temperature: number,
     seed?: number,
+    provider?: 'openai' | 'gemini',
   ): Promise<Trial[]> => {
     const out: Trial[] = [];
     for (let i = 0; i < TRIALS; i++) {
-      out.push(await runOne(c, model, temperature, seed));
+      out.push(await runOne(c, model, temperature, seed, provider));
       if (DELAY_MS > 0) await new Promise((r) => setTimeout(r, DELAY_MS));
     }
     return out;
@@ -154,6 +172,8 @@ async function main(): Promise<void> {
       .map((t) => precisionRecall(t.cvSkills, c.expected_cv_skills));
     const meanP = prs.length ? prs.reduce((s, p) => s + p.precision, 0) / prs.length : 0;
     const meanR = prs.length ? prs.reduce((s, p) => s + p.recall, 0) / prs.length : 0;
+    // Union of gold skills missed across trials — names the recall gap (e.g. which VN skill drops).
+    const missing = [...new Set(prs.flatMap((p) => p.missing))].sort();
     const verdict = stats.maxAbsDelta <= 3 ? 'GOOD' : stats.maxAbsDelta <= 5 ? 'OK' : 'FAIL';
     const tok = Math.max(...trials.map((t) => t.compTokens), 0);
     const lat = Math.round(
@@ -164,21 +184,34 @@ async function main(): Promise<void> {
       `  ${label.padEnd(16)} scores=${JSON.stringify(trials.map((t) => t.score))} maxΔ=${stats.maxAbsDelta} [${verdict}] ` +
         `stddev=${stats.stddev.toFixed(1)} | cvJac=${cvJac.toFixed(2)} jdJac=${jdJac.toFixed(2)} | ` +
         `P=${meanP.toFixed(2)} R=${meanR.toFixed(2)} | comp_tok=${tok} lat=${lat}ms` +
+        (missing.length ? ` | miss=[${missing.join(' ')}]` : '') +
         (errs ? ` | ERRORS=${errs}` : ''),
     );
+    if (DEBUG) {
+      // First clean trial: show canonical-extracted vs raw model output to separate a true recall
+      // miss (skill absent from raw) from a normalize gap (raw has it, canonical drops it).
+      const t0 = trials.find((t) => !t.error);
+      if (t0) {
+        console.log(`      canon=[${[...t0.cvSkills].sort().join(' ')}]`);
+        console.log(`      raw=[${t0.rawCvNames.join(' | ')}]`);
+      }
+    }
   };
 
+  const selected = ONLY.length ? cases.filter((c) => ONLY.includes(c.id)) : cases;
+
   console.log(
-    `\nDeterminism cv_jd_match — ${cases.length} cases × ${TRIALS} trials (DB-less, real LLM)`,
+    `\nDeterminism cv_jd_match — ${selected.length}/${cases.length} cases × ${TRIALS} trials (DB-less, real LLM) — template=${TEMPLATE}`,
   );
   console.log(
-    `baseline=${baselineModel} (prod params, temp 0.1 no-op) | candidate=${CANDIDATE_MODEL} (temp 0, seed=${SEED ?? 'none'})\n`,
+    `baseline=${baselineModel} (prod params, temp 0.1 no-op) | candidate=${CANDIDATE_MODEL}` +
+      `${CANDIDATE_PROVIDER ? `@${CANDIDATE_PROVIDER}` : ''} (temp 0, seed=${SEED ?? 'none'})\n`,
   );
 
-  for (const c of cases) {
+  for (const c of selected) {
     console.log(`${c.id} [${c.category}/${c.lang}] role=${c.target_role}`);
     report('baseline', c, await runN(c, baselineModel, 0.1, undefined));
-    report('candidate', c, await runN(c, CANDIDATE_MODEL, 0, SEED));
+    report('candidate', c, await runN(c, CANDIDATE_MODEL, 0, SEED, CANDIDATE_PROVIDER));
   }
 
   console.log(
