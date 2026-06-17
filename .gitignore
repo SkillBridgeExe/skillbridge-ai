@@ -78,6 +78,7 @@ data/esco/*.csv
 
 # Eval CV corpus (PII) + derived extractor report — local-only, never commit.
 data/eval-cvs-pdf/
+data/corpus/
 
 # Tesseract OCR language data — downloaded on demand, cached under os.tmpdir() at runtime.
 # This guard catches any stray cache written to cwd (e.g. a default-cachePath run).
