@@ -276,7 +276,7 @@ export class AuthService {
   private invalidCredentials(): UnauthorizedException {
     return new UnauthorizedException({
       errorCode: ERROR_CODES.INVALID_CREDENTIALS,
-      message: 'Invalid credentials',
+      message: 'Incorrect email or password',
     });
   }
 

@@ -118,6 +118,18 @@ describe('AuthService', () => {
     });
   });
 
+  it('returns a clear generic message for invalid credentials', async () => {
+    const { service, users } = setup();
+    users.findOne.mockResolvedValue(null);
+
+    await expect(service.login('missing@example.com', 'wrong-password')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        errorCode: 'INVALID_CREDENTIALS',
+        message: 'Incorrect email or password',
+      }),
+    });
+  });
+
   it('verifies a valid email token and marks the token as used', async () => {
     const { service, users, verifications } = setup();
     const token = 'plain-verification-token';
