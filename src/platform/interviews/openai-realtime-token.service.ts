@@ -31,6 +31,7 @@ export class OpenAiRealtimeTokenService {
     }
 
     try {
+      const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
       const payload = await this.getClient(apiKey).realtime.clientSecrets.create(
         {
           session: {
@@ -42,7 +43,11 @@ export class OpenAiRealtimeTokenService {
               input: {
                 transcription: {
                   model: 'gpt-4o-mini-transcribe',
-                  language: session.language === 'vi' ? 'vi' : 'en',
+                  language: transcriptionLanguage,
+                  prompt:
+                    transcriptionLanguage === 'vi'
+                      ? 'Cuộc phỏng vấn bằng tiếng Việt. Giữ nguyên dấu tiếng Việt và các thuật ngữ kỹ thuật tiếng Anh như React, TypeScript và API.'
+                      : 'English interview. Preserve technical terms such as React, TypeScript, and API exactly as spoken.',
                 },
                 turn_detection: {
                   type: 'server_vad',

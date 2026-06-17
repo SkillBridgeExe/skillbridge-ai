@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   InterviewMode,
@@ -87,15 +87,27 @@ export class EndPlatformInterviewDto {
 }
 
 export class InterviewListQueryDto {
-  @IsOptional()
+  @ApiPropertyOptional({
+    default: 1,
+    minimum: 1,
+    description: 'Page number, starting at 1.',
+  })
+  @Transform(({ value }) => Number(value ?? 1))
   @IsInt()
   @Min(1)
-  page = 1;
+  page: number = 1;
 
-  @IsOptional()
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 10,
+    description: 'Items per page.',
+  })
+  @Transform(({ value }) => Number(value ?? 10))
   @IsInt()
   @Min(1)
-  limit = 20;
+  @Max(10)
+  limit: number = 10;
 }
 
 export interface RealtimeClientSecretDto {

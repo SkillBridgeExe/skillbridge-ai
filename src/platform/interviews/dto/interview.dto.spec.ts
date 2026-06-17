@@ -1,0 +1,42 @@
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { InterviewListQueryDto } from './interview.dto';
+
+describe('InterviewListQueryDto', () => {
+  const pipe = new ValidationPipe({
+    transform: true,
+    transformOptions: { enableImplicitConversion: true },
+  });
+
+  function transform(query: Record<string, string>) {
+    return pipe.transform(query, {
+      type: 'query',
+      metatype: InterviewListQueryDto,
+      data: undefined,
+    });
+  }
+
+  it('transforms page and limit query strings into integers', async () => {
+    await expect(transform({ page: '1', limit: '10' })).resolves.toEqual({
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it('uses the documented pagination defaults when query parameters are omitted', async () => {
+    await expect(transform({})).resolves.toEqual({
+      page: 1,
+      limit: 10,
+    });
+  });
+
+  it.each([
+    ['page zero', { page: '0' }],
+    ['negative page', { page: '-1' }],
+    ['decimal page', { page: '1.5' }],
+    ['non-numeric page', { page: 'first' }],
+    ['limit zero', { limit: '0' }],
+    ['limit above 10', { limit: '11' }],
+  ])('rejects %s', async (_name, query) => {
+    await expect(transform(query)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});

@@ -272,7 +272,7 @@ export class InterviewsService {
     query: InterviewListQueryDto,
   ): Promise<{ items: InterviewSessionDto[]; total: number; page: number; limit: number }> {
     const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const limit = query.limit ?? 10;
     const [items, total] = await this.sessions.findAndCount({
       where: { userId },
       order: { startedAt: 'DESC' },
@@ -446,6 +446,10 @@ export class InterviewsService {
   }
 
   private realtimeInstructions(session: InterviewSessionEntity, context?: string): string {
+    const languageInstruction =
+      session.language === 'vi'
+        ? 'Speak and respond only in Vietnamese. Preserve English technical terms exactly as written.'
+        : 'Speak and respond only in English.';
     const modeInstructions =
       session.mode === 'VOICE'
         ? [
@@ -461,6 +465,7 @@ export class InterviewsService {
     return [
       'You are Alex, a realistic professional interviewer for SkillBridge.',
       `Interview type: ${session.interviewType}. Language: ${session.language}. Target role: ${session.targetRole}.`,
+      languageInstruction,
       'Ask exactly one question at a time. Keep questions concise. Do not reveal scoring.',
       ...modeInstructions,
       'Focus on evidence in the CV, JD requirements, and gaps. Avoid inventing experience.',

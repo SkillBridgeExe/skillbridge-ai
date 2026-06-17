@@ -28,6 +28,28 @@ describe('InterviewsService', () => {
     jest.useRealTimers();
   });
 
+  it('limits the default history page to 10 sessions', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    sessions.findAndCount.mockResolvedValue([[], 0]);
+    const service = new InterviewsService(
+      sessions as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const response = await service.list(userId, {} as never);
+
+    expect(sessions.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 10 }),
+    );
+    expect(response).toEqual({ items: [], total: 0, page: 1, limit: 10 });
+  });
+
   it('starts a CV/JD-backed hybrid interview session and stores the first turn', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -216,6 +238,7 @@ describe('InterviewsService', () => {
 
     const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
     expect(instructions).toContain('You are Alex');
+    expect(instructions).toContain('Speak and respond only in Vietnamese');
     expect(instructions).toContain('Frontend Intern');
     expect(instructions).toContain('Testing');
     expect(instructions).not.toContain('Context:\nYou are Alex');
