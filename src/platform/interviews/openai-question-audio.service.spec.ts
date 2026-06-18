@@ -22,7 +22,9 @@ describe('OpenAiQuestionAudioService', () => {
     language: 'vi',
     targetRole: 'frontend_developer',
     interviewType: 'TECHNICAL',
-  } as InterviewSessionEntity;
+    voice: 'marin',
+    speechSpeed: '1.15',
+  } as unknown as InterviewSessionEntity;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -76,10 +78,11 @@ describe('OpenAiQuestionAudioService', () => {
     });
     expect(mockSpeechCreate).toHaveBeenCalledWith({
       model: 'gpt-4o-mini-tts',
-      voice: 'alloy',
+      voice: 'marin',
       input: 'Tell me about your latest React project.',
       instructions: expect.stringContaining('Speak natural Vietnamese'),
       response_format: 'mp3',
+      speed: 1.15,
     });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result).toEqual({

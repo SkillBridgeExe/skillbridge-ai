@@ -1,7 +1,11 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
+import {
+  DEFAULT_INTERVIEW_SPEECH_SPEED,
+  DEFAULT_INTERVIEW_VOICE,
+  InterviewSessionEntity,
+} from '../../database/entities/interview-session.entity';
 
 export interface QuestionAudioResult {
   data: Buffer;
@@ -21,7 +25,8 @@ export class OpenAiQuestionAudioService {
     question: string,
   ): Promise<QuestionAudioResult> {
     const model = this.config.get<string>('llm.openai.ttsModel') ?? 'gpt-4o-mini-tts';
-    const voice = this.config.get<string>('llm.openai.ttsVoice') ?? 'alloy';
+    const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
+    const speed = this.speechSpeed(session.speechSpeed);
 
     try {
       const response = await this.getClient().audio.speech.create({
@@ -30,6 +35,7 @@ export class OpenAiQuestionAudioService {
         input: question,
         instructions: this.voiceInstructions(session),
         response_format: 'mp3',
+        speed,
       });
 
       const arrayBuffer = await response.arrayBuffer();
@@ -65,5 +71,12 @@ export class OpenAiQuestionAudioService {
       'Read only the interview question. Do not add extra commentary, scoring, or advice.',
       `Target role: ${session.targetRole}. Interview type: ${session.interviewType}.`,
     ].join(' ');
+  }
+
+  private speechSpeed(value: string | number | null | undefined): number {
+    const numeric = Number(value ?? DEFAULT_INTERVIEW_SPEECH_SPEED);
+    return Number.isFinite(numeric)
+      ? Math.round(numeric * 100) / 100
+      : DEFAULT_INTERVIEW_SPEECH_SPEED;
   }
 }

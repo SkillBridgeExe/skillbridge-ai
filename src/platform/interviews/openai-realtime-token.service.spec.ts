@@ -22,6 +22,8 @@ describe('OpenAiRealtimeTokenService', () => {
     id: 'interview-session-1',
     language: 'vi',
     mode: 'VOICE',
+    voice: 'marin',
+    speechSpeed: '1.15',
     realtimeSessionId: null,
     realtimeProvider: null,
     realtimeModel: null,
@@ -71,6 +73,7 @@ describe('OpenAiRealtimeTokenService', () => {
           model: 'gpt-realtime-2',
           instructions: 'Interview instructions',
           output_modalities: ['audio'],
+          speed: 1.15,
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
@@ -80,7 +83,7 @@ describe('OpenAiRealtimeTokenService', () => {
               }),
             }),
             output: expect.objectContaining({
-              voice: 'alloy',
+              voice: 'marin',
             }),
           }),
         }),

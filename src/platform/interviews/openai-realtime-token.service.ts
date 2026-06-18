@@ -2,7 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import OpenAI from 'openai';
-import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
+import type { ClientSecretCreateParams } from 'openai/resources/realtime/client-secrets';
+import {
+  DEFAULT_INTERVIEW_SPEECH_SPEED,
+  DEFAULT_INTERVIEW_VOICE,
+  InterviewSessionEntity,
+} from '../../database/entities/interview-session.entity';
 import { RealtimeClientSecretDto } from './dto/interview.dto';
 
 @Injectable()
@@ -32,13 +37,16 @@ export class OpenAiRealtimeTokenService {
 
     try {
       const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
+      const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
+      const speed = this.speechSpeed(session.speechSpeed);
       const payload = await this.getClient(apiKey).realtime.clientSecrets.create(
         {
-          session: {
+          session: ({
             type: 'realtime',
             model,
             instructions,
             output_modalities: ['audio'],
+            speed,
             audio: {
               input: {
                 transcription: {
@@ -56,10 +64,10 @@ export class OpenAiRealtimeTokenService {
                 },
               },
               output: {
-                voice: 'alloy',
+                voice,
               },
             },
-          },
+          } as unknown as ClientSecretCreateParams['session']),
         },
         {
           headers: {
@@ -103,5 +111,12 @@ export class OpenAiRealtimeTokenService {
 
   private safetyIdentifier(userId: string): string {
     return createHash('sha256').update(userId).digest('hex');
+  }
+
+  private speechSpeed(value: string | number | null | undefined): number {
+    const numeric = Number(value ?? DEFAULT_INTERVIEW_SPEECH_SPEED);
+    return Number.isFinite(numeric)
+      ? Math.round(numeric * 100) / 100
+      : DEFAULT_INTERVIEW_SPEECH_SPEED;
   }
 }
