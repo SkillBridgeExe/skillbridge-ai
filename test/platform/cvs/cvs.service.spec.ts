@@ -160,6 +160,7 @@ describe('CvsService R1 completion behavior', () => {
       cvSkillsRepo,
       skillsRepo,
       storage,
+      extractor,
       cvReview,
       skillNormalizer,
       consentAudits,
@@ -483,8 +484,8 @@ describe('CvsService R1 completion behavior', () => {
     expect(rendered.buffer).toEqual(Buffer.from('%PDF-1.7 rendered'));
   });
 
-  it('skips parsing and scoring when uploaded PDF has a SkillBridge fingerprint owned by the user', async () => {
-    const { service, cvsRepo, pdfRenderer, storage, cvReview } = build();
+  it('analyzes an owned generated PDF when its builder draft has no review for the requested role', async () => {
+    const { service, cvsRepo, pdfRenderer, storage, cvReview, analysisQuota, aiResults } = build();
     const ownedCv = {
       id: 'original-cv',
       userId: 'u1',
@@ -493,7 +494,10 @@ describe('CvsService R1 completion behavior', () => {
       fileType: null,
       fileSize: null,
       parsedText: null,
-      parsedJson: parsedReview.document,
+      parsedJson: {
+        ...parsedReview.document,
+        summary: 'Built REST APIs with NestJS and PostgreSQL.',
+      },
       cvKind: 'BUILT',
       language: 'vi',
       isOcrOnly: false,
@@ -504,16 +508,27 @@ describe('CvsService R1 completion behavior', () => {
     };
     pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
     cvsRepo.findOne.mockResolvedValue(ownedCv);
+    aiResults.manager.query.mockResolvedValue([]);
 
     const response = await service.create(
       'u1',
-      { consentAccepted: true },
+      { consentAccepted: true, targetRole: 'fullstack_developer' },
       { ...file, buffer: Buffer.from('%PDF-1.7 generated') },
     );
 
     expect(response.id).toBe('original-cv');
+    expect(response.review).toEqual(parsedReview);
     expect(storage.upload).not.toHaveBeenCalled();
-    expect(cvReview.review).not.toHaveBeenCalled();
+    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalledWith('u1');
+    expect(analysisQuota.recordSuccessfulAnalysis).toHaveBeenCalledWith('u1', 'original-cv');
+    expect(cvReview.review).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({
+        cv_id: 'original-cv',
+        parsed_text: expect.stringContaining('Built REST APIs with NestJS and PostgreSQL.'),
+        target_role: 'fullstack_developer',
+      }),
+    );
     expect(cvsRepo.count).not.toHaveBeenCalled();
   });
 
@@ -544,28 +559,84 @@ describe('CvsService R1 completion behavior', () => {
     expect(cvsRepo.create).not.toHaveBeenCalled();
   });
 
-  it('does NOT consume the analysis quota for a generated-PDF re-upload (bypass runs first)', async () => {
-    const { service, cvsRepo, pdfRenderer, analysisQuota } = build();
+  it('reuses a role-matched review for an owned generated PDF without consuming analysis quota', async () => {
+    const { service, cvsRepo, pdfRenderer, analysisQuota, cvReview, aiResults, storage } = build();
     pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
     cvsRepo.findOne.mockResolvedValue({
       id: 'original-cv',
       userId: 'u1',
       cvKind: 'BUILT',
       parsedJson: parsedReview.document,
+      targetRole: 'fullstack_developer',
       createdAt: now,
       updatedAt: now,
     });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
 
-    await service.create(
+    const response = await service.create(
       'u1',
-      { consentAccepted: true },
+      { consentAccepted: true, targetRole: 'fullstack_developer' },
       {
         ...file,
         buffer: Buffer.from('%PDF-1.7 generated'),
       },
     );
 
+    expect(response.review).toEqual(parsedReview);
     expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
+    const [, params] = aiResults.manager.query.mock.calls.at(-1) as [string, unknown[]];
+    expect(params).toContain('fullstack_developer');
+  });
+
+  it('re-grades an owned generated PDF when the requested role has no matching review', async () => {
+    const { service, cvsRepo, pdfRenderer, analysisQuota, cvReview, aiResults, storage } = build();
+    pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'original-cv',
+      userId: 'u1',
+      cvKind: 'BUILT',
+      parsedText: null,
+      parsedJson: {
+        ...parsedReview.document,
+        summary: 'Built REST APIs with NestJS and PostgreSQL.',
+      },
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([]);
+
+    await service.create(
+      'u1',
+      { consentAccepted: true, targetRole: 'data_analyst' },
+      { ...file, buffer: Buffer.from('%PDF-1.7 generated') },
+    );
+
+    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalledWith('u1');
+    expect(cvReview.review).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ target_role: 'data_analyst' }),
+    );
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it('treats a generated PDF with an unowned fingerprint as a normal upload', async () => {
+    const { service, cvsRepo, pdfRenderer, storage, extractor, cvReview } = build();
+    pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('foreign-cv');
+    cvsRepo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+    const response = await service.create(
+      'u1',
+      { consentAccepted: true, targetRole: 'fullstack_developer' },
+      { ...file, buffer: Buffer.from('%PDF-1.7 foreign-generated') },
+    );
+
+    expect(response.review).toEqual(parsedReview);
+    expect(storage.upload).toHaveBeenCalled();
+    expect(extractor.extract).toHaveBeenCalled();
+    expect(cvReview.review).toHaveBeenCalled();
   });
 
   it('does NOT consume the analysis quota for duplicate file content owned by the user', async () => {

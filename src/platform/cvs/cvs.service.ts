@@ -108,11 +108,33 @@ export class CvsService {
 
     const generatedSource = await this.findGeneratedPdfSource(userId, file);
     if (generatedSource) {
-      const [skills, review] = await Promise.all([
-        this.getPersistedSkills(generatedSource.id),
-        this.getLatestReview(userId, generatedSource.id),
-      ]);
-      return this.toResponse(generatedSource, skills, review);
+      const role = this.normalizeTargetRole(dto.targetRole) ?? generatedSource.targetRole ?? null;
+      const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role);
+      if (cached) {
+        return this.toResponse(
+          generatedSource,
+          await this.getPersistedSkills(generatedSource.id),
+          cached,
+        );
+      }
+
+      const parsedText = this.reviewableText(generatedSource);
+      if (!parsedText) {
+        throw new BadRequestException({
+          errorCode: ERROR_CODES.CV_PARSE_FAILED,
+          message: 'CV has no parsed text to review',
+        });
+      }
+
+      generatedSource.parsedText = parsedText;
+      if (role && role !== generatedSource.targetRole) {
+        generatedSource.targetRole = role;
+        await this.cvs.save(generatedSource);
+      }
+      await this.analysisQuota.assertWithinDailyLimit(userId);
+      const review = await this.reviewCv(userId, generatedSource, role ?? undefined);
+      await this.analysisQuota.recordSuccessfulAnalysis(userId, generatedSource.id);
+      return this.toResponse(review.cv, review.skills, review.parsed);
     }
 
     const contentHash = this.sha256(file.buffer);
@@ -147,8 +169,8 @@ export class CvsService {
     }
 
     await this.enforceUploadQuota(userId);
-    // Shared daily cv_review budget — checked AFTER the generated-PDF bypass above (so a builder
-    // re-upload never consumes it) and BEFORE any storage/row write (so a reject leaves no orphan).
+    // Shared daily cv_review budget for a real upload. Generated PDFs enforce this in their branch
+    // only on a cache miss; this check stays before storage/row writes so a reject leaves no orphan.
     await this.analysisQuota.assertWithinDailyLimit(userId);
 
     const cvId = uuidv4();
