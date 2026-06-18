@@ -62,7 +62,13 @@ export class InterviewSessionEntity {
   @Column({ type: 'varchar', name: 'voice', default: DEFAULT_INTERVIEW_VOICE })
   voice!: InterviewVoice;
 
-  @Column({ type: 'numeric', name: 'speech_speed', precision: 4, scale: 2, default: DEFAULT_INTERVIEW_SPEECH_SPEED })
+  @Column({
+    type: 'numeric',
+    name: 'speech_speed',
+    precision: 4,
+    scale: 2,
+    default: DEFAULT_INTERVIEW_SPEECH_SPEED,
+  })
   speechSpeed!: string | number;
 
   @Index()

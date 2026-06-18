@@ -41,7 +41,7 @@ export class OpenAiRealtimeTokenService {
       const speed = this.speechSpeed(session.speechSpeed);
       const payload = await this.getClient(apiKey).realtime.clientSecrets.create(
         {
-          session: ({
+          session: {
             type: 'realtime',
             model,
             instructions,
@@ -67,7 +67,7 @@ export class OpenAiRealtimeTokenService {
                 voice,
               },
             },
-          } as unknown as ClientSecretCreateParams['session']),
+          } as unknown as ClientSecretCreateParams['session'],
         },
         {
           headers: {

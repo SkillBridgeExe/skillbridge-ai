@@ -86,8 +86,6 @@ describe('StartPlatformInterviewDto voice settings', () => {
     ['non-numeric speed', { speechSpeed: 'fast' }],
     ['NaN speed', { speechSpeed: Number.NaN }],
   ])('rejects %s', async (_name, patch) => {
-    await expect(transform({ ...baseBody, ...patch })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(transform({ ...baseBody, ...patch })).rejects.toBeInstanceOf(BadRequestException);
   });
 });
