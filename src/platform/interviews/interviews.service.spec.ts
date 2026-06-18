@@ -191,6 +191,129 @@ describe('InterviewsService', () => {
     );
   });
 
+  it('starts a live VOICE interview without backend-generated question turns', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:00:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { start: jest.fn() };
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    const realtime = {
+      createClientSecret: jest.fn(async () => ({
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-realtime-2',
+        clientSecret: 'live_secret',
+        expiresAt: null,
+      })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-live-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      entitlements as never,
+      realtime as never,
+    );
+
+    const response = await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+    });
+
+    expect(interviewAi.start).not.toHaveBeenCalled();
+    expect(turns.save).not.toHaveBeenCalled();
+    expect(realtime.createClientSecret).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ id: 'session-live-1', mode: 'VOICE' }),
+      expect.not.stringContaining('official question directive'),
+    );
+    const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
+    expect(instructions).toContain('Open with 1-2 short sentences only');
+    expect(instructions).toContain('Use the CV/JD context silently');
+    expect(instructions).toContain('If the candidate asks for answers');
+    expect(instructions).toContain('redirect back to the current interview question');
+    expect(instructions).toContain('When the app sends a closing instruction');
+    expect(instructions).toContain('Candidate seniority level: junior');
+    expect(instructions).toContain(
+      'No explicit seniority signal was found; use a junior-friendly baseline',
+    );
+    expect(response).toMatchObject({
+      id: 'session-live-1',
+      mode: 'VOICE',
+      status: 'IN_PROGRESS',
+      totalQuestionsPlanned: 7,
+      firstMessage: '',
+      firstQuestion: '',
+      phase: null,
+      realtime: { enabled: true, clientSecret: 'live_secret' },
+    });
+  });
+
+  it('calibrates live interview difficulty from an explicit fresher target role without a JD', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const realtime = {
+      createClientSecret: jest.fn(async () => ({
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-realtime-2',
+        clientSecret: 'live_secret',
+        expiresAt: null,
+      })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-fresher-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      realtime as never,
+    );
+
+    await service.start(userId, {
+      targetRole: 'Fresher Backend Developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+    });
+
+    const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
+    expect(instructions).toContain('Candidate seniority level: fresher');
+    expect(instructions).toContain('Start with fundamentals, school/internship/personal projects');
+    expect(instructions).toContain(
+      'Do not ask senior-level architecture, distributed systems, incident leadership',
+    );
+    expect(instructions).toContain('Seniority evidence source: target role');
+  });
+
   it('refreshes realtime tokens without nesting the interviewer instructions as context', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
@@ -604,6 +727,231 @@ describe('InterviewsService', () => {
         durationSeconds: 600,
       }),
     );
+  });
+
+  it('cancels an unanswered session without requesting final AI scoring', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:02:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { end: jest.fn() };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-1',
+      userId,
+      targetRole: 'frontend_developer',
+      language: 'vi',
+      mode: 'HYBRID',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    });
+    turns.find.mockResolvedValue([
+      {
+        id: 'turn-1',
+        sessionId: 'session-1',
+        turnOrder: 1,
+        phase: 'INTRODUCTION',
+        modality: 'AUDIO',
+        interviewerQuestion: 'Introduce yourself.',
+        userAnswerText: null,
+        createdAt: new Date('2026-06-12T00:00:01.000Z'),
+        askedAt: new Date('2026-06-12T00:00:01.000Z'),
+      },
+    ]);
+    sessions.save.mockImplementation(async (value) => value);
+
+    const response = await service.end(userId, { sessionId: 'session-1' });
+
+    expect(interviewAi.end).not.toHaveBeenCalled();
+    expect(sessions.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'CANCELLED',
+        endedAt: new Date('2026-06-12T00:02:00.000Z'),
+        durationSeconds: 120,
+      }),
+    );
+    expect(response.status).toBe('CANCELLED');
+    expect(response.overallScore).toBeNull();
+    expect(response.turns).toHaveLength(1);
+  });
+
+  it('persists reviewed live realtime turns before final scoring', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:04:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = {
+      end: jest.fn(async () => ({
+        ai_request_id: 'ai-live-end-1',
+        parsed_response: {
+          overall_score: 76,
+          semantic_score: 75,
+          llm_score: 78,
+          communication_score: 72,
+          ai_feedback: { summary: 'Reviewed live transcript was scored.' },
+          per_question_scores: [],
+        },
+        token_usage: 500,
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-live-1',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    });
+    turns.find.mockResolvedValue([]);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: `live-turn-${(value as InterviewTurnEntity).turnOrder}`,
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+      askedAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    sessions.save.mockImplementation(async (value) => value);
+
+    const response = await service.end(userId, {
+      sessionId: 'session-live-1',
+      liveTurns: [
+        {
+          turnOrder: 1,
+          interviewerQuestion: 'Bạn đã thiết kế API đó như thế nào?',
+          userAnswerText: 'Em tách controller, service và repository.',
+          userAnswerTranscript: 'Em tách controller, service và repository.',
+          durationSeconds: 55,
+        },
+        {
+          turnOrder: 2,
+          interviewerQuestion: 'Bạn xử lý transaction ra sao?',
+          userAnswerText: 'Em dùng transaction boundary ở service.',
+          userAnswerTranscript: 'Em dùng transaction boundary ở service.',
+          durationSeconds: 47,
+        },
+      ],
+    });
+
+    expect(turns.save).toHaveBeenCalledTimes(2);
+    expect(turns.save).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        sessionId: 'session-live-1',
+        turnOrder: 1,
+        modality: 'AUDIO',
+        interviewerQuestion: 'Bạn đã thiết kế API đó như thế nào?',
+        userAnswerText: 'Em tách controller, service và repository.',
+        userAnswerTranscript: 'Em tách controller, service và repository.',
+        durationSeconds: 55,
+      }),
+    );
+    expect(interviewAi.end).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        all_questions_answers: [
+          {
+            order: 1,
+            question: 'Bạn đã thiết kế API đó như thế nào?',
+            answer: 'Em tách controller, service và repository.',
+          },
+          {
+            order: 2,
+            question: 'Bạn xử lý transaction ra sao?',
+            answer: 'Em dùng transaction boundary ở service.',
+          },
+        ],
+      }),
+    );
+    expect(response.status).toBe('COMPLETED');
+    expect(response.turns).toHaveLength(2);
+  });
+
+  it('cancels reviewed live realtime sessions when all reviewed answers are unsafe', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:04:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { end: jest.fn() };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-live-1',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    });
+    turns.find.mockResolvedValue([
+      {
+        id: 'stale-turn-1',
+        sessionId: 'session-live-1',
+        turnOrder: 1,
+        phase: null,
+        modality: 'AUDIO',
+        interviewerQuestion: 'Stale backend question',
+        userAnswerText: 'Stale answer must not be scored.',
+        createdAt: new Date('2026-06-12T00:00:01.000Z'),
+        askedAt: new Date('2026-06-12T00:00:01.000Z'),
+      },
+    ]);
+    sessions.save.mockImplementation(async (value) => value);
+
+    const response = await service.end(userId, {
+      sessionId: 'session-live-1',
+      liveTurns: [
+        {
+          turnOrder: 1,
+          interviewerQuestion: 'Bạn phụ trách phần backend nào?',
+          userAnswerText:
+            '第一张原有很不流动来的求接下午。 Cuộc phỏng vấn bằng tiếng Việt. Giữ nguyên dấu tiếng Việt.',
+          userAnswerTranscript:
+            '第一张原有很不流动来的求接下午。 Cuộc phỏng vấn bằng tiếng Việt. Giữ nguyên dấu tiếng Việt.',
+          durationSeconds: 58,
+        },
+      ],
+    });
+
+    expect(turns.save).not.toHaveBeenCalled();
+    expect(interviewAi.end).not.toHaveBeenCalled();
+    expect(sessions.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'CANCELLED',
+        durationSeconds: 240,
+      }),
+    );
+    expect(response.status).toBe('CANCELLED');
   });
 
   it('ends a session and stores final scoring fields', async () => {

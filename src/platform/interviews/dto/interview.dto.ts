@@ -1,5 +1,6 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsIn,
   IsInt,
   IsNumber,
@@ -9,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -119,10 +121,53 @@ export class AnswerPlatformInterviewDto {
   durationSeconds?: number;
 }
 
+export class LiveInterviewTurnDto {
+  @ApiProperty({ minimum: 1 })
+  @IsInt()
+  @Min(1)
+  turnOrder!: number;
+
+  @ApiProperty({ example: 'Bạn đã thiết kế API đó như thế nào?' })
+  @IsString()
+  @MaxLength(4000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  interviewerQuestion!: string;
+
+  @ApiPropertyOptional({ example: 'Em tách controller, service và repository.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  userAnswerText?: string;
+
+  @ApiPropertyOptional({ example: 'Em tách controller, service và repository.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  userAnswerTranscript?: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+}
+
 export class EndPlatformInterviewDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   sessionId!: string;
+
+  @ApiPropertyOptional({
+    type: () => [LiveInterviewTurnDto],
+    description: 'Reviewed live realtime interview turns to persist before scoring.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LiveInterviewTurnDto)
+  liveTurns?: LiveInterviewTurnDto[];
 }
 
 export class InterviewListQueryDto {

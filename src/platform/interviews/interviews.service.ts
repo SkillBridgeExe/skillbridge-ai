@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { deriveCvSeniority } from '../../common/services/seniority';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import {
@@ -15,6 +16,7 @@ import { JobDescriptionEntity } from '../../database/entities/job-description.en
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
 import { InterviewFocusArea } from '../../modules/interview/interview-planner';
 import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-interview.dto';
+import { classifySeniority, SeniorityLevel } from '../../modules/jobs/ingest/ingest-normalizers';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import {
@@ -25,6 +27,7 @@ import {
   InterviewListQueryDto,
   InterviewSessionDto,
   InterviewTurnDto,
+  LiveInterviewTurnDto,
   RealtimeClientSecretDto,
   StartInterviewResponseDto,
   StartPlatformInterviewDto,
@@ -35,6 +38,12 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
 const MAX_ANSWER_HISTORY_TURNS = 6;
+const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
+const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
+  /Cuộc phỏng vấn bằng tiếng Việt/i,
+  /Giữ nguyên dấu tiếng Việt/i,
+  /English interview\. Preserve technical terms/i,
+];
 
 /**
  * Render the canonical gap focus areas (severity-ranked, evidence-priority — the SAME ones the prep-plan
@@ -60,6 +69,7 @@ interface InterviewContextSnapshot {
     suggestions: unknown;
   } | null;
   targetRole: string;
+  interviewDifficulty: InterviewDifficultyProfile;
 }
 
 interface InterviewContext {
@@ -74,6 +84,23 @@ interface InterviewContext {
 interface AnswerTurnContext {
   current: InterviewTurnEntity | null;
   historyTurns: InterviewTurnEntity[];
+}
+
+interface ReviewedLiveTurn {
+  turnOrder: number;
+  interviewerQuestion: string;
+  userAnswerText: string;
+  userAnswerTranscript: string;
+  durationSeconds: number | null;
+}
+
+type InterviewDifficultyLevel = 'intern' | 'fresher' | 'junior' | 'mid' | 'senior' | 'lead';
+type InterviewDifficultySource = 'target role' | 'job description' | 'candidate CV' | 'default';
+
+interface InterviewDifficultyProfile {
+  level: InterviewDifficultyLevel;
+  source: InterviewDifficultySource;
+  note: string;
 }
 
 @Injectable()
@@ -125,32 +152,42 @@ export class InterviewsService {
       }),
     );
 
-    const aiStart = await this.interviewAi.start(userId, {
-      session_id: session.id,
-      interview_type: session.interviewType,
-      topic: session.targetRole,
-      language: session.language,
-      cv_context: context.promptContext,
-      prompt_template_code: this.startPromptCode(session.interviewType),
-    });
+    let firstMessage = '';
+    let firstQuestion = '';
+    let phase: StartInterviewResponseDto['phase'] = null;
+    if (session.mode === 'VOICE') {
+      session.totalQuestionsPlanned = this.defaultQuestionCount(session.interviewType);
+    } else {
+      const aiStart = await this.interviewAi.start(userId, {
+        session_id: session.id,
+        interview_type: session.interviewType,
+        topic: session.targetRole,
+        language: session.language,
+        cv_context: context.promptContext,
+        prompt_template_code: this.startPromptCode(session.interviewType),
+      });
 
-    await this.turns.save(
-      this.turns.create({
-        sessionId: session.id,
-        turnOrder: 1,
-        phase: aiStart.phase,
-        modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-        aiRequestId: aiStart.ai_request_id,
-        interviewerMessage: aiStart.first_message,
-        interviewerQuestion: aiStart.first_question,
-      }),
-    );
+      await this.turns.save(
+        this.turns.create({
+          sessionId: session.id,
+          turnOrder: 1,
+          phase: aiStart.phase,
+          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+          aiRequestId: aiStart.ai_request_id,
+          interviewerMessage: aiStart.first_message,
+          interviewerQuestion: aiStart.first_question,
+        }),
+      );
 
-    session.totalQuestionsPlanned = aiStart.total_questions_planned;
+      firstMessage = aiStart.first_message;
+      firstQuestion = aiStart.first_question;
+      phase = aiStart.phase;
+      session.totalQuestionsPlanned = aiStart.total_questions_planned;
+    }
     const realtime = await this.createRealtimeIfNeeded(
       userId,
       session,
-      this.compactRealtimeContext(session),
+      session.mode === 'VOICE' ? context.promptContext : this.compactRealtimeContext(session),
     );
     session = await this.sessions.save(session);
     await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
@@ -160,9 +197,9 @@ export class InterviewsService {
 
     return {
       ...this.toSessionDto(session),
-      firstMessage: aiStart.first_message,
-      firstQuestion: aiStart.first_question,
-      phase: aiStart.phase,
+      firstMessage,
+      firstQuestion,
+      phase,
       realtime,
     };
   }
@@ -234,16 +271,24 @@ export class InterviewsService {
 
   async end(userId: string, dto: EndPlatformInterviewDto): Promise<InterviewDetailResponseDto> {
     const session = await this.findOwnedSession(userId, dto.sessionId);
-    const turns = await this.getTurns(session.id);
+    let turns = await this.getTurns(session.id);
+    if (session.mode === 'VOICE' && Array.isArray(dto.liveTurns)) {
+      turns = await this.syncReviewedLiveTurns(session, dto.liveTurns, turns);
+    }
     const answeredTurns = turns.filter((turn) => turn.userAnswerText);
+    const endedAt = this.resolveEndedAt(session);
     if (answeredTurns.length === 0) {
-      throw new BadRequestException({
-        errorCode: ERROR_CODES.VALIDATION_ERROR,
-        message: 'Interview session has no answers to score',
-      });
+      session.status = 'CANCELLED';
+      session.endedAt = endedAt;
+      session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
+      const saved = await this.sessions.save(session);
+
+      return {
+        ...this.toSessionDto(saved),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
     }
 
-    const endedAt = this.resolveEndedAt(session);
     const scoring = await this.interviewAi.end(userId, {
       session_id: session.id,
       all_questions_answers: answeredTurns.map((turn) => ({
@@ -368,6 +413,7 @@ export class InterviewsService {
       });
     }
 
+    const interviewDifficulty = this.resolveInterviewDifficulty(cv, jd, targetRole);
     const snapshot = {
       cv: cv ? { id: cv.id, title: cv.title, targetRole: cv.targetRole } : null,
       jobDescription: jd ? { id: jd.id, title: jd.title, sourceType: jd.sourceType } : null,
@@ -381,6 +427,7 @@ export class InterviewsService {
           }
         : null,
       targetRole,
+      interviewDifficulty,
     };
 
     // Best-effort: the SAME canonical, severity-ranked gap focus areas the prep-plan uses, so the live
@@ -401,7 +448,14 @@ export class InterviewsService {
       jd,
       targetRole,
       snapshot,
-      promptContext: this.buildPromptContext(cv, jd, match, targetRole, focusAreas),
+      promptContext: this.buildPromptContext(
+        cv,
+        jd,
+        match,
+        targetRole,
+        focusAreas,
+        interviewDifficulty,
+      ),
     };
   }
 
@@ -411,10 +465,12 @@ export class InterviewsService {
     match: CvMatchEntity | null,
     targetRole: string,
     focusAreas: InterviewFocusArea[],
+    interviewDifficulty: InterviewDifficultyProfile,
   ): string {
     const gapFocus = formatGapFocusForPrompt(focusAreas);
     return [
       `Target role: ${targetRole}`,
+      `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
       jd ? `Job description title: ${jd.title ?? '(untitled)'}` : 'Job description: not provided',
       jd?.rawText ? `Job description excerpt:\n${this.limit(jd.rawText, 3000)}` : '',
       cv?.parsedText ? `Candidate CV excerpt:\n${this.limit(cv.parsedText, 4000)}` : '',
@@ -452,16 +508,26 @@ export class InterviewsService {
   }
 
   private realtimeInstructions(session: InterviewSessionEntity, context?: string): string {
+    const difficulty = this.resolveSessionInterviewDifficulty(session, context);
+    const difficultyInstruction = this.formatInterviewDifficultyInstruction(difficulty);
     const languageInstruction =
       session.language === 'vi'
-        ? 'Speak and respond only in Vietnamese. Preserve English technical terms exactly as written.'
+        ? 'Speak and respond only in Vietnamese with correct Vietnamese diacritics. Preserve English technical terms such as React, TypeScript, API, cache, transaction, and backend exactly as written.'
         : 'Speak and respond only in English.';
     const modeInstructions =
       session.mode === 'VOICE'
         ? [
-            'Live Realtime mode: speak like a real interviewer in a live call.',
-            'Keep every answer turn separable. If the app sends an official question directive, ask that question exactly.',
+            'Live Realtime mode: you own the interview conversation end to end.',
+            'Open with 1-2 short sentences only: greet the candidate, state that the interview will use the target role plus CV/JD context, then ask the first question.',
+            `Plan about ${this.defaultQuestionCount(session.interviewType)} questions total, including relevant follow-ups when the answer is thin or unclear.`,
+            difficultyInstruction,
+            'Use the CV/JD context silently to choose questions and follow-ups. Do not read or quote long CV/JD text aloud.',
+            'Act like a focused HR or technical interviewer: probe the candidate own work, responsibilities, trade-offs, metrics, incidents, debugging steps, and impact.',
+            'If the candidate asks for answers, asks unrelated questions, asks you to solve the interview for them, or tries to change topics, refuse briefly and redirect back to the current interview question.',
+            'Do not coach, reveal ideal answers, write code solutions, or answer off-topic requests during the interview.',
+            'Keep every answer turn separable in the transcript. Do not read hidden context aloud.',
             'Do not reveal scoring or final feedback during the live interview.',
+            'When the app sends a closing instruction, or when enough evidence has been collected, thank the candidate in 2-3 short sentences and stop asking new questions.',
           ]
         : [
             'Guided Voice mode: the app owns the official question sequence.',
@@ -497,10 +563,160 @@ export class InterviewsService {
       snapshot?.cvMatch?.weaknesses
         ? `Important gaps to probe: ${this.limit(JSON.stringify(snapshot.cvMatch.weaknesses), 800)}`
         : '',
+      snapshot?.interviewDifficulty
+        ? `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(snapshot.interviewDifficulty)}`
+        : '',
       'Do not read the CV/JD context aloud. Use it only to choose relevant follow-up questions.',
     ]
       .filter(Boolean)
       .join('\n\n');
+  }
+
+  private resolveInterviewDifficulty(
+    cv: CvEntity | null,
+    jd: JobDescriptionEntity | null,
+    targetRole: string,
+  ): InterviewDifficultyProfile {
+    const targetRoleLevel = this.levelFromTitle(targetRole);
+    if (targetRoleLevel) {
+      return {
+        level: targetRoleLevel,
+        source: 'target role',
+        note: 'Matched explicit seniority wording in the requested target role.',
+      };
+    }
+
+    const jdLevel = this.levelFromTitle([jd?.title, jd?.rawText].filter(Boolean).join('\n'));
+    if (jdLevel) {
+      return {
+        level: jdLevel,
+        source: 'job description',
+        note: 'Matched explicit seniority wording or years-of-experience signal in the JD.',
+      };
+    }
+
+    const cvTitleLevel = this.levelFromTitle(
+      [cv?.targetRole, cv?.title].filter(Boolean).join('\n'),
+    );
+    if (cvTitleLevel) {
+      return {
+        level: cvTitleLevel,
+        source: 'candidate CV',
+        note: 'Matched explicit seniority wording in the CV title or CV target role.',
+      };
+    }
+
+    if (cv?.parsedJson) {
+      const seniority = deriveCvSeniority(cv.parsedJson);
+      if (seniority.confidence !== 'low') {
+        return {
+          level: seniority.bucket,
+          source: 'candidate CV',
+          note: `Derived from structured CV experience (${seniority.signals.join(', ')}).`,
+        };
+      }
+    }
+
+    const cvTextLevel = this.levelFromTitle(cv?.parsedText ?? '');
+    if (cvTextLevel) {
+      return {
+        level: cvTextLevel,
+        source: 'candidate CV',
+        note: 'Matched seniority wording or years-of-experience signal in the CV text.',
+      };
+    }
+
+    return {
+      level: 'junior',
+      source: 'default',
+      note: 'No explicit seniority signal was found; use a junior-friendly baseline.',
+    };
+  }
+
+  private resolveSessionInterviewDifficulty(
+    session: InterviewSessionEntity,
+    context?: string,
+  ): InterviewDifficultyProfile {
+    const snapshot = this.asContextSnapshot(session.contextSnapshot);
+    if (snapshot?.interviewDifficulty) return snapshot.interviewDifficulty;
+
+    const level = this.levelFromTitle([session.targetRole, context].filter(Boolean).join('\n'));
+    return level
+      ? {
+          level,
+          source: 'target role',
+          note: 'Matched explicit seniority wording in the available interview context.',
+        }
+      : {
+          level: 'junior',
+          source: 'default',
+          note: 'No explicit seniority signal was found; use a junior-friendly baseline.',
+        };
+  }
+
+  private levelFromTitle(text: string | null | undefined): InterviewDifficultyLevel | null {
+    const value = text?.trim();
+    if (!value) return null;
+
+    const explicit = classifySeniority(value);
+    if (explicit) return this.levelFromSeniorityLevel(explicit);
+
+    const years = this.extractExperienceYears(value);
+    if (years === null) return null;
+    if (years >= 7) return 'senior';
+    if (years >= 4) return 'mid';
+    if (years >= 1) return 'junior';
+    return 'fresher';
+  }
+
+  private levelFromSeniorityLevel(level: SeniorityLevel): InterviewDifficultyLevel {
+    const map: Record<SeniorityLevel, InterviewDifficultyLevel> = {
+      INTERN: 'intern',
+      FRESHER: 'fresher',
+      JUNIOR: 'junior',
+      MIDDLE: 'mid',
+      SENIOR: 'senior',
+      LEAD: 'lead',
+    };
+    return map[level];
+  }
+
+  private extractExperienceYears(text: string): number | null {
+    const match =
+      text.match(
+        /(\d+(?:\.\d+)?)\s*\+?\s*(?:years?|yrs?|nam|năm)\s+(?:of\s+)?(?:experience|kinh\s+nghiem|kinh\s+nghiệm)/i,
+      ) ?? text.match(/(?:experience|kinh\s+nghiem|kinh\s+nghiệm)[^\d]{0,24}(\d+(?:\.\d+)?)/i);
+    if (!match) return null;
+
+    const years = Number(match[1]);
+    return Number.isFinite(years) ? years : null;
+  }
+
+  private formatInterviewDifficultyInstruction(profile: InterviewDifficultyProfile): string {
+    return [
+      `Candidate seniority level: ${profile.level}. Seniority evidence source: ${profile.source}. ${profile.note}`,
+      this.difficultyGuidance(profile.level, profile.source === 'default'),
+    ].join('\n');
+  }
+
+  private difficultyGuidance(level: InterviewDifficultyLevel, isDefault: boolean): string {
+    switch (level) {
+      case 'intern':
+      case 'fresher':
+        return 'Difficulty calibration: Start with fundamentals, school/internship/personal projects, basic API/CRUD/debugging, and simple trade-offs. Do not ask senior-level architecture, distributed systems, incident leadership, or broad system design unless the candidate first shows strong evidence.';
+      case 'junior':
+        return isDefault
+          ? 'Difficulty calibration: No explicit seniority signal was found; use a junior-friendly baseline. Start with practical project work, API/CRUD, database basics, debugging, auth/validation, and gradually deepen only when answers are strong.'
+          : 'Difficulty calibration: Start with practical project work, API/CRUD, database basics, debugging, auth/validation, and gradually deepen into trade-offs only when answers are strong.';
+      case 'mid':
+        return 'Difficulty calibration: Ask about module ownership, trade-offs, transaction boundaries, caching, performance, observability, and debugging real production issues. Keep architecture questions scoped to systems the candidate has actually worked on.';
+      case 'senior':
+        return 'Difficulty calibration: Ask deeper architecture, scalability, cross-team trade-offs, production incidents, mentoring, and technical decision-making questions, while still grounding each question in the candidate CV/JD context.';
+      case 'lead':
+        return 'Difficulty calibration: Ask about technical leadership, architecture ownership, prioritization, mentoring, incident response, stakeholder trade-offs, and system-level decisions, while avoiding questions unrelated to the target role.';
+      default:
+        return 'Difficulty calibration: Use a junior-friendly baseline and increase depth only when the candidate demonstrates stronger experience.';
+    }
   }
 
   private asContextSnapshot(value: unknown): InterviewContextSnapshot | null {
@@ -594,6 +810,79 @@ export class InterviewsService {
 
   private startPromptCode(type: string): string {
     return type === 'HR' ? 'interview_screening_v1' : 'interview_technical_v1';
+  }
+
+  private defaultQuestionCount(type: string): number {
+    return type === 'HR' ? 5 : 7;
+  }
+
+  private async syncReviewedLiveTurns(
+    session: InterviewSessionEntity,
+    liveTurns: LiveInterviewTurnDto[],
+    existingTurns: InterviewTurnEntity[],
+  ): Promise<InterviewTurnEntity[]> {
+    const existingByOrder = new Map(existingTurns.map((turn) => [turn.turnOrder, turn]));
+    const savedTurns: InterviewTurnEntity[] = [];
+
+    for (const reviewed of liveTurns) {
+      const normalized = this.normalizeReviewedLiveTurn(reviewed);
+      if (!normalized) continue;
+
+      const entity =
+        existingByOrder.get(normalized.turnOrder) ??
+        this.turns.create({
+          sessionId: session.id,
+          turnOrder: normalized.turnOrder,
+        });
+
+      entity.sessionId = session.id;
+      entity.turnOrder = normalized.turnOrder;
+      entity.phase = null;
+      entity.modality = 'AUDIO';
+      entity.aiRequestId = null;
+      entity.interviewerMessage = null;
+      entity.interviewerQuestion = normalized.interviewerQuestion;
+      entity.userAnswerText = normalized.userAnswerText;
+      entity.userAnswerTranscript = normalized.userAnswerTranscript;
+      entity.perQuestionScore = null;
+      entity.strengths = null;
+      entity.improvements = null;
+      entity.answeredAt = new Date();
+      entity.durationSeconds = normalized.durationSeconds;
+
+      savedTurns.push(await this.turns.save(entity));
+    }
+
+    return savedTurns.sort((a, b) => a.turnOrder - b.turnOrder);
+  }
+
+  private normalizeReviewedLiveTurn(turn: LiveInterviewTurnDto): ReviewedLiveTurn | null {
+    const interviewerQuestion = this.trimOrNull(turn.interviewerQuestion);
+    const userAnswerText =
+      this.trimOrNull(turn.userAnswerText) ?? this.trimOrNull(turn.userAnswerTranscript);
+    const userAnswerTranscript = this.trimOrNull(turn.userAnswerTranscript) ?? userAnswerText;
+
+    if (!interviewerQuestion || !userAnswerText || !userAnswerTranscript) return null;
+    if (
+      this.hasUnsafeLiveTranscript(interviewerQuestion) ||
+      this.hasUnsafeLiveTranscript(userAnswerText) ||
+      this.hasUnsafeLiveTranscript(userAnswerTranscript)
+    ) {
+      return null;
+    }
+
+    return {
+      turnOrder: turn.turnOrder,
+      interviewerQuestion,
+      userAnswerText,
+      userAnswerTranscript,
+      durationSeconds: turn.durationSeconds ?? null,
+    };
+  }
+
+  private hasUnsafeLiveTranscript(text: string): boolean {
+    if (CJK_SCRIPT_PATTERN.test(text)) return true;
+    return LEGACY_TRANSCRIPTION_PROMPT_PATTERNS.some((pattern) => pattern.test(text));
   }
 
   private toSessionDto(session: InterviewSessionEntity): InterviewSessionDto {
