@@ -22,6 +22,8 @@ describe('OpenAiRealtimeTokenService', () => {
     id: 'interview-session-1',
     language: 'vi',
     mode: 'VOICE',
+    voice: 'marin',
+    speechSpeed: '1.15',
     realtimeSessionId: null,
     realtimeProvider: null,
     realtimeModel: null,
@@ -71,15 +73,17 @@ describe('OpenAiRealtimeTokenService', () => {
           model: 'gpt-realtime-2',
           instructions: 'Interview instructions',
           output_modalities: ['audio'],
+          speed: 1.15,
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
                 model: 'gpt-4o-mini-transcribe',
                 language: 'vi',
+                prompt: expect.stringContaining('tiếng Việt'),
               }),
             }),
             output: expect.objectContaining({
-              voice: 'alloy',
+              voice: 'marin',
             }),
           }),
         }),
@@ -98,6 +102,37 @@ describe('OpenAiRealtimeTokenService', () => {
       expiresAt: '2026-06-15T05:06:40.000Z',
     });
     expect(session.realtimeSessionId).toBe('sess_realtime_1');
+  });
+
+  it('configures English transcription guidance for English interview sessions', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_test_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_en' },
+    });
+    const englishSession = {
+      ...session,
+      language: 'en',
+      realtimeSessionId: null,
+    } as InterviewSessionEntity;
+
+    await serviceWithConfig().createClientSecret(userId, englishSession, 'Interview instructions');
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              transcription: expect.objectContaining({
+                language: 'en',
+                prompt: expect.stringContaining('English interview'),
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('returns a disabled token response when OPENAI_API_KEY is missing', async () => {

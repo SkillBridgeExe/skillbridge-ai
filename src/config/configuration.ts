@@ -37,7 +37,7 @@ export default () => ({
       modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
       realtimeModel: process.env.OPENAI_REALTIME_MODEL ?? 'gpt-realtime-2',
       ttsModel: process.env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts',
-      ttsVoice: process.env.OPENAI_TTS_VOICE ?? 'alloy',
+      ttsVoice: process.env.OPENAI_TTS_VOICE ?? 'marin',
       // 3-large @1024 dims (Matryoshka) — chosen for bilingual VI/EN short-phrase recall.
       modelEmbedding: process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-large',
     },
