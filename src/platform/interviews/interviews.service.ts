@@ -5,7 +5,11 @@ import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
-import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
+import {
+  DEFAULT_INTERVIEW_SPEECH_SPEED,
+  DEFAULT_INTERVIEW_VOICE,
+  InterviewSessionEntity,
+} from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
@@ -111,6 +115,8 @@ export class InterviewsService {
         language: dto.language ?? 'vi',
         mode: dto.mode ?? 'HYBRID',
         interviewType: dto.interviewType ?? 'TECHNICAL',
+        voice: dto.voice ?? DEFAULT_INTERVIEW_VOICE,
+        speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
         status: 'IN_PROGRESS',
         maxDurationSeconds,
         startedAt,
@@ -600,6 +606,8 @@ export class InterviewsService {
       language: session.language,
       mode: session.mode,
       interviewType: session.interviewType,
+      voice: session.voice ?? DEFAULT_INTERVIEW_VOICE,
+      speechSpeed: this.speechSpeed(session.speechSpeed),
       status: session.status,
       totalQuestionsPlanned: session.totalQuestionsPlanned,
       maxDurationSeconds: session.maxDurationSeconds,
@@ -640,6 +648,13 @@ export class InterviewsService {
 
   private score(value: number | null | undefined): string | null {
     return value === null || value === undefined ? null : value.toFixed(2);
+  }
+
+  private speechSpeed(value: string | number | null | undefined): number {
+    const numeric = Number(value ?? DEFAULT_INTERVIEW_SPEECH_SPEED);
+    return Number.isFinite(numeric)
+      ? Math.round(numeric * 100) / 100
+      : DEFAULT_INTERVIEW_SPEECH_SPEED;
   }
 
   private numberOrNull(value: string | number | null | undefined): number | null {

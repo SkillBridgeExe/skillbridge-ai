@@ -10,6 +10,21 @@ import {
 export type InterviewMode = 'TEXT' | 'VOICE' | 'HYBRID';
 export type InterviewStatus = 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 export type InterviewType = 'HR' | 'TECHNICAL' | 'MIXED';
+export const INTERVIEW_VOICES = [
+  'alloy',
+  'ash',
+  'ballad',
+  'coral',
+  'echo',
+  'sage',
+  'shimmer',
+  'verse',
+  'marin',
+  'cedar',
+] as const;
+export type InterviewVoice = (typeof INTERVIEW_VOICES)[number];
+export const DEFAULT_INTERVIEW_VOICE: InterviewVoice = 'marin';
+export const DEFAULT_INTERVIEW_SPEECH_SPEED = 1.15;
 
 @Entity('interview_sessions')
 export class InterviewSessionEntity {
@@ -43,6 +58,12 @@ export class InterviewSessionEntity {
 
   @Column({ type: 'varchar', name: 'interview_type' })
   interviewType!: InterviewType;
+
+  @Column({ type: 'varchar', name: 'voice', default: DEFAULT_INTERVIEW_VOICE })
+  voice!: InterviewVoice;
+
+  @Column({ type: 'numeric', name: 'speech_speed', precision: 4, scale: 2, default: DEFAULT_INTERVIEW_SPEECH_SPEED })
+  speechSpeed!: string | number;
 
   @Index()
   @Column({ type: 'varchar', default: 'IN_PROGRESS' })

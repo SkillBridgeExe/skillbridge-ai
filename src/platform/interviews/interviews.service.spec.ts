@@ -133,8 +133,16 @@ describe('InterviewsService', () => {
       language: 'vi',
       mode: 'HYBRID',
       interviewType: 'TECHNICAL',
+      voice: 'coral',
+      speechSpeed: 1.3,
     });
 
+    expect(sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voice: 'coral',
+        speechSpeed: 1.3,
+      }),
+    );
     expect(entitlements.assertCanUse).toHaveBeenCalledWith(
       userId,
       BillingFeatureKey.INTERVIEW_SESSION,

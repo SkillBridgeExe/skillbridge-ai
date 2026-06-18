@@ -1,10 +1,24 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  DEFAULT_INTERVIEW_SPEECH_SPEED,
+  DEFAULT_INTERVIEW_VOICE,
   InterviewMode,
   InterviewStatus,
   InterviewType,
+  INTERVIEW_VOICES,
+  InterviewVoice,
 } from '../../../database/entities/interview-session.entity';
 import { InterviewPhase } from '../../../modules/interview/dto/start-interview.dto';
 
@@ -12,6 +26,13 @@ const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
 const LANGUAGES = ['vi', 'en'] as const;
 const MODALITIES = ['TEXT', 'AUDIO'] as const;
+
+function toRoundedNumber(value: unknown): unknown {
+  if (value === undefined || value === null || value === '') return value;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return numeric;
+  return Math.round(numeric * 100) / 100;
+}
 
 export class StartPlatformInterviewDto {
   @ApiPropertyOptional({ format: 'uuid' })
@@ -49,6 +70,24 @@ export class StartPlatformInterviewDto {
   @IsOptional()
   @IsIn(INTERVIEW_TYPES)
   interviewType?: InterviewType;
+
+  @ApiPropertyOptional({ enum: INTERVIEW_VOICES, default: DEFAULT_INTERVIEW_VOICE })
+  @IsOptional()
+  @IsIn(INTERVIEW_VOICES)
+  voice?: InterviewVoice = DEFAULT_INTERVIEW_VOICE;
+
+  @ApiPropertyOptional({
+    default: DEFAULT_INTERVIEW_SPEECH_SPEED,
+    minimum: 0.75,
+    maximum: 1.5,
+    description: 'Speech speed for generated interviewer voice.',
+  })
+  @Transform(({ value }) => toRoundedNumber(value))
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0.75)
+  @Max(1.5)
+  speechSpeed?: number = DEFAULT_INTERVIEW_SPEECH_SPEED;
 }
 
 export class AnswerPlatformInterviewDto {
@@ -147,6 +186,8 @@ export interface InterviewSessionDto {
   language: string;
   mode: InterviewMode;
   interviewType: InterviewType;
+  voice: InterviewVoice;
+  speechSpeed: number;
   status: InterviewStatus;
   totalQuestionsPlanned: number | null;
   maxDurationSeconds: number;
