@@ -39,35 +39,32 @@ export class OpenAiRealtimeTokenService {
       const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
       const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
       const speed = this.speechSpeed(session.speechSpeed);
+      const realtimeSession: ClientSecretCreateParams['session'] = {
+        type: 'realtime',
+        model,
+        instructions,
+        output_modalities: ['audio'],
+        audio: {
+          input: {
+            transcription: {
+              model: 'gpt-4o-mini-transcribe',
+              language: transcriptionLanguage,
+            },
+            turn_detection: {
+              type: 'server_vad',
+              create_response: session.mode === 'VOICE',
+              interrupt_response: true,
+            },
+          },
+          output: {
+            voice,
+            speed,
+          },
+        },
+      };
       const payload = await this.getClient(apiKey).realtime.clientSecrets.create(
         {
-          session: {
-            type: 'realtime',
-            model,
-            instructions,
-            output_modalities: ['audio'],
-            speed,
-            audio: {
-              input: {
-                transcription: {
-                  model: 'gpt-4o-mini-transcribe',
-                  language: transcriptionLanguage,
-                  prompt:
-                    transcriptionLanguage === 'vi'
-                      ? 'Cuộc phỏng vấn bằng tiếng Việt. Giữ nguyên dấu tiếng Việt và các thuật ngữ kỹ thuật tiếng Anh như React, TypeScript và API.'
-                      : 'English interview. Preserve technical terms such as React, TypeScript, and API exactly as spoken.',
-                },
-                turn_detection: {
-                  type: 'server_vad',
-                  create_response: false,
-                  interrupt_response: true,
-                },
-              },
-              output: {
-                voice,
-              },
-            },
-          } as unknown as ClientSecretCreateParams['session'],
+          session: realtimeSession,
         },
         {
           headers: {
@@ -90,7 +87,7 @@ export class OpenAiRealtimeTokenService {
         expiresAt,
       };
     } catch (err) {
-      this.logger.warn(`OpenAI realtime token failed: ${(err as Error).message}`);
+      this.logger.warn(this.safeErrorMetadata(err));
       return {
         enabled: false,
         provider: 'openai',
@@ -118,5 +115,26 @@ export class OpenAiRealtimeTokenService {
     return Number.isFinite(numeric)
       ? Math.round(numeric * 100) / 100
       : DEFAULT_INTERVIEW_SPEECH_SPEED;
+  }
+
+  private safeErrorMetadata(error: unknown): {
+    event: 'openai_realtime_token_failed';
+    status?: number;
+    code?: string;
+    requestId?: string;
+  } {
+    const value =
+      error && typeof error === 'object' ? (error as Record<string, unknown>) : undefined;
+    const status = typeof value?.status === 'number' ? value.status : undefined;
+    const code = typeof value?.code === 'string' ? value.code : undefined;
+    const rawRequestId = value?.request_id ?? value?.requestId;
+    const requestId = typeof rawRequestId === 'string' ? rawRequestId : undefined;
+
+    return {
+      event: 'openai_realtime_token_failed',
+      ...(status === undefined ? {} : { status }),
+      ...(code === undefined ? {} : { code }),
+      ...(requestId === undefined ? {} : { requestId }),
+    };
   }
 }

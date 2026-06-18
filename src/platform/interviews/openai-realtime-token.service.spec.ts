@@ -73,17 +73,21 @@ describe('OpenAiRealtimeTokenService', () => {
           model: 'gpt-realtime-2',
           instructions: 'Interview instructions',
           output_modalities: ['audio'],
-          speed: 1.15,
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
                 model: 'gpt-4o-mini-transcribe',
                 language: 'vi',
-                prompt: expect.stringContaining('tiếng Việt'),
+              }),
+              turn_detection: expect.objectContaining({
+                type: 'server_vad',
+                create_response: true,
+                interrupt_response: true,
               }),
             }),
             output: expect.objectContaining({
               voice: 'marin',
+              speed: 1.15,
             }),
           }),
         }),
@@ -94,6 +98,17 @@ describe('OpenAiRealtimeTokenService', () => {
         }),
       }),
     );
+    const request = mockClientSecretsCreate.mock.calls[0][0] as {
+      session: {
+        audio?: {
+          input?: {
+            transcription?: Record<string, unknown>;
+          };
+        };
+      };
+    };
+    expect(request.session).not.toHaveProperty('speed');
+    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
@@ -104,7 +119,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(session.realtimeSessionId).toBe('sess_realtime_1');
   });
 
-  it('configures English transcription guidance for English interview sessions', async () => {
+  it('omits transcription prompt guidance for English interview sessions', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -125,7 +140,42 @@ describe('OpenAiRealtimeTokenService', () => {
             input: expect.objectContaining({
               transcription: expect.objectContaining({
                 language: 'en',
-                prompt: expect.stringContaining('English interview'),
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
+    const request = mockClientSecretsCreate.mock.calls[0][0] as {
+      session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
+    };
+    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+  });
+
+  it('keeps guided hybrid voice capture from auto-responding', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_test_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_hybrid' },
+    });
+    const hybridSession = {
+      ...session,
+      mode: 'HYBRID',
+      realtimeSessionId: null,
+    } as InterviewSessionEntity;
+
+    await serviceWithConfig().createClientSecret(userId, hybridSession, 'Interview instructions');
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              turn_detection: expect.objectContaining({
+                type: 'server_vad',
+                create_response: false,
+                interrupt_response: true,
               }),
             }),
           }),
@@ -150,6 +200,39 @@ describe('OpenAiRealtimeTokenService', () => {
       model: 'gpt-realtime-2',
       clientSecret: null,
       reason: 'OPENAI_API_KEY is not set',
+    });
+  });
+
+  it('logs only safe OpenAI metadata when client-secret creation fails', async () => {
+    mockClientSecretsCreate.mockRejectedValue({
+      message: 'Invalid session payload containing sensitive request details',
+      status: 400,
+      code: 'invalid_request_error',
+      request_id: 'req_realtime_123',
+      apiKey: 'sk-must-not-be-logged',
+    });
+    const service = serviceWithConfig();
+    const warn = jest
+      .spyOn(
+        (service as unknown as { logger: { warn: (message: unknown) => void } }).logger,
+        'warn',
+      )
+      .mockImplementation(() => undefined);
+
+    const result = await service.createClientSecret(userId, session, 'Interview instructions');
+
+    expect(warn).toHaveBeenCalledWith({
+      event: 'openai_realtime_token_failed',
+      status: 400,
+      code: 'invalid_request_error',
+      requestId: 'req_realtime_123',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive request details');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('sk-must-not-be-logged');
+    expect(result).toMatchObject({
+      enabled: false,
+      clientSecret: null,
+      reason: 'OpenAI realtime token request failed',
     });
   });
 });
