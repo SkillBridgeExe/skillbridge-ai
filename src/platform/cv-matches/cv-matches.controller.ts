@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Optional,
   Param,
   Post,
   Query,
@@ -30,6 +31,7 @@ import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { CvMatchesService } from './cv-matches.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
+import { UnifiedPlanService } from './unified-plan.service';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -165,7 +167,10 @@ export class CvMatchesController {
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/cv-matches')
 export class CvMatchReportsController {
-  constructor(private readonly matches: CvMatchesService) {}
+  constructor(
+    private readonly matches: CvMatchesService,
+    @Optional() private readonly unifiedPlan?: UnifiedPlanService,
+  ) {}
 
   @Get(':matchId/gap-report')
   @ApiOperation({ summary: 'Get the unified gap report for a persisted CV/JD match' })
@@ -177,6 +182,26 @@ export class CvMatchReportsController {
     @Query('lang') lang?: string,
   ) {
     return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang));
+  }
+
+  @Get(':matchId/progress')
+  @ApiOperation({ summary: 'Gap progress vs the previous match for the same CV and JD' })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  progress(@CurrentUser() user: JwtUser, @Param('matchId') matchId: string) {
+    return this.matches.getProgress(user.userId, matchId);
+  }
+
+  @Get(':matchId/development-plan')
+  @ApiOperation({ summary: 'Unified development plan from gap report and interview gap report' })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  @ApiQuery({ name: 'sessionId', required: false })
+  developmentPlan(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+    @Query('sessionId') sessionId?: string,
+  ) {
+    if (!this.unifiedPlan) throw new Error('Unified plan dependency is not configured');
+    return this.unifiedPlan.get(user.userId, matchId, sessionId);
   }
 
   @Post(':matchId/roadmap')

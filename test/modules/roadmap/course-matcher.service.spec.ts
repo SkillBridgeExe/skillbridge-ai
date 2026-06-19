@@ -1,6 +1,6 @@
 import { CourseMatcherService } from '../../../src/modules/roadmap/course-matcher.service';
-import { LearningResource } from '../../../src/modules/roadmap/learning-resource';
 import { LearningResourceMatcherService } from '../../../src/modules/roadmap/learning-resource-matcher.service';
+import { LearningResource } from '../../../src/modules/roadmap/learning-resource';
 
 const courseRes = (over: Partial<LearningResource>): LearningResource => ({
   id: 'c',
@@ -23,20 +23,21 @@ const courseRes = (over: Partial<LearningResource>): LearningResource => ({
 });
 
 function makeMatcher(resources: LearningResource[]): LearningResourceMatcherService {
-  const matcher = new LearningResourceMatcherService();
-  matcher.setCatalogForTest(resources);
-  return matcher;
+  const m = new LearningResourceMatcherService();
+  m.setCatalogForTest(resources);
+  return m;
 }
 
 describe('CourseMatcherService (wrapper parity)', () => {
   it('produces the legacy ScoredCourse shape with identical match_score', () => {
+    // quality 92 (=rating 4.6) en, paid, teaches 3>=3, multi 1/1
+    // legacy: 27.6 + 0(en) + 0(paid) + 20 + 15 = 62.6 → 63
     const svc = new CourseMatcherService(makeMatcher([courseRes({ id: 'a' })]));
     const out = svc.matchCourses([{ skill_canonical_name: 'react', required_level: 3 }]);
-    const course = out.per_skill[0].courses[0];
-
-    expect(course.match_score).toBe(63);
-    expect(course.rating).toBeCloseTo(4.6);
-    expect(course.match_breakdown).toEqual({
+    const c = out.per_skill[0].courses[0];
+    expect(c.match_score).toBe(63);
+    expect(c.rating).toBeCloseTo(4.6); // reconstructed from quality_score/20
+    expect(c.match_breakdown).toEqual({
       rating_pts: 28,
       language_pts: 0,
       free_pts: 0,
@@ -45,7 +46,7 @@ describe('CourseMatcherService (wrapper parity)', () => {
     });
   });
 
-  it('only returns source_type=course resources and ranks them among themselves', () => {
+  it('only returns source_type=course resources and ranks them among themselves (parity)', () => {
     const svc = new CourseMatcherService(
       makeMatcher([
         courseRes({ id: 'course-hi', quality_score: 100 }),
@@ -53,9 +54,7 @@ describe('CourseMatcherService (wrapper parity)', () => {
         courseRes({ id: 'course-lo', quality_score: 40 }),
       ]),
     );
-
     const out = svc.matchCourses([{ skill_canonical_name: 'react', required_level: 3 }]);
-
-    expect(out.per_skill[0].courses.map((course) => course.id)).toEqual(['course-hi', 'course-lo']);
+    expect(out.per_skill[0].courses.map((c) => c.id)).toEqual(['course-hi', 'course-lo']);
   });
 });

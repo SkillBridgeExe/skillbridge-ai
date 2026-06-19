@@ -1,9 +1,10 @@
 import { CatalogCourse } from '../../../src/modules/roadmap/course-matcher.service';
 import {
-  LearningResource,
   mapCourseToLearningResource,
-  matchResources,
   mergeResourceCatalogs,
+  matchResources,
+  coerceLearningResources,
+  LearningResource,
 } from '../../../src/modules/roadmap/learning-resource';
 
 const COURSE: CatalogCourse = {
@@ -46,7 +47,7 @@ describe('mapCourseToLearningResource', () => {
       source_type: 'course',
       is_internal: false,
       url: 'https://x/react',
-      quality_score: 92,
+      quality_score: 92, // round(4.6 * 20)
       freshness_score: 100,
       validation_status: 'verified',
       last_verified_at: '2026-06-10',
@@ -82,6 +83,7 @@ describe('matchResources', () => {
       }),
     ];
     const out = matchResources(catalog, reqs);
+    // 27.6(quality) + 20(vi) + 15(free) + 20(level>=) + 15(multi: 1/1) = 97.6 → 98
     expect(out.per_skill[0].resources[0].match_score).toBe(98);
     expect(out.per_skill[0].resources[0].low_confidence).toBe(false);
   });
@@ -115,10 +117,8 @@ describe('matchResources', () => {
       validation_status: 'verified',
       skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
     });
-
     const withVerified = matchResources([pending, verified], reqs);
     expect(withVerified.per_skill[0].resources.map((r) => r.id)).toEqual(['v']);
-
     const onlyPending = matchResources([pending], reqs);
     expect(onlyPending.per_skill[0].resources.map((r) => r.id)).toEqual(['p']);
     expect(onlyPending.per_skill[0].resources[0].low_confidence).toBe(true);
@@ -139,5 +139,73 @@ describe('matchResources', () => {
     ];
     const out = matchResources(catalog, reqs, { sourceTypes: ['course'] });
     expect(out.per_skill[0].resources.map((r) => r.id)).toEqual(['course']);
+  });
+});
+
+describe('coerceLearningResources', () => {
+  const valid = {
+    id: 'v1',
+    source_type: 'video',
+    title: 'T',
+    provider: 'P',
+    is_internal: false,
+    language: 'en',
+    duration_minutes: 30,
+    difficulty: 'BEGINNER',
+    is_free: true,
+    skills: [{ skill_canonical_name: 'go', teaches_level: 3 }],
+    outcome_type: 'understand',
+    quality_score: 70,
+    freshness_score: 100,
+    last_verified_at: '2026-06-10',
+    validation_status: 'verified',
+  };
+
+  it('keeps a fully valid explicit resource', () => {
+    const out = coerceLearningResources([valid]);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('v1');
+  });
+
+  it('drops resources with an invalid enum (source_type/validation_status/outcome_type/difficulty) + warns each', () => {
+    const dropped: string[] = [];
+    const out = coerceLearningResources(
+      [
+        { ...valid, source_type: 'bogus' },
+        { ...valid, validation_status: 'nope' },
+        { ...valid, outcome_type: 'x' },
+        { ...valid, difficulty: 'EASY' },
+      ],
+      (why) => dropped.push(why),
+    );
+    expect(out).toEqual([]);
+    expect(dropped).toHaveLength(4);
+  });
+
+  it('drops resources with empty id/title/provider or non-number fields', () => {
+    expect(coerceLearningResources([{ ...valid, id: '' }])).toEqual([]);
+    expect(coerceLearningResources([{ ...valid, title: '   ' }])).toEqual([]);
+    expect(coerceLearningResources([{ ...valid, quality_score: 'high' }])).toEqual([]);
+    expect(coerceLearningResources([{ ...valid, duration_minutes: Number.NaN }])).toEqual([]);
+  });
+
+  it('drops resources with a malformed skills array', () => {
+    expect(coerceLearningResources([{ ...valid, skills: 'nope' }])).toEqual([]);
+    expect(
+      coerceLearningResources([
+        { ...valid, skills: [{ skill_canonical_name: '', teaches_level: 3 }] },
+      ]),
+    ).toEqual([]);
+    expect(
+      coerceLearningResources([
+        { ...valid, skills: [{ skill_canonical_name: 'go', teaches_level: 'x' }] },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('returns [] for non-array input', () => {
+    expect(coerceLearningResources(null)).toEqual([]);
+    expect(coerceLearningResources({})).toEqual([]);
+    expect(coerceLearningResources(undefined)).toEqual([]);
   });
 });
