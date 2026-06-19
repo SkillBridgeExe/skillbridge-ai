@@ -323,9 +323,9 @@ describe('CvMatchesService', () => {
       jobDescriptionId: 'jd-1',
       createdAt: new Date('2026-06-06T00:00:00.000Z'),
     };
-    jest
-      .spyOn(service, 'getGapReport')
-      .mockResolvedValue({ gap_items: [{ canonical_name: 'react', cv_status: 'missing' }] } as never);
+    jest.spyOn(service, 'getGapReport').mockResolvedValue({
+      gap_items: [{ canonical_name: 'react', cv_status: 'missing' }],
+    } as never);
     matchesRepo.findOne.mockResolvedValueOnce(current).mockResolvedValueOnce(null);
 
     const out = await service.getProgress('user-1', 'match-current');

@@ -113,7 +113,12 @@ describe('buildUnifiedPlan', () => {
           importance: 'NICE_TO_HAVE',
           severity: 0.3,
         }),
-        gap({ canonical_name: 'high', display_name: 'High', importance: 'REQUIRED', severity: 0.9 }),
+        gap({
+          canonical_name: 'high',
+          display_name: 'High',
+          importance: 'REQUIRED',
+          severity: 0.9,
+        }),
       ],
       interviewItems: [],
     });

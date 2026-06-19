@@ -21,7 +21,11 @@ import {
   SkillBridgeGapReport,
 } from '../../modules/gap-report/gap-report.service';
 import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
-import { baselineProgress, diffGapProgress, ProgressDelta } from '../../modules/gap-report/gap-progress';
+import {
+  baselineProgress,
+  diffGapProgress,
+  ProgressDelta,
+} from '../../modules/gap-report/gap-progress';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
 import {

@@ -1,6 +1,11 @@
 import { maskPii } from '../../common/services/pii-mask';
 
-export type InterviewGapTargetType = 'skill' | 'evidence' | 'communication' | 'behavioral' | 'role_fit';
+export type InterviewGapTargetType =
+  | 'skill'
+  | 'evidence'
+  | 'communication'
+  | 'behavioral'
+  | 'role_fit';
 
 export type InterviewGapWeaknessType =
   | 'knowledge_gap'

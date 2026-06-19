@@ -46,8 +46,11 @@ const interviewTrack = (weakness: InterviewGapItem['weakness_type']): UnifiedTra
   return 'interview_practice';
 };
 
-const keyOf = (skill: string | null, requirementId: string | null | undefined, name: string): string =>
-  (skill ?? requirementId ?? name).toLowerCase();
+const keyOf = (
+  skill: string | null,
+  requirementId: string | null | undefined,
+  name: string,
+): string => (skill ?? requirementId ?? name).toLowerCase();
 
 export function buildUnifiedPlan(input: {
   matchId: string;

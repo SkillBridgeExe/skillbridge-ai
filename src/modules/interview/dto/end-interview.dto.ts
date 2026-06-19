@@ -1,12 +1,4 @@
-import {
-  IsArray,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { QuestionHistoryItemDto } from './answer-interview.dto';
 import { InterviewGapItem } from '../interview-gap';

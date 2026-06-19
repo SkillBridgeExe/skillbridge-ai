@@ -28,15 +28,15 @@ describe('buildInterviewAgenda', () => {
   });
 
   it('uses the passed tier cap as turn_budget and clamps to at least four turns', () => {
-    expect(buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 10 }).turn_budget).toBe(
-      10,
-    );
-    expect(buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 6 }).turn_budget).toBe(
-      6,
-    );
-    expect(buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 2 }).turn_budget).toBe(
-      4,
-    );
+    expect(
+      buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 10 }).turn_budget,
+    ).toBe(10);
+    expect(
+      buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 6 }).turn_budget,
+    ).toBe(6);
+    expect(
+      buildInterviewAgenda({ focusAreas: [], seniority: 'mid', turnBudget: 2 }).turn_budget,
+    ).toBe(4);
   });
 
   it('enriches focus topics with what_to_probe and seed_question', () => {
@@ -183,18 +183,18 @@ describe('filterRecognizedConcepts', () => {
   });
 
   it('does not match short concepts embedded inside unrelated words', () => {
-    expect(filterRecognizedConcepts(['go', 'sql'], 'The work is ongoing and consequential')).toEqual(
-      [],
-    );
+    expect(
+      filterRecognizedConcepts(['go', 'sql'], 'The work is ongoing and consequential'),
+    ).toEqual([]);
   });
 
   it('matches multi-token concepts only as adjacent whole tokens', () => {
-    expect(filterRecognizedConcepts(['react query'], 'I used React Query for server state')).toEqual([
-      'react query',
-    ]);
-    expect(filterRecognizedConcepts(['react query'], 'I used React and later wrote a query')).toEqual(
-      [],
-    );
+    expect(
+      filterRecognizedConcepts(['react query'], 'I used React Query for server state'),
+    ).toEqual(['react query']);
+    expect(
+      filterRecognizedConcepts(['react query'], 'I used React and later wrote a query'),
+    ).toEqual([]);
   });
 
   it('drops everything when the answer is empty', () => {

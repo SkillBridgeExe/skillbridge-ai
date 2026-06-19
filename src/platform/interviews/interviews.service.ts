@@ -467,8 +467,15 @@ export class InterviewsService {
     if (!session.cvMatchId || !this.cvMatches) return '';
     const lang = session.language === 'en' ? 'en' : 'vi';
     try {
-      const focusAreas = await this.cvMatches.getInterviewFocusAreas(userId, session.cvMatchId, lang);
-      return focusAreas.map((focus) => focus.skill_canonical).filter(Boolean).join(', ');
+      const focusAreas = await this.cvMatches.getInterviewFocusAreas(
+        userId,
+        session.cvMatchId,
+        lang,
+      );
+      return focusAreas
+        .map((focus) => focus.skill_canonical)
+        .filter(Boolean)
+        .join(', ');
     } catch {
       return '';
     }

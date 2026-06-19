@@ -114,9 +114,9 @@ describe('groundInterviewGaps', () => {
     expect(groundInterviewGaps([item({ linked_question_id: null })], new Set(['react']))).toEqual(
       [],
     );
-    expect(groundInterviewGaps([item({ evidence_from_answer: '   ' })], new Set(['react']))).toEqual(
-      [],
-    );
+    expect(
+      groundInterviewGaps([item({ evidence_from_answer: '   ' })], new Set(['react'])),
+    ).toEqual([]);
   });
 
   it('drops a skill-anchored gap whose skill was not probed', () => {

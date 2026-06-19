@@ -40,7 +40,8 @@ export class InterviewGapReportService {
       ai_feedback?: { summary?: unknown };
       interview_gap_items?: unknown;
     };
-    const summary = typeof parsed.ai_feedback?.summary === 'string' ? parsed.ai_feedback.summary : '';
+    const summary =
+      typeof parsed.ai_feedback?.summary === 'string' ? parsed.ai_feedback.summary : '';
     const items = coerceInterviewGapItems(parsed.interview_gap_items);
     const context = await this.loadGapContext(userId, matchId);
     const grounded = groundInterviewGaps(items, context?.probedSet ?? null);
@@ -50,7 +51,8 @@ export class InterviewGapReportService {
           item.skill_canonical && context.reqIdByCanonical.has(item.skill_canonical)
             ? {
                 ...item,
-                requirement_id: context.reqIdByCanonical.get(item.skill_canonical) ?? item.requirement_id,
+                requirement_id:
+                  context.reqIdByCanonical.get(item.skill_canonical) ?? item.requirement_id,
               }
             : item,
         )
