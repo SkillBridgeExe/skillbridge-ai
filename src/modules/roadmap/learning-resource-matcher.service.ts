@@ -47,6 +47,11 @@ export class LearningResourceMatcherService implements OnModuleInit {
     this.catalog = resources;
   }
 
+  /** Read-only view of the loaded catalog (for the retriever's sparse lane + metadata resolve). */
+  allResources(): LearningResource[] {
+    return this.catalog;
+  }
+
   matchResources(
     requests: ResourceMatchRequest[],
     opts?: { sourceTypes?: ResourceSourceType[] },
