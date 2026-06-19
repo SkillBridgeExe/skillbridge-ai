@@ -34,6 +34,13 @@ describe('roadmap_v2 prompt contract', () => {
     expect(low).toMatch(/do not (add|invent)/);
     expect(low).toContain('proof_of_completion'); // what_to_produce is tied to it
   });
+
+  it('requires exactly one narrative per step in roadmap order (no dropped/reordered steps)', () => {
+    const low = p.toLowerCase();
+    expect(low).toMatch(/one .*per .*step|per roadmap step/);
+    expect(low).toMatch(/same order|in .*order/);
+    expect(low).toMatch(/do not (drop|merge|reorder)/);
+  });
 });
 
 describe('learning_chat_v1 prompt contract', () => {

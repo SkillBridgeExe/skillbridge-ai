@@ -3,9 +3,10 @@
  *  - context_recall  : retrieval quality — did the retriever surface the gold resources?
  *                      |gold ∩ retrieved| / |gold| (1 when there is no gold, e.g. a no-resource case).
  *  - grounded        : faithfulness proxy — every cited resource_id is in the retrieved set (no fabrication).
- *  - cited_match     : the cited set equals the expected set (given what was retrieved).
+ *  - cited_match     : the cited set equals the expected set, with NO duplicate citations (given what was retrieved).
  *  - honest_empty    : when nothing should be cited, the answer cites nothing (honest empty-state).
- *  - pass            : answer quality = grounded && cited_match && honest_empty (separate from retrieval recall).
+ *  - no_raw_url      : the message body contains no raw URL — the prompt forbids them (links resolve from resource_id).
+ *  - pass            : answer quality = grounded && cited_match && honest_empty && no_raw_url (separate from retrieval recall).
  *
  * The LLM-dependent RAGAS dimensions (claim-level faithfulness, answer_relevancy) need the real answer and
  * are computed once RAG-PR2 ships — see the TODO in the harness. context_recall here evaluates the RETRIEVER
@@ -47,14 +48,20 @@ export interface LearningEvalResult {
   grounded: boolean;
   cited_match: boolean;
   honest_empty: boolean;
+  no_raw_url: boolean;
   pass: boolean;
 }
 
+/** Equal as sets AND with no duplicate entries in `a` (a repeated citation is a malformed answer). */
 const sameSet = (a: string[], b: string[]): boolean => {
+  if (new Set(a).size !== a.length) return false; // duplicate citation in the answer
   if (a.length !== b.length) return false;
   const sb = new Set(b);
   return a.every((x) => sb.has(x));
 };
+
+/** Any http(s):// or www. link in the message body — the prompt forbids raw URLs (links resolve from resource_id). */
+const RAW_URL = /(https?:\/\/|www\.)\S+/i;
 
 export function scoreLearningCase(c: LearningEvalCase, answer: LearningAnswer): LearningEvalResult {
   const retrieved = new Set(c.retrieved_resources.map((r) => r.resource_id));
@@ -66,12 +73,14 @@ export function scoreLearningCase(c: LearningEvalCase, answer: LearningAnswer): 
   const cited_match = sameSet(answer.cited_resource_ids, c.expected_cited_resource_ids);
   const honest_empty =
     c.expected_cited_resource_ids.length > 0 ? true : answer.cited_resource_ids.length === 0;
+  const no_raw_url = !RAW_URL.test(answer.message);
   return {
     id: c.id,
     context_recall,
     grounded,
     cited_match,
     honest_empty,
-    pass: grounded && cited_match && honest_empty,
+    no_raw_url,
+    pass: grounded && cited_match && honest_empty && no_raw_url,
   };
 }

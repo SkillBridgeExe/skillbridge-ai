@@ -57,6 +57,36 @@ describe('scoreLearningCase — answer quality', () => {
     expect(out.cited_match).toBe(false);
     expect(out.pass).toBe(false);
   });
+
+  it('fails when message embeds a raw URL even with empty citations (anti-fabrication)', () => {
+    const c = caseOf({
+      category: 'no_resource',
+      retrieved_resources: [],
+      gold_resource_ids: [],
+      expected_cited_resource_ids: [],
+    });
+    const out = scoreLearningCase(c, {
+      message: 'Just use https://fake-course.example',
+      cited_resource_ids: [],
+    });
+    expect(out.no_raw_url).toBe(false);
+    expect(out.pass).toBe(false); // citations are empty + grounded, but the message fabricated a link
+  });
+
+  it('fails cited_match when the answer repeats a citation (duplicate)', () => {
+    const c = caseOf({
+      retrieved_resources: [
+        { resource_id: 'r1', title: 'a', source_type: 'course' },
+        { resource_id: 'r2', title: 'b', source_type: 'course' },
+      ],
+      gold_resource_ids: ['r1', 'r2'],
+      expected_cited_resource_ids: ['r1', 'r2'],
+    });
+    const out = scoreLearningCase(c, { message: 'm', cited_resource_ids: ['r1', 'r1'] });
+    expect(out.grounded).toBe(true); // both 'r1' are retrieved
+    expect(out.cited_match).toBe(false); // duplicate + missing r2 must not pass
+    expect(out.pass).toBe(false);
+  });
 });
 
 describe('scoreLearningCase — context_recall (RAGAS retrieval metric)', () => {

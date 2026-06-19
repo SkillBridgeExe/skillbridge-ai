@@ -30,6 +30,7 @@ Return JSON only:
 - NARRATIVE ONLY. Do NOT add, rename, or invent resources / courses / links — the resources are fixed in the roadmap.
 - Do NOT change estimated_hours, priority, feasibility, or which skills are in or out.
 - Every `skill_canonical` in `step_narratives` MUST be a skill present in the roadmap's steps (code drops any that isn't).
+- Produce EXACTLY ONE `step_narratives` entry per roadmap step, in the SAME order as the roadmap — do not drop, merge, or reorder steps.
 - `ai_summary`: 2-3 sentences — the overall arc + the goal.
 - `why`: why this skill matters, tied to the gap / JD, in plain language.
 - `what_to_produce`: restate the step's `proof_of_completion` as a concrete deliverable — do NOT invent a different one.

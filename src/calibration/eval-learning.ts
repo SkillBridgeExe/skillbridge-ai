@@ -59,7 +59,7 @@ function main(): void {
     for (const f of failed) {
       // eslint-disable-next-line no-console
       console.log(
-        `  ${f.id}: grounded=${f.grounded} cited_match=${f.cited_match} honest_empty=${f.honest_empty}`,
+        `  ${f.id}: grounded=${f.grounded} cited_match=${f.cited_match} honest_empty=${f.honest_empty} no_raw_url=${f.no_raw_url}`,
       );
     }
     process.exit(1);
