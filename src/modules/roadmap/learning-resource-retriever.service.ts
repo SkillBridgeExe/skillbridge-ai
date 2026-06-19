@@ -10,7 +10,6 @@ import {
   bm25Search,
   buildResourceSourceText,
   resolveResources,
-  selectEmbeddableResources,
 } from './resource-embedding';
 
 interface EmbeddingTuple {
@@ -24,8 +23,9 @@ const DENSE_SQL = `
   SELECT resource_id, 1 - (embedding <=> $1::extensions.vector) AS similarity
     FROM public.resource_embeddings
    WHERE model = $2 AND dimensions = $3 AND embedding_version = $4
+     AND resource_id = ANY($5)
    ORDER BY embedding <=> $1::extensions.vector
-   LIMIT $5`;
+   LIMIT $6`;
 
 /**
  * Hybrid semantic retrieval over the learning catalog — the standard production RAG retriever:
@@ -62,13 +62,16 @@ export class LearningResourceRetriever {
   }): Promise<RetrievedResource[]> {
     const pool = input.poolSize ?? 20;
     const catalog = this.matcher.allResources();
-    const corpus = selectEmbeddableResources(catalog).map((r) => ({
-      id: r.id,
-      text: buildResourceSourceText(r),
-    }));
+    // Search VERIFIED-only in BOTH lanes. Otherwise flagged/pending resources occupy top-K slots and are
+    // then dropped by resolveResources, starving good verified resources ranked just below the cutoff
+    // (Codex review). The dense index may still hold pending rows for flip-resilience — they are simply
+    // not candidates here (the dense query is scoped to verifiedIds; the sparse corpus is verified-only).
+    const verified = catalog.filter((r) => r.validation_status === 'verified');
+    const verifiedIds = verified.map((r) => r.id);
+    const corpus = verified.map((r) => ({ id: r.id, text: buildResourceSourceText(r) }));
 
     const sparseRanks = bm25Search(input.query, corpus, pool);
-    const denseRanks = await this.denseSearch(input.query, pool);
+    const denseRanks = await this.denseSearch(input.query, pool, verifiedIds);
 
     // RRF: rank-only fusion (no score normalization across cosine vs BM25). Deterministic id tiebreak.
     const fused = rrfFuse([denseRanks, sparseRanks]);
@@ -82,8 +85,14 @@ export class LearningResourceRetriever {
     });
   }
 
-  /** Dense lane: embed the query → tuple-pinned cosine over resource_embeddings. Degrades to [] on failure. */
-  private async denseSearch(query: string, limit: number): Promise<string[]> {
+  /** Dense lane: embed the query → tuple-pinned cosine over resource_embeddings, scoped to the verified
+   * candidate set. Degrades to [] on failure (dense index unavailable → sparse-only). */
+  private async denseSearch(
+    query: string,
+    limit: number,
+    candidateIds: string[],
+  ): Promise<string[]> {
+    if (candidateIds.length === 0) return [];
     const tuple = this.embeddingTuple();
     try {
       const embedded = await this.llm.embed(query, { dimensions: tuple.dimensions });
@@ -92,6 +101,7 @@ export class LearningResourceRetriever {
         tuple.model,
         tuple.dimensions,
         tuple.embeddingVersion,
+        candidateIds,
         limit,
       ]);
       return rows.map((r) => r.resource_id);

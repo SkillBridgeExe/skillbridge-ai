@@ -4,6 +4,7 @@ import { RoadmapService } from './roadmap.service';
 import { CourseMatcherService } from './course-matcher.service';
 import { LearningResourceMatcherService } from './learning-resource-matcher.service';
 import { RoadmapComposerService } from './roadmap-composer.service';
+import { LearningResourceRetriever } from './learning-resource-retriever.service';
 import { RagModule } from '../rag/rag.module';
 
 @Module({
@@ -14,7 +15,9 @@ import { RagModule } from '../rag/rag.module';
     CourseMatcherService,
     LearningResourceMatcherService,
     RoadmapComposerService,
+    LearningResourceRetriever,
   ],
-  exports: [RoadmapService],
+  // LearningResourceRetriever is exported so the RAG-PR2 learning-chat module can consume it.
+  exports: [RoadmapService, LearningResourceRetriever],
 })
 export class RoadmapModule {}
