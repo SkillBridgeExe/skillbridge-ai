@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
+import { DownloadedFile } from '../../infrastructure/storage/gcs-storage.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -35,6 +37,12 @@ export class MentorsController {
   @ApiOperation({ summary: 'List approved public mentor profiles' })
   list(@Query() query: ListMentorsQueryDto) {
     return this.mentors.listPublicMentors(query);
+  }
+
+  @Get(':slug/avatar')
+  @ApiOperation({ summary: 'Download an approved mentor avatar' })
+  async avatar(@Param('slug') slug: string, @Res() response: Response) {
+    streamAvatar(response, await this.mentors.getPublicAvatar(slug));
   }
 
   @Get(':slug')
@@ -86,6 +94,12 @@ export class AdminMentorsController {
     return this.mentors.listAdminProfiles(query);
   }
 
+  @Get(':profileId/avatar')
+  @ApiOperation({ summary: 'Download a mentor avatar for admin review' })
+  async avatar(@Param('profileId') profileId: string, @Res() response: Response) {
+    streamAvatar(response, await this.mentors.getAdminAvatar(profileId));
+  }
+
   @Patch(':profileId/status')
   @ApiOperation({ summary: 'Approve, reject, or suspend a mentor profile' })
   updateStatus(
@@ -95,4 +109,14 @@ export class AdminMentorsController {
   ) {
     return this.mentors.updateAdminStatus(user.userId, profileId, body);
   }
+}
+
+function streamAvatar(response: Response, file: DownloadedFile): void {
+  response.setHeader('Cache-Control', 'private, no-store');
+  response.setHeader('Content-Type', file.contentType ?? 'application/octet-stream');
+  if (file.contentLength !== null) {
+    response.setHeader('Content-Length', file.contentLength.toString());
+  }
+  response.setHeader('Content-Disposition', 'inline; filename="mentor-avatar"');
+  file.body.pipe(response);
 }
