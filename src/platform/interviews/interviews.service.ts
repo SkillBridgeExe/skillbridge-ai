@@ -298,6 +298,7 @@ export class InterviewsService {
       })),
       duration_seconds: this.durationSeconds(session.startedAt, endedAt),
       scoring_template_code: 'interview_scoring_v1',
+      probed_skills: await this.resolveProbedSkills(userId, session),
     });
     const parsed = scoring.parsed_response;
 
@@ -457,6 +458,20 @@ export class InterviewsService {
         interviewDifficulty,
       ),
     };
+  }
+
+  private async resolveProbedSkills(
+    userId: string,
+    session: InterviewSessionEntity,
+  ): Promise<string> {
+    if (!session.cvMatchId || !this.cvMatches) return '';
+    const lang = session.language === 'en' ? 'en' : 'vi';
+    try {
+      const focusAreas = await this.cvMatches.getInterviewFocusAreas(userId, session.cvMatchId, lang);
+      return focusAreas.map((focus) => focus.skill_canonical).filter(Boolean).join(', ');
+    } catch {
+      return '';
+    }
   }
 
   private buildPromptContext(

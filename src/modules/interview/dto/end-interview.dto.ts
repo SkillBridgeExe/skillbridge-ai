@@ -1,6 +1,15 @@
-import { IsArray, IsInt, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { QuestionHistoryItemDto } from './answer-interview.dto';
+import { InterviewGapItem } from '../interview-gap';
 
 export class EndInterviewRequestDto {
   @IsUUID()
@@ -17,6 +26,10 @@ export class EndInterviewRequestDto {
 
   @IsString()
   scoring_template_code!: string;
+
+  @IsOptional()
+  @IsString()
+  probed_skills?: string;
 }
 
 export interface InterviewAiFeedback {
@@ -60,6 +73,7 @@ export interface EndInterviewParsedResponse {
   communication_score: number;
   ai_feedback: InterviewAiFeedback;
   per_question_scores: PerQuestionScore[];
+  interview_gap_items: InterviewGapItem[];
 }
 
 export interface EndInterviewResponseDto {
