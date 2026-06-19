@@ -37,12 +37,20 @@ function main(): void {
     byCat.set(r.category, e);
   }
 
+  const meanRecall = results.reduce((s, r) => s + r.context_recall, 0) / (results.length || 1);
+
   // eslint-disable-next-line no-console
-  console.log(`learning eval: ${passed}/${results.length} pass`);
+  console.log(
+    `learning eval: ${passed}/${results.length} answer-quality pass · mean context_recall ${meanRecall.toFixed(2)}`,
+  );
   for (const [cat, e] of [...byCat.entries()].sort()) {
     // eslint-disable-next-line no-console
     console.log(`  ${cat.padEnd(16)} ${e.pass}/${e.total}`);
   }
+  // eslint-disable-next-line no-console
+  console.log(
+    '(RAGAS note: faithfulness/answer_relevancy are LLM-scored — wired once RAG-PR2 ships; context_recall + grounding + cited_match run today.)',
+  );
 
   const failed = results.filter((r) => !r.pass);
   if (failed.length > 0) {
