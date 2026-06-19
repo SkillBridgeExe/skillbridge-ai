@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, LessThan, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
@@ -21,6 +21,11 @@ import {
   SkillBridgeGapReport,
 } from '../../modules/gap-report/gap-report.service';
 import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
+import {
+  baselineProgress,
+  diffGapProgress,
+  ProgressDelta,
+} from '../../modules/gap-report/gap-progress';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
 import {
@@ -226,6 +231,34 @@ export class CvMatchesService {
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
     });
+  }
+
+  async getProgress(userId: string, matchId: string): Promise<ProgressDelta> {
+    const current = await this.matches.findOne({ where: { id: matchId } });
+    if (!current) throw new NotFoundException('CV match not found');
+    await this.findOwnedCv(userId, current.cvId);
+
+    const currReport = await this.getGapReport(userId, matchId);
+    const currGaps = currReport.gap_items;
+
+    if (!current.jobDescriptionId) return baselineProgress(currGaps);
+
+    const prior = await this.matches.findOne({
+      where: {
+        cvId: current.cvId,
+        jobDescriptionId: current.jobDescriptionId,
+        createdAt: LessThan(current.createdAt),
+      },
+      order: { createdAt: 'DESC' },
+    });
+    if (!prior) return baselineProgress(currGaps);
+
+    try {
+      const prevReport = await this.getGapReport(userId, prior.id);
+      return diffGapProgress(prevReport.gap_items, currGaps);
+    } catch {
+      return baselineProgress(currGaps);
+    }
   }
 
   /**
