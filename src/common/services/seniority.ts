@@ -50,6 +50,11 @@ function parseYear(s: string | null, nowYear: number): number | null {
   return m ? Number(m[0]) : null;
 }
 
+function isInternshipEntry(e: CanonicalCvDocument['experience'][number]): boolean {
+  const text = `${e.role ?? ''} ${e.org ?? ''} ${(e.bullets ?? []).join(' ')}`;
+  return /\bintern(ship)?\b|thực tập|thuc tap|internship trainee|trainee/i.test(text);
+}
+
 /** Evidence-based seniority — does NOT trust self-reported "years"; derives from structure + parsed dates. */
 export function deriveCvSeniority(
   doc: CanonicalCvDocument,
@@ -74,7 +79,9 @@ export function deriveCvSeniority(
 
   let years = 0;
   let parsed = 0;
+  let internshipEntries = 0;
   for (const e of exp) {
+    if (isInternshipEntry(e)) internshipEntries += 1;
     const start = parseYear(e.start, nowYear);
     const end = parseYear(e.end, nowYear);
     if (start !== null && end !== null && end >= start) {
@@ -92,7 +99,13 @@ export function deriveCvSeniority(
     signals.push('dates unparseable — count fallback');
   } else {
     signals.push(`~${years}y parsed`);
-    bucket = years > 4 ? 'senior' : years >= 2 ? 'mid' : 'junior';
+    if (years === 0 && internshipEntries === exp.length) {
+      const hasProjects = (doc.projects ?? []).length > 0;
+      bucket = hasProjects ? 'fresher' : 'intern';
+      signals.push('short internship');
+    } else {
+      bucket = years > 4 ? 'senior' : years >= 2 ? 'mid' : 'junior';
+    }
   }
   return { bucket, est_years: parsed > 0 ? years : null, confidence, signals };
 }

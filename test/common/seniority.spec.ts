@@ -36,6 +36,26 @@ describe('deriveCvSeniority', () => {
     expect(s.bucket).toBe('junior');
     expect(s.confidence).toBe('high');
   });
+  it('short internship entry with parsed dates stays fresher, not junior', () => {
+    const s = deriveCvSeniority(
+      doc({
+        experience: [
+          {
+            org: 'FPT Software',
+            role: 'Backend Developer Intern',
+            start: '09/2025',
+            end: '11/2025',
+            location: null,
+            bullets: ['Built internal APIs during internship'],
+          },
+        ],
+        projects: [{ name: 'Booking App', role: null, tech: [], bullets: ['x'], link: null }],
+      }),
+      2026,
+    );
+    expect(s.bucket).toBe('fresher');
+    expect(s.confidence).toBe('high');
+  });
   it('~5 years total → senior', () => {
     const s = deriveCvSeniority(
       doc({
