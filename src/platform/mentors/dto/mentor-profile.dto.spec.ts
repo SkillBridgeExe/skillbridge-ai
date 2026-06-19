@@ -36,4 +36,26 @@ describe('UpdateMentorProfileDto', () => {
 
     expect(errors.map((error) => error.property)).toContain('sessionDurationMinutes');
   });
+
+  it('accepts mentor verification contacts', async () => {
+    const dto = plainToInstance(UpdateMentorProfileDto, {
+      linkedinUrl: 'https://www.linkedin.com/in/nguyen-minh-an',
+      phoneNumber: '+84 912 345 678',
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it('rejects non-LinkedIn URLs and malformed phone numbers', async () => {
+    const dto = plainToInstance(UpdateMentorProfileDto, {
+      linkedinUrl: 'https://example.com/nguyen-minh-an',
+      phoneNumber: 'not-a-phone',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.map((error) => error.property)).toEqual(
+      expect.arrayContaining(['linkedinUrl', 'phoneNumber']),
+    );
+  });
 });

@@ -23,6 +23,10 @@ import { MentorProfileSkillEntity } from '../../database/entities/mentor-profile
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import {
+  DownloadedFile,
+  GcsStorageService,
+} from '../../infrastructure/storage/gcs-storage.service';
+import {
   AdminListMentorsQueryDto,
   AdminMentorListDto,
   ListMentorsQueryDto,
@@ -30,6 +34,7 @@ import {
   MentorFiltersDto,
   MentorListDto,
   MentorProfileDto,
+  MentorPublicProfileDto,
   MentorSkillDto,
   MentorSummaryDto,
   UpdateAdminMentorStatusDto,
@@ -50,6 +55,7 @@ export class MentorsService {
     private readonly profileSkills: Repository<MentorProfileSkillEntity>,
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     @InjectRepository(SkillEntity) private readonly skills: Repository<SkillEntity>,
+    private readonly storage: GcsStorageService,
   ) {}
 
   async getPublicSummary(): Promise<MentorSummaryDto> {
@@ -122,19 +128,31 @@ export class MentorsService {
     };
   }
 
-  async getPublicProfile(slug: string): Promise<MentorProfileDto> {
+  async getPublicProfile(slug: string): Promise<MentorPublicProfileDto> {
     const profile = await this.profiles.findOne({
       where: { slug, status: PUBLIC_STATUS },
     });
     if (!profile) throw new NotFoundException('Mentor profile not found');
-    return (await this.mapProfilesToDetails([profile]))[0];
+    return (await this.mapProfilesToPublicDetails([profile]))[0];
+  }
+
+  async getPublicAvatar(slug: string): Promise<DownloadedFile> {
+    const profile = await this.profiles.findOne({ where: { slug, status: PUBLIC_STATUS } });
+    if (!profile) throw new NotFoundException('Mentor profile not found');
+    return this.downloadStoredAvatar(profile.userId);
+  }
+
+  async getAdminAvatar(profileId: string): Promise<DownloadedFile> {
+    const profile = await this.profiles.findOne({ where: { id: profileId } });
+    if (!profile) throw new NotFoundException('Mentor profile not found');
+    return this.downloadStoredAvatar(profile.userId);
   }
 
   async getMyProfile(userId: string): Promise<MentorProfileDto | null> {
     await this.requireActiveUser(userId);
     const profile = await this.profiles.findOne({ where: { userId } });
     if (!profile) return null;
-    return (await this.mapProfilesToDetails([profile]))[0];
+    return (await this.mapProfilesToDetails([profile], 'self'))[0];
   }
 
   async updateMyProfile(userId: string, dto: UpdateMentorProfileDto): Promise<MentorProfileDto> {
@@ -157,6 +175,8 @@ export class MentorsService {
           company: null,
           shortBio: null,
           bio: null,
+          linkedinUrl: null,
+          phoneNumber: null,
           domainTags: [],
           sessionPriceVnd: DEFAULT_SESSION_PRICE_VND,
           sessionDurationMinutes: DEFAULT_SESSION_DURATION_MINUTES,
@@ -176,6 +196,8 @@ export class MentorsService {
       if (hasOwn(dto, 'company')) profile.company = cleanNullableString(dto.company);
       if (hasOwn(dto, 'shortBio')) profile.shortBio = cleanNullableString(dto.shortBio);
       if (hasOwn(dto, 'bio')) profile.bio = cleanNullableString(dto.bio);
+      if (hasOwn(dto, 'linkedinUrl')) profile.linkedinUrl = cleanNullableString(dto.linkedinUrl);
+      if (hasOwn(dto, 'phoneNumber')) profile.phoneNumber = cleanNullableString(dto.phoneNumber);
       if (hasOwn(dto, 'domainTags')) profile.domainTags = normalizeTags(dto.domainTags ?? []);
       if (hasOwn(dto, 'sessionPriceVnd') && dto.sessionPriceVnd !== undefined) {
         profile.sessionPriceVnd = dto.sessionPriceVnd;
@@ -204,7 +226,7 @@ export class MentorsService {
             ),
           );
 
-    return (await this.mapProfilesToDetails([saved]))[0];
+    return (await this.mapProfilesToDetails([saved], 'self'))[0];
   }
 
   async submitMyProfile(userId: string): Promise<MentorProfileDto> {
@@ -223,7 +245,7 @@ export class MentorsService {
     profile.submittedAt = new Date();
     profile.rejectionReason = null;
     const saved = await this.profiles.save(profile);
-    return (await this.mapProfilesToDetails([saved]))[0];
+    return (await this.mapProfilesToDetails([saved], 'self'))[0];
   }
 
   async listAdminProfiles(query: AdminListMentorsQueryDto = {}): Promise<AdminMentorListDto> {
@@ -236,7 +258,7 @@ export class MentorsService {
       take: limit,
     });
     return {
-      items: await this.mapProfilesToDetails(profiles),
+      items: await this.mapProfilesToDetails(profiles, 'admin'),
       total,
       page,
       limit,
@@ -274,7 +296,7 @@ export class MentorsService {
     }
 
     const saved = await this.profiles.save(profile);
-    return (await this.mapProfilesToDetails([saved]))[0];
+    return (await this.mapProfilesToDetails([saved], 'admin'))[0];
   }
 
   private async buildPublicWhere(
@@ -380,6 +402,9 @@ export class MentorsService {
     const missing: string[] = [];
     if (!cleanNullableString(profile.headline)) missing.push('headline');
     if (!cleanNullableString(profile.shortBio)) missing.push('shortBio');
+    if (!cleanNullableString(profile.linkedinUrl) && !cleanNullableString(profile.phoneNumber)) {
+      missing.push('verificationContact');
+    }
     if (!profile.domainTags?.length) missing.push('domainTags');
     if (!profile.sessionPriceVnd) missing.push('sessionPriceVnd');
     if (!profile.sessionDurationMinutes) missing.push('sessionDurationMinutes');
@@ -395,14 +420,30 @@ export class MentorsService {
 
   private async mapProfilesToCards(profiles: MentorProfileEntity[]): Promise<MentorCardDto[]> {
     const context = await this.loadMappingContext(profiles);
-    return profiles.map((profile) => this.toCard(profile, context));
+    return profiles.map((profile) => this.toCard(profile, context, 'public'));
   }
 
-  private async mapProfilesToDetails(profiles: MentorProfileEntity[]): Promise<MentorProfileDto[]> {
+  private async mapProfilesToPublicDetails(
+    profiles: MentorProfileEntity[],
+  ): Promise<MentorPublicProfileDto[]> {
     const context = await this.loadMappingContext(profiles);
     return profiles.map((profile) => ({
-      ...this.toCard(profile, context),
+      ...this.toCard(profile, context, 'public'),
       bio: profile.bio,
+      linkedinUrl: profile.linkedinUrl,
+    }));
+  }
+
+  private async mapProfilesToDetails(
+    profiles: MentorProfileEntity[],
+    scope: Exclude<AvatarScope, 'public'>,
+  ): Promise<MentorProfileDto[]> {
+    const context = await this.loadMappingContext(profiles);
+    return profiles.map((profile) => ({
+      ...this.toCard(profile, context, scope),
+      bio: profile.bio,
+      linkedinUrl: profile.linkedinUrl,
+      phoneNumber: profile.phoneNumber,
       status: profile.status,
       rejectionReason: profile.rejectionReason,
       submittedAt: profile.submittedAt?.toISOString() ?? null,
@@ -448,13 +489,17 @@ export class MentorsService {
     };
   }
 
-  private toCard(profile: MentorProfileEntity, context: MappingContext): MentorCardDto {
+  private toCard(
+    profile: MentorProfileEntity,
+    context: MappingContext,
+    scope: AvatarScope,
+  ): MentorCardDto {
     const user = context.users.get(profile.userId);
     return {
       id: profile.id,
       slug: profile.slug,
       displayName: user?.fullName ?? user?.email ?? profile.slug,
-      avatarUrl: user?.avatarUrl ?? null,
+      avatarUrl: this.avatarUrl(profile, user?.avatarUrl ?? null, scope),
       headline: profile.headline,
       company: profile.company,
       shortBio: profile.shortBio,
@@ -482,6 +527,29 @@ export class MentorsService {
     return user;
   }
 
+  private async downloadStoredAvatar(userId: string): Promise<DownloadedFile> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !this.isStoredAvatar(user.avatarUrl)) {
+      throw new NotFoundException('Mentor avatar not found');
+    }
+    return this.storage.download(user.avatarUrl);
+  }
+
+  private avatarUrl(
+    profile: MentorProfileEntity,
+    value: string | null,
+    scope: AvatarScope,
+  ): string | null {
+    if (!value || !this.isStoredAvatar(value)) return value;
+    if (scope === 'self') return '/api/users/me/avatar';
+    if (scope === 'admin') return `/api/admin/mentors/${profile.id}/avatar`;
+    return `/api/mentors/${profile.slug}/avatar`;
+  }
+
+  private isStoredAvatar(value: string | null): value is string {
+    return typeof value === 'string' && value.startsWith('avatars/');
+  }
+
   private slugForUser(user: UserEntity): string {
     const base = slugify(user.fullName ?? user.email.split('@')[0] ?? 'mentor');
     return `${base || 'mentor'}-${user.id.slice(0, 8)}`;
@@ -492,6 +560,8 @@ interface MappingContext {
   users: Map<string, UserEntity>;
   skillsByProfile: Map<string, MentorSkillDto[]>;
 }
+
+type AvatarScope = 'public' | 'self' | 'admin';
 
 function pagination(
   pageInput: number | undefined,

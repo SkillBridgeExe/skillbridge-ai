@@ -8,7 +8,9 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -94,6 +96,19 @@ export class UpdateMentorProfileDto {
   @IsString()
   @MaxLength(3000)
   bio?: string | null;
+
+  @ValidateIf(isPresent)
+  @IsString()
+  @MaxLength(300)
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @Matches(/^https:\/\/(?:[a-z]{2,3}\.)?(?:www\.)?linkedin\.com\/in\/[a-z0-9_-]+\/?(?:\?.*)?$/i)
+  linkedinUrl?: string | null;
+
+  @ValidateIf(isPresent)
+  @IsString()
+  @MaxLength(32)
+  @Matches(/^\+?[0-9][0-9\s().-]{7,30}$/)
+  phoneNumber?: string | null;
 
   @IsOptional()
   @IsArray()
@@ -190,12 +205,19 @@ export interface MentorCardDto {
 
 export interface MentorProfileDto extends MentorCardDto {
   bio: string | null;
+  linkedinUrl: string | null;
+  phoneNumber: string | null;
   status: MentorProfileStatus;
   rejectionReason: string | null;
   submittedAt: string | null;
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
+}
+
+export interface MentorPublicProfileDto extends MentorCardDto {
+  bio: string | null;
+  linkedinUrl: string | null;
 }
 
 export interface MentorSummaryDto {

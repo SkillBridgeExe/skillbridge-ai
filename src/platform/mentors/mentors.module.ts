@@ -4,6 +4,7 @@ import { MentorProfileEntity } from '../../database/entities/mentor-profile.enti
 import { MentorProfileSkillEntity } from '../../database/entities/mentor-profile-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import {
   AdminMentorsController,
@@ -14,6 +15,7 @@ import { MentorsService } from './mentors.service';
 
 @Module({
   imports: [
+    StorageModule,
     TypeOrmModule.forFeature([
       MentorProfileEntity,
       MentorProfileSkillEntity,

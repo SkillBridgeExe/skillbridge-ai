@@ -4,6 +4,7 @@ import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { MentorProfileEntity } from '../../database/entities/mentor-profile.entity';
 import { MentorProfileSkillEntity } from '../../database/entities/mentor-profile-skill.entity';
+import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
 import { MentorsService } from './mentors.service';
 
 type RepositoryManagerMock = {
@@ -78,6 +79,8 @@ const approvedProfile: MentorProfileEntity = {
   company: 'Momo',
   shortBio: 'I help frontend engineers grow faster.',
   bio: 'Long mentor bio',
+  linkedinUrl: 'https://www.linkedin.com/in/nguyen-minh-an',
+  phoneNumber: '+84912345678',
   domainTags: ['Technology & Software'],
   sessionPriceVnd: 380000,
   sessionDurationMinutes: 60,
@@ -122,6 +125,7 @@ function setup() {
     profileSkills as unknown as Repository<MentorProfileSkillEntity>,
     users as unknown as Repository<UserEntity>,
     skills as unknown as Repository<SkillEntity>,
+    { download: jest.fn() } as unknown as GcsStorageService,
   );
   return { service, profiles, profileSkills, users, skills };
 }
@@ -163,6 +167,16 @@ describe('MentorsService public marketplace', () => {
     );
   });
 
+  it('maps stored avatar objects to approved public mentor avatar routes', async () => {
+    const { service, profiles, users } = setup();
+    profiles.findAndCount.mockResolvedValue([[approvedProfile], 1]);
+    users.find.mockResolvedValue([{ ...mentorUser, avatarUrl: 'avatars/user-1/photo.webp' }]);
+
+    const result = await service.listPublicMentors();
+
+    expect(result.items[0].avatarUrl).toBe('/api/mentors/nguyen-minh-an-11111111/avatar');
+  });
+
   it('searches by mentor user text before building profile query filters', async () => {
     const { service, profiles, users } = setup();
     profiles.findAndCount.mockResolvedValue([[], 0]);
@@ -189,6 +203,17 @@ describe('MentorsService public marketplace', () => {
     profiles.findOne.mockResolvedValue(null);
 
     await expect(service.getPublicProfile('draft-profile')).rejects.toThrow(NotFoundException);
+  });
+
+  it('keeps phone private while exposing LinkedIn on the public profile', async () => {
+    const { service, profiles, users } = setup();
+    profiles.findOne.mockResolvedValue(approvedProfile);
+    users.find.mockResolvedValue([mentorUser]);
+
+    const result = await service.getPublicProfile(approvedProfile.slug);
+
+    expect(result.linkedinUrl).toBe('https://www.linkedin.com/in/nguyen-minh-an');
+    expect(result).not.toHaveProperty('phoneNumber');
   });
 
   it('returns summary stats with a spotlight mentor', async () => {
@@ -276,6 +301,19 @@ describe('MentorsService profile management', () => {
   it('requires complete public fields and skills before submitting for review', async () => {
     const { service, profiles, profileSkills } = setup();
     profiles.findOne.mockResolvedValue({ ...approvedProfile, status: 'DRAFT', headline: null });
+    profileSkills.count.mockResolvedValue(1);
+
+    await expect(service.submitMyProfile(mentorUser.id)).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires at least one verification contact before submitting for review', async () => {
+    const { service, profiles, profileSkills } = setup();
+    profiles.findOne.mockResolvedValue({
+      ...approvedProfile,
+      status: 'DRAFT',
+      linkedinUrl: null,
+      phoneNumber: null,
+    });
     profileSkills.count.mockResolvedValue(1);
 
     await expect(service.submitMyProfile(mentorUser.id)).rejects.toThrow(BadRequestException);
