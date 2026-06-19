@@ -315,6 +315,80 @@ describe('CvMatchesService', () => {
     expect(gapReport.build).not.toHaveBeenCalled();
   });
 
+  it('returns baseline progress when there is no prior same CV/JD match', async () => {
+    const { service, matchesRepo } = build();
+    const current = {
+      id: 'match-current',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-1',
+      createdAt: new Date('2026-06-06T00:00:00.000Z'),
+    };
+    jest
+      .spyOn(service, 'getGapReport')
+      .mockResolvedValue({ gap_items: [{ canonical_name: 'react', cv_status: 'missing' }] } as never);
+    matchesRepo.findOne.mockResolvedValueOnce(current).mockResolvedValueOnce(null);
+
+    const out = await service.getProgress('user-1', 'match-current');
+
+    expect(out).toMatchObject({ baseline: true, curr_count: 1, prev_count: 0 });
+    expect(matchesRepo.findOne).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ order: { createdAt: 'DESC' } }),
+    );
+  });
+
+  it('counts only open gaps in baseline progress', async () => {
+    const { service, matchesRepo } = build();
+    const current = {
+      id: 'match-current',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-1',
+      createdAt: new Date('2026-06-06T00:00:00.000Z'),
+    };
+    jest.spyOn(service, 'getGapReport').mockResolvedValue({
+      gap_items: [
+        { canonical_name: 'react', cv_status: 'matched', severity: 0 },
+        { canonical_name: 'sql', cv_status: 'missing', severity: 0.8 },
+      ],
+    } as never);
+    matchesRepo.findOne.mockResolvedValueOnce(current).mockResolvedValueOnce(null);
+
+    const out = await service.getProgress('user-1', 'match-current');
+
+    expect(out).toMatchObject({ baseline: true, curr_count: 1, prev_count: 0 });
+  });
+
+  it('diffs progress against the previous same CV/JD match', async () => {
+    const { service, matchesRepo } = build();
+    const current = {
+      id: 'match-current',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-1',
+      createdAt: new Date('2026-06-06T00:00:00.000Z'),
+    };
+    const prior = {
+      id: 'match-prior',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-1',
+      createdAt: new Date('2026-06-05T00:00:00.000Z'),
+    };
+    jest
+      .spyOn(service, 'getGapReport')
+      .mockResolvedValueOnce({
+        gap_items: [{ canonical_name: 'react', cv_status: 'matched', severity: 0 }],
+      } as never)
+      .mockResolvedValueOnce({
+        gap_items: [{ canonical_name: 'react', cv_status: 'missing', severity: 0.8 }],
+      } as never);
+    matchesRepo.findOne.mockResolvedValueOnce(current).mockResolvedValueOnce(prior);
+
+    const out = await service.getProgress('user-1', 'match-current');
+
+    expect(out.baseline).toBe(false);
+    expect(out.gaps_closed).toEqual(['react']);
+    expect(out.avg_severity_delta).toBe(-0.8);
+  });
+
   /**
    * T9 — parsed-response passthrough. The denormalized match columns (strengths/weaknesses/
    * suggestions) are LOSSY: reconstructing from them hardcodes target_role=null +
