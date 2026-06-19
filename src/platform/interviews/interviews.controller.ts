@@ -19,6 +19,7 @@ import {
   InterviewListQueryDto,
   StartPlatformInterviewDto,
 } from './dto/interview.dto';
+import { InterviewGapReportService } from './interview-gap-report.service';
 import { InterviewsService } from './interviews.service';
 
 @ApiTags('Interviews')
@@ -27,7 +28,10 @@ import { InterviewsService } from './interviews.service';
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/interview')
 export class InterviewsController {
-  constructor(private readonly interviews: InterviewsService) {}
+  constructor(
+    private readonly interviews: InterviewsService,
+    private readonly interviewGapReport: InterviewGapReportService,
+  ) {}
 
   @Post('start')
   @ApiOperation({
@@ -64,6 +68,15 @@ export class InterviewsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   get(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.interviews.get(user.userId, id);
+  }
+
+  @Get('sessions/:id/gap-report')
+  @ApiOperation({
+    summary: 'Get the structured InterviewGapReport for a finished session',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  gapReport(@CurrentUser() user: JwtUser, @Param('id') id: string) {
+    return this.interviewGapReport.get(user.userId, id);
   }
 
   @Post('sessions/:id/realtime-token')

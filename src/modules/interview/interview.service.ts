@@ -9,6 +9,135 @@ import {
   EndInterviewRequestDto,
   EndInterviewResponseDto,
 } from './dto/end-interview.dto';
+import { coerceInterviewGapItems } from './interview-gap';
+import { maskPiiDeep } from '../../common/services/pii-mask';
+
+const SCORE_0_100 = { type: 'number', minimum: 0, maximum: 100 };
+const STRING_ARRAY = { type: 'array', items: { type: 'string' } };
+
+const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'overall_score',
+    'semantic_score',
+    'llm_score',
+    'communication_score',
+    'ai_feedback',
+    'per_question_scores',
+    'interview_gap_items',
+  ],
+  properties: {
+    overall_score: SCORE_0_100,
+    semantic_score: SCORE_0_100,
+    llm_score: SCORE_0_100,
+    communication_score: SCORE_0_100,
+    ai_feedback: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'summary',
+        'technical_delivery',
+        'communication_flow',
+        'body_language',
+        'recommendations',
+        'suggested_modules',
+      ],
+      properties: {
+        summary: { type: 'string' },
+        technical_delivery: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['concept_accuracy', 'problem_solving', 'system_thinking', 'code_quality'],
+          properties: {
+            concept_accuracy: SCORE_0_100,
+            problem_solving: SCORE_0_100,
+            system_thinking: SCORE_0_100,
+            code_quality: SCORE_0_100,
+          },
+        },
+        communication_flow: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['articulation', 'listening_response', 'filler_words', 'structured_answers'],
+          properties: {
+            articulation: SCORE_0_100,
+            listening_response: SCORE_0_100,
+            filler_words: SCORE_0_100,
+            structured_answers: SCORE_0_100,
+          },
+        },
+        body_language: { type: ['object', 'null'] },
+        recommendations: { type: 'string' },
+        suggested_modules: STRING_ARRAY,
+      },
+    },
+    per_question_scores: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'question_order',
+          'question',
+          'answer',
+          'ai_score',
+          'strengths',
+          'improvements',
+          'time_taken_seconds',
+        ],
+        properties: {
+          question_order: { type: 'integer', minimum: 1 },
+          question: { type: 'string' },
+          answer: { type: 'string' },
+          ai_score: SCORE_0_100,
+          strengths: STRING_ARRAY,
+          improvements: STRING_ARRAY,
+          time_taken_seconds: { type: 'number', minimum: 0 },
+        },
+      },
+    },
+    interview_gap_items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'target_type',
+          'skill_canonical',
+          'display_name',
+          'weakness_type',
+          'severity',
+          'evidence_from_answer',
+          'recommended_action',
+          'linked_question_id',
+        ],
+        properties: {
+          target_type: {
+            type: 'string',
+            enum: ['skill', 'evidence', 'communication', 'behavioral', 'role_fit'],
+          },
+          skill_canonical: { type: ['string', 'null'] },
+          display_name: { type: 'string' },
+          weakness_type: {
+            type: 'string',
+            enum: [
+              'knowledge_gap',
+              'evidence_gap',
+              'communication_gap',
+              'behavioral_gap',
+              'role_fit_risk',
+            ],
+          },
+          severity: { type: 'number', minimum: 0, maximum: 1 },
+          evidence_from_answer: { type: 'string', maxLength: 280 },
+          recommended_action: { type: 'string' },
+          linked_question_id: { type: ['string', 'null'] },
+        },
+      },
+    },
+  },
+};
 
 /**
  * Owns the LLM-side of the interview flow:
@@ -146,9 +275,11 @@ export class InterviewService {
 
   async end(userId: string, input: EndInterviewRequestDto): Promise<EndInterviewResponseDto> {
     const template = this.prompts.get(input.scoring_template_code);
+    const maskedQuestions = maskPiiDeep(input.all_questions_answers);
     const userPrompt = this.prompts.render(input.scoring_template_code, {
-      questions: input.all_questions_answers,
+      questions: maskedQuestions,
       duration_seconds: input.duration_seconds,
+      probed_skills: input.probed_skills ?? '',
     });
 
     const aiRequestId = await this.tracing.startAiRequest({
@@ -167,18 +298,27 @@ export class InterviewService {
           { role: 'system', content: template.meta.system ?? '' },
           { role: 'user', content: userPrompt },
         ],
-        { jsonMode: true, temperature: 0.2, maxOutputTokens: 3000 },
+        {
+          jsonMode: true,
+          responseSchema: INTERVIEW_SCORING_RESPONSE_SCHEMA,
+          temperature: 0.2,
+          maxOutputTokens: 3000,
+        },
       );
 
-      const parsed = (llmResult.parsedJson ?? {}) as EndInterviewParsedResponse;
+      const rawParsed = (llmResult.parsedJson ?? {}) as Record<string, unknown>;
+      const parsed = {
+        ...(rawParsed as unknown as EndInterviewParsedResponse),
+        interview_gap_items: coerceInterviewGapItems(rawParsed.interview_gap_items),
+      };
 
       // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
       await this.tracing.saveAiResult({
         aiRequestId,
         userId,
         resultType: 'interview_scoring',
-        rawResponse: llmResult.rawResponse,
-        parsedResponse: parsed,
+        rawResponse: maskPiiDeep(llmResult.rawResponse),
+        parsedResponse: maskPiiDeep(parsed),
         totalScore: parsed.overall_score ?? 0,
         tokenUsage: llmResult.tokenUsage.totalTokens,
       });
