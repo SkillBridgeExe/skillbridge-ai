@@ -97,4 +97,27 @@ describe('LearningResourceRetriever.nearest (hybrid dense + sparse + RRF)', () =
     );
     expect(await svc.nearest({ query: 'docker' })).toEqual([]);
   });
+
+  it('searches VERIFIED-only — a flagged/pending resource never takes a slot (even if it would rank #1)', async () => {
+    const cat = [
+      res({
+        id: 'flagged-top',
+        title: 'Docker Masterclass',
+        description: 'docker docker docker containers kubernetes',
+        validation_status: 'flagged',
+      }),
+      res({ id: 'verified-real', title: 'Docker Basics', description: 'docker containers' }),
+    ];
+    const llm = { embed: jest.fn().mockResolvedValue({ embedding: new Array(1024).fill(0) }) };
+    const db = { query: jest.fn().mockResolvedValue([]) }; // dense empty → sparse decides
+    const svc = new LearningResourceRetriever(
+      llm as never,
+      db as never,
+      matcherWith(cat),
+      config as never,
+    );
+    const out = await svc.nearest({ query: 'docker containers' });
+    // flagged-top would dominate BM25, but it is excluded from the SEARCH corpus, not just the resolve step.
+    expect(out.map((r) => r.resource_id)).toEqual(['verified-real']);
+  });
 });
