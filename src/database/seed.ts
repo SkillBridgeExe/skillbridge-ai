@@ -5,10 +5,13 @@ import * as path from 'path';
 import { DataSource, Repository } from 'typeorm';
 import dataSource from './data-source';
 import { AccountEntity } from './entities/account.entity';
+import { MentorProfileEntity } from './entities/mentor-profile.entity';
+import { MentorProfileSkillEntity } from './entities/mentor-profile-skill.entity';
 import { RoleCode, RoleEntity } from './entities/role.entity';
 import { SkillEntity } from './entities/skill.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRoleEntity } from './entities/user-role.entity';
+import { MENTOR_SEEDS, MentorSeed } from './mentor-seeds';
 
 const ROLE_SEEDS: Array<{ code: RoleCode; name: string }> = [
   { code: 'USER', name: 'User' },
@@ -31,6 +34,8 @@ interface SeedRepositories {
   users: Repository<UserEntity>;
   accounts: Repository<AccountEntity>;
   userRoles: Repository<UserRoleEntity>;
+  mentorProfiles: Repository<MentorProfileEntity>;
+  mentorProfileSkills: Repository<MentorProfileSkillEntity>;
 }
 
 interface SkillSeed {
@@ -53,6 +58,8 @@ export async function seedDatabase(
     users: source.getRepository(UserEntity),
     accounts: source.getRepository(AccountEntity),
     userRoles: source.getRepository(UserRoleEntity),
+    mentorProfiles: source.getRepository(MentorProfileEntity),
+    mentorProfileSkills: source.getRepository(MentorProfileSkillEntity),
   };
 
   const roles = new Map<RoleCode, RoleEntity>();
@@ -74,6 +81,7 @@ export async function seedDatabase(
 
   await ensureUserRole(repos.userRoles, admin.id, roles.get('ADMIN')!.id);
   await ensureUserRole(repos.userRoles, user.id, roles.get('USER')!.id);
+  await seedMentors(repos, roles.get('MENTOR')!, admin.id, options.defaultPassword);
 }
 
 function loadSeedOptions(): SeedOptions {
@@ -126,18 +134,29 @@ function loadSkillSeeds(): SkillSeed[] {
 
 async function ensureCredentialsUser(
   repos: SeedRepositories,
-  input: { email: string; fullName: string; password: string },
+  input: { email: string; fullName: string; password: string; avatarUrl?: string | null },
 ): Promise<UserEntity> {
-  const email = input.email.trim();
+  const user = await ensureUser(repos.users, input.email, input.fullName, input.avatarUrl ?? null);
+  await ensureCredentialsAccount(repos.accounts, user.id, input.email, input.password);
+  return user;
+}
+
+async function ensureUser(
+  users: Repository<UserEntity>,
+  emailInput: string,
+  fullName: string,
+  avatarUrl: string | null,
+): Promise<UserEntity> {
+  const email = emailInput.trim();
   const emailNormalized = email.toLowerCase();
-  let user = await repos.users.findOne({ where: { emailNormalized } });
+  let user = await users.findOne({ where: { emailNormalized } });
   if (!user) {
-    user = await repos.users.save(
-      repos.users.create({
+    user = await users.save(
+      users.create({
         email,
         emailNormalized,
-        fullName: input.fullName,
-        avatarUrl: null,
+        fullName,
+        avatarUrl,
         status: 'ACTIVE',
         isEmailVerified: true,
         isActive: true,
@@ -146,21 +165,148 @@ async function ensureCredentialsUser(
     );
   }
 
-  const existingAccount = await repos.accounts.findOne({
+  return user;
+}
+
+async function ensureCredentialsAccount(
+  accounts: Repository<AccountEntity>,
+  userId: string,
+  emailInput: string,
+  password: string,
+): Promise<void> {
+  const emailNormalized = emailInput.trim().toLowerCase();
+  const existingAccount = await accounts.findOne({
     where: { provider: 'CREDENTIALS', providerAccountId: emailNormalized },
   });
   if (!existingAccount) {
-    await repos.accounts.save(
-      repos.accounts.create({
-        userId: user.id,
+    await accounts.save(
+      accounts.create({
+        userId,
         provider: 'CREDENTIALS',
         providerAccountId: emailNormalized,
-        passwordHash: await bcrypt.hash(input.password, 10),
+        passwordHash: await bcrypt.hash(password, 10),
       }),
     );
   }
+}
 
-  return user;
+async function seedMentors(
+  repos: SeedRepositories,
+  mentorRole: RoleEntity,
+  approvedBy: string,
+  defaultPassword: string,
+): Promise<void> {
+  for (const seed of MENTOR_SEEDS) {
+    const mentor = seed.hasCredentials
+      ? await ensureCredentialsUser(repos, {
+          email: seed.email,
+          fullName: seed.fullName,
+          password: defaultPassword,
+          avatarUrl: seed.avatarUrl,
+        })
+      : await ensureUser(repos.users, seed.email, seed.fullName, seed.avatarUrl);
+
+    await syncMentorSeedUser(repos.users, mentor, seed);
+    await ensureUserRole(repos.userRoles, mentor.id, mentorRole.id);
+    const profile = await ensureMentorProfile(repos.mentorProfiles, mentor.id, seed, approvedBy);
+    await ensureMentorSkills(repos, profile.id, seed.skillCanonicalNames);
+  }
+}
+
+async function ensureMentorProfile(
+  profiles: Repository<MentorProfileEntity>,
+  userId: string,
+  seed: MentorSeed,
+  approvedBy: string,
+): Promise<MentorProfileEntity> {
+  const existing = await profiles.findOne({ where: [{ userId }, { slug: seed.slug }] });
+  const approvedAt = new Date();
+  const payload: Partial<MentorProfileEntity> = {
+    userId,
+    slug: seed.slug,
+    status: 'APPROVED',
+    headline: seed.headline,
+    company: seed.company,
+    shortBio: seed.shortBio,
+    bio: seed.bio,
+    linkedinUrl: seed.linkedinUrl,
+    phoneNumber: seed.phoneNumber,
+    domainTags: seed.domainTags,
+    sessionPriceVnd: seed.sessionPriceVnd,
+    sessionDurationMinutes: seed.sessionDurationMinutes,
+    currency: 'VND',
+    isAcceptingBookings: true,
+    ratingAverage: seed.ratingAverage,
+    reviewCount: seed.reviewCount,
+    completedSessions: seed.completedSessions,
+    approvedBy,
+    rejectionReason: null,
+  };
+
+  if (existing) {
+    if (!mentorProfileMatchesSeed(existing, payload)) {
+      Object.assign(existing, payload);
+      existing.submittedAt = existing.submittedAt ?? approvedAt;
+      existing.approvedAt = existing.approvedAt ?? approvedAt;
+      return profiles.save(existing);
+    }
+    return existing;
+  }
+
+  return profiles.save(
+    profiles.create({
+      ...payload,
+      submittedAt: approvedAt,
+      approvedAt,
+    }),
+  );
+}
+
+async function syncMentorSeedUser(
+  users: Repository<UserEntity>,
+  user: UserEntity,
+  seed: MentorSeed,
+): Promise<void> {
+  if (user.fullName === seed.fullName && user.avatarUrl === seed.avatarUrl) return;
+  user.fullName = seed.fullName;
+  user.avatarUrl = seed.avatarUrl;
+  await users.save(user);
+}
+
+function mentorProfileMatchesSeed(
+  profile: MentorProfileEntity,
+  payload: Partial<MentorProfileEntity>,
+): boolean {
+  return Object.entries(payload).every(([key, value]) => {
+    const current = profile[key as keyof MentorProfileEntity];
+    if (Array.isArray(value)) {
+      return (
+        Array.isArray(current) &&
+        current.length === value.length &&
+        current.every((item, index) => item === value[index])
+      );
+    }
+    return current === value;
+  });
+}
+
+async function ensureMentorSkills(
+  repos: SeedRepositories,
+  mentorProfileId: string,
+  canonicalNames: string[],
+): Promise<void> {
+  for (const [sortOrder, canonicalName] of canonicalNames.entries()) {
+    const skill = await repos.skills.findOne({ where: { canonicalName } });
+    if (!skill) throw new Error(`Mentor seed skill not found: ${canonicalName}`);
+
+    const existing = await repos.mentorProfileSkills.findOne({
+      where: { mentorProfileId, skillId: skill.id },
+    });
+    if (existing) continue;
+    await repos.mentorProfileSkills.save(
+      repos.mentorProfileSkills.create({ mentorProfileId, skillId: skill.id, sortOrder }),
+    );
+  }
 }
 
 async function ensureUserRole(

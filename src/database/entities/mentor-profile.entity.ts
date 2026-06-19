@@ -43,6 +43,12 @@ export class MentorProfileEntity {
   @Column({ type: 'text', nullable: true })
   bio!: string | null;
 
+  @Column({ type: 'text', name: 'linkedin_url', nullable: true })
+  linkedinUrl!: string | null;
+
+  @Column({ type: 'varchar', name: 'phone_number', length: 32, nullable: true })
+  phoneNumber!: string | null;
+
   @Column('text', { name: 'domain_tags', array: true, default: () => "'{}'" })
   domainTags!: string[];
 
