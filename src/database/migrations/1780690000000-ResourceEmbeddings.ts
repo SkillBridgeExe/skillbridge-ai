@@ -5,8 +5,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * hybrid RAG retriever). Mirrors job_embeddings exactly: vector(1024), geometry-tuple-pinned UNIQUE,
  * NO ANN index (a few hundred curated rows → exact scan is faster + perfect recall, pgvector guidance).
  */
-export class ResourceEmbeddings1780520000000 implements MigrationInterface {
-  name = 'ResourceEmbeddings1780520000000';
+export class ResourceEmbeddings1780690000000 implements MigrationInterface {
+  name = 'ResourceEmbeddings1780690000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;`);
