@@ -17,7 +17,6 @@ export interface LearningEvalResource {
   resource_id: string;
   title: string;
   source_type: string;
-  low_confidence?: boolean;
 }
 
 export interface LearningEvalCase {
