@@ -49,6 +49,14 @@ const TIER_2 = [
   'datacamp',
   'scrimba',
   'frontend masters',
+  // Trusted Vietnamese learning platforms — editorially-curated courses (NOT user-generated). Lets the
+  // bilingual VN lane auto-verify; without this, F8/CodeGym/etc. stay T3 → pending → never embed. Viblo is
+  // deliberately NOT here (user-generated articles must stay T3 / human-reviewed). Domain-form tokens are
+  // spoof-hard. See specs/2026-06-20-learning-datasource-and-bilingual-design.md §4.2.
+  'fullstack.edu.vn', // F8
+  'codegym',
+  'topcv',
+  'talkfirst',
 ];
 
 const norm = (s: string): string => s.trim().toLowerCase();
