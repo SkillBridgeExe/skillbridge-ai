@@ -62,7 +62,18 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
     }));
     const stubRetriever = { nearest: async () => retrieved } as never;
     const chat = new ChatService(stubRetriever, llm, prompts);
-    const out = await chat.turn({ question: c.user_question, language: 'vi' });
+    // Gap-aware tutor: feed the case's OWN gaps as FACTS so --live measures grounding to THEIR situation
+    // (the gap-aware tutoring), not just "answer grounded by the retrieved resources".
+    const facts = c.context.gaps?.length
+      ? {
+          open_gaps: c.context.gaps.map((g) => ({
+            skill: g.skill,
+            severity: g.severity,
+            status: g.status,
+          })),
+        }
+      : undefined;
+    const out = await chat.turn({ question: c.user_question, language: 'vi', facts });
     return {
       message: out.message,
       cited_resource_ids: out.cited_resources.map((r) => r.resource_id),
