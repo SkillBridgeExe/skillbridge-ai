@@ -14,10 +14,11 @@ const PROMPT_CODE = 'resource_curation_v1';
  * flagged + anti-fabrication) → traced to ai_requests/ai_results.
  *
  * Deterministic-first: the LLM only READS + rates per CRAAP level; reproducible CODE owns the decision.
- * DEGRADE-NEVER-THROW: a failed LLM call falls back to groundCuration(null) (safe pending/flagged — never
- * auto-verifies) so one bad candidate can't abort an offline batch. The confidence-band router + signals
- * (providerTier/freshness/liveness) are applied by the OFFLINE BACKFILL, not here (they need IO/date the
- * pure curation turn shouldn't own).
+ * DEGRADE-NEVER-THROW: any failure — LLM, parse, OR a best-effort tracing hiccup (start/save/complete are
+ * all `.catch`'d) — falls back to a safe gated groundCuration(null) (pending/flagged, never auto-verifies),
+ * so one bad candidate (or an audit-DB blip) can't abort an offline batch. The safe-verify gate
+ * (routeValidation + providerTier) is applied HERE via gate(); the date/IO-bound signals (freshness,
+ * dead-link liveness) are the offline backfill's to add.
  */
 @Injectable()
 export class CurationService {
@@ -31,18 +32,27 @@ export class CurationService {
 
   async curate(input: CurationInput, userId = 'system'): Promise<CuratedResource> {
     const startedAt = Date.now();
-    const template = this.prompts.get(PROMPT_CODE);
-
-    const aiRequestId = await this.tracing.startAiRequest({
-      userId,
-      modelCode: '', // backfilled on completion
-      promptTemplateCode: template.code,
-      promptTemplateVersion: template.version,
-      requestType: 'resource_curation',
-      requestPayload: { provider: input.provider, skills: input.skills, url: input.url ?? null },
-    });
-
+    // Tracing is BEST-EFFORT — an audit-DB hiccup at start/save/complete must never break an offline batch
+    // curation. Everything (incl. prompt load + startAiRequest) is inside the try; the only failure outcome
+    // is the safe grounded fallback (degrade-never-throw).
+    let aiRequestId: string | undefined;
     try {
+      const template = this.prompts.get(PROMPT_CODE);
+      aiRequestId = await this.tracing
+        .startAiRequest({
+          userId,
+          modelCode: '', // backfilled on completion
+          promptTemplateCode: template.code,
+          promptTemplateVersion: template.version,
+          requestType: 'resource_curation',
+          requestPayload: {
+            provider: input.provider,
+            skills: input.skills,
+            url: input.url ?? null,
+          },
+        })
+        .catch(() => undefined);
+
       const userPrompt = this.prompts.render(PROMPT_CODE, {
         resource: JSON.stringify(
           {
@@ -80,27 +90,35 @@ export class CurationService {
           : parsed;
       const result = this.gate(groundCuration(adapted, input), input);
 
-      await this.tracing.saveAiResult({
-        aiRequestId,
-        userId,
-        resultType: 'resource_curation',
-        rawResponse: llmResult.text,
-        parsedResponse: result,
-        totalScore: result.quality_score,
-        tokenUsage: llmResult.tokenUsage.totalTokens,
-      });
-      await this.tracing.completeAiRequest(aiRequestId, {
-        promptTokens: llmResult.tokenUsage.promptTokens,
-        completionTokens: llmResult.tokenUsage.completionTokens,
-        totalTokens: llmResult.tokenUsage.totalTokens,
-        estimatedCost: llmResult.estimatedCostUsd,
-        latencyMs: llmResult.latencyMs,
-        status: 'SUCCESS',
-        modelCode: llmResult.modelCode,
-      });
+      if (aiRequestId) {
+        await this.tracing
+          .saveAiResult({
+            aiRequestId,
+            userId,
+            resultType: 'resource_curation',
+            rawResponse: llmResult.text,
+            parsedResponse: result,
+            totalScore: result.quality_score,
+            tokenUsage: llmResult.tokenUsage.totalTokens,
+          })
+          .catch(() => undefined);
+        await this.tracing
+          .completeAiRequest(aiRequestId, {
+            promptTokens: llmResult.tokenUsage.promptTokens,
+            completionTokens: llmResult.tokenUsage.completionTokens,
+            totalTokens: llmResult.tokenUsage.totalTokens,
+            estimatedCost: llmResult.estimatedCostUsd,
+            latencyMs: llmResult.latencyMs,
+            status: 'SUCCESS',
+            modelCode: llmResult.modelCode,
+          })
+          .catch(() => undefined);
+      }
       return result;
     } catch (err) {
-      await this.tracing.markFailed(aiRequestId, startedAt, err);
+      if (aiRequestId) {
+        await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
+      }
       this.logger.warn(`resource_curation degraded to fallback: ${(err as Error).message}`);
       return this.gate(groundCuration(null, input), input); // safe pending/flagged — never auto-verify on failure
     }

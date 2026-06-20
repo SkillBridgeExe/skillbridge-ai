@@ -103,4 +103,13 @@ describe('CurationService.curate', () => {
     expect(out.quality_score).toBeGreaterThanOrEqual(60); // the lenient core would verify this
     expect(out.validation_status).toBe('pending'); // but a T3 provider is gated to pending (safe-for-commerce)
   });
+
+  it('a tracing failure (startAiRequest throws) does NOT break curation — degrade-never-throw', async () => {
+    const { svc, tracing } = makeService({});
+    tracing.startAiRequest.mockRejectedValueOnce(new Error('tracing DB down'));
+    const out = await svc.curate(input); // react.dev (T1) + levels 3 → the LLM succeeds
+    expect(out.validation_status).toBe('verified'); // tracing failure swallowed; real result still returned
+    expect(out.quality_score).toBe(100);
+    expect(tracing.saveAiResult).not.toHaveBeenCalled(); // no aiRequestId → skip the rest of tracing
+  });
 });
