@@ -24,7 +24,13 @@ export function levelsToCraap(parsedCraap: unknown): CraapScores {
   const toFloat = (key: string): number => {
     const dim = o[key];
     const raw = dim && typeof dim === 'object' ? (dim as Record<string, unknown>).level : dim;
-    const level = typeof raw === 'number' ? raw : 0;
+    // accept a number OR a numeric string ("3") — an LLM in JSON mode sometimes quotes the level
+    const level =
+      typeof raw === 'number'
+        ? raw
+        : typeof raw === 'string' && raw.trim() !== '' && Number.isFinite(Number(raw))
+          ? Number(raw)
+          : 0;
     return clamp01(level / 3);
   };
   return CRAAP_KEYS.reduce((acc, k) => {

@@ -32,6 +32,13 @@ describe('providerTier', () => {
     expect(providerTier('')).toBe('T3');
   });
 
+  it('is NOT spoofable by generic/lookalike names (no bare "official"/"university"/"mit" tokens)', () => {
+    expect(providerTier('Unofficial Docker Guide')).toBe('T3');
+    expect(providerTier('Summit Academy')).toBe('T3'); // must not match a bare "mit"
+    expect(providerTier('Harvard-lookalike Courses')).toBe('T3');
+    expect(providerTier('My University Blog')).toBe('T3');
+  });
+
   it('is case/whitespace-insensitive', () => {
     expect(providerTier('  udemy  ')).toBe('T2');
   });
@@ -49,6 +56,10 @@ describe('freshnessScore (code owns the date — the LLM cannot)', () => {
   it('invalid / missing date → neutral 50 (never throws)', () => {
     expect(freshnessScore(undefined, now)).toBe(50);
     expect(freshnessScore('not-a-date', now)).toBe(50);
+  });
+
+  it('future / negative-age date → 50 (invalid, not treated as freshest)', () => {
+    expect(freshnessScore('2027-01-01T00:00:00.000Z', now)).toBe(50);
   });
 });
 

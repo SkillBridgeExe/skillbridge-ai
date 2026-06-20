@@ -94,4 +94,13 @@ describe('CurationService.curate', () => {
     const out = await svc.curate(input);
     expect(out.validation_status).toBe('pending');
   });
+
+  it('T3 (unknown provider) at mid quality does NOT auto-verify — routeValidation gate forces pending', async () => {
+    const { svc } = makeService({
+      parsedJson: { craap: allLevel(2), flags: [], description: 'ok' },
+    });
+    const out = await svc.curate({ ...input, provider: 'some-unknown-blog' });
+    expect(out.quality_score).toBeGreaterThanOrEqual(60); // the lenient core would verify this
+    expect(out.validation_status).toBe('pending'); // but a T3 provider is gated to pending (safe-for-commerce)
+  });
 });

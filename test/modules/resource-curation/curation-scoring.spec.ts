@@ -120,4 +120,42 @@ describe('groundCuration (anti-fabrication + aggregation)', () => {
     );
     expect(out.validation_status).toBe('flagged');
   });
+
+  it('soft flags (outdated/paywalled/low_quality) cap a would-be-verified result at pending', () => {
+    const out = groundCuration(
+      {
+        craap: { relevance: 0.9, authority: 0.9, currency: 0.9, accuracy: 0.9, purpose: 0.9 },
+        description: 'good',
+        flags: ['outdated'],
+      },
+      input,
+    );
+    expect(out.quality_score).toBeGreaterThan(60);
+    expect(out.validation_status).toBe('pending');
+  });
+
+  it('purpose floor: pure-marketing purpose (level 0) → flagged despite high other dimensions', () => {
+    const out = groundCuration(
+      {
+        craap: { relevance: 0.9, authority: 0.9, currency: 0.9, accuracy: 0.9, purpose: 0 },
+        description: 'buy now',
+        flags: [],
+      },
+      input,
+    );
+    expect(out.validation_status).toBe('flagged');
+  });
+
+  it('strips a scheme-less promo host + shortener from the description (not just http://)', () => {
+    const out = groundCuration(
+      {
+        craap: { relevance: 0.9, authority: 0.9, currency: 0.9, accuracy: 0.9, purpose: 0.9 },
+        description: 'Khoá hay, mua tại promo.example/buy và bit.ly/xyz',
+        flags: [],
+      },
+      input,
+    );
+    expect(out.description).not.toMatch(/promo\.example|bit\.ly/i);
+    expect(out.description).toContain('[link]');
+  });
 });

@@ -26,6 +26,12 @@ describe('levelsToCraap — anchored 0-3 levels → 0-1 CRAAP floats (calibratio
     expect(c.authority).toBe(0);
   });
 
+  it('accepts a numeric-string level ("3") an LLM in JSON mode may quote', () => {
+    expect(levelsToCraap({ relevance: { level: '3' } }).relevance).toBe(1);
+    expect(levelsToCraap({ relevance: '2' }).relevance).toBeCloseTo(2 / 3, 5);
+    expect(levelsToCraap({ relevance: { level: 'abc' } }).relevance).toBe(0);
+  });
+
   it('missing dimension / non-object input → 0 (never throws, never invents)', () => {
     expect(levelsToCraap({ relevance: { level: 3 } }).accuracy).toBe(0);
     expect(levelsToCraap('garbage')).toEqual({

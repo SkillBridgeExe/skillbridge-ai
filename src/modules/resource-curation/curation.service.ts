@@ -4,6 +4,7 @@ import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { CurationInput, CuratedResource, groundCuration } from './curation-scoring';
 import { levelsToCraap } from './curation-levels';
+import { providerTier, routeValidation } from './curation-signals';
 
 const PROMPT_CODE = 'resource_curation_v1';
 
@@ -70,18 +71,22 @@ export class CurationService {
         },
       );
 
-      // anchored level → 0-1 float, THEN the deterministic core owns the score + decision
+      // anchored level → 0-1 float, THEN the deterministic core owns the score + decision. Only adapt when the
+      // model returned a craap object — else let groundCuration's missing-craap fallback fire (→ pending).
       const parsed = (llmResult.parsedJson ?? null) as Record<string, unknown> | null;
-      const adapted = parsed ? { ...parsed, craap: levelsToCraap(parsed.craap) } : null;
-      const grounded = groundCuration(adapted, input);
+      const adapted =
+        parsed && typeof parsed.craap === 'object' && parsed.craap !== null
+          ? { ...parsed, craap: levelsToCraap(parsed.craap) }
+          : parsed;
+      const result = this.gate(groundCuration(adapted, input), input);
 
       await this.tracing.saveAiResult({
         aiRequestId,
         userId,
         resultType: 'resource_curation',
         rawResponse: llmResult.text,
-        parsedResponse: grounded,
-        totalScore: grounded.quality_score,
+        parsedResponse: result,
+        totalScore: result.quality_score,
         tokenUsage: llmResult.tokenUsage.totalTokens,
       });
       await this.tracing.completeAiRequest(aiRequestId, {
@@ -93,11 +98,21 @@ export class CurationService {
         status: 'SUCCESS',
         modelCode: llmResult.modelCode,
       });
-      return grounded;
+      return result;
     } catch (err) {
       await this.tracing.markFailed(aiRequestId, startedAt, err);
       this.logger.warn(`resource_curation degraded to fallback: ${(err as Error).message}`);
-      return groundCuration(null, input); // safe pending/flagged — never auto-verify on failure
+      return this.gate(groundCuration(null, input), input); // safe pending/flagged — never auto-verify on failure
     }
+  }
+
+  /** The single verify CHOKEPOINT: routeValidation is the ONLY path to 'verified' — the safe-for-commerce
+   * gate (quality >= AUTO_VERIFY_BAND + a T1/T2 provider) applied on top of the core content decision, so a
+   * mediocre / unknown-provider (T3) resource the core would auto-verify at >=60 stays `pending`. */
+  private gate(curated: CuratedResource, input: CurationInput): CuratedResource {
+    return {
+      ...curated,
+      validation_status: routeValidation(curated, { providerTier: providerTier(input.provider) }),
+    };
   }
 }

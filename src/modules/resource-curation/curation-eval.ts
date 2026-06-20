@@ -36,7 +36,8 @@ export interface CurationEvalResult {
   pass: boolean;
 }
 
-const RAW_URL = /(https?:\/\/|www\.)/i;
+// Match-or-stricter than cleanDescription's strip, so the harness actually fails on a surviving bare-host link.
+const RAW_URL = /(https?:\/\/|www\.|\b[a-z0-9-]+\.[a-z]{2,}\/)/i;
 
 export function scoreCurationCase(c: CurationEvalCase, out: CuratedResource): CurationEvalResult {
   const decision_match = out.validation_status === c.expected_status;

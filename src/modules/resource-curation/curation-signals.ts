@@ -14,24 +14,29 @@ export type ProviderTier = 'T1' | 'T2' | 'T3';
 export const AUTO_VERIFY_BAND = 75;
 
 // Provider authority allowlist (normalized substring match). Architect-tunable; unknown defaults to T3.
+// SPOOF-HARDENED: only specific, hard-to-fake brand/domain tokens — NO generic words like 'official' /
+// 'university' / 'mit' (which match "Unofficial...", "Summit Academy", etc. and inflate the auto-verify gate).
 const TIER_1 = [
   'mdn',
   'mozilla',
   'freecodecamp',
   'coursera',
   'edx',
-  'official',
   'w3c',
+  'w3schools',
   'react.dev',
   'kubernetes.io',
   'docker docs',
-  'university',
-  'harvard',
-  'mit ',
-  'stanford',
+  'docs.docker',
   'google developers',
+  'developers.google',
   'microsoft learn',
-  'aws skill',
+  'learn.microsoft',
+  'developer.android',
+  'developer.apple',
+  'postgresql.org',
+  'python.org',
+  'aws skill builder',
 ];
 const TIER_2 = [
   'udemy',
@@ -65,6 +70,7 @@ export function freshnessScore(lastVerifiedAt: string | undefined, nowIso: strin
   const then = Date.parse(lastVerifiedAt);
   const now = Date.parse(nowIso);
   if (!Number.isFinite(then) || !Number.isFinite(now)) return 50;
+  if (then > now) return 50; // future / negative-age date is invalid, not "freshest"
   const days = (now - then) / DAY_MS;
   if (days <= 90) return 100;
   if (days <= 180) return 80;

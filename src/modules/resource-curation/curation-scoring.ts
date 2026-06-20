@@ -59,7 +59,21 @@ export interface CuratedResource {
 
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 const MAX_DESC_LEN = 600;
-const RAW_URL = /\b(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi;
+/** Soft flags reduce trust but don't disqualify outright — they cap the result at pending (never verified). */
+const SOFT_FLAGS: ReadonlySet<CurationFlag> = new Set(['outdated', 'paywalled', 'low_quality']);
+const MARKDOWN_LINK = /\[([^\]]*)\]\([^)]*\)/g;
+/** Strips any link an LLM may copy from a marketing blurb into the curated description: any scheme://, www.,
+ * a host.tld/PATH (catches scheme-less promo hosts like promo.example/buy, bit.ly/xyz, t.me/chan), or a
+ * known bare shortener. Keeps the curated catalog description free of unvetted destinations. */
+const URL_LIKE = new RegExp(
+  [
+    '\\b[a-z][a-z0-9+.\\-]*:\\/\\/\\S+',
+    '\\bwww\\.\\S+',
+    '\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.[a-z]{2,}\\/\\S*',
+    '\\b(?:bit\\.ly|t\\.me|youtu\\.be|t\\.co|goo\\.gl|tinyurl\\.com)\\S*',
+  ].join('|'),
+  'gi',
+);
 
 /** Weighted CRAAP aggregate → integer 0-100. Pure + clamped. */
 export function aggregateQuality(craap: CraapScores): number {
@@ -99,7 +113,8 @@ function normalizeCraap(v: unknown): CraapScores {
 
 function cleanDescription(text: string): string {
   return text
-    .replace(RAW_URL, '[link]')
+    .replace(MARKDOWN_LINK, '$1')
+    .replace(URL_LIKE, '[link]')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
     .slice(0, MAX_DESC_LEN);
@@ -138,11 +153,15 @@ export function groundCuration(parsed: unknown, input: CurationInput): CuratedRe
       ? cleanDescription(obj.description)
       : cleanDescription(input.description?.trim() || input.title);
 
-  return {
-    quality_score,
-    validation_status: decideValidation(quality_score, flags, hasSkills),
-    description,
-    flags,
-    craap,
-  };
+  // Content-safety downgrades on top of the core decision (can only LOWER, never raise): pure marketing
+  // (purpose level 0) → flagged; half-promo (purpose level 1) or any soft flag → cap at pending. So an
+  // engine-flagged-`outdated` or marketing-leaning resource can never auto-verify on a single missing hard flag.
+  let validation_status = decideValidation(quality_score, flags, hasSkills);
+  if (validation_status === 'verified') {
+    if (craap.purpose < 0.2) validation_status = 'flagged';
+    else if (craap.purpose < 0.5 || flags.some((f) => SOFT_FLAGS.has(f)))
+      validation_status = 'pending';
+  }
+
+  return { quality_score, validation_status, description, flags, craap };
 }
