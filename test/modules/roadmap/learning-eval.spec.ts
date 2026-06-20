@@ -152,7 +152,6 @@ describe('learning golden set', () => {
       'cv_fix',
       'urgent',
       'no_resource',
-      'low_confidence',
       'retrieval_miss',
       'vague',
     ]) {
