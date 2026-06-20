@@ -103,4 +103,32 @@ describe('ChatService.turn', () => {
     expect(out.cited_resources.map((r) => r.resource_id)).toEqual(['r1']);
     expect(out.message.length).toBeGreaterThan(0);
   });
+
+  it('degrades to the deterministic grounded fallback when llm.complete THROWS (resilience)', async () => {
+    const retriever = { nearest: jest.fn(async () => [res('r1')]) };
+    const llm = {
+      complete: jest.fn(async () => {
+        throw new Error('provider 503');
+      }),
+    };
+    const prompts = { render: jest.fn(() => 'R'), get: jest.fn(() => ({ meta: { system: 'S' } })) };
+    const svc = new ChatService(retriever as never, llm as never, prompts as never);
+    const out = await svc.turn({ question: 'tôi thiếu Docker thì học gì?' });
+    expect(out.cited_resources.map((r) => r.resource_id)).toEqual(['r1']); // fallback over retrieved
+    expect(out.message.length).toBeGreaterThan(0);
+    expect(out.retrieved.map((r) => r.resource_id)).toEqual(['r1']);
+  });
+
+  it('masks PII in BOTH the question and the conversation history before the prompt (F3)', async () => {
+    const { svc, prompts } = makeService({});
+    await svc.turn({
+      question: 'email me at john@doe.com',
+      history: [{ role: 'user', content: 'my phone is 0901234567' }],
+    });
+    const vars = JSON.stringify((prompts.render.mock.calls[0] as unknown[])[1]);
+    expect(vars).not.toContain('john@doe.com');
+    expect(vars).not.toContain('0901234567');
+    expect(vars).toContain('[redacted-email]');
+    expect(vars).toContain('[redacted-phone]');
+  });
 });

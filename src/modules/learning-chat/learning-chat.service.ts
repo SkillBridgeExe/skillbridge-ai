@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { maskPii } from '../../common/services/pii-mask';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
@@ -71,6 +71,8 @@ function promptResource(r: RetrievedResource) {
  */
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly retriever: LearningResourceRetriever,
     private readonly llm: LlmService,
@@ -102,15 +104,26 @@ export class ChatService {
     });
 
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
-    const result = await this.llm.complete(
-      [
-        { role: 'system', content: system },
-        { role: 'user', content: userPrompt },
-      ],
-      { jsonMode: true, responseSchema: CHAT_SCHEMA, temperature: 0.3, maxOutputTokens: 700 },
-    );
+    // Resilience: an LLM transport error (timeout / 429 / 5xx → ServiceUnavailableException) must NOT 500 the
+    // turn. groundResources(null, retrieved, facts) already serves the honest grounded fallback over the
+    // retrieved set (mirrors trends-insight / interview-plan). Previously only bad/empty MODEL OUTPUT was
+    // covered — a failing CALL now degrades the same deterministic way.
+    let parsed: unknown = null;
+    try {
+      const result = await this.llm.complete(
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: userPrompt },
+        ],
+        { jsonMode: true, responseSchema: CHAT_SCHEMA, temperature: 0.3, maxOutputTokens: 700 },
+      );
+      parsed = result.parsedJson ?? safeParse(result.text);
+    } catch (err) {
+      this.logger.warn(
+        `learning_chat LLM call failed — serving grounded fallback: ${(err as Error).message}`,
+      );
+    }
 
-    const parsed = result.parsedJson ?? safeParse(result.text);
     const grounded = groundResources(parsed, retrieved, facts);
     return { ...grounded, retrieved };
   }
