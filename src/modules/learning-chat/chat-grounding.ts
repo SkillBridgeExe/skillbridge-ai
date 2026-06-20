@@ -29,8 +29,25 @@ export interface GroundedAnswer {
 
 const MAX_GAPS = 5;
 const MAX_MESSAGE_LEN = 1500;
-/** Any http(s):// or www. link — stripped from prose so the user only ever follows a catalog-resolved url. */
-const RAW_URL = /\b(?:https?:\/\/|www\.)\S+/gi;
+/** Markdown link [text](url) → keep only the text, so stripping the url never leaves a dangling bracket. */
+const MARKDOWN_LINK = /\[([^\]]*)\]\([^)]*\)/g;
+/**
+ * Any link-shaped token the bot must never surface as a raw destination — links resolve from resource_id,
+ * so the user must never get a typeable/clickable host the catalog didn't verify. Covers: any scheme://
+ * (http/https/ftp/defanged), www., a host.tld/PATH (the path is the strong link signal — avoids false
+ * positives on tech terms like "Node.js"/"socket.io" which have no path), and common bare course providers
+ * / link shorteners that an LLM emits from training data. The PRIMARY control is the prompt forbidding URLs;
+ * this is the deterministic backstop.
+ */
+const URL_LIKE = new RegExp(
+  [
+    '\\b[a-z][a-z0-9+.\\-]*:\\/\\/\\S+',
+    '\\bwww\\.\\S+',
+    '\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.[a-z]{2,}\\/\\S*',
+    '\\b(?:bit\\.ly|youtu\\.be|t\\.co|goo\\.gl|tinyurl\\.com|udemy\\.com|coursera\\.org|edx\\.org|udacity\\.com|pluralsight\\.com|freecodecamp\\.org|youtube\\.com|w3schools\\.com|geeksforgeeks\\.org)(?:\\/\\S*)?',
+  ].join('|'),
+  'gi',
+);
 
 /** Top open gaps (skill + severity + status only — PII-free), highest severity first, capped. */
 export function buildChatFacts(input: {
@@ -45,9 +62,10 @@ export function buildChatFacts(input: {
   return { open_gaps };
 }
 
-function stripRawUrls(message: string): string {
-  return message
-    .replace(RAW_URL, '[link]')
+function stripRawUrls(text: string): string {
+  return text
+    .replace(MARKDOWN_LINK, '$1')
+    .replace(URL_LIKE, '[link]')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
     .slice(0, MAX_MESSAGE_LEN);
@@ -56,6 +74,8 @@ function stripRawUrls(message: string): string {
 export function groundResources(
   parsed: unknown,
   retrieved: RetrievedResource[],
+  // FACTS is the PROMPT-side allow-list (rendered into user_context); groundResources does NOT post-verify
+  // free-text skill/gap mentions in the prose (that grounding is prompt-only by design). Kept for that contract.
   _facts: ChatFacts,
 ): GroundedAnswer {
   const fallback = (): GroundedAnswer => ({
@@ -84,9 +104,10 @@ export function groundResources(
     }
   }
 
+  // suggested_next_step is user-visible too → run it through the SAME url backstop as message.
   const suggested_next_step =
     typeof obj.suggested_next_step === 'string' && obj.suggested_next_step.trim() !== ''
-      ? obj.suggested_next_step.trim()
+      ? stripRawUrls(obj.suggested_next_step)
       : null;
 
   return { message: stripRawUrls(obj.message), cited_resources, suggested_next_step };

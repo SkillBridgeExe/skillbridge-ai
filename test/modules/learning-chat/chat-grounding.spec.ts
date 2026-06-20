@@ -89,6 +89,54 @@ describe('groundResources — anti-fabrication guard', () => {
     const out = groundResources({ cited_resource_ids: ['r1'] }, [res('r1')], facts);
     expect(out.message.length).toBeGreaterThan(0);
   });
+
+  it('strips scheme-less provider links + shorteners the LLM invents (backstop, not just http://)', () => {
+    for (const message of [
+      'Thử udemy.com/course/docker-mastery nhé',
+      'Xem coursera.org để học',
+      'Link rút gọn bit.ly/abc123',
+    ]) {
+      const out = groundResources({ message, cited_resource_ids: [] }, [], facts);
+      expect(out.message).not.toMatch(/udemy|coursera|bit\.ly/i);
+      expect(out.message).toContain('[link]');
+    }
+  });
+
+  it('does NOT mangle tech terms that look domain-ish (Node.js, socket.io) — no false positives', () => {
+    const out = groundResources(
+      { message: 'Học Node.js và socket.io trước khi vào Docker.', cited_resource_ids: [] },
+      [],
+      facts,
+    );
+    expect(out.message).toContain('Node.js');
+    expect(out.message).toContain('socket.io');
+    expect(out.message).not.toContain('[link]');
+  });
+
+  it('collapses a markdown link to its text (no dangling bracket, href removed)', () => {
+    const out = groundResources(
+      { message: 'Xem [khoá Docker](https://evil.test/buy) này.', cited_resource_ids: ['r1'] },
+      [res('r1')],
+      facts,
+    );
+    expect(out.message).not.toMatch(/https?:\/\//i);
+    expect(out.message).not.toContain('](');
+    expect(out.message).toContain('khoá Docker');
+  });
+
+  it('strips a raw URL the LLM puts in suggested_next_step (not just message)', () => {
+    const out = groundResources(
+      {
+        message: 'ok',
+        cited_resource_ids: ['r1'],
+        suggested_next_step: 'Mở https://evil.test/buy để mua',
+      },
+      [res('r1')],
+      facts,
+    );
+    expect(out.suggested_next_step).not.toMatch(/https?:\/\//i);
+    expect(out.suggested_next_step).toContain('[link]');
+  });
 });
 
 describe('buildChatFacts', () => {
