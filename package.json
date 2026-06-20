@@ -30,6 +30,7 @@
     "eval:match": "ts-node -r tsconfig-paths/register src/calibration/eval-match.ts",
     "eval:rubric": "ts-node -r tsconfig-paths/register src/calibration/eval-rubric.ts",
     "eval:gap": "ts-node -r tsconfig-paths/register src/calibration/eval-gap.ts",
+    "eval:interview": "ts-node -r tsconfig-paths/register src/calibration/eval-interview.ts",
     "determinism:cv-jd-match": "ts-node -r tsconfig-paths/register src/calibration/determinism-cv-jd-match.ts",
     "drift:cv-corpus": "ts-node -r tsconfig-paths/register src/calibration/drift-prevalence-cv-corpus.ts",
     "taxonomy:validate": "ts-node -r tsconfig-paths/register src/tools/validate-taxonomy.ts",
