@@ -13,13 +13,27 @@ const matcher = {
             id: 'r1',
             source_type: 'course',
             title: 'React',
+            provider: 'Coursera',
             url: 'https://u',
             is_internal: false,
+            language: 'vi',
+            duration_minutes: 60,
+            difficulty: 'INTERMEDIATE',
+            is_free: true,
+            skills: [{ skill_canonical_name: 'react', teaches_level: 4 }],
             outcome_type: 'understand',
             proof_of_completion: 'cert',
             match_score: 90,
+            match_breakdown: {
+              quality_pts: 28,
+              language_pts: 20,
+              free_pts: 15,
+              level_fit_pts: 20,
+              multi_skill_pts: 7,
+            },
             quality_score: 92,
             freshness_score: 100,
+            low_confidence: true,
           },
         ],
       },
@@ -39,7 +53,7 @@ const learn = (skill: string, severity: number): UnifiedDevelopmentPlanItem => (
   requirement_id: `jd:hard_skill:${skill}`,
 });
 
-const gap = (skill: string): GapItem =>
+const gap = (skill: string, over: Partial<GapItem> = {}): GapItem =>
   ({
     requirement_id: `jd:hard_skill:${skill}`,
     source: 'jd',
@@ -59,6 +73,7 @@ const gap = (skill: string): GapItem =>
     severity: 0.8,
     confidence: 1,
     recommended_next_action: '',
+    ...over,
   }) as GapItem;
 
 describe('RoadmapComposerService.compose', () => {
@@ -74,11 +89,75 @@ describe('RoadmapComposerService.compose', () => {
 
     expect(out.steps[0].skill_canonical).toBe('react');
     expect(out.steps[0].resources[0].id).toBe('r1');
+    expect((out.steps[0].resources[0] as any).low_confidence).toBe(true);
+    expect((out.steps[0] as any).recommended_courses?.map((course: any) => course.id)).toEqual([
+      'r1',
+    ]);
     expect(out.not_feasible_items.map((item) => item.skill_canonical)).toContain('rust');
     expect(out.ai_summary.length).toBeGreaterThan(0);
     expect(matcher.matchResources).toHaveBeenCalledWith(
-      [{ skill_canonical_name: 'react', required_level: 4 }],
+      [
+        { skill_canonical_name: 'react', required_level: 4 },
+        { skill_canonical_name: 'rust', required_level: 4 },
+      ],
       { sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'] },
     );
+  });
+
+  it('uses the cheapest matched resource duration as feasibility floor before selecting steps', () => {
+    matcher.matchResources.mockReturnValueOnce({
+      per_skill: [
+        {
+          skill_canonical_name: 'react',
+          required_level: 3,
+          resources: [
+            {
+              id: 'long-react',
+              source_type: 'course',
+              title: 'Long React',
+              provider: 'Coursera',
+              url: 'https://u',
+              is_internal: false,
+              language: 'vi',
+              duration_minutes: 1800,
+              difficulty: 'INTERMEDIATE',
+              is_free: true,
+              skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+              outcome_type: 'understand',
+              proof_of_completion: 'cert',
+              match_score: 95,
+              match_breakdown: {
+                quality_pts: 28,
+                language_pts: 20,
+                free_pts: 15,
+                level_fit_pts: 20,
+                multi_skill_pts: 12,
+              },
+              quality_score: 92,
+              freshness_score: 100,
+              low_confidence: false,
+            },
+          ],
+        },
+      ],
+      uncovered_skills: [],
+    });
+
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react', { required_level: 3, cv_level: 2 })],
+      budget: { available_days: 14, hours_per_week: 10 },
+    });
+
+    expect(out.steps).toEqual([]);
+    expect(out.not_feasible_items).toEqual([
+      {
+        skill_canonical: 'react',
+        display_name: 'react',
+        reason: 'ran_out_of_budget',
+        fallback: 'crash_prep',
+      },
+    ]);
   });
 });

@@ -11,6 +11,12 @@ export class RoadmapFromMatchDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(365)
+  available_days?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   @Max(80)
   hours_per_week?: number;
 

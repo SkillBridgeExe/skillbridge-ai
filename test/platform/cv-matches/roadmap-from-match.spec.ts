@@ -1,8 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
-import { CvMatchesService } from '../../../src/platform/cv-matches/cv-matches.service';
 import { GapItem } from '../../../src/modules/gap-engine/gap-item';
 import { SkillBridgeGapReport } from '../../../src/modules/gap-report/gap-report.service';
-import { RoadmapGenerateRequestDto } from '../../../src/modules/roadmap/dto/roadmap-request.dto';
+import { CvMatchesService } from '../../../src/platform/cv-matches/cv-matches.service';
 
 const gap = (over: Partial<GapItem>): GapItem =>
   ({
@@ -31,26 +30,16 @@ const report = (over: Partial<SkillBridgeGapReport>): SkillBridgeGapReport =>
   ({ target_role: 'backend_developer', gap_items: [], ...over }) as SkillBridgeGapReport;
 
 function build() {
-  const roadmap = {
-    generate: jest.fn().mockResolvedValue({
-      ai_request_id: 'r1',
-      retrieval_log_id: null,
-      retrieved_chunks_count: 0,
-      token_usage: 100,
-      parsed_response: {
-        title: 'Lộ trình',
-        total_weeks: 4,
-        phases: [],
-        steps: [],
-        ai_summary: '',
-        ai_advice: '',
-        uncovered_skills: [],
-        skills_without_courses: [],
-      },
+  const roadmap = { generate: jest.fn() };
+  const composer = {
+    compose: jest.fn().mockReturnValue({
+      budget_hours: 34.3,
+      steps: [],
+      not_feasible_items: [],
+      ai_summary: 'deterministic',
     }),
   };
-  // getGapReport is spied per-test, so the load/ownership deps stay unmocked ({} as never).
-  const service = new CvMatchesService(
+  const service = new (CvMatchesService as any)(
     {} as never,
     {} as never,
     {} as never,
@@ -63,13 +52,15 @@ function build() {
     {} as never,
     {} as never,
     roadmap as never,
+    {} as never,
+    composer as never,
   );
-  return { service, roadmap };
+  return { service: service as CvMatchesService, roadmap, composer };
 }
 
-describe('CvMatchesService.generateRoadmapFromMatch — server-derived gaps (learn-only)', () => {
-  it('derives learn gaps from the GapReport and calls roadmap.generate (NO client-supplied skills)', async () => {
-    const { service, roadmap } = build();
+describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flow', () => {
+  it('builds unified learn items from the GapReport and calls deterministic composer', async () => {
+    const { service, roadmap, composer } = build();
     jest.spyOn(service, 'getGapReport').mockResolvedValue(
       report({
         target_role: 'backend_developer',
@@ -87,43 +78,49 @@ describe('CvMatchesService.generateRoadmapFromMatch — server-derived gaps (lea
             fixability: 'learn',
             required_level: 3,
           }),
-          gap({ canonical_name: 'docker', fixability: 'rewrite' }), // CV-tailoring, not learning → dropped
+          gap({ canonical_name: 'docker', fixability: 'rewrite' }),
         ],
       }),
     );
 
-    const out = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
+    const out = (await service.generateRoadmapFromMatch('user-1', 'match-1', {
+      available_days: 30,
+      hours_per_week: 8,
+    } as any)) as any;
 
     expect(service.getGapReport).toHaveBeenCalledWith('user-1', 'match-1');
-    expect(roadmap.generate).toHaveBeenCalledTimes(1);
-    const [uid, input] = roadmap.generate.mock.calls[0] as [string, RoadmapGenerateRequestDto];
-    expect(uid).toBe('user-1');
-    expect(input.target_role).toBe('backend_developer');
-    expect(input.prompt_template_code).toBe('roadmap_v1');
-    expect(input.hours_per_week).toBe(8); // product default
-    expect(input.missing_skills.map((s) => s.skill_canonical_name)).toEqual(['react']);
-    expect(input.partial_skills?.map((s) => s.skill_canonical_name)).toEqual(['sql']);
-    expect(out.parsed_response.title).toBe('Lộ trình');
+    expect(roadmap.generate).not.toHaveBeenCalled();
+    expect(composer.compose).toHaveBeenCalledTimes(1);
+    expect(composer.compose.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        gapItems: expect.any(Array),
+        budget: { available_days: 30, hours_per_week: 8 },
+      }),
+    );
+    expect(
+      composer.compose.mock.calls[0][0].learnItems.map((item: any) => item.skill_canonical),
+    ).toEqual(['react', 'sql']);
+    expect(out.ai_summary).toBe('deterministic');
   });
 
-  it('honest empty-state when there are no LEARNING gaps (no LLM call, no_learning_gaps=true)', async () => {
-    const { service, roadmap } = build();
+  it('honest empty-state when there are no learning gaps', async () => {
+    const { service, roadmap, composer } = build();
     jest.spyOn(service, 'getGapReport').mockResolvedValue(
       report({
         gap_items: [gap({ fixability: 'rewrite' }), gap({ fixability: 'add_evidence' })],
       }),
     );
 
-    const out = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
+    const out = (await service.generateRoadmapFromMatch('user-1', 'match-1', {})) as any;
 
     expect(roadmap.generate).not.toHaveBeenCalled();
-    expect(out.parsed_response.no_learning_gaps).toBe(true);
-    expect(out.parsed_response.steps).toEqual([]);
-    expect(out.ai_request_id).toBe('');
+    expect(composer.compose).not.toHaveBeenCalled();
+    expect(out.no_learning_gaps).toBe(true);
+    expect(out.steps).toEqual([]);
   });
 
-  it('passes through caller overrides (hours_per_week, prompt_template_code, user_profile)', async () => {
-    const { service, roadmap } = build();
+  it('passes budget overrides to composer', async () => {
+    const { service, composer } = build();
     jest.spyOn(service, 'getGapReport').mockResolvedValue(
       report({
         gap_items: [gap({ canonical_name: 'react', fixability: 'learn', required_level: 4 })],
@@ -131,24 +128,24 @@ describe('CvMatchesService.generateRoadmapFromMatch — server-derived gaps (lea
     );
 
     await service.generateRoadmapFromMatch('user-1', 'match-1', {
+      available_days: 10,
       hours_per_week: 20,
-      prompt_template_code: 'roadmap_v2',
-      user_profile: { goal: 'switch' },
-    });
+    } as any);
 
-    const input = roadmap.generate.mock.calls[0][1] as RoadmapGenerateRequestDto;
-    expect(input.hours_per_week).toBe(20);
-    expect(input.prompt_template_code).toBe('roadmap_v2');
-    expect(input.user_profile).toEqual({ goal: 'switch' });
+    expect(composer.compose.mock.calls[0][0].budget).toEqual({
+      available_days: 10,
+      hours_per_week: 20,
+    });
   });
 
-  it('propagates ownership/not-found rejection from getGapReport (no roadmap call)', async () => {
-    const { service, roadmap } = build();
+  it('propagates ownership/not-found rejection from getGapReport', async () => {
+    const { service, roadmap, composer } = build();
     jest.spyOn(service, 'getGapReport').mockRejectedValue(new NotFoundException());
 
     await expect(service.generateRoadmapFromMatch('user-1', 'nope', {})).rejects.toBeInstanceOf(
       NotFoundException,
     );
     expect(roadmap.generate).not.toHaveBeenCalled();
+    expect(composer.compose).not.toHaveBeenCalled();
   });
 });

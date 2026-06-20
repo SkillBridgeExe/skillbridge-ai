@@ -1,5 +1,6 @@
 import type { GapItem } from '../gap-engine/gap-item';
 import type { UnifiedDevelopmentPlanItem } from '../gap-report/unified-plan';
+import type { ScoredCourse } from './course-matcher.service';
 import type { FeasibilityGapInput, FeasibilityStrategy } from './feasibility-planner';
 import type { ScoredResource } from './learning-resource';
 
@@ -53,13 +54,16 @@ export interface ComposedRoadmapStep {
       | 'title'
       | 'url'
       | 'is_internal'
+      | 'duration_minutes'
       | 'outcome_type'
       | 'proof_of_completion'
       | 'match_score'
       | 'quality_score'
       | 'freshness_score'
+      | 'low_confidence'
     >
   >;
+  recommended_courses?: ScoredCourse[];
 }
 
 export interface NotFeasibleItem {
@@ -74,4 +78,5 @@ export interface ComposedRoadmap {
   steps: ComposedRoadmapStep[];
   not_feasible_items: NotFeasibleItem[];
   ai_summary: string;
+  no_learning_gaps?: boolean;
 }

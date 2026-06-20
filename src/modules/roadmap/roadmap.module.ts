@@ -18,6 +18,7 @@ import { RagModule } from '../rag/rag.module';
     LearningResourceRetriever,
   ],
   // LearningResourceRetriever is exported so the RAG-PR2 learning-chat module can consume it.
-  exports: [RoadmapService, LearningResourceRetriever],
+  // RoadmapComposerService is exported for platform adapters that compose deterministic roadmaps.
+  exports: [RoadmapService, RoadmapComposerService, LearningResourceRetriever],
 })
 export class RoadmapModule {}
