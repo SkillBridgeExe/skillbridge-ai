@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CatalogCourse } from './course-matcher.service';
 import {
+  LanguagePref,
   LearningResource,
   LearningResourceMatchResult,
   ResourceMatchRequest,
@@ -54,7 +55,7 @@ export class LearningResourceMatcherService implements OnModuleInit {
 
   matchResources(
     requests: ResourceMatchRequest[],
-    opts?: { sourceTypes?: ResourceSourceType[] },
+    opts?: { sourceTypes?: ResourceSourceType[]; langPref?: LanguagePref },
   ): LearningResourceMatchResult {
     return matchResources(this.catalog, requests, opts);
   }

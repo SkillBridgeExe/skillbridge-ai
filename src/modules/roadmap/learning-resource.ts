@@ -16,6 +16,8 @@ export type OutcomeType =
   | 'interview_answer'
   | 'cv_improvement';
 export type ResourceDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+/** The learner's preferred resource language. 'both' = neutral (no language boost). */
+export type LanguagePref = 'vi' | 'en' | 'both';
 export type WeaknessAddress =
   | 'knowledge'
   | 'evidence'
@@ -126,9 +128,14 @@ export function scoreResource(
   teachesLevel: number,
   req: ResourceMatchRequest,
   requestedSet: Set<string>,
+  langPref: LanguagePref = 'both',
 ): ScoredResource {
   const quality_pts = (resource.quality_score / 100) * 30;
-  const language_pts = resource.language === 'vi' ? 20 : 0;
+  // Language fit is a PREFERENCE boost, never a filter (never-starve): the user's chosen language gets +20;
+  // 'both' is neutral so quality/level decide. Default 'both' — NO baked global VN bias (the platform resolves
+  // the user's locale → pref and passes it; un-set callers stay neutral). The course wrapper passes 'vi' for
+  // exact legacy parity.
+  const language_pts = langPref !== 'both' && resource.language === langPref ? 20 : 0;
   const free_pts = resource.is_free ? 15 : 0;
   const level_fit_pts = teachesLevel >= req.required_level ? 20 : 10;
   const overlap = resource.skills.filter((s) => requestedSet.has(s.skill_canonical_name)).length;
@@ -157,9 +164,10 @@ export function scoreResource(
 export function matchResources(
   catalog: LearningResource[],
   requests: ResourceMatchRequest[],
-  opts?: { sourceTypes?: ResourceSourceType[] },
+  opts?: { sourceTypes?: ResourceSourceType[]; langPref?: LanguagePref },
 ): LearningResourceMatchResult {
   const allowed = opts?.sourceTypes ? new Set(opts.sourceTypes) : null;
+  const langPref: LanguagePref = opts?.langPref ?? 'both';
   const index = new Map<string, Array<{ resource: LearningResource; teaches_level: number }>>();
   for (const r of catalog) {
     if (allowed && !allowed.has(r.source_type)) continue;
@@ -187,7 +195,9 @@ export function matchResources(
       });
       continue;
     }
-    const scored = usable.map((c) => scoreResource(c.resource, c.teaches_level, req, requestedSet));
+    const scored = usable.map((c) =>
+      scoreResource(c.resource, c.teaches_level, req, requestedSet, langPref),
+    );
     scored.sort((a, b) => b.match_score - a.match_score);
     per_skill.push({
       skill_canonical_name: req.skill_canonical_name,

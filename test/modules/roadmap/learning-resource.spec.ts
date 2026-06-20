@@ -72,7 +72,7 @@ describe('mergeResourceCatalogs', () => {
 describe('matchResources', () => {
   const reqs = [{ skill_canonical_name: 'react', required_level: 3 }];
 
-  it('scores a verified course: quality/100*30 + vi + free + level_fit + multi', () => {
+  it('scores a verified course (langPref vi): quality/100*30 + vi + free + level_fit + multi', () => {
     const catalog = [
       res({
         id: 'a',
@@ -82,7 +82,7 @@ describe('matchResources', () => {
         skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
       }),
     ];
-    const out = matchResources(catalog, reqs);
+    const out = matchResources(catalog, reqs, { langPref: 'vi' });
     // 27.6(quality) + 20(vi) + 15(free) + 20(level>=) + 15(multi: 1/1) = 97.6 → 98
     expect(out.per_skill[0].resources[0].match_score).toBe(98);
     expect(out.per_skill[0].resources[0].low_confidence).toBe(false);
@@ -139,6 +139,40 @@ describe('matchResources', () => {
     ];
     const out = matchResources(catalog, reqs, { sourceTypes: ['course'] });
     expect(out.per_skill[0].resources.map((r) => r.id)).toEqual(['course']);
+  });
+});
+
+describe('matchResources — language preference (langPref)', () => {
+  const reqs = [{ skill_canonical_name: 'react', required_level: 3 }];
+  const skill = [{ skill_canonical_name: 'react', teaches_level: 3 }];
+  const vi = res({ id: 'vi', language: 'vi', skills: skill });
+  const en = res({ id: 'en', language: 'en', skills: skill });
+  const langPts = (out: ReturnType<typeof matchResources>) =>
+    out.per_skill[0].resources[0].match_breakdown.language_pts;
+
+  it('default langPref is NEUTRAL (both) — a Vietnamese resource gets NO language boost', () => {
+    expect(langPts(matchResources([vi], reqs))).toBe(0); // no global VN bias anymore
+  });
+
+  it("langPref 'vi' boosts Vietnamese (+20), not English", () => {
+    expect(langPts(matchResources([vi], reqs, { langPref: 'vi' }))).toBe(20);
+    expect(langPts(matchResources([en], reqs, { langPref: 'vi' }))).toBe(0);
+  });
+
+  it("langPref 'en' boosts English (+20), not Vietnamese", () => {
+    expect(langPts(matchResources([en], reqs, { langPref: 'en' }))).toBe(20);
+    expect(langPts(matchResources([vi], reqs, { langPref: 'en' }))).toBe(0);
+  });
+
+  it("langPref 'both' gives neither a boost", () => {
+    expect(langPts(matchResources([vi], reqs, { langPref: 'both' }))).toBe(0);
+    expect(langPts(matchResources([en], reqs, { langPref: 'both' }))).toBe(0);
+  });
+
+  it('NEVER starves: an EN-preferring user still gets a VN-only resource (boost-only, not a filter)', () => {
+    const out = matchResources([vi], reqs, { langPref: 'en' });
+    expect(out.per_skill[0].resources.map((r) => r.id)).toEqual(['vi']);
+    expect(out.uncovered_skills).toEqual([]);
   });
 });
 
