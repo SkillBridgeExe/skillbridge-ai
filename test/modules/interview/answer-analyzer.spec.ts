@@ -55,10 +55,14 @@ describe('analyzeAnswerSignals — filler (language-aware)', () => {
     expect(out.filler.terms).toEqual(expect.arrayContaining(['um', 'like', 'you know']));
   });
 
-  it('VI: counts ờ, kiểu, đại loại', () => {
+  it('VI: counts ờ, kiểu như, đại loại là (multi-word disfluencies, no double-count)', () => {
     const out = analyzeAnswerSignals(vi('Ờ, tôi kiểu như làm cái này, đại loại là vậy.'));
-    expect(out.filler.count).toBeGreaterThanOrEqual(3);
-    expect(out.filler.terms).toEqual(expect.arrayContaining(['ờ', 'đại loại']));
+    // ờ(1) + "kiểu như"(1) + "đại loại là"(1) = 3. The longer phrases claim their spans, so bare
+    // "kiểu"/"đại loại" are NOT double-counted on top of them.
+    expect(out.filler.count).toBe(3);
+    expect(out.filler.terms).toEqual(expect.arrayContaining(['ờ', 'kiểu như', 'đại loại là']));
+    // bare "kiểu" is no longer a filler entry at all
+    expect(out.filler.terms).not.toContain('kiểu');
   });
 
   it('is case-insensitive and word-boundary aware (no substring false hit)', () => {
@@ -216,6 +220,147 @@ describe('analyzeAnswerSignals — has_concrete_example (review-locked)', () => 
       analyzeAnswerSignals(en('I built a React dashboard that cut load time by 2 seconds.'))
         .has_concrete_example,
     ).toBe(true);
+  });
+});
+
+describe('analyzeAnswerSignals — has_concrete_example hardening (regression)', () => {
+  // rule (a): a bare number out of context is NOT concrete
+  it('age/tenure is NOT concrete ("25 years old")', () => {
+    expect(analyzeAnswerSignals(en('I am 25 years old.')).has_concrete_example).toBe(false);
+  });
+  it('tenure is NOT concrete ("coding for 5 years")', () => {
+    expect(analyzeAnswerSignals(en('I have been coding for 5 years.')).has_concrete_example).toBe(
+      false,
+    );
+  });
+  it('team size is NOT concrete ("team of 4 people")', () => {
+    expect(analyzeAnswerSignals(en('We are a team of 4 people.')).has_concrete_example).toBe(false);
+  });
+  it('a bare year is NOT concrete ("in 2021")', () => {
+    expect(analyzeAnswerSignals(en('I worked on this project in 2021.')).has_concrete_example).toBe(
+      false,
+    );
+  });
+  it('a self-rating is NOT concrete ("8 out of 10")', () => {
+    expect(analyzeAnswerSignals(en('I rate myself 8 out of 10.')).has_concrete_example).toBe(false);
+  });
+  it('version numbers are NOT concrete ("Python 3 and Java 8")', () => {
+    expect(analyzeAnswerSignals(en('I used Python 3 and Java 8.')).has_concrete_example).toBe(
+      false,
+    );
+  });
+  it('a phone number is NOT concrete', () => {
+    expect(analyzeAnswerSignals(en('My phone is 0901234567.')).has_concrete_example).toBe(false);
+  });
+
+  // rule (a): a number IN context IS concrete
+  it('a number with a metric unit is concrete ("by 200ms")', () => {
+    expect(
+      analyzeAnswerSignals(en('I built a Redis cache that cut p99 by 200ms.')).has_concrete_example,
+    ).toBe(true);
+  });
+  it('a number adjacent to a metric noun is concrete ("10000 users")', () => {
+    expect(analyzeAnswerSignals(en('We shipped to 10000 users.')).has_concrete_example).toBe(true);
+  });
+
+  // rule (b): a quantified-result cue is concrete WITHOUT a digit
+  it('a spelled-out magnitude is concrete ("doubled the users")', () => {
+    expect(
+      analyzeAnswerSignals(en('We doubled the number of active users.')).has_concrete_example,
+    ).toBe(true);
+  });
+  it('"reduced … by half" is concrete without a digit', () => {
+    expect(analyzeAnswerSignals(en('I reduced our error rate by half.')).has_concrete_example).toBe(
+      true,
+    );
+  });
+  it('VI quantified cue without a digit is concrete ("giảm thời gian")', () => {
+    expect(
+      analyzeAnswerSignals(vi('Tôi tối ưu truy vấn và giảm thời gian phản hồi đáng kể.'))
+        .has_concrete_example,
+    ).toBe(true);
+  });
+
+  // rule (c): off-allowlist tech via action cue + proper-noun token
+  it('action cue + off-allowlist proper-noun tech is concrete (Svelte)', () => {
+    expect(
+      analyzeAnswerSignals(en('I built a service with Svelte for the dashboard.'))
+        .has_concrete_example,
+    ).toBe(true);
+  });
+  it('action cue + off-allowlist proper-noun tech is concrete (Cassandra)', () => {
+    expect(
+      analyzeAnswerSignals(en('I designed the storage layer on Cassandra for scale.'))
+        .has_concrete_example,
+    ).toBe(true);
+  });
+  it('action cue + a jd_term hit is concrete even off the NAMED_TECH allowlist', () => {
+    expect(
+      analyzeAnswerSignals(
+        en('I developed the realtime layer for the feed.', {
+          jd_terms: ['realtime'],
+        }),
+      ).has_concrete_example,
+    ).toBe(true);
+  });
+  it('a tech name ALONE (no action cue) is still NOT concrete', () => {
+    expect(analyzeAnswerSignals(en('I really like Svelte and Elixir.')).has_concrete_example).toBe(
+      false,
+    );
+  });
+});
+
+describe('analyzeAnswerSignals — jd_term_hits whole-word (regression)', () => {
+  it('jd "Java" does NOT match inside "JavaScript"', () => {
+    const out = analyzeAnswerSignals(
+      en('I wrote everything in JavaScript for the frontend.', { jd_terms: ['Java'] }),
+    );
+    expect(out.jd_term_hits.hit).toEqual([]);
+    expect(out.jd_term_hits.missed).toEqual(['Java']);
+    expect(out.jd_term_hits.coverage).toBe(0);
+  });
+  it('jd "Java" DOES match when present as a whole word', () => {
+    const out = analyzeAnswerSignals(
+      en('I built backend services in Java and Spring.', { jd_terms: ['Java'] }),
+    );
+    expect(out.jd_term_hits.hit).toEqual(['Java']);
+  });
+  it('jd "Go" does NOT match inside "golang" but matches standalone Go', () => {
+    const missed = analyzeAnswerSignals(en('We use golang internally.', { jd_terms: ['Go'] }));
+    expect(missed.jd_term_hits.hit).toEqual([]);
+    const hit = analyzeAnswerSignals(en('I rewrote the worker in Go.', { jd_terms: ['Go'] }));
+    expect(hit.jd_term_hits.hit).toEqual(['Go']);
+  });
+  it('dotted jd term Node.js still matches as a whole word', () => {
+    const out = analyzeAnswerSignals(
+      en('I worked with React and Node.js to build the service.', { jd_terms: ['Node.js'] }),
+    );
+    expect(out.jd_term_hits.hit).toEqual(['Node.js']);
+  });
+});
+
+describe('analyzeAnswerSignals — VI "kiểu" filler (regression)', () => {
+  it('technical "kiểu dữ liệu" (data type) is NOT counted as filler', () => {
+    const out = analyzeAnswerSignals(
+      vi('Tôi định nghĩa một kiểu dữ liệu mới. Kiểu này gồm nhiều trường khác nhau.'),
+    );
+    expect(out.filler.count).toBe(0);
+    expect(out.filler.terms).not.toContain('kiểu');
+  });
+  it('technical "kiểu kiến trúc" (architecture style) is NOT counted as filler', () => {
+    const out = analyzeAnswerSignals(
+      vi('Chúng tôi dùng một kiểu kiến trúc microservice. Kiểu thiết kế này khác kiểu monolith.'),
+    );
+    expect(out.filler.count).toBe(0);
+  });
+  it('one genuine "kiểu như" filler counts ONCE (no kiểu double-count)', () => {
+    const out = analyzeAnswerSignals(vi('Nó hoạt động kiểu như là một hàng đợi vậy.'));
+    expect(out.filler.count).toBe(1);
+    expect(out.filler.terms).toEqual(['kiểu như']);
+  });
+  it('"à" does not false-match inside và/đã (boundary guard holds)', () => {
+    const out = analyzeAnswerSignals(vi('Tôi xây dựng API và tối ưu database và cache.'));
+    expect(out.filler.count).toBe(0);
   });
 });
 

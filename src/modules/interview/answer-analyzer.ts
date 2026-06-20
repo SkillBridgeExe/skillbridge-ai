@@ -58,9 +58,12 @@ interface LangTable {
     action: string[];
     result: string[];
   };
-  /** cues that, together with a named tech, signal an action/project (concrete-example heuristic) */
+  /** cues that, together with a tech signal, signal an action/project (concrete-example heuristic) */
   actionProjectCues: string[];
-  /** cues for a quantified result (paired with a number to make a concrete example) */
+  /**
+   * magnitude/quantified-result cues — words that encode a concrete change WITHOUT needing a digit
+   * ("doubled", "reduced by half", "giảm"). Their presence ALONE satisfies concreteness (rule b).
+   */
   quantifiedResultCues: string[];
 }
 
@@ -174,11 +177,30 @@ const LANG_TABLES: Record<Language, LangTable> = {
       'grew',
       'doubled',
       'tripled',
+      'quadrupled',
+      'halved',
       'decreased',
+      'boosted',
+      'slashed',
+      'by half',
     ],
   },
   vi: {
-    filler: ['ờ', 'à', 'ừm', 'kiểu như', 'kiểu', 'đại loại', 'nói chung', 'thì là'],
+    // Bare common headwords are NEVER filler entries. `kiểu` is the headword for "type/kind/style"
+    // (kiểu dữ liệu = data type, kiểu kiến trúc = architecture style) so it must NOT be listed alone
+    // — only the multi-word disfluency `kiểu như` (and similar phrases) counts.
+    filler: [
+      'ờ',
+      'à',
+      'ừm',
+      'kiểu như',
+      'kiểu kiểu',
+      'đại loại là',
+      'đại loại',
+      'nói chung là',
+      'nói chung',
+      'thì là',
+    ],
     hedging: ['chắc là', 'hình như', 'không chắc', 'có lẽ', 'đại khái'],
     stopwords: new Set([
       'tôi',
@@ -239,7 +261,15 @@ const LANG_TABLES: Record<Language, LangTable> = {
       'tối ưu',
       'chuyển',
     ],
-    quantifiedResultCues: ['giảm', 'tăng', 'cải thiện', 'tiết kiệm', 'rút ngắn', 'gấp đôi'],
+    quantifiedResultCues: [
+      'giảm',
+      'tăng',
+      'cải thiện',
+      'tiết kiệm',
+      'rút ngắn',
+      'gấp đôi',
+      'gấp ba',
+    ],
   },
 };
 
@@ -286,6 +316,60 @@ const NAMED_TECH = [
   'tensorflow',
   'pytorch',
 ];
+
+/**
+ * Concrete-example number heuristics (rule a) — a number is only EVIDENCE when it sits next to a
+ * unit/metric, never just because a digit appears. A bare year, an age/tenure ("5 years"), a
+ * team-size ("team of 4"), a version ("Python 3"), or a phone number must NOT alone satisfy
+ * concreteness. Language-agnostic. The quantified-result words (rule b) live in each language's
+ * LangTable.quantifiedResultCues so they stay architect-tunable.
+ */
+// a digit with a directly-attached unit suffix: 30%, 200ms, 2x, 10k, 1.5gb …
+const UNIT_SUFFIX_RE = /\b\d+(?:\.\d+)?\s?(?:%|ms|s|x|k|m|gb|mb|kb|tb|fps|qps|rps|kloc)\b/u;
+// metric / deliverable nouns that make an ADJACENT number meaningful.
+const METRIC_NOUN =
+  '(?:users?|customers?|requests?|reqs?|latency|throughput|errors?|downtime|uptime|revenue|' +
+  'conversions?|engagement|coverage|tests?|bugs?|defects?|deploys?|deployments?|releases?|' +
+  'features?|components?|services?|endpoints?|apis?|microservices?|pages?|screens?|tables?|' +
+  'queries|jobs?|pipelines?|models?|seconds?|minutes?|hours?|days?|weeks?|months?|millis|' +
+  'milliseconds?|percent|p\\d{2,3})';
+// up to ~3 filler tokens may sit between the number and the metric noun ("by 2 active users").
+const NUM_NOUN_WINDOW = '(?:[\\p{L}\\p{N}.]+\\s+){0,3}';
+const NUM_THEN_NOUN_RE = new RegExp(
+  `\\b\\d+(?:\\.\\d+)?\\s+${NUM_NOUN_WINDOW}${METRIC_NOUN}\\b`,
+  'u',
+);
+const NOUN_THEN_NUM_RE = new RegExp(
+  `\\b${METRIC_NOUN}\\s+${NUM_NOUN_WINDOW}\\d+(?:\\.\\d+)?\\b`,
+  'u',
+);
+/** common capitalized words that are NOT proper-noun tech signals. */
+const COMMON_CAPS = new Set([
+  'I',
+  'A',
+  'The',
+  'We',
+  'My',
+  'It',
+  'They',
+  'He',
+  'She',
+  'You',
+  'And',
+  'But',
+  'So',
+  'As',
+  'In',
+  'On',
+  'At',
+  'For',
+  'To',
+  'Of',
+  'Then',
+  'When',
+  'This',
+  'That',
+]);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -366,7 +450,7 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
   const star = computeStar(norm, table.star);
 
   // --- has_concrete_example (review-locked rule) ---
-  const has_concrete_example = computeConcreteExample(answer, norm, table);
+  const has_concrete_example = computeConcreteExample(answer, norm, table, jd_term_hits.hit);
 
   // --- flags (ONLY from conciseness + concrete + jd coverage) ---
   const is_too_short = conciseness === 'too_short';
@@ -388,18 +472,49 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
   };
 }
 
-/** collect matched terms (deduped, in table order) + total occurrence count. */
-function collectMatches(lower: string, terms: string[]): { count: number; terms: string[] } {
-  const matched: string[] = [];
-  let count = 0;
-  for (const term of terms) {
-    const n = countPhrase(lower, term);
-    if (n > 0) {
-      matched.push(term);
-      count += n;
-    }
+/** whole-word/phrase match spans (start/end index into `text`) for `phrase`, case-insensitive. */
+function matchSpans(text: string, phrase: string): Array<{ start: number; end: number }> {
+  const p = escapeRegExp(phrase.toLowerCase());
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${p}(?![\\p{L}\\p{N}])`, 'giu');
+  const spans: Array<{ start: number; end: number }> = [];
+  const lower = text.toLowerCase();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(lower)) !== null) {
+    spans.push({ start: m.index, end: m.index + m[0].length });
+    if (m.index === re.lastIndex) re.lastIndex++; // guard against zero-width
   }
-  return { count, terms: matched };
+  return spans;
+}
+
+/**
+ * collect matched terms (deduped, in table order) + total occurrence count.
+ * Longer phrases are counted FIRST and their spans are claimed, so a shorter sub-phrase contained
+ * inside an already-counted longer one is not double-counted (one genuine "kiểu như" no longer
+ * counts as both "kiểu như" and "kiểu"; "đại loại là" no longer also counts "đại loại").
+ */
+function collectMatches(lower: string, terms: string[]): { count: number; terms: string[] } {
+  const order = new Map(terms.map((t, i) => [t, i]));
+  const byLengthDesc = [...terms].sort((a, b) => b.length - a.length || a.localeCompare(b));
+  const claimed: Array<{ start: number; end: number }> = [];
+  const overlaps = (s: { start: number; end: number }): boolean =>
+    claimed.some((c) => s.start < c.end && c.start < s.end);
+
+  const hits: Array<{ term: string; count: number }> = [];
+  for (const term of byLengthDesc) {
+    let count = 0;
+    for (const span of matchSpans(lower, term)) {
+      if (overlaps(span)) continue;
+      claimed.push(span);
+      count += 1;
+    }
+    if (count > 0) hits.push({ term, count });
+  }
+
+  const total = hits.reduce((sum, h) => sum + h.count, 0);
+  const matchedTerms = hits
+    .map((h) => h.term)
+    .sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+  return { count: total, terms: matchedTerms };
 }
 
 function computeRepeatedTerms(
@@ -415,6 +530,11 @@ function computeRepeatedTerms(
     .sort((a, b) => b.count - a.count || a.term.localeCompare(b.term));
 }
 
+/** whole-word/phrase match of an already-normalized candidate against already-normalized text. */
+function normContainsWord(norm: string, candidate: string): boolean {
+  return countPhrase(norm, candidate) > 0;
+}
+
 function computeJdHits(
   norm: string,
   jd_terms: string[],
@@ -423,12 +543,13 @@ function computeJdHits(
   const hit: string[] = [];
   const missed: string[] = [];
   for (const term of jd_terms) {
-    // normalize the candidate phrases (the term itself + any aliases) and substring-match against norm.
-    // LIMITATION (PR1): matching is normalized exact-phrase / substring only. Without an alias entry,
-    // "TS" will NOT match "TypeScript" (they are different normalized strings). The optional aliases
-    // map closes this gap explicitly per JD term.
+    // normalize the candidate phrases (the term itself + any aliases) and WHOLE-WORD match against
+    // norm. Whole-word (not bare substring) so "Java" does NOT match inside "JavaScript" and "Go"
+    // does NOT match inside "golang" — see countPhrase's unicode word boundaries.
+    // LIMITATION (PR1): without an alias entry, "TS" still won't match "TypeScript" (different
+    // normalized strings). The optional aliases map closes that gap explicitly per JD term.
     const candidates = [term, ...(aliases[term] ?? [])].map((c) => normalize(c)).filter(Boolean);
-    const matched = candidates.some((c) => norm.includes(c));
+    const matched = candidates.some((c) => normContainsWord(norm, c));
     if (matched) hit.push(term);
     else missed.push(term);
   }
@@ -446,21 +567,59 @@ function computeStar(norm: string, cues: LangTable['star']): AnswerSignals['star
 }
 
 /**
- * has_concrete_example (review-locked): true if the answer has
- *   (a) digits or a percent, OR
- *   (b) a quantified-result cue PAIRED WITH a number, OR
- *   (c) an action/project cue AND a named tech.
- * A NAMED TECH ALONE is NOT enough ("Tôi dùng React" / "I used Docker" → false).
+ * has_concrete_example (review-locked, hardened): true if the answer has
+ *   (a) a number IN A MEANINGFUL CONTEXT — a unit suffix (30%, 200ms) or a number adjacent to a
+ *       metric/deliverable noun (10000 users, 3 features). A BARE number alone (year, age/tenure,
+ *       team size, version, phone) does NOT qualify, OR
+ *   (b) a quantified-result cue ("doubled", "reduced … by half", "giảm") — magnitude WITHOUT a
+ *       digit is still concrete, OR
+ *   (c) an action/project cue AND a tech signal — a known NAMED_TECH, a jd_term hit, OR a
+ *       capitalized proper-noun-looking token (so off-allowlist stacks like Svelte/Elixir/Cassandra
+ *       are not false-negatives; NAMED_TECH is a small hardcoded list and always lags the ecosystem).
+ * A TECH NAME ALONE is still NOT enough ("Tôi dùng React" / "I used Docker" → false): rule (c) needs
+ * a building/shipping action cue, and "dùng"/"used" are deliberately absent from actionProjectCues.
  */
-function computeConcreteExample(answer: string, norm: string, table: LangTable): boolean {
-  const hasDigitOrPercent = /[0-9]|%/.test(answer);
-  if (hasDigitOrPercent) return true;
+function computeConcreteExample(
+  answer: string,
+  norm: string,
+  table: LangTable,
+  jdHits: string[],
+): boolean {
+  // (a) number in a meaningful context (unit suffix OR adjacent metric/deliverable noun).
+  if (UNIT_SUFFIX_RE.test(norm) || NUM_THEN_NOUN_RE.test(norm) || NOUN_THEN_NUM_RE.test(norm)) {
+    return true;
+  }
 
-  // (b) is subsumed by (a): a quantified result is only "concrete" when accompanied by a number,
-  // and any number already triggers (a). Kept explicit for documentation; no extra branch needed.
+  // (b) a quantified-result cue (per-language, architect-tunable) encodes magnitude even without a
+  // digit ("doubled the users", "reduced by half", "giảm thời gian").
+  if (table.quantifiedResultCues.some((c) => hasPhrase(norm, c))) return true;
 
-  // (c) action/project cue AND a named tech.
+  // (c) action/project cue AND a tech signal.
   const hasActionCue = table.actionProjectCues.some((c) => hasPhrase(norm, c));
+  if (!hasActionCue) return false;
   const hasNamedTech = NAMED_TECH.some((t) => hasPhrase(norm, t));
-  return hasActionCue && hasNamedTech;
+  const hasJdHit = jdHits.length > 0;
+  return hasNamedTech || hasJdHit || hasProperNounToken(answer);
+}
+
+/**
+ * Does the original answer carry a capitalized, proper-noun-looking token NOT at sentence start?
+ * Used as a tech signal for rule (c) so off-allowlist names (Svelte, Elixir, Cassandra) qualify when
+ * paired with an action cue. Sentence-initial caps and common capitalized words (I, The, We …) are
+ * ignored to avoid false positives.
+ */
+function hasProperNounToken(answer: string): boolean {
+  const sentences = answer.split(/[.!?…\n]+/);
+  for (const s of sentences) {
+    const toks = s.trim().split(/\s+/).filter(Boolean);
+    for (let i = 1; i < toks.length; i++) {
+      const raw = toks[i].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (raw.length < 2 || COMMON_CAPS.has(raw)) continue;
+      const first = raw[0];
+      // first char must be an upper-case LETTER (has a distinct lower-case form).
+      if (first !== first.toUpperCase() || first === first.toLowerCase()) continue;
+      if (/^[A-Z][A-Za-z0-9.+#-]*$/.test(raw)) return true;
+    }
+  }
+  return false;
 }

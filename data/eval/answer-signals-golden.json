@@ -169,6 +169,110 @@
         "has_concrete_example": true,
         "star": { "situation": false, "task": false, "action": true, "result": true, "complete": false }
       }
+    },
+    {
+      "id": "concrete-bare-number-age-not-concrete",
+      "input": {
+        "answer": "I am 25 years old and I have been coding for 5 years on a team of 4 people, by the way.",
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": false,
+        "flags": { "is_too_short": false, "no_concrete_example": true, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "concrete-bare-year-and-version-not-concrete",
+      "input": {
+        "answer": "It happened in 2021 when I used Python 3 and Java 8 for that legacy maintenance work here.",
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": false
+      }
+    },
+    {
+      "id": "concrete-number-with-unit-is-concrete",
+      "input": {
+        "answer": "I built a caching layer that cut p99 by 200ms and brought it down under our budget.",
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": true
+      }
+    },
+    {
+      "id": "concrete-spelled-magnitude-no-digit",
+      "input": {
+        "answer": "We doubled the number of active users that quarter and steadily reduced our overall error rate by half across the whole platform that year without a single regression at all.",
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": true,
+        "flags": { "is_too_short": false, "no_concrete_example": false, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "concrete-vi-quantified-no-digit",
+      "input": {
+        "answer": "Tôi tối ưu lại truy vấn và nhờ đó giảm thời gian phản hồi cho người dùng một cách rõ rệt.",
+        "language": "vi"
+      },
+      "expect": {
+        "has_concrete_example": true
+      }
+    },
+    {
+      "id": "concrete-offlist-tech-via-action",
+      "input": {
+        "answer": "I built the messaging service with Elixir and designed the storage layer on Cassandra for scale.",
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": true
+      }
+    },
+    {
+      "id": "jd-whole-word-java-not-in-javascript",
+      "input": {
+        "answer": "I wrote everything in JavaScript on the frontend and styled it with plain CSS for the team.",
+        "jd_terms": ["Java", "JavaScript"],
+        "language": "en"
+      },
+      "expect": {
+        "jd_term_hits": { "hit": ["JavaScript"], "missed": ["Java"], "coverage": 0.5 }
+      }
+    },
+    {
+      "id": "jd-whole-word-go-not-in-golang",
+      "input": {
+        "answer": "Most of our services run on golang and we deploy them with Docker on every release.",
+        "jd_terms": ["Go", "Docker"],
+        "language": "en"
+      },
+      "expect": {
+        "jd_term_hits": { "hit": ["Docker"], "missed": ["Go"], "coverage": 0.5 }
+      }
+    },
+    {
+      "id": "vi-kieu-technical-not-filler",
+      "input": {
+        "answer": "Tôi định nghĩa một kiểu dữ liệu mới cho hệ thống. Kiểu này gồm nhiều trường và một kiểu trả về riêng cho mỗi hàm.",
+        "language": "vi"
+      },
+      "expect": {
+        "filler": { "count": 0, "terms": [] }
+      }
+    },
+    {
+      "id": "vi-kieu-nhu-counts-once",
+      "input": {
+        "answer": "Nó hoạt động kiểu như là một hàng đợi vậy, và mọi việc diễn ra theo thứ tự nhất định.",
+        "language": "vi"
+      },
+      "expect": {
+        "filler": { "count": 1, "terms": ["kiểu như"] }
+      }
     }
   ]
 }
