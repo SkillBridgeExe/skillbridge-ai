@@ -89,4 +89,12 @@ describe('routeValidation — safe-for-commerce auto-verify gate (tightens the c
       }),
     ).toBe('flagged');
   });
+
+  it('NEVER upgrades a core pending (e.g. soft-flag-capped) to verified, even at high quality + T1', () => {
+    expect(
+      routeValidation(curated({ validation_status: 'pending', quality_score: 90 }), {
+        providerTier: 'T1',
+      }),
+    ).toBe('pending');
+  });
 });

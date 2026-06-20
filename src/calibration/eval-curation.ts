@@ -53,6 +53,11 @@ function report(
 ): void {
   const passed = results.filter((r) => r.pass).length;
   const inBand = results.filter((r) => r.quality_in_band).length;
+  const n = results.length || 1;
+  const meanExact = results.reduce((s, r) => s + r.level_exact, 0) / n / 5;
+  const meanWithin1 = results.reduce((s, r) => s + r.level_within1, 0) / n / 5;
+  const meanPrec = results.reduce((s, r) => s + r.flag_precision, 0) / n;
+  const meanRec = results.reduce((s, r) => s + r.flag_recall, 0) / n;
 
   const byCat = new Map<string, { pass: number; total: number }>();
   for (const r of results) {
@@ -65,6 +70,10 @@ function report(
   // eslint-disable-next-line no-console
   console.log(
     `curation eval: ${passed}/${results.length} pass · quality-in-band ${inBand}/${results.length}`,
+  );
+  // eslint-disable-next-line no-console
+  console.log(
+    `calibration: CRAAP level exact ${(meanExact * 100).toFixed(0)}% · within-1 ${(meanWithin1 * 100).toFixed(0)}% · flag precision ${meanPrec.toFixed(2)} recall ${meanRec.toFixed(2)}`,
   );
   for (const [cat, e] of [...byCat.entries()].sort()) {
     // eslint-disable-next-line no-console
@@ -90,7 +99,7 @@ function report(
     for (const f of failed) {
       // eslint-disable-next-line no-console
       console.log(
-        `  ${f.id}: decision=${f.decision_match} no_raw_url=${f.no_raw_url} flags_subset=${f.flags_subset} in_band=${f.quality_in_band} (${f.expected}→${f.actual})`,
+        `  ${f.id}: decision=${f.decision_match} no_raw_url=${f.no_raw_url} in_band=${f.quality_in_band} levels=${f.level_exact}/5 (${f.expected}→${f.actual})`,
       );
     }
   }

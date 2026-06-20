@@ -88,10 +88,9 @@ export function routeValidation(
   curated: CuratedResource,
   signals: { providerTier: ProviderTier },
 ): ValidationStatus {
-  if (curated.validation_status === 'flagged' || curated.validation_status === 'dead_link') {
-    return curated.validation_status;
-  }
+  // The gate only TIGHTENS a core 'verified' → it NEVER upgrades a 'pending'/'flagged'/'dead_link' the core
+  // (or a content-safety downgrade like a soft flag / purpose floor) set on purpose.
+  if (curated.validation_status !== 'verified') return curated.validation_status;
   const trustedTier = signals.providerTier === 'T1' || signals.providerTier === 'T2';
-  if (curated.quality_score >= AUTO_VERIFY_BAND && trustedTier) return 'verified';
-  return 'pending';
+  return curated.quality_score >= AUTO_VERIFY_BAND && trustedTier ? 'verified' : 'pending';
 }

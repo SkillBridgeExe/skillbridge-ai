@@ -48,9 +48,28 @@ describe('scoreCurationCase', () => {
     expect(r.pass).toBe(false);
   });
 
-  it('flags_subset is false when an off-vocabulary flag leaks into the output', () => {
-    const r = scoreCurationCase(baseCase, out({ flags: ['BOGUS'] as never }));
-    expect(r.flags_subset).toBe(false);
+  it('scores per-dimension CRAAP level agreement (exact + within-1) — the calibration metric', () => {
+    // out({}) has craap all 1.0 → produced level 3; baseCase expects all 3 → full agreement
+    expect(scoreCurationCase(baseCase, out({})).level_exact).toBe(5);
+    // one dim off by one level (0.667 → produced 2 vs expected 3)
+    const r = scoreCurationCase(
+      baseCase,
+      out({ craap: { relevance: 0.667, authority: 1, currency: 1, accuracy: 1, purpose: 1 } }),
+    );
+    expect(r.level_exact).toBe(4);
+    expect(r.level_within1).toBe(5);
+  });
+
+  it('scores flag precision/recall against the gold flags', () => {
+    const c = { ...baseCase, expected_flags: ['promotional'] as never };
+    // produced has the right flag + an extra → recall 1, precision 0.5
+    const r = scoreCurationCase(c, out({ flags: ['promotional', 'outdated'] as never }));
+    expect(r.flag_recall).toBe(1);
+    expect(r.flag_precision).toBeCloseTo(0.5, 5);
+    // empty produced + empty gold → both 1
+    const empty = scoreCurationCase(baseCase, out({ flags: [] }));
+    expect(empty.flag_precision).toBe(1);
+    expect(empty.flag_recall).toBe(1);
   });
 });
 
