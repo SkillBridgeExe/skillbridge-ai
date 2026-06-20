@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LearningResourceMatcherService } from './learning-resource-matcher.service';
-import { ScoredResource } from './learning-resource';
+import { LanguagePref, ScoredResource } from './learning-resource';
 
 export type CourseDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
@@ -66,8 +66,11 @@ export interface CourseMatcherResult {
 export class CourseMatcherService {
   constructor(private readonly resources: LearningResourceMatcherService) {}
 
-  matchCourses(requests: CourseMatchRequest[]): CourseMatcherResult {
-    const result = this.resources.matchResources(requests, { sourceTypes: ['course'] });
+  // langPref defaults to 'vi' to preserve the EXACT legacy course contract (the pre-refactor formula boosted
+  // Vietnamese unconditionally). The platform passes the resolved user preference once wired; callers that
+  // omit it (e.g. the real-catalog parity oracle) keep byte-identical legacy scoring.
+  matchCourses(requests: CourseMatchRequest[], langPref: LanguagePref = 'vi'): CourseMatcherResult {
+    const result = this.resources.matchResources(requests, { sourceTypes: ['course'], langPref });
     return {
       per_skill: result.per_skill.map((ps) => ({
         skill_canonical_name: ps.skill_canonical_name,
