@@ -1,0 +1,174 @@
+{
+  "cases": [
+    {
+      "id": "strong-star-metrics",
+      "input": {
+        "answer": "When our checkout page was slow during peak traffic, I was responsible for the performance work. I implemented a Redis caching layer and added a database index on the orders table. As a result we reduced p99 latency by 30% and cut load time by 2 seconds for users.",
+        "jd_terms": ["Redis", "caching"],
+        "language": "en"
+      },
+      "expect": {
+        "conciseness": "ideal",
+        "star": { "situation": true, "task": true, "action": true, "result": true, "complete": true },
+        "has_concrete_example": true,
+        "jd_term_hits": { "hit": ["Redis", "caching"], "missed": [], "coverage": 1 },
+        "flags": { "is_too_short": false, "no_concrete_example": false, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "rambling-filler-heavy",
+      "input": {
+        "answer": "Um, you know, I kind of just, like, basically went through a lot of things and, you know, I mean, it was sort of a long journey and, um, actually, I think there were many parts to it, and like, you know, we tried a bunch of different stuff and, basically, it kind of worked out, sort of, I guess, you know, and, um, like, there was a whole lot going on at that time, actually, and, you know, I mean, it was, like, really quite a big thing overall, and, um, basically, you know, I kind of rambled here without really getting to any concrete point at all, and, like, you know, it just kept going on and on and on, sort of, and, um, actually, I think that is, basically, you know, more or less, kind of, the general gist of the whole situation, like, you know, if that makes any sense at all, um, basically, you know, like, I mean, sort of, kind of, that is roughly it I suppose, you know.",
+        "jd_terms": ["React", "Kubernetes"],
+        "language": "en"
+      },
+      "expect": {
+        "conciseness": "verbose",
+        "filler": {
+          "count": 44,
+          "terms": ["um", "like", "you know", "basically", "actually", "kind of", "sort of", "i mean"]
+        },
+        "has_concrete_example": false,
+        "flags": { "is_too_short": false, "no_concrete_example": true, "rambling_risk": true }
+      }
+    },
+    {
+      "id": "too-short-dodge",
+      "input": {
+        "answer": "I am not really sure about that one.",
+        "jd_terms": ["Docker"],
+        "language": "en"
+      },
+      "expect": {
+        "word_count": 8,
+        "conciseness": "too_short",
+        "has_concrete_example": false,
+        "flags": { "is_too_short": true, "no_concrete_example": true, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "jd-rich-coverage",
+      "input": {
+        "answer": "I built the service in TypeScript on Node.js, containerized it with Docker, and deployed to Kubernetes with a GraphQL API on top.",
+        "jd_terms": ["TypeScript", "Docker", "Kubernetes", "GraphQL"],
+        "language": "en"
+      },
+      "expect": {
+        "jd_term_hits": {
+          "hit": ["TypeScript", "Docker", "Kubernetes", "GraphQL"],
+          "missed": [],
+          "coverage": 1
+        },
+        "has_concrete_example": true
+      }
+    },
+    {
+      "id": "jd-miss-coverage",
+      "input": {
+        "answer": "I mostly wrote frontend code and styled components with plain CSS for the marketing pages without much else honestly.",
+        "jd_terms": ["Kubernetes", "Kafka", "Terraform"],
+        "language": "en"
+      },
+      "expect": {
+        "jd_term_hits": {
+          "hit": [],
+          "missed": ["Kubernetes", "Kafka", "Terraform"],
+          "coverage": 0
+        }
+      }
+    },
+    {
+      "id": "vi-strong-star",
+      "input": {
+        "answer": "Lúc đó hệ thống bị chậm vào giờ cao điểm. Nhiệm vụ của tôi là tối ưu hiệu năng. Tôi đã thêm cache Redis và tối ưu truy vấn. Kết quả là giảm 30% thời gian phản hồi cho người dùng.",
+        "jd_terms": ["Redis"],
+        "language": "vi"
+      },
+      "expect": {
+        "conciseness": "ideal",
+        "star": { "situation": true, "task": true, "action": true, "result": true, "complete": true },
+        "has_concrete_example": true,
+        "jd_term_hits": { "hit": ["Redis"], "missed": [], "coverage": 1 }
+      }
+    },
+    {
+      "id": "over-confident-no-evidence",
+      "input": {
+        "answer": "I am honestly the best engineer here and I always nail every single thing without any trouble at all. People simply trust whatever I say because I am just naturally talented at this kind of stuff.",
+        "jd_terms": ["Kafka"],
+        "language": "en"
+      },
+      "expect": {
+        "hedging": { "count": 0, "terms": [] },
+        "has_concrete_example": false,
+        "jd_term_hits": { "hit": [], "missed": ["Kafka"], "coverage": 0 },
+        "flags": { "is_too_short": false, "no_concrete_example": true, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "named-tech-only-en",
+      "input": {
+        "answer": "For this part of the work I just used Docker to run things locally on my own machine here.",
+        "jd_terms": ["Docker"],
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": false,
+        "jd_term_hits": { "hit": ["Docker"], "missed": [], "coverage": 1 }
+      }
+    },
+    {
+      "id": "named-tech-only-vi",
+      "input": {
+        "answer": "Phần này tôi dùng React để làm giao diện cho trang chủ.",
+        "jd_terms": ["React"],
+        "language": "vi"
+      },
+      "expect": {
+        "has_concrete_example": false,
+        "jd_term_hits": { "hit": ["React"], "missed": [], "coverage": 1 }
+      }
+    },
+    {
+      "id": "alias-ts-typescript",
+      "input": {
+        "answer": "I wrote the whole backend in TS with strict typing turned on for safety everywhere.",
+        "jd_terms": ["TypeScript"],
+        "aliases": { "TypeScript": ["TS", "ts"] },
+        "language": "en"
+      },
+      "expect": {
+        "jd_term_hits": { "hit": ["TypeScript"], "missed": [], "coverage": 1 }
+      }
+    },
+    {
+      "id": "focused-repeat-not-penalized",
+      "input": {
+        "answer": "I reduced API latency by 40% using React Query for caching. React Query dedupes in-flight requests automatically. React Query also handles retries and background refetching. React Query was the key architectural win for the whole team here.",
+        "jd_terms": ["React Query"],
+        "language": "en"
+      },
+      "expect": {
+        "repeated_terms": [
+          { "term": "query", "count": 4 },
+          { "term": "react", "count": 4 }
+        ],
+        "has_concrete_example": true,
+        "jd_term_hits": { "hit": ["React Query"], "missed": [], "coverage": 1 },
+        "flags": { "is_too_short": false, "no_concrete_example": false, "rambling_risk": false }
+      }
+    },
+    {
+      "id": "concrete-built-with-metric",
+      "input": {
+        "answer": "I built a React dashboard for the ops team that cut their daily report time by 2 hours.",
+        "jd_terms": ["React"],
+        "language": "en"
+      },
+      "expect": {
+        "has_concrete_example": true,
+        "star": { "situation": false, "task": false, "action": true, "result": true, "complete": false }
+      }
+    }
+  ]
+}

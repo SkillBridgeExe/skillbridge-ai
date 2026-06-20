@@ -226,13 +226,16 @@ const LANG_TABLES: Record<Language, LangTable> = {
       result: ['kết quả', 'giảm', 'tăng', 'cải thiện', 'tiết kiệm', 'nhờ đó'],
     },
     actionProjectCues: [
+      // Build/ship verbs ONLY. Deliberately EXCLUDES generic "dùng" (use) and "làm" (do/make):
+      // "Tôi dùng React" / "Tôi làm giao diện" must NOT count as a concrete example (review rule —
+      // a named tech alone is not enough; it needs a building/shipping action or a number). This
+      // mirrors EN, where "used" is likewise absent from actionProjectCues.
       'xây',
       'triển khai',
       'tạo',
       'thiết kế',
       'phát triển',
       'dự án',
-      'làm',
       'tối ưu',
       'chuyển',
     ],
