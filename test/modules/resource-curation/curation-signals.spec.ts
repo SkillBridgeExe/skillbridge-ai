@@ -42,6 +42,17 @@ describe('providerTier', () => {
   it('is case/whitespace-insensitive', () => {
     expect(providerTier('  udemy  ')).toBe('T2');
   });
+
+  it('classifies trusted Vietnamese learning platforms as T2 (bilingual coverage)', () => {
+    expect(providerTier('fullstack.edu.vn')).toBe('T2'); // F8
+    expect(providerTier('CodeGym')).toBe('T2');
+    expect(providerTier('TopCV')).toBe('T2');
+    expect(providerTier('talkfirst')).toBe('T2');
+  });
+
+  it('keeps user-generated VN content (Viblo) at T3 — UGC must not auto-verify', () => {
+    expect(providerTier('viblo.asia')).toBe('T3');
+  });
 });
 
 describe('freshnessScore (code owns the date — the LLM cannot)', () => {
@@ -96,5 +107,13 @@ describe('routeValidation — safe-for-commerce auto-verify gate (tightens the c
         providerTier: 'T1',
       }),
     ).toBe('pending');
+  });
+
+  it('a high-quality F8 (fullstack.edu.vn → T2) resource auto-verifies — VN bilingual path works end-to-end', () => {
+    expect(
+      routeValidation(curated({ quality_score: 90 }), {
+        providerTier: providerTier('fullstack.edu.vn'),
+      }),
+    ).toBe('verified');
   });
 });
