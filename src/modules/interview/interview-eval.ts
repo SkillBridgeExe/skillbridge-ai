@@ -1,4 +1,10 @@
-import { aggregateInterviewScore, AnswerScore, Dimension, ScoreBand } from './interview-scoring';
+import {
+  aggregateInterviewScore,
+  AnswerScore,
+  Dimension,
+  RoleFamily,
+  ScoreBand,
+} from './interview-scoring';
 
 export interface InterviewEvalCase {
   id: string;
@@ -7,6 +13,7 @@ export interface InterviewEvalCase {
   answers: AnswerScore[];
   expected_overall_band: ScoreBand;
   expected_dimension_bands: Partial<Record<Dimension, ScoreBand>>;
+  expected_role_family?: RoleFamily; // optional: pins the role/seniority → rubric-column resolution
 }
 
 export interface InterviewEvalResult {
@@ -14,6 +21,7 @@ export interface InterviewEvalResult {
   overall: number;
   overall_band_match: boolean;
   dimension_bands_match: boolean;
+  role_family_match: boolean;
   pass: boolean;
 }
 
@@ -29,11 +37,14 @@ export function scoreInterviewCase(c: InterviewEvalCase): InterviewEvalResult {
   const dimension_bands_match = (Object.keys(c.expected_dimension_bands) as Dimension[]).every(
     (d) => byDim.get(d) === c.expected_dimension_bands[d],
   );
+  const role_family_match =
+    c.expected_role_family == null || out.role_family === c.expected_role_family;
   return {
     id: c.id,
     overall: out.overall,
     overall_band_match,
     dimension_bands_match,
-    pass: overall_band_match && dimension_bands_match,
+    role_family_match,
+    pass: overall_band_match && dimension_bands_match && role_family_match,
   };
 }

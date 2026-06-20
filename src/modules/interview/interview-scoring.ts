@@ -67,7 +67,9 @@ export const ROLE_RUBRIC_WEIGHTS: Record<RoleFamily, Record<Dimension, number>> 
 };
 
 // Seniority bands that map to the low-evidence fresher_intern column REGARDLESS of role (spec §2 principle).
-const FRESHER_SENIORITY = new Set(['fresher', 'intern']);
+// MUST stay consistent with interview-agenda FRESHER_BANDS (fresher+junior) — a band drilled as fresher must
+// also be SCORED on the fresher column, else junior drills easy but scores on the high-evidence IC weights.
+const FRESHER_SENIORITY = new Set(['fresher', 'intern', 'junior', 'entry_level']);
 
 // Keyword → role-family (checked in order; first hit wins). Mirrors the taxonomy's role families.
 const FAMILY_KEYWORDS: Array<{ family: RoleFamily; terms: string[] }> = [

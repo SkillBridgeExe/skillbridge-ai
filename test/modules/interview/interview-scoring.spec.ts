@@ -42,9 +42,13 @@ describe('ROLE_RUBRIC_WEIGHTS', () => {
 });
 
 describe('resolveRoleFamily', () => {
-  it('fresher/intern seniority overrides role → fresher_intern (low evidence weight)', () => {
+  it('early-career seniority (fresher/intern/junior/entry) overrides role → fresher_intern', () => {
+    // Must stay consistent with interview-agenda FRESHER_BANDS (fresher+junior) so a junior is SCORED on
+    // the same low-evidence column it is DRILLED on — otherwise junior drills as fresher but scores as IC.
     expect(resolveRoleFamily('frontend_developer', 'fresher')).toBe('fresher_intern');
     expect(resolveRoleFamily('backend_developer', 'intern')).toBe('fresher_intern');
+    expect(resolveRoleFamily('frontend_developer', 'junior')).toBe('fresher_intern');
+    expect(resolveRoleFamily('backend_developer', 'entry_level')).toBe('fresher_intern');
   });
 
   it('maps role-family by keyword for non-fresher seniority', () => {

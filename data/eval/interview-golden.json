@@ -35,6 +35,9 @@
       "expected_overall_band": "solid", "expected_dimension_bands": { "communication": "solid", "role_fit": "solid" } },
     { "id": "mixed-depth-weighting", "role": "fullstack_developer", "seniority": "senior",
       "answers": [{ "topic_phase": "SKILL_PROBE", "score": 90, "depth_signal": "deep" }, { "topic_phase": "SKILL_PROBE", "score": 50, "depth_signal": "shallow" }],
-      "expected_overall_band": "solid", "expected_dimension_bands": { "technical_depth": "solid" } }
+      "expected_overall_band": "solid", "expected_dimension_bands": { "technical_depth": "solid" } },
+    { "id": "junior-scores-on-fresher-column", "role": "frontend_developer", "seniority": "junior",
+      "answers": [{ "topic_phase": "SKILL_PROBE", "score": 70, "depth_signal": "deep" }, { "topic_phase": "BEHAVIORAL", "score": 75, "depth_signal": "adequate" }],
+      "expected_overall_band": "solid", "expected_role_family": "fresher_intern", "expected_dimension_bands": { "technical_depth": "solid", "communication": "solid" } }
   ]
 }
