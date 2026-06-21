@@ -31,6 +31,20 @@ export class InterviewGapReportService {
       interviewer_summary: '',
       gap_items: [],
     };
+    if (Array.isArray(session.gapItems)) {
+      const summary =
+        session.coaching &&
+        typeof session.coaching === 'object' &&
+        typeof (session.coaching as { summary?: unknown }).summary === 'string'
+          ? ((session.coaching as { summary: string }).summary as string)
+          : '';
+      return {
+        session_id: sessionId,
+        match_id: matchId,
+        interviewer_summary: summary,
+        gap_items: coerceInterviewGapItems(session.gapItems),
+      };
+    }
     if (!session.finalAiRequestId) return empty;
 
     const row = await this.aiResults.findOne({
@@ -68,12 +82,20 @@ export class InterviewGapReportService {
 
   async getLatestForMatch(userId: string, matchId: string): Promise<InterviewGapReport | null> {
     const session = await this.sessions.findOne({
-      where: {
-        userId,
-        cvMatchId: matchId,
-        status: 'COMPLETED',
-        finalAiRequestId: Not(IsNull()),
-      },
+      where: [
+        {
+          userId,
+          cvMatchId: matchId,
+          status: 'COMPLETED',
+          gapItems: Not(IsNull()),
+        },
+        {
+          userId,
+          cvMatchId: matchId,
+          status: 'COMPLETED',
+          finalAiRequestId: Not(IsNull()),
+        },
+      ],
       order: { endedAt: 'DESC', createdAt: 'DESC' },
     });
     if (!session) return null;

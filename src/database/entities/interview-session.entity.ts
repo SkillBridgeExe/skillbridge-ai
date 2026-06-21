@@ -114,6 +114,24 @@ export class InterviewSessionEntity {
   @Column({ type: 'jsonb', name: 'ai_feedback', nullable: true })
   aiFeedback!: unknown | null;
 
+  @Column({ type: 'jsonb', nullable: true })
+  agenda!: unknown | null;
+
+  @Column({ type: 'jsonb', name: 'interview_state', nullable: true })
+  interviewState!: unknown | null;
+
+  @Column({ type: 'jsonb', name: 'final_score', nullable: true })
+  finalScore!: unknown | null;
+
+  @Column({ type: 'jsonb', name: 'gap_items', nullable: true })
+  gapItems!: unknown | null;
+
+  @Column({ type: 'jsonb', name: 'dev_plan', nullable: true })
+  devPlan!: unknown | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  coaching!: unknown | null;
+
   @Column({ type: 'jsonb', name: 'context_snapshot', nullable: true })
   contextSnapshot!: unknown | null;
 
