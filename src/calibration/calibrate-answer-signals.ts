@@ -42,7 +42,16 @@ export interface CalibrationReport {
     accuracyCI: { lo: number; hi: number };
     mismatches: Array<{ id: string; gold: boolean; predicted: boolean; note?: string }>;
   };
-  star: { accuracy: number; f1: number; kappa: number; decisions: number };
+  star: {
+    accuracy: number;
+    f1: number;
+    kappa: number;
+    decisions: number;
+    byPart: Record<
+      'situation' | 'task' | 'action' | 'result',
+      { recall: number; precision: number; kappa: number }
+    >;
+  };
   jd: { precision: number; recall: number; f1: number; decisions: number };
   filler: { mae: number; rmse: number };
 }
@@ -55,6 +64,18 @@ export function runAnswerSignalsCalibration(corpus: LabeledAnswer[]): Calibratio
   const mismatches: CalibrationReport['concrete']['mismatches'] = [];
   const starPred: boolean[] = [];
   const starGold: boolean[] = [];
+  const starPartPred: Record<string, boolean[]> = {
+    situation: [],
+    task: [],
+    action: [],
+    result: [],
+  };
+  const starPartGold: Record<string, boolean[]> = {
+    situation: [],
+    task: [],
+    action: [],
+    result: [],
+  };
   const jdPred: boolean[] = [];
   const jdGold: boolean[] = [];
   const fillerPred: number[] = [];
@@ -77,6 +98,8 @@ export function runAnswerSignalsCalibration(corpus: LabeledAnswer[]): Calibratio
     for (const part of STAR_PARTS) {
       starPred.push(sig.star[part]);
       starGold.push(item.gold.star[part]);
+      starPartPred[part].push(sig.star[part]);
+      starPartGold[part].push(item.gold.star[part]);
     }
 
     for (const term of item.input.jd_terms ?? []) {
@@ -94,6 +117,15 @@ export function runAnswerSignalsCalibration(corpus: LabeledAnswer[]): Calibratio
   const toYN = (b: boolean): string => (b ? 'yes' : 'no');
 
   const sb = binaryAgreement(starPred, starGold);
+  const byPart = {} as CalibrationReport['star']['byPart'];
+  for (const part of STAR_PARTS) {
+    const pb = binaryAgreement(starPartPred[part], starPartGold[part]);
+    byPart[part] = {
+      recall: pb.recall,
+      precision: pb.precision,
+      kappa: cohenKappa(starPartPred[part].map(toYN), starPartGold[part].map(toYN)),
+    };
+  }
   const jb = binaryAgreement(jdPred, jdGold);
 
   return {
@@ -113,6 +145,7 @@ export function runAnswerSignalsCalibration(corpus: LabeledAnswer[]): Calibratio
       f1: sb.f1,
       kappa: cohenKappa(starPred.map(toYN), starGold.map(toYN)),
       decisions: starPred.length,
+      byPart,
     },
     jd: { precision: jb.precision, recall: jb.recall, f1: jb.f1, decisions: jdPred.length },
     filler: { mae: mae(fillerPred, fillerGold), rmse: rmse(fillerPred, fillerGold) },
@@ -132,6 +165,7 @@ export function formatReport(r: CalibrationReport): string {
     `  accuracy 95% bootstrap CI: [${pct(c.accuracyCI.lo)}, ${pct(c.accuracyCI.hi)}]  (wide = small N, treat as smoke)`,
     `  confusion (rows=gold yes/no, cols=pred yes/no): ${JSON.stringify(c.confusion)}`,
     `STAR parts (pooled ${r.star.decisions})  acc=${pct(r.star.accuracy)} F1=${f2(r.star.f1)} kappa=${f2(r.star.kappa)}`,
+    `  per-part recall: S=${f2(r.star.byPart.situation.recall)} T=${f2(r.star.byPart.task.recall)} A=${f2(r.star.byPart.action.recall)} R=${f2(r.star.byPart.result.recall)}  (low recall = cue-list misses that part's phrasings)`,
     `jd_term coverage (pooled ${r.jd.decisions})  P=${f2(r.jd.precision)} R=${f2(r.jd.recall)} F1=${f2(r.jd.f1)}`,
     `filler_count  MAE=${f2(r.filler.mae)} RMSE=${f2(r.filler.rmse)}  (noisiest signal)`,
     ``,
