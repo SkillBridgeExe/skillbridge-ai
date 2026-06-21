@@ -56,16 +56,7 @@ describe('InterviewsService', () => {
     const cvs = repo<CvEntity>();
     const matches = repo<CvMatchEntity>();
     const jds = repo<JobDescriptionEntity>();
-    const interviewAi = {
-      start: jest.fn(async () => ({
-        ai_request_id: 'ai-start-1',
-        first_message: 'Chào bạn, mình là interviewer hôm nay.',
-        first_question: 'Bạn hãy giới thiệu ngắn về dự án React gần nhất.',
-        phase: 'INTRODUCTION',
-        total_questions_planned: 7,
-        token_usage: 120,
-      })),
-    };
+    const interviewAi = { start: jest.fn() };
     const entitlements = {
       assertCanUse: jest.fn(async () => undefined),
       recordUsage: jest.fn(async () => undefined),
@@ -114,6 +105,18 @@ describe('InterviewsService', () => {
       id: 'turn-1',
       createdAt: new Date('2026-06-12T00:00:01.000Z'),
     }));
+    const cvMatches = {
+      getInterviewFocusAreas: jest.fn(async () => [
+        {
+          skill_canonical: 'testing',
+          display_name: 'Testing',
+          focus_type: 'gap_probe',
+          reason: 'JD requires testing evidence.',
+          difficulty: 'applied',
+          template_question: 'How do you test React components in practice?',
+        },
+      ]),
+    };
 
     const service = new InterviewsService(
       sessions as never,
@@ -124,6 +127,8 @@ describe('InterviewsService', () => {
       interviewAi as never,
       entitlements as never,
       realtime as never,
+      undefined,
+      cvMatches as never,
     );
 
     const response = await service.start(userId, {
@@ -147,23 +152,27 @@ describe('InterviewsService', () => {
       userId,
       BillingFeatureKey.INTERVIEW_SESSION,
     );
-    expect(interviewAi.start).toHaveBeenCalledWith(
-      userId,
+    expect(interviewAi.start).not.toHaveBeenCalled();
+    expect(cvMatches.getInterviewFocusAreas).toHaveBeenCalledWith(userId, matchId, 'vi');
+    expect(sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        session_id: 'session-1',
-        topic: 'frontend_developer',
-        language: 'vi',
-        interview_type: 'TECHNICAL',
-        prompt_template_code: 'interview_technical_v1',
-        cv_context: expect.stringContaining('Frontend Intern'),
+        agenda: expect.objectContaining({ turn_budget: 10 }),
+        interviewState: expect.objectContaining({
+          current_topic_id: 'screening-1',
+          turns_used: 0,
+          running_notes: [],
+        }),
       }),
     );
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-1',
         turnOrder: 1,
-        interviewerQuestion: 'Bạn hãy giới thiệu ngắn về dự án React gần nhất.',
-        aiRequestId: 'ai-start-1',
+        phase: 'SCREENING',
+        topicPhase: 'SCREENING',
+        interviewerQuestion:
+          'To start, what have you been working on recently, and what drew you to this role?',
+        aiRequestId: null,
       }),
     );
     expect(entitlements.recordUsage).toHaveBeenCalledWith(
@@ -180,7 +189,9 @@ describe('InterviewsService', () => {
       mode: 'HYBRID',
       status: 'IN_PROGRESS',
       maxDurationSeconds: 600,
-      firstQuestion: 'Bạn hãy giới thiệu ngắn về dự án React gần nhất.',
+      firstQuestion:
+        'To start, what have you been working on recently, and what drew you to this role?',
+      phase: 'SCREENING',
       realtime: { enabled: true, clientSecret: 'eph_secret' },
     });
     expect(response.expiresAt).toBeTruthy();
@@ -523,26 +534,50 @@ describe('InterviewsService', () => {
   it('records an answer and creates the next turn', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-1',
+        score: 76,
+        recognizedConcepts: ['React Query'],
+        depthSignal: 'adequate',
+        claimStatus: 'partial',
+        currentThread: 'React Query cache invalidation',
+        gapsRevealed: ['Missing trade-off detail'],
+        note: 'Mentioned cache invalidation.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-1',
+        aiMessage: 'Cảm ơn bạn, mình hỏi tiếp nhé.',
+        question: 'Bạn xử lý stale server state trong React như thế nào?',
+      })),
+    };
+    const insight = {
+      talking_point: 'project',
+      relevance: 78,
+      clarity: 'clear',
+      off_topic: false,
+      confidence_tone: 'calibrated',
+      evidence_quality: 'thin',
+      note: 'Needs a concrete metric.',
+      has_specific_example: false,
+      star_present: { situation: true, task: true, action: true, result: false },
+    };
+    const answerInsight = { judge: jest.fn(async () => insight) };
     const service = new InterviewsService(
       sessions as never,
       turns as never,
       repo<CvEntity>() as never,
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
-      {
-        answer: jest.fn(async () => ({
-          ai_request_id: 'ai-answer-1',
-          ai_message: 'Cảm ơn bạn, mình hỏi tiếp nhé.',
-          next_question: 'Bạn xử lý stale server state trong React như thế nào?',
-          phase: 'TECHNICAL_DEEP_DIVE',
-          finished: false,
-          per_question_score: 76,
-          per_question_strengths: ['Có ví dụ thực tế'],
-          per_question_improvements: ['Nêu rõ trade-off hơn'],
-        })),
-      } as never,
+      interviewAi as never,
       { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
       { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      answerInsight as never,
+      {} as never,
     );
     sessions.findOne.mockResolvedValue({
       id: 'session-1',
@@ -554,22 +589,62 @@ describe('InterviewsService', () => {
       status: 'IN_PROGRESS',
       startedAt: new Date('2026-06-12T00:00:00.000Z'),
       createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      agenda: {
+        turn_budget: 10,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-react',
+            phase: 'JD_REQUIREMENT',
+            skill_canonical: 'react',
+            display_name: 'React Query',
+            seniority_target: 'mid',
+            drill_budget: 3,
+            what_to_probe: 'React Query cache invalidation',
+            seed_question: 'How do you use React Query?',
+          },
+          {
+            id: 'wrap-1',
+            phase: 'WRAP',
+            skill_canonical: null,
+            display_name: 'Wrap-up',
+            seniority_target: 'mid',
+            drill_budget: 1,
+            what_to_probe: 'close',
+            seed_question: 'Anything to add?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'JD_REQUIREMENT',
+        current_topic_id: 'topic-react',
+        drill_depth: 0,
+        current_thread: 'React Query',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 0,
+        evasive_streak: 0,
+      },
     });
     const pendingTurn = {
       id: 'turn-1',
       sessionId: 'session-1',
       turnOrder: 1,
-      phase: 'INTRODUCTION',
+      phase: 'JD_REQUIREMENT',
+      topicPhase: 'JD_REQUIREMENT',
+      skillCanonical: 'react',
+      currentThread: 'React Query',
       modality: 'AUDIO',
-      interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
+      interviewerQuestion: 'How do you use React Query?',
       userAnswerText: null,
       createdAt: new Date('2026-06-12T00:00:01.000Z'),
       askedAt: new Date('2026-06-12T00:00:01.000Z'),
     };
     turns.find.mockResolvedValue([]);
     turns.findOne
-      .mockResolvedValueOnce(pendingTurn as InterviewTurnEntity)
-      .mockResolvedValueOnce(pendingTurn as InterviewTurnEntity);
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
     turns.save.mockImplementation(async (value) => ({
       ...value,
       id: value.id ?? 'turn-2',
@@ -585,18 +660,54 @@ describe('InterviewsService', () => {
       durationSeconds: 42,
     });
 
+    expect(interviewAi.answer).not.toHaveBeenCalled();
+    expect(chain.assess).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        sessionId: 'session-1',
+        turnOrder: 1,
+        targetDimension: 'technical_depth',
+        currentThread: 'React Query',
+      }),
+    );
+    expect(answerInsight.judge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        answer: 'Em dùng React Query để cache và invalidate theo mutation.',
+        question: 'How do you use React Query?',
+        target_dimension: 'technical_depth',
+      }),
+      userId,
+    );
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'turn-1',
         userAnswerText: 'Em dùng React Query để cache và invalidate theo mutation.',
         userAnswerTranscript: 'Em dùng React Query để cache...',
         perQuestionScore: '76.00',
+        depthSignal: 'adequate',
+        signals: expect.objectContaining({
+          jd_term_hits: expect.objectContaining({ hit: expect.arrayContaining(['React Query']) }),
+        }),
+        insight,
+        currentThread: 'React Query cache invalidation',
+        skillCanonical: 'react',
+      }),
+    );
+    expect(sessions.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interviewState: expect.objectContaining({
+          current_topic_id: 'topic-react',
+          drill_depth: 1,
+          turns_used: 1,
+          running_notes: ['Mentioned cache invalidation.'],
+        }),
       }),
     );
     expect(response.nextTurn).toMatchObject({
       sessionId: 'session-1',
       turnOrder: 2,
       interviewerQuestion: 'Bạn xử lý stale server state trong React như thế nào?',
+      aiRequestId: 'ai-ask-1',
     });
     expect(response.finished).toBe(false);
   });
@@ -957,45 +1068,32 @@ describe('InterviewsService', () => {
   it('ends a session and stores final scoring fields', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { end: jest.fn() };
+    const cvMatches = {
+      getGapReport: jest.fn(async () => ({
+        gap_items: [],
+      })),
+    };
+    const coaching = {
+      summary: 'Strong technical base; add more evidence.',
+      strengths: ['technical_depth: outstanding'],
+      priorities: [],
+    };
+    const coachingService = { coach: jest.fn(async () => coaching) };
     const service = new InterviewsService(
       sessions as never,
       turns as never,
       repo<CvEntity>() as never,
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
-      {
-        end: jest.fn(async () => ({
-          ai_request_id: 'ai-end-1',
-          parsed_response: {
-            overall_score: 82,
-            semantic_score: 80,
-            llm_score: 84,
-            communication_score: 78,
-            ai_feedback: {
-              summary: 'Bạn trả lời có cấu trúc và sát JD.',
-              technical_delivery: {
-                concept_accuracy: 82,
-                problem_solving: 80,
-                system_thinking: 78,
-                code_quality: 84,
-              },
-              communication_flow: {
-                articulation: 80,
-                listening_response: 78,
-                filler_words: 75,
-                structured_answers: 82,
-              },
-              body_language: null,
-              recommendations: 'Luyện thêm testing.',
-              suggested_modules: [],
-            },
-            per_question_scores: [],
-          },
-          token_usage: 500,
-        })),
-      } as never,
+      interviewAi as never,
       { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
       { createClientSecret: jest.fn() } as never,
+      undefined,
+      cvMatches as never,
+      {} as never,
+      { judge: jest.fn() } as never,
+      coachingService as never,
     );
     sessions.findOne.mockResolvedValue({
       id: 'session-1',
@@ -1007,16 +1105,40 @@ describe('InterviewsService', () => {
       status: 'IN_PROGRESS',
       startedAt: new Date('2026-06-12T00:00:00.000Z'),
       createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      contextSnapshot: {
+        interviewDifficulty: { level: 'mid', source: 'target role', note: 'test' },
+      },
     });
     turns.find.mockResolvedValue([
       {
         id: 'turn-1',
         sessionId: 'session-1',
         turnOrder: 1,
-        phase: 'INTRODUCTION',
+        phase: 'SKILL_PROBE',
+        topicPhase: 'SKILL_PROBE',
+        depthSignal: 'deep',
+        skillCanonical: 'react',
+        currentThread: 'React Query',
+        perQuestionScore: '82.00',
+        signals: {
+          jd_term_hits: { hit: ['React'], missed: [], coverage: 1 },
+          filler: { count: 0, terms: [] },
+          flags: { rambling_risk: false },
+        },
+        insight: {
+          talking_point: 'project',
+          relevance: 88,
+          clarity: 'clear',
+          off_topic: false,
+          confidence_tone: 'calibrated',
+          evidence_quality: 'strong',
+          note: 'Specific example.',
+          has_specific_example: true,
+          star_present: { situation: true, task: true, action: true, result: true },
+        },
         modality: 'AUDIO',
         interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
-        userAnswerText: 'Em dùng React Query.',
+        userAnswerText: 'Em dùng React Query và giảm stale cache.',
         createdAt: new Date('2026-06-12T00:00:01.000Z'),
         askedAt: new Date('2026-06-12T00:00:01.000Z'),
       },
@@ -1025,18 +1147,43 @@ describe('InterviewsService', () => {
 
     const response = await service.end(userId, { sessionId: 'session-1' });
 
+    expect(interviewAi.end).not.toHaveBeenCalled();
+    expect(coachingService.coach).toHaveBeenCalledWith(
+      expect.objectContaining({
+        score: expect.objectContaining({
+          overall: 82,
+          dimensions: expect.arrayContaining([
+            expect.objectContaining({ dimension: 'technical_depth', score: 82 }),
+          ]),
+        }),
+        gaps: [],
+        plan: expect.objectContaining({
+          match_id: '',
+          session_id: 'session-1',
+          learn_items: [],
+          cv_fix_items: [],
+          interview_practice_items: [],
+        }),
+      }),
+      userId,
+    );
     expect(sessions.save).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'COMPLETED',
-        finalAiRequestId: 'ai-end-1',
         overallScore: '82.00',
-        semanticScore: '80.00',
-        llmScore: '84.00',
-        communicationScore: '78.00',
-        aiFeedback: expect.objectContaining({ summary: 'Bạn trả lời có cấu trúc và sát JD.' }),
+        semanticScore: '82.00',
+        llmScore: '82.00',
+        communicationScore: null,
+        finalScore: expect.objectContaining({ overall: 82 }),
+        gapItems: [],
+        devPlan: expect.objectContaining({ session_id: 'session-1' }),
+        coaching,
+        aiFeedback: expect.objectContaining({ summary: coaching.summary }),
       }),
     );
     expect(response.status).toBe('COMPLETED');
     expect(response.turns).toHaveLength(1);
+    expect(response.finalScore).toMatchObject({ overall: 82 });
+    expect(response.coaching).toEqual(coaching);
   });
 });
