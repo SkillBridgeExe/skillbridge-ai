@@ -5,6 +5,7 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
 import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
@@ -25,6 +26,7 @@ import { UnifiedPlanService } from './unified-plan.service';
       CvMatchEntity,
       CvMatchScoreEntity,
       AiResultEntity,
+      UserLearningPreferenceEntity,
     ]),
     CvJdMatchModule,
     BillingModule,

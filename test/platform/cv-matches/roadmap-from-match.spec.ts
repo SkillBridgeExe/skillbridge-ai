@@ -39,6 +39,7 @@ function build() {
       ai_summary: 'deterministic',
     }),
   };
+  const learningPreferences = { findOne: jest.fn().mockResolvedValue(null) };
   const service = new (CvMatchesService as any)(
     {} as never,
     {} as never,
@@ -54,8 +55,9 @@ function build() {
     roadmap as never,
     {} as never,
     composer as never,
+    learningPreferences as never,
   );
-  return { service: service as CvMatchesService, roadmap, composer };
+  return { service: service as CvMatchesService, roadmap, composer, learningPreferences };
 }
 
 describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flow', () => {
@@ -95,6 +97,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       expect.objectContaining({
         gapItems: expect.any(Array),
         budget: { available_days: 30, hours_per_week: 8 },
+        languagePref: 'both',
       }),
     );
     expect(
@@ -136,6 +139,46 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       available_days: 10,
       hours_per_week: 20,
     });
+  });
+
+  it('passes language preference to composer', async () => {
+    const { service, composer } = build();
+    jest.spyOn(service, 'getGapReport').mockResolvedValue(
+      report({
+        gap_items: [gap({ canonical_name: 'react', fixability: 'learn', required_level: 4 })],
+      }),
+    );
+
+    await service.generateRoadmapFromMatch('user-1', 'match-1', {
+      language_pref: 'en',
+    } as any);
+
+    expect(composer.compose.mock.calls[0][0].languagePref).toBe('en');
+  });
+
+  it('uses persisted learning preferences as roadmap defaults', async () => {
+    const { service, composer, learningPreferences } = build();
+    learningPreferences.findOne.mockResolvedValue({
+      userId: 'user-1',
+      languagePref: 'vi',
+      availableDays: 21,
+      hoursPerWeek: 5,
+    });
+    jest.spyOn(service, 'getGapReport').mockResolvedValue(
+      report({
+        gap_items: [gap({ canonical_name: 'react', fixability: 'learn', required_level: 4 })],
+      }),
+    );
+
+    await service.generateRoadmapFromMatch('user-1', 'match-1', {});
+
+    expect(learningPreferences.findOne).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(composer.compose.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        budget: { available_days: 21, hours_per_week: 5 },
+        languagePref: 'vi',
+      }),
+    );
   });
 
   it('propagates ownership/not-found rejection from getGapReport', async () => {

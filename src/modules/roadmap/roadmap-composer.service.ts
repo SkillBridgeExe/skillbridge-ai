@@ -4,7 +4,7 @@ import type { UnifiedDevelopmentPlanItem } from '../gap-report/unified-plan';
 import type { ScoredCourse } from './course-matcher.service';
 import { FeasibilityBudget, planFeasibility } from './feasibility-planner';
 import { LearningResourceMatcherService } from './learning-resource-matcher.service';
-import type { ScoredResource } from './learning-resource';
+import type { LanguagePref, ScoredResource } from './learning-resource';
 import {
   ComposedRoadmap,
   ComposedRoadmapStep,
@@ -22,6 +22,7 @@ export class RoadmapComposerService {
     learnItems: UnifiedDevelopmentPlanItem[];
     gapItems: GapItem[];
     budget: FeasibilityBudget;
+    languagePref?: LanguagePref;
   }): ComposedRoadmap {
     const feasibilityInputs = toFeasibilityInputs(input.learnItems, input.gapItems);
     const matchRequests = feasibilityInputs.map((item) => ({
@@ -30,6 +31,7 @@ export class RoadmapComposerService {
     }));
     const matched = this.matcher.matchResources(matchRequests, {
       sourceTypes: [...LEARN_SOURCE_TYPES],
+      langPref: input.languagePref ?? 'both',
     });
     const resourcesBySkill = new Map(
       matched.per_skill.map((item) => [item.skill_canonical_name, item.resources] as const),

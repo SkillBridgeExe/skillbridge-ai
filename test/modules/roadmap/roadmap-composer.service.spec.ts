@@ -100,7 +100,28 @@ describe('RoadmapComposerService.compose', () => {
         { skill_canonical_name: 'react', required_level: 4 },
         { skill_canonical_name: 'rust', required_level: 4 },
       ],
-      { sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'] },
+      {
+        sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'],
+        langPref: 'both',
+      },
+    );
+  });
+
+  it('passes the requested language preference into resource matching', () => {
+    const svc = new RoadmapComposerService(matcher as never);
+    svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react')],
+      budget: { available_days: 30, hours_per_week: 7 },
+      languagePref: 'en',
+    });
+
+    expect(matcher.matchResources).toHaveBeenCalledWith(
+      [{ skill_canonical_name: 'react', required_level: 4 }],
+      {
+        sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'],
+        langPref: 'en',
+      },
     );
   });
 

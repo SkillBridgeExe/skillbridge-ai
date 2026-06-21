@@ -46,6 +46,23 @@ describe('CourseMatcherService (wrapper parity)', () => {
     });
   });
 
+  it('keeps the legacy Vietnamese boost for course matching parity', () => {
+    const svc = new CourseMatcherService(
+      makeMatcher([
+        courseRes({
+          id: 'vi-course',
+          language: 'vi',
+          is_free: true,
+        }),
+      ]),
+    );
+
+    const out = svc.matchCourses([{ skill_canonical_name: 'react', required_level: 3 }]);
+
+    expect(out.per_skill[0].courses[0].match_score).toBe(98);
+    expect(out.per_skill[0].courses[0].match_breakdown.language_pts).toBe(20);
+  });
+
   it('only returns source_type=course resources and ranks them among themselves (parity)', () => {
     const svc = new CourseMatcherService(
       makeMatcher([

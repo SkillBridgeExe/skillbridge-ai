@@ -232,6 +232,7 @@ const OUTCOME_TYPES = new Set<OutcomeType>([
   'cv_improvement',
 ]);
 const DIFFICULTIES = new Set<ResourceDifficulty>(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+const LANGUAGES = new Set(['vi', 'en']);
 const ADDRESSES = new Set<WeaknessAddress>([
   'knowledge',
   'evidence',
@@ -315,7 +316,8 @@ export function coerceLearningResources(
     if (
       typeof o.is_internal !== 'boolean' ||
       typeof o.is_free !== 'boolean' ||
-      !isNonEmptyStr(o.language)
+      !isNonEmptyStr(o.language) ||
+      !LANGUAGES.has(o.language)
     ) {
       drop(`resource '${id}': invalid is_internal/is_free/language`);
       continue;

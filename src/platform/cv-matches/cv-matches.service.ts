@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,10 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import {
+  LearningLanguagePref,
+  UserLearningPreferenceEntity,
+} from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import {
@@ -74,6 +79,9 @@ export class CvMatchesService {
     // Optional for positional unit-test construction; Nest injects it via RoadmapModule. Used by the
     // deterministic roadmap-from-match flow.
     private readonly roadmapComposer?: RoadmapComposerService,
+    @Optional()
+    @InjectRepository(UserLearningPreferenceEntity)
+    private readonly learningPreferences?: Repository<UserLearningPreferenceEntity>,
   ) {}
 
   async createMatch(
@@ -281,10 +289,13 @@ export class CvMatchesService {
       gapItems: report.gap_items,
       interviewItems: [],
     });
+    const preferences = await this.learningPreferences?.findOne({ where: { userId } });
     const budget = {
-      available_days: dto.available_days ?? 30,
-      hours_per_week: dto.hours_per_week ?? 8,
+      available_days: dto.available_days ?? preferences?.availableDays ?? 30,
+      hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
     };
+    const languagePref: LearningLanguagePref =
+      dto.language_pref ?? preferences?.languagePref ?? 'both';
 
     if (plan.learn_items.length === 0) {
       return {
@@ -305,6 +316,7 @@ export class CvMatchesService {
       learnItems: plan.learn_items,
       gapItems: report.gap_items,
       budget,
+      languagePref,
     });
   }
 
