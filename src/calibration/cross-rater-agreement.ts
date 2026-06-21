@@ -13,7 +13,7 @@
  *
  * Pure (no IO). Each rater supplies one label per item; arrays are index-aligned.
  */
-import { cohenKappa } from './calibration-metrics';
+import { cohenKappa, quadraticWeightedKappa } from './calibration-metrics';
 
 export interface RaterLabels {
   /** rater id, e.g. 'heuristic', 'gold', 'rater2', 'llm-judge-b'. */
@@ -46,45 +46,39 @@ export interface CrossRaterReport {
   reachesCeiling: boolean | null;
 }
 
-function pairKappa(a: RaterLabels, b: RaterLabels): number {
-  return cohenKappa(a.labels, b.labels);
-}
+type PairFn = (a: RaterLabels, b: RaterLabels) => number;
 
-export function crossRaterAgreement(
+/** Shared pairwise + ceiling + verdict logic, parameterized by the agreement metric. */
+function buildReport(
   raters: RaterLabels[],
-  opts: { heuristic?: string; tolerance?: number } = {},
+  pairFn: PairFn,
+  heuristic: string,
+  tolerance: number,
 ): CrossRaterReport {
-  const heuristic = opts.heuristic ?? 'heuristic';
-  const tolerance = opts.tolerance ?? 0.1;
   const n = raters[0]?.labels.length ?? 0;
-
   const pairwise: PairwiseAgreement[] = [];
   for (let i = 0; i < raters.length; i++) {
     for (let j = i + 1; j < raters.length; j++) {
       pairwise.push({
         a: raters[i].rater,
         b: raters[j].rater,
-        kappa: pairKappa(raters[i], raters[j]),
+        kappa: pairFn(raters[i], raters[j]),
       });
     }
   }
-
   // inter-rater ceiling: best agreement among pairs NOT involving the heuristic.
   const nonHeuristicPairs = pairwise.filter((p) => p.a !== heuristic && p.b !== heuristic);
   const interRaterCeiling = nonHeuristicPairs.length
     ? Math.max(...nonHeuristicPairs.map((p) => p.kappa))
     : null;
-
   const heuristicVsRaters = pairwise
     .filter((p) => p.a === heuristic || p.b === heuristic)
     .map((p) => ({ a: heuristic, b: p.a === heuristic ? p.b : p.a, kappa: p.kappa }))
     .sort((x, y) => y.kappa - x.kappa);
-
   const reachesCeiling =
     interRaterCeiling === null || heuristicVsRaters.length === 0
       ? null
       : heuristicVsRaters[0].kappa >= interRaterCeiling - tolerance;
-
   return {
     raters: raters.map((r) => r.rater),
     n,
@@ -93,6 +87,40 @@ export function crossRaterAgreement(
     heuristicVsRaters,
     reachesCeiling,
   };
+}
+
+/** Categorical/binary multi-rater agreement (Cohen's kappa). For binary signals like has_specific_example. */
+export function crossRaterAgreement(
+  raters: RaterLabels[],
+  opts: { heuristic?: string; tolerance?: number } = {},
+): CrossRaterReport {
+  return buildReport(
+    raters,
+    (a, b) => cohenKappa(a.labels, b.labels),
+    opts.heuristic ?? 'heuristic',
+    opts.tolerance ?? 0.1,
+  );
+}
+
+/**
+ * Ordinal multi-rater agreement (quadratic-weighted kappa) for ordered band labels like
+ * poor < borderline < solid < outstanding (interview scoring). `orderedCategories` defines the scale;
+ * a distant band disagreement is penalised more than an adjacent one. Unknown labels map to index 0.
+ */
+export function crossRaterAgreementOrdinal(
+  raters: RaterLabels[],
+  orderedCategories: string[],
+  opts: { heuristic?: string; tolerance?: number } = {},
+): CrossRaterReport {
+  const idx = new Map(orderedCategories.map((c, i) => [c, i]));
+  const k = orderedCategories.length;
+  const toOrd = (labels: string[]): number[] => labels.map((l) => idx.get(l) ?? 0);
+  return buildReport(
+    raters,
+    (a, b) => quadraticWeightedKappa(toOrd(a.labels), toOrd(b.labels), k),
+    opts.heuristic ?? 'heuristic',
+    opts.tolerance ?? 0.1,
+  );
 }
 
 const f2 = (x: number): string => x.toFixed(2);
