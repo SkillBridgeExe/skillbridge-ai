@@ -34,6 +34,12 @@ export interface AnswerSignals {
   repeated_terms: Array<{ term: string; count: number }>;
   jd_term_hits: { hit: string[]; missed: string[]; coverage: number };
   star: { situation: boolean; task: boolean; action: boolean; result: boolean; complete: boolean };
+  /**
+   * @deprecated Ambiguous construct — the cross-rater study measured an inter-rater ceiling of only
+   * 0.31 for "concrete example" (raters disagree: narrow=quantified vs broad=any specific story). The
+   * engine no longer relies on it for scoring/grounding — those use `is_quantified` (narrow, L1) + the
+   * L2 `has_specific_example` (broad). Kept for back-compat + eval; prefer the two clear signals.
+   */
   has_concrete_example: boolean;
   /**
    * rules (a)+(b) of concreteness ONLY — a number-in-context OR a quantified-result cue. The narrow,
