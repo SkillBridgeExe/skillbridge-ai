@@ -150,6 +150,21 @@ describe('deriveInterviewGaps — evidence_gap', () => {
     ]);
     expect(out.some((g) => g.weakness_type === 'evidence_gap')).toBe(false);
   });
+
+  it('does NOT fire evidence_gap when evidence_quality is strong even if L1 lacks a concrete example (Q2)', () => {
+    // a qualitative specific example: L2 made evidence_quality strong though there is no number/tech.
+    // Old code keyed off signals.has_concrete_example and would have fired; now it flows from evidence_quality.
+    const out = deriveInterviewGaps([
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'react',
+        answer: 'I once walked a new teammate through our code review process and it went smoothly.',
+        jd_terms: [],
+        insight: { evidence_quality: 'strong' },
+      }),
+    ]);
+    expect(out.some((g) => g.weakness_type === 'evidence_gap')).toBe(false);
+  });
 });
 
 describe('deriveInterviewGaps — communication_gap', () => {

@@ -118,10 +118,12 @@ function deriveKnowledgeGap(c: AnswerGapContext): InterviewGapItem | null {
 
 function deriveEvidenceGap(c: AnswerGapContext): InterviewGapItem | null {
   if (!SKILL_TOPICS.has(c.topic_phase)) return null;
+  // evidence_quality is the authoritative signal: 'strong' = a specific example (L2 has_specific_example)
+  // OR a quantified result (L1 is_quantified). Only thin/overclaimed answers carry an evidence gap — so a
+  // qualitative specific example (strong, but no number) does NOT fire here (design Q2: flows from the
+  // upgraded evidence_quality rather than the narrow L1 has_concrete_example).
   const quality = c.insight.evidence_quality;
-  const lacksConcrete = c.signals.has_concrete_example === false;
-  const weakQuality = quality === 'thin' || quality === 'overclaimed';
-  if (!lacksConcrete && !weakQuality) return null;
+  if (quality === 'strong') return null;
 
   const severity = quality === 'overclaimed' ? OVERCLAIMED_SEVERITY : THIN_EVIDENCE_SEVERITY;
   return {
