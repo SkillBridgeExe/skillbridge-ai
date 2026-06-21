@@ -759,6 +759,7 @@ describe('InterviewsService', () => {
       createdAt: new Date('2026-06-12T00:00:01.000Z'),
       askedAt: new Date('2026-06-12T00:00:01.000Z'),
     }));
+    allTurns[4].userAnswerText = 'Email candidate@example.com or call 0987 654 321.';
     turns.find.mockImplementation(async (options?: { take?: number }) => {
       if (options?.take) return allTurns.slice(2, 7).reverse();
       return allTurns;
@@ -775,7 +776,7 @@ describe('InterviewsService', () => {
 
     await service.answer(userId, {
       sessionId: 'session-1',
-      userAnswer: 'Current answer',
+      userAnswer: 'Current answer from applicant@example.com and 0901 234 567.',
       modality: 'AUDIO',
     });
 
@@ -785,11 +786,20 @@ describe('InterviewsService', () => {
         question_history: [
           { order: 3, question: 'Question 3', answer: 'Answer 3' },
           { order: 4, question: 'Question 4', answer: 'Answer 4' },
-          { order: 5, question: 'Question 5', answer: 'Answer 5' },
+          {
+            order: 5,
+            question: 'Question 5',
+            answer: 'Email [redacted-email] or call [redacted-phone].',
+          },
           { order: 6, question: 'Question 6', answer: 'Answer 6' },
           { order: 7, question: 'Question 7', answer: 'Answer 7' },
-          { order: 8, question: 'Question 8', answer: 'Current answer' },
+          {
+            order: 8,
+            question: 'Question 8',
+            answer: 'Current answer from [redacted-email] and [redacted-phone].',
+          },
         ],
+        current_user_answer: 'Current answer from [redacted-email] and [redacted-phone].',
       }),
     );
   });

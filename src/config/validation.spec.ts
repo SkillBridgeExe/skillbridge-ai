@@ -84,6 +84,7 @@ describe('configValidationSchema — interview chain model overrides', () => {
     const { error, value } = configValidationSchema.validate(base, { allowUnknown: true });
     expect(error).toBeUndefined();
     expect(value.INTERVIEW_ASSESS_MODEL).toBe('gpt-4o-mini');
+    expect(value.INTERVIEW_ASK_MODEL).toBe('gpt-4o-mini');
     expect(value.ANSWER_INSIGHT_MODEL).toBe('');
     expect(value.INTERVIEW_COACHING_MODEL).toBe('');
   });
@@ -93,6 +94,7 @@ describe('configValidationSchema — interview chain model overrides', () => {
       {
         ...base,
         INTERVIEW_ASSESS_MODEL: 'gpt-4o-mini',
+        INTERVIEW_ASK_MODEL: 'gpt-4o-mini',
         ANSWER_INSIGHT_MODEL: 'gpt-4o-mini',
         INTERVIEW_COACHING_MODEL: 'gpt-4o-mini',
       },
@@ -101,6 +103,7 @@ describe('configValidationSchema — interview chain model overrides', () => {
 
     expect(error).toBeUndefined();
     expect(value.INTERVIEW_ASSESS_MODEL).toBe('gpt-4o-mini');
+    expect(value.INTERVIEW_ASK_MODEL).toBe('gpt-4o-mini');
     expect(value.ANSWER_INSIGHT_MODEL).toBe('gpt-4o-mini');
     expect(value.INTERVIEW_COACHING_MODEL).toBe('gpt-4o-mini');
   });

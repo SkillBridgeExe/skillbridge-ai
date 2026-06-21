@@ -165,9 +165,10 @@ export class InterviewChainLlmService {
 
   async ask(userId: string, input: InterviewAskInput): Promise<InterviewAskOutput> {
     const template = this.prompts.get(PROMPT_ASK);
+    const model = process.env.INTERVIEW_ASK_MODEL || 'gpt-4o-mini';
     const aiRequestId = await this.tracing.startAiRequest({
       userId,
-      modelCode: '',
+      modelCode: model,
       promptTemplateCode: template.code,
       promptTemplateVersion: template.version,
       requestType: 'interview_ask',
@@ -202,6 +203,7 @@ export class InterviewChainLlmService {
           jsonMode: true,
           responseSchema: INTERVIEW_ASK_SCHEMA,
           maxOutputTokens: 400,
+          model,
         },
       );
       const output = coerceAskOutput(aiRequestId, llmResult.parsedJson);

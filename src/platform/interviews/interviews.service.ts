@@ -706,7 +706,7 @@ export class InterviewsService {
     const aiAnswer = await this.interviewAi.answer(userId, {
       session_id: session.id,
       question_history: this.questionHistory(answerContext.historyTurns, current, dto.userAnswer),
-      current_user_answer: dto.userAnswer,
+      current_user_answer: maskPii(dto.userAnswer),
       current_question_order: current.turnOrder,
     });
 
@@ -1402,8 +1402,8 @@ export class InterviewsService {
       .filter((turn) => turn.userAnswerText || turn.id === current.id)
       .map((turn) => ({
         order: turn.turnOrder,
-        question: turn.interviewerQuestion,
-        answer: turn.id === current.id ? currentAnswer : (turn.userAnswerText ?? ''),
+        question: maskPii(turn.interviewerQuestion),
+        answer: maskPii(turn.id === current.id ? currentAnswer : (turn.userAnswerText ?? '')),
       }));
   }
 

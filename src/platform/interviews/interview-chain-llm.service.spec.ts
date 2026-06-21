@@ -119,7 +119,7 @@ describe('InterviewChainLlmService.assess', () => {
 
 describe('InterviewChainLlmService.ask', () => {
   it('calls interview_ask_v1 with schema-enforced JSON and returns one next question', async () => {
-    const { service, llm } = build({
+    const { service, llm, tracing } = build({
       ai_message: 'Thanks, let us go one level deeper.',
       question: 'What invalidation trade-off did you choose?',
     });
@@ -143,6 +143,13 @@ describe('InterviewChainLlmService.ask', () => {
         provider: 'openai',
         jsonMode: true,
         responseSchema: expect.objectContaining({ type: 'object', additionalProperties: false }),
+        model: 'gpt-4o-mini',
+      }),
+    );
+    expect(tracing.startAiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestType: 'interview_ask',
+        modelCode: 'gpt-4o-mini',
       }),
     );
     expect(out).toMatchObject({
