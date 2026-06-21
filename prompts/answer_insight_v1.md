@@ -32,6 +32,24 @@ Produce ONLY the nuanced judgment below. Ground `talking_point` and `relevance` 
 - `off_topic`: true only if the answer does not address the question at all.
 - `confidence_tone`: `under | calibrated | over`. Use `over` when the answer is assertive/strong-sounding BUT the Layer-1 signals show no concrete example to back it up — that is over-claiming. Use `under` when the candidate hedges or downplays despite giving real substance. Otherwise `calibrated`.
 - `note`: one short sentence (≤200 chars) describing the single most useful observation. Do NOT coach, do NOT reveal a better answer, do NOT include any URL.
+- `has_specific_example` (boolean) — RUBRIC for specific example detection: true ONLY if the answer describes a REAL, PARTICULAR situation the candidate actually experienced — e.g., a specific project, incident, or time ("In my internship at Company X, we had an outage and I…"). Set false for generic capability claims ("I'm good at X"), hypotheticals ("I would just try a few things"), or aspirations. A number or metric is NOT required — a qualitative but specific, grounded story counts as true.
+- `star_present` (object with four booleans: `situation`, `task`, `action`, `result`) — Judge each part independently from the answer's MEANING, not from keywords:
+  - `situation`: the answer establishes context or a problem (where/when/what was happening).
+  - `task`: the candidate's own goal or responsibility in that situation is stated.
+  - `action`: what THEY personally did — not what "the team" or "we" did in general.
+  - `result`: the outcome or what changed as a result of their action.
+
+## Specific example rubric — worked examples
+
+**Example 1 — strong, full-STAR answer:**
+> "During my internship at FinTech Co, our payment service was throwing 503s under load. I profiled the bottleneck to a DB connection pool limit, raised it, and we dropped error rate from 8% to 0.3% within an hour."
+- `has_specific_example`: true (real, particular incident)
+- `star_present`: { situation: true, task: true, action: true, result: true }
+
+**Example 2 — generic / hypothetical answer:**
+> "I'm a quick learner and I would just try a few things until something works. I think debugging is all about patience."
+- `has_specific_example`: false (no real situation described)
+- `star_present`: { situation: false, task: false, action: false, result: false }
 
 ## Rules
 
@@ -48,6 +66,13 @@ Produce ONLY the nuanced judgment below. Ground `talking_point` and `relevance` 
   "clarity": "unclear | adequate | clear",
   "off_topic": false,
   "confidence_tone": "under | calibrated | over",
-  "note": "one short observation, <=200 chars, no URL"
+  "note": "one short observation, <=200 chars, no URL",
+  "has_specific_example": false,
+  "star_present": {
+    "situation": false,
+    "task": false,
+    "action": false,
+    "result": false
+  }
 }
 ```

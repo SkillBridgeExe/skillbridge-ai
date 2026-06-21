@@ -28,6 +28,31 @@ function thinSignals(over: Partial<AnswerSignals> = {}): AnswerSignals {
   return { ...base, ...over };
 }
 
+/**
+ * baseSignals — a valid AnswerSignals with overridable is_quantified, has_concrete_example,
+ * and flags.rambling_risk. Builds from analyzeAnswerSignals for full structural completeness,
+ * then overlays explicit overrides so each caller controls only what matters.
+ */
+function baseSignals(
+  overrides: Partial<Pick<AnswerSignals, 'is_quantified' | 'has_concrete_example'>> & {
+    rambling_risk?: boolean;
+  } = {},
+): AnswerSignals {
+  const base = analyzeAnswerSignals({
+    answer: 'I am not really sure about that one to be honest.',
+    language: 'en',
+  });
+  const { rambling_risk, ...rest } = overrides;
+  return {
+    ...base,
+    ...rest,
+    flags: {
+      ...base.flags,
+      ...(rambling_risk !== undefined ? { rambling_risk } : {}),
+    },
+  };
+}
+
 describe('groundAnswerInsight — valid parse passthrough', () => {
   it('passes through valid enums + clamped relevance and derives evidence_quality from L1', () => {
     const signals = concreteSignals();
@@ -190,13 +215,179 @@ describe('groundAnswerInsight — null parsed (LLM failed) → safe fallback', (
 });
 
 describe('ANSWER_INSIGHT_SCHEMA', () => {
-  it('is a strict object schema with the 6 MODEL fields and NO evidence_quality', () => {
+  it('is a strict object schema with the 8 MODEL fields and NO evidence_quality', () => {
     expect(ANSWER_INSIGHT_SCHEMA.type).toBe('object');
     expect(ANSWER_INSIGHT_SCHEMA.additionalProperties).toBe(false);
     const props = ANSWER_INSIGHT_SCHEMA.properties as Record<string, unknown>;
     expect(Object.keys(props).sort()).toEqual(
-      ['clarity', 'confidence_tone', 'note', 'off_topic', 'relevance', 'talking_point'].sort(),
+      [
+        'clarity',
+        'confidence_tone',
+        'has_specific_example',
+        'note',
+        'off_topic',
+        'relevance',
+        'star_present',
+        'talking_point',
+      ].sort(),
     );
     expect(props.evidence_quality).toBeUndefined();
+  });
+
+  it('star_present schema has additionalProperties:false and all 4 boolean parts required', () => {
+    const props = ANSWER_INSIGHT_SCHEMA.properties as Record<string, unknown>;
+    const star = props.star_present as Record<string, unknown>;
+    expect(star.type).toBe('object');
+    expect(star.additionalProperties).toBe(false);
+    const starProps = star.properties as Record<string, unknown>;
+    expect(Object.keys(starProps).sort()).toEqual(['action', 'result', 'situation', 'task']);
+    const req = star.required as string[];
+    expect(req.sort()).toEqual(['action', 'result', 'situation', 'task']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New L2 fields: has_specific_example + star_present
+// ---------------------------------------------------------------------------
+
+describe('groundAnswerInsight — has_specific_example (model-judged)', () => {
+  it('passes through model-provided true value', () => {
+    const out = groundAnswerInsight(
+      {
+        talking_point: 'project',
+        relevance: 70,
+        clarity: 'clear',
+        off_topic: false,
+        confidence_tone: 'calibrated',
+        note: 'Good',
+        has_specific_example: true,
+        star_present: { situation: true, task: true, action: true, result: true },
+      },
+      baseSignals({}),
+    );
+    expect(out.has_specific_example).toBe(true);
+  });
+
+  it('defaults to false when missing', () => {
+    const out = groundAnswerInsight({ relevance: 60 }, baseSignals({}));
+    expect(out.has_specific_example).toBe(false);
+  });
+
+  it('defaults to false when null', () => {
+    const out = groundAnswerInsight({ has_specific_example: null }, baseSignals({}));
+    expect(out.has_specific_example).toBe(false);
+  });
+
+  it('defaults to false when non-boolean truthy', () => {
+    const out = groundAnswerInsight({ has_specific_example: 1 }, baseSignals({}));
+    expect(out.has_specific_example).toBe(false);
+  });
+
+  it('passes through false correctly', () => {
+    const out = groundAnswerInsight({ has_specific_example: false }, baseSignals({}));
+    expect(out.has_specific_example).toBe(false);
+  });
+});
+
+describe('groundAnswerInsight — star_present (model-judged, decomposed STAR)', () => {
+  it('passes through partial model object with individual booleans', () => {
+    const out = groundAnswerInsight(
+      {
+        star_present: { situation: true, task: false, action: true, result: true },
+        has_specific_example: false,
+      },
+      baseSignals({}),
+    );
+    expect(out.star_present).toEqual({ situation: true, task: false, action: true, result: true });
+  });
+
+  it('on degrade (parsed===null) all four parts default to true', () => {
+    const out = groundAnswerInsight(null, baseSignals({}));
+    expect(out.star_present).toEqual({ situation: true, task: true, action: true, result: true });
+    expect(out.has_specific_example).toBe(false);
+  });
+
+  it('when star_present object IS present, missing parts default to false', () => {
+    const out = groundAnswerInsight({ star_present: { situation: true } }, baseSignals({}));
+    expect(out.star_present).toEqual({
+      situation: true,
+      task: false,
+      action: false,
+      result: false,
+    });
+  });
+
+  it('when star_present is not-an-object (degrade path), all four default to true', () => {
+    const out = groundAnswerInsight({ star_present: 'bad' }, baseSignals({}));
+    expect(out.star_present).toEqual({ situation: true, task: true, action: true, result: true });
+  });
+
+  it('when star_present is null (degrade path), all four default to true', () => {
+    const out = groundAnswerInsight({ star_present: null }, baseSignals({}));
+    expect(out.star_present).toEqual({ situation: true, task: true, action: true, result: true });
+  });
+
+  it('non-boolean truthy in an object coerces to false (=== true check)', () => {
+    const out = groundAnswerInsight(
+      { star_present: { situation: 1, task: 'yes', action: true, result: false } },
+      baseSignals({}),
+    );
+    expect(out.star_present).toEqual({
+      situation: false,
+      task: false,
+      action: true,
+      result: false,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// evidence_quality upgrade: has_specific_example OR is_quantified → strong
+// ---------------------------------------------------------------------------
+
+describe('groundAnswerInsight — upgraded evidence_quality (has_specific_example | is_quantified)', () => {
+  it('strong from has_specific_example even when L1 not concrete/quantified', () => {
+    const signals = baseSignals({ has_concrete_example: false, is_quantified: false });
+    const out = groundAnswerInsight(
+      {
+        has_specific_example: true,
+        confidence_tone: 'calibrated',
+        star_present: { situation: true, task: true, action: true, result: true },
+      },
+      signals,
+    );
+    expect(out.evidence_quality).toBe('strong');
+  });
+
+  it('strong from is_quantified on degrade (parsed===null)', () => {
+    const out = groundAnswerInsight(null, baseSignals({ is_quantified: true }));
+    expect(out.evidence_quality).toBe('strong');
+  });
+
+  it('thin when neither has_specific_example nor is_quantified and tone is calibrated', () => {
+    const signals = baseSignals({ is_quantified: false });
+    const out = groundAnswerInsight(
+      { has_specific_example: false, confidence_tone: 'calibrated' },
+      signals,
+    );
+    expect(out.evidence_quality).toBe('thin');
+  });
+
+  it('overclaimed when neither has_specific_example nor is_quantified but tone is over', () => {
+    const signals = baseSignals({ is_quantified: false });
+    const out = groundAnswerInsight(
+      { has_specific_example: false, confidence_tone: 'over' },
+      signals,
+    );
+    expect(out.evidence_quality).toBe('overclaimed');
+  });
+
+  it('has_specific_example beats overclaimed tone → strong', () => {
+    const signals = baseSignals({ is_quantified: false });
+    const out = groundAnswerInsight(
+      { has_specific_example: true, confidence_tone: 'over' },
+      signals,
+    );
+    expect(out.evidence_quality).toBe('strong');
   });
 });

@@ -13,7 +13,9 @@
         "clarity": "clear",
         "off_topic": false,
         "confidence_tone": "calibrated",
-        "note": "Concrete, well-structured performance story."
+        "note": "Concrete, well-structured performance story.",
+        "has_specific_example": true,
+        "star_present": { "situation": true, "task": true, "action": true, "result": true }
       },
       "expect": {
         "talking_point": "project",
@@ -22,7 +24,9 @@
         "off_topic": false,
         "confidence_tone": "calibrated",
         "evidence_quality": "strong",
-        "note": "Concrete, well-structured performance story."
+        "note": "Concrete, well-structured performance story.",
+        "has_specific_example": true,
+        "star_present": { "situation": true, "task": true, "action": true, "result": true }
       }
     },
     {
@@ -37,13 +41,17 @@
         "clarity": "sparkling",
         "off_topic": false,
         "confidence_tone": "megaconfident",
-        "note": "vague"
+        "note": "vague",
+        "has_specific_example": false,
+        "star_present": { "situation": false, "task": false, "action": false, "result": false }
       },
       "expect": {
         "talking_point": "experience",
         "clarity": "adequate",
         "confidence_tone": "calibrated",
-        "evidence_quality": "thin"
+        "evidence_quality": "thin",
+        "has_specific_example": false,
+        "star_present": { "situation": false, "task": false, "action": false, "result": false }
       }
     },
     {
@@ -88,7 +96,9 @@
         "off_topic": false,
         "confidence_tone": "calibrated",
         "evidence_quality": "strong",
-        "note": ""
+        "note": "",
+        "has_specific_example": false,
+        "star_present": { "situation": true, "task": true, "action": true, "result": true }
       }
     },
     {

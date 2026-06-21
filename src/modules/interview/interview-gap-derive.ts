@@ -73,7 +73,7 @@ const COMMUNICATION_WEIGHT = 0.3;
 const OVERCLAIMED_SEVERITY = 0.8;
 const THIN_EVIDENCE_SEVERITY = 0.5;
 
-const STAR_PART_LABELS: Array<[keyof AnswerSignals['star'], string]> = [
+const STAR_PART_LABELS: Array<[keyof AnswerInsight['star_present'], string]> = [
   ['situation', 'situation'],
   ['task', 'task'],
   ['action', 'action'],
@@ -118,10 +118,12 @@ function deriveKnowledgeGap(c: AnswerGapContext): InterviewGapItem | null {
 
 function deriveEvidenceGap(c: AnswerGapContext): InterviewGapItem | null {
   if (!SKILL_TOPICS.has(c.topic_phase)) return null;
+  // evidence_quality is the authoritative signal: 'strong' = a specific example (L2 has_specific_example)
+  // OR a quantified result (L1 is_quantified). Only thin/overclaimed answers carry an evidence gap — so a
+  // qualitative specific example (strong, but no number) does NOT fire here (design Q2: flows from the
+  // upgraded evidence_quality rather than the narrow L1 has_concrete_example).
   const quality = c.insight.evidence_quality;
-  const lacksConcrete = c.signals.has_concrete_example === false;
-  const weakQuality = quality === 'thin' || quality === 'overclaimed';
-  if (!lacksConcrete && !weakQuality) return null;
+  if (quality === 'strong') return null;
 
   const severity = quality === 'overclaimed' ? OVERCLAIMED_SEVERITY : THIN_EVIDENCE_SEVERITY;
   return {
@@ -163,24 +165,13 @@ function deriveCommunicationGap(c: AnswerGapContext): InterviewGapItem | null {
 function deriveBehavioralGap(c: AnswerGapContext): InterviewGapItem | null {
   // Review-locked: ONLY behavioral/scenario phases — never a short technical answer.
   if (!BEHAVIORAL_PHASES.has(c.topic_phase)) return null;
-  if (c.signals.star.complete) return null;
 
-  // INTERIM (calibration 2026-06-21): L1 STAR cue-matching is unreliable on natural phrasing
-  // (kappa 0.03 vs human) — alone it over-fires "missing STAR" on substantive answers that merely
-  // phrase STAR differently. Until L2 owns star_completeness (decision-2), require a RELIABLE
-  // weakness signal to corroborate a genuinely thin/structureless answer before flagging STAR.
-  const corroboratedWeak =
-    c.signals.flags.is_too_short ||
-    c.signals.flags.rambling_risk ||
-    c.signals.filler.count >= FILLER_THRESHOLD ||
-    c.insight.clarity === 'unclear' ||
-    c.insight.off_topic;
-  if (!corroboratedWeak) return null;
+  // L2 (model-judged) star_present is the source of truth. Missing entirely (defensive) or all four
+  // present → complete → no gap. (After this guard, `missing` always has >= 1 entry.)
+  const sp = c.insight.star_present;
+  if (!sp || (sp.situation && sp.task && sp.action && sp.result)) return null;
 
-  const missing = STAR_PART_LABELS.filter(([key]) => !c.signals.star[key]).map(
-    ([, label]) => label,
-  );
-  if (missing.length === 0) return null;
+  const missing = STAR_PART_LABELS.filter(([key]) => !sp[key]).map(([, label]) => label);
 
   return {
     requirement_id: null,

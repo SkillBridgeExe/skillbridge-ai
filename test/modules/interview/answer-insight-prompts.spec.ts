@@ -23,7 +23,7 @@ describe('answer_insight_v1 prompt contract', () => {
     }
   });
 
-  it('specifies exactly the 6 MODEL output fields and NOT evidence_quality (code derives it)', () => {
+  it('specifies exactly the 8 MODEL output fields and NOT evidence_quality (code derives it)', () => {
     for (const field of [
       'talking_point',
       'relevance',
@@ -31,11 +31,23 @@ describe('answer_insight_v1 prompt contract', () => {
       'off_topic',
       'confidence_tone',
       'note',
+      'has_specific_example',
+      'star_present',
     ]) {
       expect(prompt).toContain(field);
     }
     // evidence_quality is CODE-derived from Layer 1 — the model must never output it.
     expect(prompt).not.toContain('evidence_quality');
+  });
+
+  it('defines a specific-example rubric with at least one worked example', () => {
+    const lower = prompt.toLowerCase();
+    expect(lower).toMatch(/specific example/);
+    // Pin the actual worked-example block headings in the prompt (not just any "e.g." usage).
+    // The prompt uses numbered examples with descriptive labels: "Example 1 — ..." and
+    // "Example 2 — generic / hypothetical ...". This assertion would fail if the worked-example
+    // block were removed or replaced with inline e.g. notes only.
+    expect(prompt).toMatch(/Example\s+\d\s*[—–-]|full-STAR answer|generic.*hypothetical/i);
   });
 
   it('instructs the model to judge only and NOT recompute Layer 1 counts', () => {
