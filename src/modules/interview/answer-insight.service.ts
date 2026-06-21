@@ -136,7 +136,11 @@ function summarizeSignals(s: AnswerSignals): Record<string, unknown> {
     jd_coverage: s.jd_term_hits.coverage,
     jd_missed: s.jd_term_hits.missed,
     star_complete: s.star.complete,
-    has_concrete_example: s.has_concrete_example,
+    // Ground on the UNAMBIGUOUS deterministic signal (is_quantified) rather than the legacy ambiguous
+    // has_concrete_example: the cross-rater study measured an inter-rater ceiling of 0.31 for
+    // "concrete example" (the construct is under-defined). The model judges has_specific_example
+    // itself, so it does not need the ambiguous L1 flag as grounding.
+    is_quantified: s.is_quantified,
     rambling_risk: s.flags.rambling_risk,
   };
 }
