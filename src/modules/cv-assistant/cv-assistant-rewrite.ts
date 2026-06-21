@@ -142,7 +142,18 @@ export function groundCvRewrite(
     };
   }
   // allowed evidence = the user's facts + words already in the original bullet (the model may reuse those).
-  const allowed = `${grounded.facts.join(' ')} ${before}`.toLowerCase();
+  // Match numbers + entities as WHOLE tokens (NOT substrings): a fabricated "30%" must not hide inside a
+  // legit "300 users" ('30' ⊂ '300'), which substring matching would wrongly accept.
+  const source = `${grounded.facts.join(' ')} ${before}`;
+  const allowedNumbers = new Set(source.match(NUMBER_RE) ?? []);
+  // split on ANY non-alphanumeric so the allowed set is tokenized the SAME way properTokens splits
+  // (e.g. 'Node.js' → 'node','js') — otherwise a grounded 'Node.js' would be wrongly rejected.
+  const allowedTokens = new Set(
+    source
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(Boolean),
+  );
 
   // (a) every declared used_fact must be one of the allowed facts.
   for (const uf of model.used_facts) {
@@ -150,15 +161,15 @@ export function groundCvRewrite(
       return { ok: false, reason: 'UNGROUNDED', detail: `used_fact not in allowed facts: ${uf}` };
     }
   }
-  // (b) every number in `after` must be grounded (came from a fact or the original bullet).
+  // (b) every number in `after` must be a number the user actually gave (exact, not a substring).
   for (const num of model.after.match(NUMBER_RE) ?? []) {
-    if (!allowed.includes(num.toLowerCase())) {
+    if (!allowedNumbers.has(num)) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated number: ${num}` };
     }
   }
-  // (c) every proper-noun/tech entity in `after` must be grounded.
+  // (c) every proper-noun/tech entity in `after` must be a whole token from the facts or the original.
   for (const tok of properTokens(model.after)) {
-    if (!allowed.includes(tok.toLowerCase())) {
+    if (!allowedTokens.has(tok.toLowerCase())) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity/tech: ${tok}` };
     }
   }

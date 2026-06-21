@@ -101,4 +101,22 @@ describe('groundCvRewrite — rejects any fabricated fact (anti-fabrication chok
     expect(v.ok).toBe(false);
     if (!v.ok) expect(v.reason).toBe('NEEDS_DETAIL');
   });
+
+  it('REJECTS a fabricated number even when it is a SUBSTRING of a real one (300 users → 30%)', () => {
+    const g = groundCvAssistantAnswers(
+      [
+        { gap: 'action', option_id: 'built' },
+        { gap: 'result', option_id: 'more_users', detail: '300 users' },
+      ],
+      'en',
+    ); // facts include '300 users' — substring matching would wrongly accept '30'
+    const v = groundCvRewrite(
+      'Worked on it.',
+      { after: 'Built it and cut latency by 30%.', used_facts: ['built'] },
+      g,
+      OPTS,
+    );
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.detail).toMatch(/fabricated number: 30/);
+  });
 });

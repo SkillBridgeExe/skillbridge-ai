@@ -67,6 +67,17 @@
       "model_after": "Built it with some tools.",
       "model_used_facts": [],
       "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-number-substring", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [
+        { "gap": "action", "option_id": "built" },
+        { "gap": "result", "option_id": "more_users", "detail": "300 users" }
+      ],
+      "model_after": "Built it and cut latency by 30%.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
     }
   ]
 }
