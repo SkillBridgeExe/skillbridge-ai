@@ -1,0 +1,259 @@
+{
+  "cases": [
+    {
+      "id": "clean-strong-answer-none",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "When our checkout page was slow during peak traffic, I was responsible for the performance work. I implemented a Redis caching layer and added a database index. As a result we reduced p99 latency by 30%. I used React and Redis throughout.",
+          "jd_terms": ["React", "Redis"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        }
+      ],
+      "expect": []
+    },
+    {
+      "id": "jd-miss-knowledge",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "When the dashboard was slow I implemented a Redis cache and reduced p99 latency by 30% for the team, but I never touched the rest of that stack at all honestly.",
+          "jd_terms": ["React", "Redis", "GraphQL"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "strong" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react", "severity_min": 0.6, "severity_max": 0.7 }
+      ]
+    },
+    {
+      "id": "jd-coverage-low-knowledge-0_8",
+      "contexts": [
+        {
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "I built a React dashboard for the ops team that cut their daily report time by 2 hours, but I did not touch the rest of that stack at all.",
+          "jd_terms": ["React", "Redux", "GraphQL", "Kafka", "Terraform"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "strong" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react", "severity_min": 0.75, "severity_max": 0.85 }
+      ]
+    },
+    {
+      "id": "no-concrete-evidence-thin",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "I just used React and Redis to build the page here on my own machine for the team.",
+          "jd_terms": ["React", "Redis"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "evidence_gap", "skill_canonical": "react", "severity_min": 0.45, "severity_max": 0.55 }
+      ]
+    },
+    {
+      "id": "overclaim-evidence-0_8",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "I am honestly the best at React and Redis here, and I always nail every single thing without any trouble at all.",
+          "jd_terms": ["React", "Redis"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "overclaimed" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "evidence_gap", "skill_canonical": "react", "severity_min": 0.75, "severity_max": 0.85 }
+      ]
+    },
+    {
+      "id": "rambling-filler-communication",
+      "contexts": [
+        {
+          "topic_phase": "SCREENING",
+          "skill_canonical": null,
+          "display_name": "Motivation & recent work",
+          "linked_question_id": "q1",
+          "answer": "Um, you know, basically, actually, I mean, like, sort of, kind of, I went on about a lot of unrelated things here without really getting to the point at all honestly.",
+          "language": "en",
+          "insight": { "off_topic": true, "clarity": "unclear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "communication_gap", "skill_canonical": null, "severity_min": 0.5 }
+      ]
+    },
+    {
+      "id": "off-topic-only-communication-0_3",
+      "contexts": [
+        {
+          "topic_phase": "SCREENING",
+          "skill_canonical": null,
+          "display_name": "Motivation & recent work",
+          "linked_question_id": "q1",
+          "answer": "I spent the weekend hiking in the mountains and it was a really pleasant trip overall for me.",
+          "language": "en",
+          "insight": { "off_topic": true, "clarity": "clear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "communication_gap", "skill_canonical": null, "severity_min": 0.25, "severity_max": 0.35 }
+      ]
+    },
+    {
+      "id": "behavioral-no-star-behavioral",
+      "contexts": [
+        {
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "linked_question_id": "q1",
+          "answer": "I disagreed with a teammate about an approach and it was a bit awkward at the time for everyone.",
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "behavioral_gap", "skill_canonical": null, "severity_min": 0.5 }
+      ]
+    },
+    {
+      "id": "technical-no-star-no-behavioral",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "I built a React dashboard for the ops team that cut their daily report time by 2 hours using React.",
+          "jd_terms": ["React"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "strong" }
+        }
+      ],
+      "expect": []
+    },
+    {
+      "id": "dedup-same-skill",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "I just used React on the page here for the team really, nothing special honestly.",
+          "jd_terms": ["React"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        },
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q2",
+          "answer": "I am the best at React and always nail it without any trouble at all every single time.",
+          "jd_terms": ["React"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "overclaimed" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "evidence_gap", "skill_canonical": "react", "severity_min": 0.75, "severity_max": 0.85 }
+      ]
+    },
+    {
+      "id": "mixed-multi-gap-scenario",
+      "contexts": [
+        {
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "Um, you know, like, I am not sure honestly, I would just try a few things and see what sticks, I guess.",
+          "jd_terms": ["React", "Redux", "GraphQL"],
+          "language": "en",
+          "insight": { "off_topic": true, "clarity": "unclear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react", "severity_min": 0.8 },
+        { "weakness_type": "evidence_gap", "skill_canonical": "react", "severity_min": 0.45, "severity_max": 0.55 },
+        { "weakness_type": "communication_gap", "skill_canonical": null, "severity_min": 0.5 },
+        { "weakness_type": "behavioral_gap", "skill_canonical": null, "severity_min": 0.5 }
+      ]
+    },
+    {
+      "id": "masked-evidence-pii",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "Reach me at john@acme.com or 0912345678. I just used React on the page here for the team.",
+          "jd_terms": ["React"],
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "evidence_gap", "skill_canonical": "react", "severity_min": 0.45, "severity_max": 0.55 }
+      ]
+    },
+    {
+      "id": "vi-jd-miss-knowledge",
+      "contexts": [
+        {
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "linked_question_id": "q1",
+          "answer": "Tôi đã xây dựng giao diện và tối ưu truy vấn, nhờ đó giảm thời gian phản hồi, nhưng không đụng đến phần còn lại của hệ thống.",
+          "jd_terms": ["React", "Redux", "GraphQL"],
+          "language": "vi",
+          "insight": { "off_topic": false, "clarity": "clear", "evidence_quality": "strong" }
+        }
+      ],
+      "expect": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react", "severity_min": 0.9 }
+      ]
+    },
+    {
+      "id": "behavioral-complete-star-none",
+      "contexts": [
+        {
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "linked_question_id": "q1",
+          "answer": "When our team was behind on a release, I was responsible for the recovery plan. I implemented a triage board and rewrote the flaky tests. As a result we cut our defect backlog by 40% that month.",
+          "language": "en",
+          "insight": { "off_topic": false, "clarity": "clear" }
+        }
+      ],
+      "expect": []
+    }
+  ]
+}
