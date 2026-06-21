@@ -1,0 +1,196 @@
+{
+  "cases": [
+    {
+      "id": "valid-passthrough-strong",
+      "signal_input": {
+        "answer": "When the checkout page was slow during peak traffic, I implemented a Redis caching layer and added a database index, and as a result we reduced p99 latency by 30%.",
+        "jd_terms": ["Redis", "caching"],
+        "language": "en"
+      },
+      "model_output": {
+        "talking_point": "project",
+        "relevance": 90,
+        "clarity": "clear",
+        "off_topic": false,
+        "confidence_tone": "calibrated",
+        "note": "Concrete, well-structured performance story."
+      },
+      "expect": {
+        "talking_point": "project",
+        "relevance": 90,
+        "clarity": "clear",
+        "off_topic": false,
+        "confidence_tone": "calibrated",
+        "evidence_quality": "strong",
+        "note": "Concrete, well-structured performance story."
+      }
+    },
+    {
+      "id": "invalid-enum-defaults",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": {
+        "talking_point": "banana",
+        "relevance": 40,
+        "clarity": "sparkling",
+        "off_topic": false,
+        "confidence_tone": "megaconfident",
+        "note": "vague"
+      },
+      "expect": {
+        "talking_point": "experience",
+        "clarity": "adequate",
+        "confidence_tone": "calibrated",
+        "evidence_quality": "thin"
+      }
+    },
+    {
+      "id": "relevance-clamp-high",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": { "relevance": 150 },
+      "expect": { "relevance": 100, "evidence_quality": "thin" }
+    },
+    {
+      "id": "relevance-clamp-low",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": { "relevance": -20 },
+      "expect": { "relevance": 0, "evidence_quality": "thin" }
+    },
+    {
+      "id": "relevance-nonnumber-default-50",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": { "relevance": "very" },
+      "expect": { "relevance": 50, "evidence_quality": "thin" }
+    },
+    {
+      "id": "null-output-fallback-strong",
+      "signal_input": {
+        "answer": "When the page was slow, I implemented a Redis cache and reduced p99 latency by 30%.",
+        "jd_terms": ["Redis"],
+        "language": "en"
+      },
+      "model_output": null,
+      "expect": {
+        "talking_point": "experience",
+        "relevance": 50,
+        "clarity": "adequate",
+        "off_topic": false,
+        "confidence_tone": "calibrated",
+        "evidence_quality": "strong",
+        "note": ""
+      }
+    },
+    {
+      "id": "null-output-fallback-thin",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": null,
+      "expect": { "evidence_quality": "thin", "note": "", "relevance": 50 }
+    },
+    {
+      "id": "concrete-derives-strong-ignores-model",
+      "signal_input": {
+        "answer": "I built a payment service and increased throughput to 5000 requests per second.",
+        "language": "en"
+      },
+      "model_output": {
+        "talking_point": "impact",
+        "relevance": 80,
+        "confidence_tone": "over",
+        "note": "good"
+      },
+      "expect": { "evidence_quality": "strong", "talking_point": "impact" }
+    },
+    {
+      "id": "overclaim-no-concrete-over",
+      "signal_input": {
+        "answer": "I am an absolute expert in distributed systems and can solve literally anything thrown at me.",
+        "language": "en"
+      },
+      "model_output": { "confidence_tone": "over", "relevance": 70, "note": "assertive" },
+      "expect": { "evidence_quality": "overclaimed", "confidence_tone": "over" }
+    },
+    {
+      "id": "thin-no-concrete-calibrated",
+      "signal_input": {
+        "answer": "I have worked with several backend frameworks over the past few years on various teams.",
+        "language": "en"
+      },
+      "model_output": { "confidence_tone": "calibrated", "relevance": 60 },
+      "expect": { "evidence_quality": "thin", "confidence_tone": "calibrated" }
+    },
+    {
+      "id": "rambling-low-relevance-off-topic-safety-net",
+      "signal_input": {
+        "answer": "Um, you know, I kind of just, like, basically went through a lot of things and, you know, I mean, it was sort of a long journey and, um, actually, I think there were many parts to it, and like, you know, we tried a bunch of different stuff and, basically, it kind of worked out, sort of, I guess, you know, and, um, like, there was a whole lot going on at that time, actually, and, you know, I mean, it was, like, really quite a big thing overall, and, um, basically, you know, I kind of rambled here without really getting to any concrete point at all, and, like, you know, it just kept going on and on and on, sort of, and, um, actually, I think that is, basically, you know, more or less, kind of, the general gist of the whole situation, like, you know, if that makes any sense at all, um, basically, you know, like, I mean, sort of, kind of, that is roughly it I suppose, you know.",
+        "jd_terms": ["React", "Kubernetes"],
+        "language": "en"
+      },
+      "model_output": { "off_topic": false, "relevance": 15, "confidence_tone": "calibrated" },
+      "expect": { "off_topic": true, "relevance": 15, "evidence_quality": "thin" }
+    },
+    {
+      "id": "rambling-but-relevance-ok-not-off-topic",
+      "signal_input": {
+        "answer": "Um, you know, I kind of just, like, basically went through a lot of things and, you know, I mean, it was sort of a long journey and, um, actually, I think there were many parts to it, and like, you know, we tried a bunch of different stuff and, basically, it kind of worked out, sort of, I guess, you know, and, um, like, there was a whole lot going on at that time, actually, and, you know, I mean, it was, like, really quite a big thing overall, and, um, basically, you know, I kind of rambled here without really getting to any concrete point at all, and, like, you know, it just kept going on and on and on, sort of, and, um, actually, I think that is, basically, you know, more or less, kind of, the general gist of the whole situation, like, you know, if that makes any sense at all, um, basically, you know, like, I mean, sort of, kind of, that is roughly it I suppose, you know.",
+        "jd_terms": ["React", "Kubernetes"],
+        "language": "en"
+      },
+      "model_output": { "off_topic": false, "relevance": 55, "confidence_tone": "calibrated" },
+      "expect": { "off_topic": false, "relevance": 55 }
+    },
+    {
+      "id": "note-strips-url-and-trims",
+      "signal_input": {
+        "answer": "I am not really sure about that one to be honest.",
+        "language": "en"
+      },
+      "model_output": { "note": "  See https://leak.example.com/secret for details.  " },
+      "expect": { "note": "See [link] for details.", "evidence_quality": "thin" }
+    },
+    {
+      "id": "vi-concrete-strong",
+      "signal_input": {
+        "answer": "Khi hệ thống bị chậm, tôi đã triển khai cache Redis và giảm thời gian phản hồi đáng kể cho người dùng.",
+        "jd_terms": ["Redis"],
+        "language": "vi"
+      },
+      "model_output": {
+        "talking_point": "project",
+        "relevance": 85,
+        "clarity": "clear",
+        "off_topic": false,
+        "confidence_tone": "calibrated",
+        "note": "Câu trả lời rõ ràng, có dẫn chứng."
+      },
+      "expect": {
+        "talking_point": "project",
+        "relevance": 85,
+        "evidence_quality": "strong",
+        "off_topic": false
+      }
+    },
+    {
+      "id": "vi-thin-no-concrete",
+      "signal_input": {
+        "answer": "Tôi không chắc lắm về phần đó, có lẽ tôi cần xem lại thêm một chút.",
+        "language": "vi"
+      },
+      "model_output": { "confidence_tone": "calibrated", "relevance": 45 },
+      "expect": { "evidence_quality": "thin", "relevance": 45 }
+    }
+  ]
+}

@@ -170,7 +170,17 @@ export interface InterviewState {
   evasive_streak: number;
 }
 
-const FRESHER_BANDS = new Set(['fresher', 'junior']);
+/**
+ * Early-career seniority bands. SINGLE SOURCE OF TRUTH shared with interview-scoring's role-family
+ * resolution: a band drilled lighter here (decideTurn) MUST also be scored on the low-evidence
+ * fresher_intern rubric column — exporting one set keeps drill + score from drifting (review P1-1).
+ */
+export const EARLY_CAREER_BANDS: ReadonlySet<string> = new Set([
+  'fresher',
+  'intern',
+  'junior',
+  'entry_level',
+]);
 
 export function decideTurn(input: {
   signal: DepthSignal;
@@ -188,7 +198,7 @@ export function decideTurn(input: {
   }
   if (input.drill_depth >= input.drill_budget - 1) return 'advance';
   if (input.signal === 'deep') {
-    const fresher = FRESHER_BANDS.has(input.seniority_target);
+    const fresher = EARLY_CAREER_BANDS.has(input.seniority_target.trim().toLowerCase());
     const pastHalf = input.drill_depth >= Math.ceil(input.drill_budget / 2);
     return fresher || pastHalf ? 'advance' : 'push_harder';
   }
