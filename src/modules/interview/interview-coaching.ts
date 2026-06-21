@@ -70,6 +70,25 @@ const WHY_MAX = 300;
 
 const SOLID_BANDS: ReadonlySet<ScoreBand> = new Set<ScoreBand>(['solid', 'outstanding']);
 
+/**
+ * The schema enforced ON THE MODEL — exactly the 2 narrative fields it is allowed to produce.
+ * `strengths` and `priorities` are DELIBERATELY ABSENT: code owns them from the facts; the model
+ * must not output them. `additionalProperties:false` keeps the model from smuggling in a fabricated
+ * priority/strength/skill.
+ */
+export const COACHING_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'priority_notes'],
+  properties: {
+    summary: { type: 'string', maxLength: SUMMARY_MAX },
+    priority_notes: {
+      type: 'array',
+      items: { type: 'string', maxLength: WHY_MAX },
+    },
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Task 1 — buildCoachingFacts (PURE)
 // ---------------------------------------------------------------------------
