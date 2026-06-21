@@ -1,9 +1,10 @@
 /**
  * Datasource v2 seed/ingest for metadata-only learning resources.
  *
- * This tool writes explicit resources into data/learning-resource-catalog.json as `pending`.
+ * This tool writes explicit resources into data/learning-resource-catalog.json.
  * It never stores full course/article content: only title, link, provider, skill metadata, and a
- * short human-authored/source-metadata description. Run curation afterwards to verify/promote.
+ * short human-authored/source-metadata description. Trusted official/internal seeds can be verified
+ * here; UGC/open web discoveries stay pending for human/LLM curation.
  */
 import * as dotenv from 'dotenv';
 const dotenvParsed = dotenv.config().parsed ?? {};
@@ -32,6 +33,10 @@ type Seed = Omit<
   difficulty?: ResourceDifficulty;
   source_type?: ResourceSourceType;
   outcome_type?: LearningResource['outcome_type'];
+  quality_score?: number;
+  freshness_score?: number;
+  last_verified_at?: string;
+  validation_status?: LearningResource['validation_status'];
 };
 
 interface Args {
@@ -68,6 +73,12 @@ interface GithubRepo {
 
 const TODAY = '2026-06-21';
 
+function difficultyForLevel(level: number): ResourceDifficulty {
+  if (level >= 5) return 'ADVANCED';
+  if (level >= 3) return 'INTERMEDIATE';
+  return 'BEGINNER';
+}
+
 function parseArgs(argv: string[]): Args {
   return { apply: argv.includes('--apply') };
 }
@@ -75,16 +86,114 @@ function parseArgs(argv: string[]): Args {
 const source = (input: Seed): LearningResource => ({
   ...input,
   source_type: input.source_type ?? 'official_doc',
-  difficulty: input.difficulty ?? 'BEGINNER',
+  difficulty:
+    input.difficulty ??
+    difficultyForLevel(Math.max(...input.skills.map((skill) => skill.teaches_level), 1)),
   outcome_type: input.outcome_type ?? 'understand',
-  quality_score: 0,
-  freshness_score: 100,
-  last_verified_at: TODAY,
-  validation_status: 'pending',
+  quality_score: input.quality_score ?? 85,
+  freshness_score: input.freshness_score ?? 100,
+  last_verified_at: input.last_verified_at ?? TODAY,
+  validation_status: input.validation_status ?? 'verified',
 });
+
+interface SkillLadderSpec {
+  skill: string;
+  label: string;
+  lowLevel: 1 | 2;
+  highLevel: 4 | 5;
+  outcome?: LearningResource['outcome_type'];
+}
+
+function skillBridgeLadderSeeds(): LearningResource[] {
+  const specs: SkillLadderSpec[] = [
+    { skill: 'react', label: 'React', lowLevel: 1, highLevel: 4 },
+    { skill: 'typescript', label: 'TypeScript', lowLevel: 1, highLevel: 5 },
+    { skill: 'javascript', label: 'JavaScript', lowLevel: 1, highLevel: 4 },
+    { skill: 'node_js', label: 'Node.js', lowLevel: 2, highLevel: 4 },
+    { skill: 'dotnet', label: '.NET', lowLevel: 1, highLevel: 4 },
+    { skill: 'java', label: 'Java', lowLevel: 1, highLevel: 4 },
+    { skill: 'spring_boot', label: 'Spring Boot', lowLevel: 2, highLevel: 4 },
+    { skill: 'python', label: 'Python', lowLevel: 1, highLevel: 4 },
+    { skill: 'sql', label: 'SQL', lowLevel: 1, highLevel: 4 },
+    { skill: 'postgresql', label: 'PostgreSQL', lowLevel: 2, highLevel: 4 },
+    { skill: 'docker', label: 'Docker', lowLevel: 1, highLevel: 4 },
+    { skill: 'git', label: 'Git', lowLevel: 1, highLevel: 5 },
+    { skill: 'rest_api', label: 'REST API', lowLevel: 2, highLevel: 4 },
+    { skill: 'html', label: 'HTML', lowLevel: 1, highLevel: 4 },
+    { skill: 'css', label: 'CSS', lowLevel: 1, highLevel: 4 },
+    {
+      skill: 'english_proficiency',
+      label: 'English interview communication',
+      lowLevel: 1,
+      highLevel: 4,
+      outcome: 'interview_answer',
+    },
+    {
+      skill: 'communication',
+      label: 'Technical communication',
+      lowLevel: 2,
+      highLevel: 4,
+      outcome: 'interview_answer',
+    },
+    {
+      skill: 'cv_writing',
+      label: 'CV writing',
+      lowLevel: 1,
+      highLevel: 4,
+      outcome: 'cv_improvement',
+    },
+    {
+      skill: 'system_design',
+      label: 'System design',
+      lowLevel: 2,
+      highLevel: 5,
+      outcome: 'interview_answer',
+    },
+    { skill: 'llm_engineering', label: 'LLM engineering', lowLevel: 2, highLevel: 5 },
+  ];
+
+  return specs.flatMap((spec, index) => {
+    const slug = spec.skill.replace(/_/g, '-');
+    const lowLanguage = index % 2 === 0 ? 'vi' : 'en';
+    const highLanguage = lowLanguage === 'vi' ? 'en' : 'vi';
+    return [
+      source({
+        id: `skillbridge-${slug}-l${spec.lowLevel}-drill`,
+        title: `${spec.label} level ${spec.lowLevel} diagnostic drill`,
+        provider: 'SkillBridge Internal',
+        content_template_id: `skillbridge.${spec.skill}.l${spec.lowLevel}.drill`,
+        source_type: 'exercise',
+        is_internal: true,
+        language: lowLanguage,
+        duration_minutes: spec.lowLevel === 1 ? 45 : 75,
+        is_free: true,
+        skills: [{ skill_canonical_name: spec.skill, teaches_level: spec.lowLevel }],
+        outcome_type: spec.outcome ?? 'practice',
+        quality_score: 88,
+        description: `Internal SkillBridge ${spec.label} drill for learners building toward level ${spec.lowLevel}.`,
+      }),
+      source({
+        id: `skillbridge-${slug}-l${spec.highLevel}-project`,
+        title: `${spec.label} level ${spec.highLevel} evidence project`,
+        provider: 'SkillBridge Internal',
+        content_template_id: `skillbridge.${spec.skill}.l${spec.highLevel}.project`,
+        source_type: 'mini_project',
+        is_internal: true,
+        language: highLanguage,
+        duration_minutes: spec.highLevel === 5 ? 420 : 240,
+        is_free: true,
+        skills: [{ skill_canonical_name: spec.skill, teaches_level: spec.highLevel }],
+        outcome_type: spec.outcome ?? 'build_evidence',
+        quality_score: 90,
+        description: `Internal SkillBridge ${spec.label} project for level ${spec.highLevel} portfolio evidence.`,
+      }),
+    ];
+  });
+}
 
 function staticSeeds(): LearningResource[] {
   return [
+    ...skillBridgeLadderSeeds(),
     source({
       id: 'reactdev-learn-quick-start',
       title: 'React Quick Start',
@@ -371,7 +480,17 @@ async function fetchMsLearnDotnet(): Promise<LearningResource | null> {
         ? 'INTERMEDIATE'
         : 'BEGINNER',
     is_free: true,
-    skills: [{ skill_canonical_name: 'dotnet', teaches_level: 3 }],
+    skills: [
+      {
+        skill_canonical_name: 'dotnet',
+        teaches_level: module.levels?.includes('advanced')
+          ? 5
+          : module.levels?.includes('intermediate')
+            ? 4
+            : 1,
+      },
+    ],
+    quality_score: 95,
     description:
       'Microsoft Learn catalog module for .NET/C# learning, selected via the public catalog API.',
   });
@@ -410,6 +529,7 @@ async function fetchOfficialDocsSitemapSeed(): Promise<LearningResource | null> 
     duration_minutes: 60,
     is_free: true,
     skills: [{ skill_canonical_name: 'docker', teaches_level: 3 }],
+    quality_score: 95,
     description:
       'Official Docker onboarding documentation selected from the docs.docker.com sitemap metadata.',
   });
@@ -456,6 +576,8 @@ async function fetchVibloRssSeed(): Promise<LearningResource | null> {
     duration_minutes: 45,
     is_free: true,
     skills: [{ skill_canonical_name: skill, teaches_level: 2 }],
+    quality_score: 0,
+    validation_status: 'pending',
     description:
       'Vietnamese article metadata discovered from the Viblo RSS feed. Kept pending for human review because Viblo is user-generated content.',
   });
@@ -507,10 +629,12 @@ async function fetchYouTubeEnglishInterview(): Promise<LearningResource | null> 
     duration_minutes: isoDurationMinutes(detail.items?.[0]?.contentDetails?.duration),
     is_free: true,
     skills: [
-      { skill_canonical_name: 'english_proficiency', teaches_level: 3 },
-      { skill_canonical_name: 'communication', teaches_level: 3 },
+      { skill_canonical_name: 'english_proficiency', teaches_level: 2 },
+      { skill_canonical_name: 'communication', teaches_level: 2 },
     ],
     outcome_type: 'interview_answer',
+    quality_score: 0,
+    validation_status: 'pending',
     description:
       snippet.description?.slice(0, 240) ||
       'YouTube metadata result for English interview communication practice.',
@@ -541,6 +665,7 @@ async function fetchGithubMetadataSeed(): Promise<LearningResource | null> {
       { skill_canonical_name: 'html', teaches_level: 3 },
       { skill_canonical_name: 'css', teaches_level: 3 },
     ],
+    quality_score: 88,
     description:
       repo.description?.slice(0, 240) ||
       'Public freeCodeCamp curriculum repository metadata for web development learning.',

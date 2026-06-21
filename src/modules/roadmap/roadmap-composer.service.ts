@@ -38,8 +38,11 @@ export class RoadmapComposerService {
     );
     const withResourceHours = feasibilityInputs.map((item) => ({
       ...item,
-      resource_hours: cheapestResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
+      resource_hours: primaryResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
     }));
+    const feasibilityBySkill = new Map(
+      withResourceHours.map((item) => [item.skill_canonical, item] as const),
+    );
     const plan = planFeasibility(withResourceHours, input.budget);
 
     const steps: ComposedRoadmapStep[] = [];
@@ -51,7 +54,7 @@ export class RoadmapComposerService {
           skill_canonical: item.skill_canonical,
           display_name: item.display_name,
           reason: 'ran_out_of_budget',
-          fallback: 'crash_prep',
+          fallback: fallbackFor(feasibilityBySkill.get(item.skill_canonical)),
         });
         continue;
       }
@@ -94,12 +97,17 @@ export class RoadmapComposerService {
   }
 }
 
-function cheapestResourceHours(resources: ScoredResource[]): number | null {
-  const minutes = resources
-    .map((resource) => resource.duration_minutes)
-    .filter((value) => Number.isFinite(value) && value > 0);
-  if (minutes.length === 0) return null;
-  return Math.min(...minutes) / 60;
+function primaryResourceHours(resources: ScoredResource[]): number | null {
+  const primaryMinutes = resources[0]?.duration_minutes;
+  return Number.isFinite(primaryMinutes) && primaryMinutes > 0 ? primaryMinutes / 60 : null;
+}
+
+function fallbackFor(
+  item: ReturnType<typeof toFeasibilityInputs>[number] | undefined,
+): NotFeasibleItem['fallback'] {
+  if (item?.interview_confirmed) return 'interview_practice';
+  if (item?.needs_evidence) return 'cv_fix';
+  return 'crash_prep';
 }
 
 function toRecommendedCourse(resource: ScoredResource): ScoredCourse {

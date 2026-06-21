@@ -1,7 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
 import { GapItem } from '../../../src/modules/gap-engine/gap-item';
 import { SkillBridgeGapReport } from '../../../src/modules/gap-report/gap-report.service';
+import { ComposedRoadmap } from '../../../src/modules/roadmap/roadmap-composer';
+import { RoadmapComposerService } from '../../../src/modules/roadmap/roadmap-composer.service';
 import { CvMatchesService } from '../../../src/platform/cv-matches/cv-matches.service';
+import { RoadmapFromMatchDto } from '../../../src/platform/cv-matches/dto/roadmap-from-match.dto';
+
+type RoadmapComposerInput = Parameters<RoadmapComposerService['compose']>[0];
 
 const gap = (over: Partial<GapItem>): GapItem =>
   ({
@@ -31,8 +36,8 @@ const report = (over: Partial<SkillBridgeGapReport>): SkillBridgeGapReport =>
 
 function build() {
   const roadmap = { generate: jest.fn() };
-  const composer = {
-    compose: jest.fn().mockReturnValue({
+  const composer: jest.Mocked<Pick<RoadmapComposerService, 'compose'>> = {
+    compose: jest.fn<ComposedRoadmap, [RoadmapComposerInput]>().mockReturnValue({
       budget_hours: 34.3,
       steps: [],
       not_feasible_items: [],
@@ -40,7 +45,7 @@ function build() {
     }),
   };
   const learningPreferences = { findOne: jest.fn().mockResolvedValue(null) };
-  const service = new (CvMatchesService as any)(
+  const service = new CvMatchesService(
     {} as never,
     {} as never,
     {} as never,
@@ -85,10 +90,11 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       }),
     );
 
-    const out = (await service.generateRoadmapFromMatch('user-1', 'match-1', {
+    const dto: RoadmapFromMatchDto = {
       available_days: 30,
       hours_per_week: 8,
-    } as any)) as any;
+    };
+    const out = await service.generateRoadmapFromMatch('user-1', 'match-1', dto);
 
     expect(service.getGapReport).toHaveBeenCalledWith('user-1', 'match-1');
     expect(roadmap.generate).not.toHaveBeenCalled();
@@ -101,7 +107,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       }),
     );
     expect(
-      composer.compose.mock.calls[0][0].learnItems.map((item: any) => item.skill_canonical),
+      composer.compose.mock.calls[0][0].learnItems.map((item) => item.skill_canonical),
     ).toEqual(['react', 'sql']);
     expect(out.ai_summary).toBe('deterministic');
   });
@@ -114,7 +120,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       }),
     );
 
-    const out = (await service.generateRoadmapFromMatch('user-1', 'match-1', {})) as any;
+    const out = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
 
     expect(roadmap.generate).not.toHaveBeenCalled();
     expect(composer.compose).not.toHaveBeenCalled();
@@ -130,10 +136,11 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       }),
     );
 
-    await service.generateRoadmapFromMatch('user-1', 'match-1', {
+    const dto: RoadmapFromMatchDto = {
       available_days: 10,
       hours_per_week: 20,
-    } as any);
+    };
+    await service.generateRoadmapFromMatch('user-1', 'match-1', dto);
 
     expect(composer.compose.mock.calls[0][0].budget).toEqual({
       available_days: 10,
@@ -149,9 +156,10 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
       }),
     );
 
-    await service.generateRoadmapFromMatch('user-1', 'match-1', {
+    const dto: RoadmapFromMatchDto = {
       language_pref: 'en',
-    } as any);
+    };
+    await service.generateRoadmapFromMatch('user-1', 'match-1', dto);
 
     expect(composer.compose.mock.calls[0][0].languagePref).toBe('en');
   });

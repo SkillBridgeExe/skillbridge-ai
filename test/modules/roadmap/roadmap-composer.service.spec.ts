@@ -89,10 +89,8 @@ describe('RoadmapComposerService.compose', () => {
 
     expect(out.steps[0].skill_canonical).toBe('react');
     expect(out.steps[0].resources[0].id).toBe('r1');
-    expect((out.steps[0].resources[0] as any).low_confidence).toBe(true);
-    expect((out.steps[0] as any).recommended_courses?.map((course: any) => course.id)).toEqual([
-      'r1',
-    ]);
+    expect(out.steps[0].resources[0].low_confidence).toBe(true);
+    expect(out.steps[0].recommended_courses?.map((course) => course.id)).toEqual(['r1']);
     expect(out.not_feasible_items.map((item) => item.skill_canonical)).toContain('rust');
     expect(out.ai_summary.length).toBeGreaterThan(0);
     expect(matcher.matchResources).toHaveBeenCalledWith(
@@ -125,7 +123,7 @@ describe('RoadmapComposerService.compose', () => {
     );
   });
 
-  it('uses the cheapest matched resource duration as feasibility floor before selecting steps', () => {
+  it('uses the primary matched resource duration as feasibility floor before selecting steps', () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [
         {
@@ -158,6 +156,31 @@ describe('RoadmapComposerService.compose', () => {
               freshness_score: 100,
               low_confidence: false,
             },
+            {
+              id: 'short-react',
+              source_type: 'video',
+              title: 'Short React',
+              provider: 'YouTube',
+              url: 'https://u',
+              is_internal: false,
+              language: 'vi',
+              duration_minutes: 60,
+              difficulty: 'BEGINNER',
+              is_free: true,
+              skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+              outcome_type: 'understand',
+              match_score: 60,
+              match_breakdown: {
+                quality_pts: 12,
+                language_pts: 20,
+                free_pts: 15,
+                level_fit_pts: 10,
+                multi_skill_pts: 3,
+              },
+              quality_score: 40,
+              freshness_score: 100,
+              low_confidence: true,
+            },
           ],
         },
       ],
@@ -179,6 +202,34 @@ describe('RoadmapComposerService.compose', () => {
         reason: 'ran_out_of_budget',
         fallback: 'crash_prep',
       },
+    ]);
+  });
+
+  it('selects not-feasible fallbacks from the gap context', () => {
+    matcher.matchResources.mockReturnValueOnce({
+      per_skill: [],
+      uncovered_skills: [],
+    });
+
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [{ ...learn('communication', 0.9), source: 'both' }, learn('portfolio', 0.8)],
+      gapItems: [
+        gap('communication', { evidence_risk: 'none', required_level: 5, cv_level: 0 }),
+        gap('portfolio', { evidence_risk: 'unproven', required_level: 5, cv_level: 0 }),
+      ],
+      budget: { available_days: 1, hours_per_week: 1 },
+    });
+
+    expect(out.not_feasible_items).toEqual([
+      expect.objectContaining({
+        skill_canonical: 'communication',
+        fallback: 'interview_practice',
+      }),
+      expect.objectContaining({
+        skill_canonical: 'portfolio',
+        fallback: 'cv_fix',
+      }),
     ]);
   });
 });

@@ -28,6 +28,7 @@ describe('providerTier', () => {
     expect(providerTier('sqlbolt.com')).toBe('T1');
     expect(providerTier('github.com/donnemartin/system-design-primer')).toBe('T1');
     expect(providerTier('DeepLearning.AI')).toBe('T1');
+    expect(providerTier('SkillBridge Internal')).toBe('T1');
   });
 
   it('classifies known commercial platforms as T2', () => {

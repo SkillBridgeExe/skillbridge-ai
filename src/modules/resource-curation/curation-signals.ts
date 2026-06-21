@@ -44,6 +44,7 @@ const TIER_1 = [
   'sqlbolt.com',
   'github.com/donnemartin/system-design-primer',
   'deeplearning.ai',
+  'skillbridge internal',
   'aws skill builder',
 ];
 const TIER_2 = [
