@@ -1,0 +1,336 @@
+[
+  {
+    "resource_id": "deeplearningai-langchain-short-course",
+    "curated_at": "2026-06-21T10:22:11.892Z",
+    "old_status": "pending",
+    "new_status": "pending",
+    "quality_score": 72,
+    "flags": [],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "docker-official-get-started",
+    "curated_at": "2026-06-21T10:22:14.320Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 95,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "docs-python-tutorial",
+    "curated_at": "2026-06-21T10:22:17.323Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "f8-html-css-course",
+    "curated_at": "2026-06-21T10:22:20.837Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 77,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.6666666666666666,
+      "purpose": 0.6666666666666666
+    }
+  },
+  {
+    "resource_id": "f8-javascript-basic",
+    "curated_at": "2026-06-21T10:22:23.745Z",
+    "old_status": "pending",
+    "new_status": "pending",
+    "quality_score": 62,
+    "flags": [],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.3333333333333333,
+      "purpose": 0.6666666666666666
+    }
+  },
+  {
+    "resource_id": "f8-nodejs-express-course",
+    "curated_at": "2026-06-21T10:22:26.241Z",
+    "old_status": "pending",
+    "new_status": "pending",
+    "quality_score": 70,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 0.6666666666666666,
+      "currency": 0.3333333333333333,
+      "accuracy": 0.3333333333333333,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "f8-reactjs-course",
+    "curated_at": "2026-06-21T10:22:29.473Z",
+    "old_status": "pending",
+    "new_status": "flagged",
+    "quality_score": 72,
+    "flags": [
+      "promotional"
+    ],
+    "craap": {
+      "relevance": 1,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.3333333333333333,
+      "purpose": 0.6666666666666666
+    }
+  },
+  {
+    "resource_id": "git-scm-book",
+    "curated_at": "2026-06-21T10:22:32.184Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 93,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 0.6666666666666666,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "github-freecodecamp-curriculum",
+    "curated_at": "2026-06-21T10:22:34.790Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 88,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "mdn-javascript-guide",
+    "curated_at": "2026-06-21T10:22:37.423Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "mdn-learn-html-css",
+    "curated_at": "2026-06-21T10:22:40.194Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 85,
+    "flags": [],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "mslearn-dotnet-csharp-module",
+    "curated_at": "2026-06-21T10:22:42.884Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "nodejs-learn-introduction",
+    "curated_at": "2026-06-21T10:22:49.982Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "postgresql-official-tutorial-docs",
+    "curated_at": "2026-06-21T10:22:52.600Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "reactdev-learn-quick-start",
+    "curated_at": "2026-06-21T10:22:55.213Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "spring-guides-building-rest-service",
+    "curated_at": "2026-06-21T10:22:57.932Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "sqlbolt-interactive-sql-lessons",
+    "curated_at": "2026-06-21T10:23:00.914Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 82,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "system-design-primer-github",
+    "curated_at": "2026-06-21T10:23:04.238Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 82,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.6666666666666666,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "talkfirst-english-interview",
+    "curated_at": "2026-06-21T10:23:07.183Z",
+    "old_status": "pending",
+    "new_status": "pending",
+    "quality_score": 62,
+    "flags": [],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.3333333333333333,
+      "purpose": 0.6666666666666666
+    }
+  },
+  {
+    "resource_id": "topcv-cv-writing-guide",
+    "curated_at": "2026-06-21T10:23:09.917Z",
+    "old_status": "pending",
+    "new_status": "pending",
+    "quality_score": 62,
+    "flags": [],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.3333333333333333,
+      "purpose": 0.6666666666666666
+    }
+  },
+  {
+    "resource_id": "typescriptlang-handbook",
+    "curated_at": "2026-06-21T10:23:12.449Z",
+    "old_status": "pending",
+    "new_status": "verified",
+    "quality_score": 100,
+    "flags": [],
+    "craap": {
+      "relevance": 1,
+      "authority": 1,
+      "currency": 1,
+      "accuracy": 1,
+      "purpose": 1
+    }
+  },
+  {
+    "resource_id": "youtube-english-interview-ld0cvWnrVsU",
+    "curated_at": "2026-06-21T10:23:15.343Z",
+    "old_status": "pending",
+    "new_status": "flagged",
+    "quality_score": 62,
+    "flags": [
+      "promotional"
+    ],
+    "craap": {
+      "relevance": 0.6666666666666666,
+      "authority": 0.6666666666666666,
+      "currency": 0.6666666666666666,
+      "accuracy": 0.3333333333333333,
+      "purpose": 0.6666666666666666
+    }
+  }
+]

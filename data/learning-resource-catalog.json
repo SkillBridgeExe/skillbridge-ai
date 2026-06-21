@@ -1,4 +1,565 @@
 {
   "_note": "Explicit LearningResource entries (docs/videos/exercises/mini-projects/drills/cv-fix-tasks). Merged on top of the course-catalog.json seed; duplicate id overrides the seed. Empty until curation adds non-course resources.",
-  "resources": []
+  "resources": [
+    {
+      "id": "deeplearningai-langchain-short-course",
+      "source_type": "official_doc",
+      "title": "LangChain for LLM Application Development",
+      "provider": "DeepLearning.AI",
+      "url": "https://www.deeplearning.ai/short-courses/langchain-for-llm-application-development/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "difficulty": "INTERMEDIATE",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Khóa học ngắn miễn phí giới thiệu các pattern của LangChain cho phát triển ứng dụng LLM.",
+      "quality_score": 72,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "pending"
+    },
+    {
+      "id": "docker-official-get-started",
+      "source_type": "official_doc",
+      "title": "Docker Get Started",
+      "provider": "docs.docker.com",
+      "url": "https://docs.docker.com/get-started/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 60,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "docker",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tài liệu onboarding chính thức của Docker, dùng để làm quen với các bước bắt đầu và khái niệm cơ bản về Docker.",
+      "quality_score": 95,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "docs-python-tutorial",
+      "source_type": "official_doc",
+      "title": "The Python Tutorial",
+      "provider": "docs.python.org",
+      "url": "https://docs.python.org/3/tutorial/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 300,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "python",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tài liệu hướng dẫn chính thức về Python, bao gồm cú pháp, cấu trúc dữ liệu, mô-đun và lớp.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-html-css-course",
+      "source_type": "official_doc",
+      "title": "HTML CSS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/html-css",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 420,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Khóa học HTML và CSS bằng tiếng Việt từ F8, tập trung vào hai kỹ năng html và css.",
+      "quality_score": 77,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-javascript-basic",
+      "source_type": "official_doc",
+      "title": "JavaScript Basic Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/javascript-co-ban",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 360,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Khóa học cơ bản về JavaScript bằng tiếng Việt từ F8, phù hợp cho người mới bắt đầu học các khái niệm nền tảng.",
+      "quality_score": 62,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "pending"
+    },
+    {
+      "id": "f8-nodejs-express-course",
+      "source_type": "official_doc",
+      "title": "NodeJS & ExpressJS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/nodejs",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 420,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Khóa học tiếng Việt về Node.js và ExpressJS do F8 cung cấp.",
+      "quality_score": 70,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "pending"
+    },
+    {
+      "id": "f8-reactjs-course",
+      "source_type": "official_doc",
+      "title": "ReactJS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/reactjs",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 360,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Trang giới thiệu khóa học ReactJS bằng tiếng Việt từ F8, tập trung vào học React cho người học quan tâm đến kỹ năng này.",
+      "quality_score": 72,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "flagged"
+    },
+    {
+      "id": "git-scm-book",
+      "source_type": "official_doc",
+      "title": "Pro Git Book",
+      "provider": "git-scm.com",
+      "url": "https://git-scm.com/book/en/v2",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 420,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "git",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tài liệu chính thức về Git, bao gồm các khái niệm cơ bản, branching, remotes và workflows. Phù hợp để học và thực hành Git một cách hệ thống.",
+      "quality_score": 93,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "github-freecodecamp-curriculum",
+      "source_type": "course",
+      "title": "freeCodeCamp Curriculum",
+      "provider": "freeCodeCamp GitHub",
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 600,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "freeCodeCamp cung cấp một codebase nguồn mở kèm curriculum để học toán, lập trình và khoa học máy tính miễn phí.",
+      "quality_score": 88,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mdn-javascript-guide",
+      "source_type": "official_doc",
+      "title": "JavaScript Guide",
+      "provider": "MDN Web Docs",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 300,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Hướng dẫn MDN về JavaScript cơ bản, bao gồm cú pháp, luồng điều khiển, đối tượng và hàm.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mdn-learn-html-css",
+      "source_type": "official_doc",
+      "title": "MDN Learn Web Development",
+      "provider": "MDN Web Docs",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 480,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Trang học của MDN Web Docs giới thiệu các kiến thức nền tảng về phát triển web, tập trung vào HTML, CSS và JavaScript. Tài nguyên phù hợp để bắt đầu học các khái niệm cơ bản về web development.",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mslearn-dotnet-csharp-module",
+      "source_type": "official_doc",
+      "title": "Add decision logic to your code using `if`, `else`, and `else if` statements in C#",
+      "provider": "learn.microsoft.com",
+      "url": "https://learn.microsoft.com/en-us/training/modules/csharp-if-elseif-else/?WT.mc_id=api_CatalogApi",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 56,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "dotnet",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Module học Microsoft Learn về .NET/C# hướng dẫn cách thêm logic quyết định vào mã bằng các câu lệnh if, else và else if.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "nodejs-learn-introduction",
+      "source_type": "official_doc",
+      "title": "Introduction to Node.js",
+      "provider": "nodejs.org",
+      "url": "https://nodejs.org/en/learn/getting-started/introduction-to-nodejs",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tài liệu học chính thức dành cho người mới bắt đầu với Node.js, tập trung vào việc làm quen với runtime.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "postgresql-official-tutorial-docs",
+      "source_type": "official_doc",
+      "title": "PostgreSQL Tutorial",
+      "provider": "postgresql.org",
+      "url": "https://www.postgresql.org/docs/current/tutorial.html",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 180,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "postgresql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tutorial chính thức về PostgreSQL, giới thiệu các khái niệm quan hệ, SQL và kiến thức cơ bản về cơ sở dữ liệu.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "reactdev-learn-quick-start",
+      "source_type": "official_doc",
+      "title": "React Quick Start",
+      "provider": "react.dev",
+      "url": "https://react.dev/learn",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Official React learning guide that covers components, JSX, props, and state basics for beginners.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "spring-guides-building-rest-service",
+      "source_type": "official_doc",
+      "title": "Building a RESTful Web Service",
+      "provider": "spring.io",
+      "url": "https://spring.io/guides/gs/rest-service/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "java",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "spring_boot",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Hướng dẫn chính thức của Spring về cách xây dựng một dịch vụ REST đơn giản với Java và Spring Boot.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "sqlbolt-interactive-sql-lessons",
+      "source_type": "official_doc",
+      "title": "SQLBolt Interactive Lessons",
+      "provider": "sqlbolt.com",
+      "url": "https://sqlbolt.com/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 180,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "sql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Bộ bài học SQL tương tác tập trung vào select queries, joins, aggregation và thao tác trên bảng.",
+      "quality_score": 82,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "system-design-primer-github",
+      "source_type": "official_doc",
+      "title": "System Design Primer",
+      "provider": "github.com/donnemartin/system-design-primer",
+      "url": "https://github.com/donnemartin/system-design-primer",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 600,
+      "difficulty": "INTERMEDIATE",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "system_design",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "description": "Tài liệu học tập công khai về system design, tập trung vào luyện phỏng vấn và kiến thức nền tảng về kiến trúc hệ thống.",
+      "quality_score": 82,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "talkfirst-english-interview",
+      "source_type": "official_doc",
+      "title": "English Interview Practice",
+      "provider": "talkfirst.vn",
+      "url": "https://talkfirst.vn/phong-van-tieng-anh/",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 90,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "description": "Tài nguyên luyện giao tiếp tiếng Anh cho phỏng vấn, phù hợp với người muốn thực hành kỹ năng trả lời và trao đổi trong môi trường phỏng vấn.",
+      "quality_score": 62,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "pending"
+    },
+    {
+      "id": "topcv-cv-writing-guide",
+      "source_type": "official_doc",
+      "title": "CV Writing Guide",
+      "provider": "topcv.vn",
+      "url": "https://www.topcv.vn/huong-dan-viet-cv",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 60,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cv_writing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "cv_improvement",
+      "description": "Hướng dẫn bằng tiếng Việt về cách viết CV, tập trung vào kỹ năng cv_writing.",
+      "quality_score": 62,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "pending"
+    },
+    {
+      "id": "typescriptlang-handbook",
+      "source_type": "official_doc",
+      "title": "TypeScript Handbook",
+      "provider": "typescriptlang.org",
+      "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 240,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "typescript",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "description": "Tài liệu chính thức về TypeScript, bao gồm kiến thức cơ bản về ngôn ngữ, hệ thống kiểu và cách sử dụng hằng ngày.",
+      "quality_score": 100,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "youtube-english-interview-ld0cvWnrVsU",
+      "source_type": "video",
+      "title": "Cracking the Behavioral Interview for Software Developers",
+      "provider": "YouTube - Keep On Coding",
+      "url": "https://www.youtube.com/watch?v=ld0cvWnrVsU",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 9,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "description": "Video hướng dẫn cách xử lý phỏng vấn hành vi dành cho software developers, với trọng tâm liên quan đến giao tiếp và khả năng diễn đạt bằng tiếng Anh.",
+      "quality_score": 62,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "flagged"
+    }
+  ]
 }
