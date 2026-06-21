@@ -1,0 +1,276 @@
+{
+  "cases": [
+    {
+      "id": "valid-passthrough",
+      "facts": {
+        "overall": 72,
+        "overall_band": "solid",
+        "strengths": [
+          { "name": "technical_depth", "band": "outstanding" },
+          { "name": "problem_solving", "band": "solid" }
+        ],
+        "priorities": [
+          { "track": "cv_fix", "title": "React", "severity": 0.8 },
+          { "track": "learn", "title": "Kubernetes", "severity": 0.6 }
+        ],
+        "top_gaps": [{ "display_name": "React", "weakness_type": "evidence_gap" }]
+      },
+      "model_output": {
+        "summary": "Your technical depth was outstanding. Add one concrete React example to back your claims.",
+        "priority_notes": [
+          "Production React roles want shipped React evidence.",
+          "Kubernetes shows up in the JD requirements."
+        ]
+      },
+      "expect": {
+        "strengths": ["technical_depth: outstanding", "problem_solving: solid"],
+        "priority_titles": ["React", "Kubernetes"],
+        "summary_equals": "Your technical depth was outstanding. Add one concrete React example to back your claims.",
+        "every_why_nonempty": true
+      }
+    },
+    {
+      "id": "summary-trims-whitespace",
+      "facts": {
+        "overall": 60,
+        "overall_band": "borderline",
+        "strengths": [{ "name": "communication", "band": "solid" }],
+        "priorities": [{ "track": "learn", "title": "GraphQL", "severity": 0.5 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "   Solid communication; keep practicing GraphQL.   ",
+        "priority_notes": ["GraphQL appears in the role."]
+      },
+      "expect": {
+        "summary_equals": "Solid communication; keep practicing GraphQL.",
+        "strengths": ["communication: solid"],
+        "priority_titles": ["GraphQL"]
+      }
+    },
+    {
+      "id": "summary-strips-url",
+      "facts": {
+        "overall": 70,
+        "overall_band": "solid",
+        "strengths": [{ "name": "technical_depth", "band": "solid" }],
+        "priorities": [{ "track": "cv_fix", "title": "Docker", "severity": 0.7 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "Great depth — see https://leak.example.com/secret and www.foo.com for more details.",
+        "priority_notes": ["Docker is a core requirement."]
+      },
+      "expect": {
+        "summary_excludes": ["http", "leak.example.com", "www.foo.com"],
+        "summary_contains": ["[link]"]
+      }
+    },
+    {
+      "id": "summary-caps-600",
+      "facts": {
+        "overall": 50,
+        "overall_band": "borderline",
+        "strengths": [],
+        "priorities": [{ "track": "learn", "title": "SQL", "severity": 0.6 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "priority_notes": ["SQL is needed."]
+      },
+      "expect": {
+        "summary_max_len": 600,
+        "priority_titles": ["SQL"]
+      }
+    },
+    {
+      "id": "null-output-full-fallback",
+      "facts": {
+        "overall": 45,
+        "overall_band": "borderline",
+        "strengths": [{ "name": "role_fit", "band": "solid" }],
+        "priorities": [
+          { "track": "cv_fix", "title": "React", "severity": 0.8 },
+          { "track": "learn", "title": "Kubernetes", "severity": 0.6 }
+        ],
+        "top_gaps": [{ "display_name": "React", "weakness_type": "evidence_gap" }]
+      },
+      "model_output": null,
+      "expect": {
+        "summary_nonempty": true,
+        "summary_contains": ["borderline", "React"],
+        "strengths": ["role_fit: solid"],
+        "priority_titles": ["React", "Kubernetes"],
+        "every_why_nonempty": true
+      }
+    },
+    {
+      "id": "blank-summary-templated-fallback",
+      "facts": {
+        "overall": 80,
+        "overall_band": "solid",
+        "strengths": [{ "name": "technical_depth", "band": "outstanding" }],
+        "priorities": [{ "track": "interview_practice", "title": "STAR storytelling", "severity": 0.5 }],
+        "top_gaps": []
+      },
+      "model_output": { "summary": "    ", "priority_notes": ["Structure answers with STAR."] },
+      "expect": {
+        "summary_nonempty": true,
+        "summary_contains": ["solid", "technical_depth"],
+        "priority_titles": ["STAR storytelling"]
+      }
+    },
+    {
+      "id": "model-fabricated-priority-ignored",
+      "facts": {
+        "overall": 65,
+        "overall_band": "solid",
+        "strengths": [{ "name": "problem_solving", "band": "solid" }],
+        "priorities": [{ "track": "learn", "title": "TypeScript", "severity": 0.7 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "Good problem solving.",
+        "priorities": [
+          { "track": "learn", "title": "FAKE invented priority", "why": "made up" },
+          { "track": "cv_fix", "title": "Another fake", "why": "also made up" }
+        ],
+        "priority_notes": ["TypeScript is required in the JD."]
+      },
+      "expect": {
+        "priority_titles": ["TypeScript"],
+        "strengths": ["problem_solving: solid"]
+      }
+    },
+    {
+      "id": "model-fabricated-strength-ignored",
+      "facts": {
+        "overall": 55,
+        "overall_band": "borderline",
+        "strengths": [{ "name": "communication", "band": "solid" }],
+        "priorities": [{ "track": "learn", "title": "AWS", "severity": 0.6 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "Clear communication.",
+        "strengths": ["Invented Rust mastery", "Fabricated Kafka expertise"],
+        "priority_notes": ["AWS is a core JD skill."]
+      },
+      "expect": {
+        "strengths": ["communication: solid"],
+        "summary_excludes": ["Rust", "Kafka"]
+      }
+    },
+    {
+      "id": "missing-priority-note-templated-why",
+      "facts": {
+        "overall": 68,
+        "overall_band": "solid",
+        "strengths": [{ "name": "technical_depth", "band": "solid" }],
+        "priorities": [
+          { "track": "cv_fix", "title": "React", "severity": 0.8 },
+          { "track": "learn", "title": "Kubernetes", "severity": 0.6 }
+        ],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "Solid depth.",
+        "priority_notes": ["React evidence matters."]
+      },
+      "expect": {
+        "priority_titles": ["React", "Kubernetes"],
+        "every_why_nonempty": true
+      }
+    },
+    {
+      "id": "blank-priority-notes-templated-why",
+      "facts": {
+        "overall": 40,
+        "overall_band": "poor",
+        "strengths": [],
+        "priorities": [
+          { "track": "learn", "title": "Algorithms", "severity": 0.9 },
+          { "track": "interview_practice", "title": "Mock practice", "severity": 0.5 }
+        ],
+        "top_gaps": []
+      },
+      "model_output": { "summary": "Keep going.", "priority_notes": ["", "   "] },
+      "expect": {
+        "priority_titles": ["Algorithms", "Mock practice"],
+        "every_why_nonempty": true
+      }
+    },
+    {
+      "id": "empty-facts-no-throw",
+      "facts": {
+        "overall": 0,
+        "overall_band": "poor",
+        "strengths": [],
+        "priorities": [],
+        "top_gaps": []
+      },
+      "model_output": null,
+      "expect": {
+        "summary_nonempty": true,
+        "strengths": [],
+        "priority_titles": []
+      }
+    },
+    {
+      "id": "vi-language-passthrough",
+      "facts": {
+        "overall": 75,
+        "overall_band": "solid",
+        "strengths": [{ "name": "technical_depth", "band": "outstanding" }],
+        "priorities": [{ "track": "cv_fix", "title": "React", "severity": 0.8 }],
+        "top_gaps": [{ "display_name": "React", "weakness_type": "evidence_gap" }]
+      },
+      "model_output": {
+        "summary": "Chiều sâu kỹ thuật của bạn rất tốt. Hãy bổ sung một ví dụ React cụ thể.",
+        "priority_notes": ["Nhà tuyển dụng React muốn bằng chứng bạn đã làm React thật."]
+      },
+      "expect": {
+        "summary_equals": "Chiều sâu kỹ thuật của bạn rất tốt. Hãy bổ sung một ví dụ React cụ thể.",
+        "strengths": ["technical_depth: outstanding"],
+        "priority_titles": ["React"]
+      }
+    },
+    {
+      "id": "non-string-summary-fallback",
+      "facts": {
+        "overall": 58,
+        "overall_band": "borderline",
+        "strengths": [{ "name": "role_fit", "band": "solid" }],
+        "priorities": [{ "track": "learn", "title": "Go", "severity": 0.6 }],
+        "top_gaps": []
+      },
+      "model_output": { "summary": 12345, "priority_notes": ["Go is in the JD."] },
+      "expect": {
+        "summary_nonempty": true,
+        "summary_contains": ["borderline"],
+        "priority_titles": ["Go"]
+      }
+    },
+    {
+      "id": "priority-note-strips-url-and-caps",
+      "facts": {
+        "overall": 64,
+        "overall_band": "solid",
+        "strengths": [{ "name": "communication", "band": "solid" }],
+        "priorities": [{ "track": "cv_fix", "title": "React", "severity": 0.8 }],
+        "top_gaps": []
+      },
+      "model_output": {
+        "summary": "Good.",
+        "priority_notes": [
+          "Read https://x.com/y now. zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+        ]
+      },
+      "expect": {
+        "priority_titles": ["React"],
+        "every_why_nonempty": true
+      }
+    }
+  ]
+}
