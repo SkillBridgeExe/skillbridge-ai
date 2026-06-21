@@ -165,6 +165,18 @@ function deriveBehavioralGap(c: AnswerGapContext): InterviewGapItem | null {
   if (!BEHAVIORAL_PHASES.has(c.topic_phase)) return null;
   if (c.signals.star.complete) return null;
 
+  // INTERIM (calibration 2026-06-21): L1 STAR cue-matching is unreliable on natural phrasing
+  // (kappa 0.03 vs human) — alone it over-fires "missing STAR" on substantive answers that merely
+  // phrase STAR differently. Until L2 owns star_completeness (decision-2), require a RELIABLE
+  // weakness signal to corroborate a genuinely thin/structureless answer before flagging STAR.
+  const corroboratedWeak =
+    c.signals.flags.is_too_short ||
+    c.signals.flags.rambling_risk ||
+    c.signals.filler.count >= FILLER_THRESHOLD ||
+    c.insight.clarity === 'unclear' ||
+    c.insight.off_topic;
+  if (!corroboratedWeak) return null;
+
   const missing = STAR_PART_LABELS.filter(([key]) => !c.signals.star[key]).map(
     ([, label]) => label,
   );

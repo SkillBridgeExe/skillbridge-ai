@@ -245,6 +245,20 @@ describe('deriveInterviewGaps — behavioral_gap (review-locked)', () => {
     ]);
     expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(true);
   });
+
+  it('does NOT fire behavioral_gap on a substantive, clear behavioral answer with varied STAR phrasing (L1 STAR brittle — calibration 2026-06-21)', () => {
+    // ~45 words, no filler, clear, on-topic: L1 cue-matching marks STAR incomplete (varied phrasing),
+    // but no reliable weakness signal corroborates → must NOT flag a STAR gap.
+    const out = deriveInterviewGaps([
+      ctx({
+        topic_phase: 'BEHAVIORAL',
+        answer:
+          'At my previous job I disagreed with my manager over the technology stack. I requested a meeting and prepared a comparison of both approaches, then presented my findings. After discussion the team adopted a hybrid approach and it produced a more maintainable solution.',
+        insight: { off_topic: false, clarity: 'clear' },
+      }),
+    ]);
+    expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(false);
+  });
 });
 
 describe('deriveInterviewGaps — role_fit_risk is NOT derived here', () => {

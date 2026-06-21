@@ -35,6 +35,13 @@ export interface AnswerSignals {
   jd_term_hits: { hit: string[]; missed: string[]; coverage: number };
   star: { situation: boolean; task: boolean; action: boolean; result: boolean; complete: boolean };
   has_concrete_example: boolean;
+  /**
+   * rules (a)+(b) of concreteness ONLY — a number-in-context OR a quantified-result cue. The narrow,
+   * reliable "did they measure it" signal split out from has_concrete_example (2026-06-21 calibration:
+   * concrete agreement was driven by quantification; the broad "is there a specific example" judgment
+   * is brittle deterministically and is owned by L2 / answer-insight).
+   */
+  is_quantified: boolean;
   flags: { is_too_short: boolean; no_concrete_example: boolean; rambling_risk: boolean };
 }
 
@@ -449,8 +456,9 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
   // --- STAR section markers (DESCRIPTIVE; no penalty flag derived here) ---
   const star = computeStar(norm, table.star);
 
-  // --- has_concrete_example (review-locked rule) ---
+  // --- has_concrete_example (review-locked rule) + is_quantified (its (a)+(b) subset) ---
   const has_concrete_example = computeConcreteExample(answer, norm, table, jd_term_hits.hit);
+  const is_quantified = computeIsQuantified(norm, table);
 
   // --- flags (ONLY from conciseness + concrete + jd coverage) ---
   const is_too_short = conciseness === 'too_short';
@@ -468,6 +476,7 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
     jd_term_hits,
     star,
     has_concrete_example,
+    is_quantified,
     flags: { is_too_short, no_concrete_example, rambling_risk },
   };
 }
@@ -579,20 +588,26 @@ function computeStar(norm: string, cues: LangTable['star']): AnswerSignals['star
  * A TECH NAME ALONE is still NOT enough ("Tôi dùng React" / "I used Docker" → false): rule (c) needs
  * a building/shipping action cue, and "dùng"/"used" are deliberately absent from actionProjectCues.
  */
+/**
+ * is_quantified — rules (a)+(b) of concreteness ONLY: a number in a meaningful context (unit suffix
+ * or adjacent metric/deliverable noun), or a quantified-result cue ("doubled", "reduced by half",
+ * "giảm"). The narrow, deterministically-reliable subset of has_concrete_example.
+ */
+function computeIsQuantified(norm: string, table: LangTable): boolean {
+  if (UNIT_SUFFIX_RE.test(norm) || NUM_THEN_NOUN_RE.test(norm) || NOUN_THEN_NUM_RE.test(norm)) {
+    return true;
+  }
+  return table.quantifiedResultCues.some((c) => hasPhrase(norm, c));
+}
+
 function computeConcreteExample(
   answer: string,
   norm: string,
   table: LangTable,
   jdHits: string[],
 ): boolean {
-  // (a) number in a meaningful context (unit suffix OR adjacent metric/deliverable noun).
-  if (UNIT_SUFFIX_RE.test(norm) || NUM_THEN_NOUN_RE.test(norm) || NOUN_THEN_NUM_RE.test(norm)) {
-    return true;
-  }
-
-  // (b) a quantified-result cue (per-language, architect-tunable) encodes magnitude even without a
-  // digit ("doubled the users", "reduced by half", "giảm thời gian").
-  if (table.quantifiedResultCues.some((c) => hasPhrase(norm, c))) return true;
+  // (a)+(b): a number-in-context or a quantified-result cue (shared with the is_quantified signal).
+  if (computeIsQuantified(norm, table)) return true;
 
   // (c) action/project cue AND a tech signal.
   const hasActionCue = table.actionProjectCues.some((c) => hasPhrase(norm, c));
