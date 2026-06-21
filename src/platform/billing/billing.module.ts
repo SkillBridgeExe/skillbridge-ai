@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
+import { MentorAvailabilitySlotEntity } from '../../database/entities/mentor-availability-slot.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PaymentWebhookEventEntity } from '../../database/entities/payment-webhook-event.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
@@ -31,6 +32,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
       PaymentWebhookEventEntity,
       UsageEventEntity,
       MentorBookingEntity,
+      MentorAvailabilitySlotEntity,
       UserEntity,
     ]),
   ],
@@ -51,6 +53,6 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     EntitlementsService,
     RolesGuard,
   ],
-  exports: [EntitlementsService],
+  exports: [EntitlementsService, BillingCheckoutService],
 })
 export class BillingModule {}

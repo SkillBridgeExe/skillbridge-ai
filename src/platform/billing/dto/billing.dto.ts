@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 import {
   BillingFeatureKey,
   BillingFeaturePeriod,
@@ -6,28 +6,12 @@ import {
 import { PaymentOrderPurpose } from '../../../database/entities/payment-order.entity';
 
 export class CreateCheckoutDto {
-  @IsIn(['SUBSCRIPTION', 'MENTOR_DEPOSIT', 'MENTOR_REMAINING'])
-  purpose!: PaymentOrderPurpose;
+  @IsIn(['SUBSCRIPTION'])
+  purpose!: Extract<PaymentOrderPurpose, 'SUBSCRIPTION'>;
 
   @IsOptional()
   @IsString()
   planCode?: string;
-
-  @IsOptional()
-  @IsUUID()
-  mentorId?: string;
-
-  @IsOptional()
-  @IsUUID()
-  bookingId?: string;
-
-  @IsOptional()
-  @IsDateString()
-  slotStart?: string;
-
-  @IsOptional()
-  @IsDateString()
-  slotEnd?: string;
 }
 
 export interface PlanFeatureDto {

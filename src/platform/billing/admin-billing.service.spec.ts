@@ -179,4 +179,28 @@ describe('AdminBillingService', () => {
     expect(result.total).toBe(1);
     expect(result.items[0]).toEqual(expect.objectContaining({ orderCode: 123, status: 'PAID' }));
   });
+
+  it('records a manual refund outcome only for bookings pending refund review', async () => {
+    const { service, mentorBookings } = setup();
+    mentorBookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      status: 'CANCELLED',
+      refundStatus: 'PENDING',
+      refundNote: null,
+      updatedAt: null,
+    });
+
+    const result = await service.updateMentorBookingRefund('booking-1', {
+      status: 'PROCESSED',
+      note: 'Refunded manually in PayOS dashboard, reference RF-123',
+    });
+
+    expect(mentorBookings.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundStatus: 'PROCESSED',
+        refundNote: 'Refunded manually in PayOS dashboard, reference RF-123',
+      }),
+    );
+    expect(result).toEqual(expect.objectContaining({ id: 'booking-1', refundStatus: 'PROCESSED' }));
+  });
 });

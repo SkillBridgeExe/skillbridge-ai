@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { DataSource, EntityManager, EntityTarget, Repository } from 'typeorm';
 import { MentorBookingEntity } from '../../../database/entities/mentor-booking.entity';
+import { MentorAvailabilitySlotEntity } from '../../../database/entities/mentor-availability-slot.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
 import { BillingSettlementService } from './billing-settlement.service';
@@ -25,10 +26,12 @@ function setup() {
   const orders = repo<PaymentOrderEntity>();
   const subscriptions = repo<UserSubscriptionEntity>();
   const mentorBookings = repo<MentorBookingEntity>();
+  const mentorSlots = repo<MentorAvailabilitySlotEntity>();
   const repos = new Map<EntityTarget<unknown>, unknown>([
     [PaymentOrderEntity, orders],
     [UserSubscriptionEntity, subscriptions],
     [MentorBookingEntity, mentorBookings],
+    [MentorAvailabilitySlotEntity, mentorSlots],
   ]);
   const manager = {
     getRepository: jest.fn((entity: EntityTarget<unknown>) => repos.get(entity)),
@@ -42,9 +45,10 @@ function setup() {
     orders as unknown as Repository<PaymentOrderEntity>,
     subscriptions as unknown as Repository<UserSubscriptionEntity>,
     mentorBookings as unknown as Repository<MentorBookingEntity>,
+    mentorSlots as unknown as Repository<MentorAvailabilitySlotEntity>,
     dataSource,
   );
-  return { service, orders, subscriptions, mentorBookings, dataSource };
+  return { service, orders, subscriptions, mentorBookings, mentorSlots, dataSource };
 }
 
 describe('BillingSettlementService', () => {
@@ -131,8 +135,8 @@ describe('BillingSettlementService', () => {
     expect(orders.save).not.toHaveBeenCalled();
   });
 
-  it('moves mentor deposit bookings forward even when the order id is already linked', async () => {
-    const { service, orders, mentorBookings } = setup();
+  it('confirms the held slot and opens remaining payment after the deposit settles', async () => {
+    const { service, orders, mentorBookings, mentorSlots } = setup();
     orders.findOne.mockResolvedValue({
       id: 'order-1',
       userId: 'student-1',
@@ -153,7 +157,16 @@ describe('BillingSettlementService', () => {
       status: 'PENDING_DEPOSIT',
       depositPaymentOrderId: 'order-1',
       remainingPaymentOrderId: null,
+      availabilitySlotId: 'slot-1',
+      slotStart: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      remainingDueAt: null,
     } as MentorBookingEntity);
+    mentorSlots.findOne.mockResolvedValue({
+      id: 'slot-1',
+      status: 'HELD',
+      heldByBookingId: 'booking-1',
+      holdExpiresAt: new Date(Date.now() + 60_000),
+    } as MentorAvailabilitySlotEntity);
 
     await service.settlePaidPayment({
       provider: 'PAYOS',
@@ -169,9 +182,98 @@ describe('BillingSettlementService', () => {
     expect(mentorBookings.save).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'booking-1',
-        status: 'AWAITING_MENTOR_ACCEPT',
+        status: 'AWAITING_REMAINING',
         depositPaymentOrderId: 'order-1',
+        remainingDueAt: expect.any(Date),
       }),
     );
+    expect(mentorSlots.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'slot-1',
+        status: 'BOOKED',
+        heldByBookingId: null,
+        holdExpiresAt: null,
+      }),
+    );
+  });
+
+  it('moves a booking to confirmed after the remaining payment settles', async () => {
+    const { service, orders, mentorBookings } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-2',
+      userId: 'student-1',
+      provider: 'PAYOS',
+      orderCode: '124',
+      amountVnd: 90000,
+      currency: 'VND',
+      purpose: 'MENTOR_REMAINING',
+      targetType: 'MENTOR_BOOKING',
+      targetId: 'booking-1',
+      planCode: null,
+      status: 'PENDING',
+      paymentLinkId: 'plink-2',
+      paidAt: null,
+    } as PaymentOrderEntity);
+    mentorBookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      status: 'AWAITING_REMAINING',
+      remainingPaymentOrderId: 'order-2',
+    } as MentorBookingEntity);
+
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 124,
+      paymentLinkId: 'plink-2',
+      reference: 'ref-2',
+      status: 'PAID',
+      amountVnd: 90000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(mentorBookings.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'CONFIRMED', remainingPaymentOrderId: 'order-2' }),
+    );
+  });
+
+  it('queues manual refund when a deposit arrives after the booking expired', async () => {
+    const { service, orders, mentorBookings, mentorSlots } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-late',
+      userId: 'student-1',
+      provider: 'PAYOS',
+      orderCode: '125',
+      amountVnd: 50000,
+      currency: 'VND',
+      purpose: 'MENTOR_DEPOSIT',
+      targetType: 'MENTOR_BOOKING',
+      targetId: 'booking-expired',
+      status: 'PENDING',
+      paymentLinkId: 'plink-late',
+      paidAt: null,
+    } as PaymentOrderEntity);
+    mentorBookings.findOne.mockResolvedValue({
+      id: 'booking-expired',
+      status: 'EXPIRED',
+      refundStatus: 'NOT_REQUIRED',
+      depositPaymentOrderId: 'order-late',
+      availabilitySlotId: 'slot-1',
+    } as MentorBookingEntity);
+
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 125,
+      paymentLinkId: 'plink-late',
+      reference: 'ref-late',
+      status: 'PAID',
+      amountVnd: 50000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(mentorBookings.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'EXPIRED', refundStatus: 'PENDING' }),
+    );
+    expect(mentorSlots.save).not.toHaveBeenCalled();
   });
 });
