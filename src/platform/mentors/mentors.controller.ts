@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -13,13 +24,20 @@ import {
   UpdateAdminMentorStatusDto,
   UpdateMentorProfileDto,
 } from './dto/mentor-profile.dto';
+import { CreateMentorSlotDto, ListMentorSlotsQueryDto } from './dto/mentor-availability.dto';
+import { MentorAvailabilityService } from './mentor-availability.service';
+import { MentorBookingsService } from './mentor-bookings.service';
 import { MentorsService } from './mentors.service';
 
 @ApiTags('Mentors')
 @Public()
 @Controller('api/mentors')
 export class MentorsController {
-  constructor(private readonly mentors: MentorsService) {}
+  constructor(
+    private readonly mentors: MentorsService,
+    private readonly availability: MentorAvailabilityService,
+    private readonly bookings: MentorBookingsService,
+  ) {}
 
   @Get('summary')
   @ApiOperation({ summary: 'Get mentor marketplace summary statistics' })
@@ -39,6 +57,13 @@ export class MentorsController {
     return this.mentors.listPublicMentors(query);
   }
 
+  @Get(':slug/slots')
+  @ApiOperation({ summary: 'List public open booking slots for an approved mentor' })
+  async slots(@Param('slug') slug: string, @Query() query: ListMentorSlotsQueryDto) {
+    await this.bookings.expireStaleBookings();
+    return this.availability.listPublicSlots(slug, query.from, query.to);
+  }
+
   @Get(':slug/avatar')
   @ApiOperation({ summary: 'Download an approved mentor avatar' })
   async avatar(@Param('slug') slug: string, @Res() response: Response) {
@@ -49,6 +74,34 @@ export class MentorsController {
   @ApiOperation({ summary: 'Get a public mentor profile by slug' })
   detail(@Param('slug') slug: string) {
     return this.mentors.getPublicProfile(slug);
+  }
+}
+
+@ApiTags('Mentor Availability')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('MENTOR')
+@Controller('api/mentors/me/slots')
+export class MentorAvailabilityController {
+  constructor(private readonly availability: MentorAvailabilityService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List the current mentor availability slots' })
+  list(@CurrentUser() user: JwtUser, @Query() query: ListMentorSlotsQueryDto) {
+    return this.availability.listMySlots(user.userId, query.from, query.to);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create a concrete mentor availability slot' })
+  create(@CurrentUser() user: JwtUser, @Body() body: CreateMentorSlotDto) {
+    return this.availability.createSlot(user.userId, body);
+  }
+
+  @Delete(':slotId')
+  @ApiOperation({ summary: 'Delete a future open mentor slot' })
+  delete(@CurrentUser() user: JwtUser, @Param('slotId') slotId: string) {
+    return this.availability.deleteSlot(user.userId, slotId);
   }
 }
 

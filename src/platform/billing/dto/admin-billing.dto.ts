@@ -53,10 +53,11 @@ const SUBSCRIPTION_STATUSES: UserSubscriptionStatus[] = [
 ];
 const MENTOR_BOOKING_STATUSES: MentorBookingStatus[] = [
   'PENDING_DEPOSIT',
-  'AWAITING_MENTOR_ACCEPT',
   'AWAITING_REMAINING',
-  'PAID',
+  'CONFIRMED',
+  'COMPLETED',
   'CANCELLED',
+  'EXPIRED',
 ];
 
 export class AdminBillingPlanFeatureInputDto {
@@ -229,4 +230,13 @@ export class AdminListMentorBookingsQueryDto extends AdminPaginationQueryDto {
   @IsOptional()
   @IsUUID()
   mentorId?: string;
+}
+
+export class UpdateAdminMentorBookingRefundDto {
+  @IsIn(['PROCESSED', 'REJECTED'])
+  status!: 'PROCESSED' | 'REJECTED';
+
+  @IsString()
+  @Matches(/\S/)
+  note!: string;
 }

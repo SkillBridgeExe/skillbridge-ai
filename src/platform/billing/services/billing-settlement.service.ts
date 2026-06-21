@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../../common/constants/error-codes';
 import { MentorBookingEntity } from '../../../database/entities/mentor-booking.entity';
+import { MentorAvailabilitySlotEntity } from '../../../database/entities/mentor-availability-slot.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
 import { addMonths } from '../entitlements.service';
@@ -16,6 +17,8 @@ export class BillingSettlementService {
     private readonly subscriptions: Repository<UserSubscriptionEntity>,
     @InjectRepository(MentorBookingEntity)
     private readonly mentorBookings: Repository<MentorBookingEntity>,
+    @InjectRepository(MentorAvailabilitySlotEntity)
+    private readonly mentorSlots: Repository<MentorAvailabilitySlotEntity>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -24,12 +27,13 @@ export class BillingSettlementService {
       const orders = manager.getRepository(PaymentOrderEntity);
       const subscriptions = manager.getRepository(UserSubscriptionEntity);
       const mentorBookings = manager.getRepository(MentorBookingEntity);
+      const mentorSlots = manager.getRepository(MentorAvailabilitySlotEntity);
       const order = await orders.findOne({
         where: { provider: payment.provider, orderCode: String(payment.orderCode) },
         lock: { mode: 'pessimistic_write' },
       });
       if (!order) return { processed: true };
-      await this.markOrderPaid(order, payment, orders, subscriptions, mentorBookings);
+      await this.markOrderPaid(order, payment, orders, subscriptions, mentorBookings, mentorSlots);
       return { processed: true };
     });
   }
@@ -40,6 +44,7 @@ export class BillingSettlementService {
     orders: Repository<PaymentOrderEntity>,
     subscriptions: Repository<UserSubscriptionEntity>,
     mentorBookings: Repository<MentorBookingEntity>,
+    mentorSlots: Repository<MentorAvailabilitySlotEntity>,
   ): Promise<void> {
     if (order.status === 'PAID') return;
     this.assertPaymentMatchesOrder(order, payment);
@@ -49,7 +54,7 @@ export class BillingSettlementService {
     if (order.purpose === 'SUBSCRIPTION') {
       await this.activateSubscription(order, subscriptions);
     } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
-      await this.updateMentorBookingAfterPayment(order, mentorBookings);
+      await this.updateMentorBookingAfterPayment(order, mentorBookings, mentorSlots);
     }
 
     order.status = 'PAID';
@@ -110,15 +115,51 @@ export class BillingSettlementService {
   private async updateMentorBookingAfterPayment(
     order: PaymentOrderEntity,
     mentorBookings: Repository<MentorBookingEntity>,
+    mentorSlots: Repository<MentorAvailabilitySlotEntity>,
   ): Promise<void> {
-    const booking = await mentorBookings.findOne({ where: { id: order.targetId! } });
+    const booking = await mentorBookings.findOne({
+      where: { id: order.targetId! },
+      lock: { mode: 'pessimistic_write' },
+    });
     if (!booking) return;
     if (order.purpose === 'MENTOR_DEPOSIT') {
-      booking.status = 'AWAITING_MENTOR_ACCEPT';
+      if (booking.status !== 'PENDING_DEPOSIT') {
+        if (['CANCELLED', 'EXPIRED'].includes(booking.status)) {
+          booking.depositPaymentOrderId = order.id;
+          booking.refundStatus = 'PENDING';
+          await mentorBookings.save(booking);
+        }
+        return;
+      }
+      booking.status = 'AWAITING_REMAINING';
       booking.depositPaymentOrderId = order.id;
+      const paidAt = order.paidAt ?? new Date();
+      booking.remainingDueAt = booking.slotStart
+        ? new Date(
+            Math.min(
+              paidAt.getTime() + 24 * 60 * 60 * 1000,
+              booking.slotStart.getTime() - 12 * 60 * 60 * 1000,
+            ),
+          )
+        : new Date(paidAt.getTime() + 24 * 60 * 60 * 1000);
+      const slot = await mentorSlots.findOne({ where: { id: booking.availabilitySlotId } });
+      if (slot && slot.status === 'HELD' && slot.heldByBookingId === booking.id) {
+        slot.status = 'BOOKED';
+        slot.heldByBookingId = null;
+        slot.holdExpiresAt = null;
+        await mentorSlots.save(slot);
+      }
     }
     if (order.purpose === 'MENTOR_REMAINING') {
-      booking.status = 'PAID';
+      if (booking.status !== 'AWAITING_REMAINING') {
+        if (['CANCELLED', 'EXPIRED'].includes(booking.status)) {
+          booking.remainingPaymentOrderId = order.id;
+          booking.refundStatus = 'PENDING';
+          await mentorBookings.save(booking);
+        }
+        return;
+      }
+      booking.status = 'CONFIRMED';
       booking.remainingPaymentOrderId = order.id;
     }
     await mentorBookings.save(booking);

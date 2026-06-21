@@ -15,6 +15,7 @@ import {
   CreateAdminBillingPlanDto,
   ReplaceAdminPlanFeaturesDto,
   UpdateAdminBillingPlanDto,
+  UpdateAdminMentorBookingRefundDto,
 } from './dto/admin-billing.dto';
 
 @Injectable()
@@ -186,9 +187,37 @@ export class AdminBillingService {
         depositPaymentOrderId: booking.depositPaymentOrderId,
         remainingPaymentOrderId: booking.remainingPaymentOrderId,
         acceptedAt: booking.acceptedAt?.toISOString() ?? null,
+        mentorProfileId: booking.mentorProfileId,
+        availabilitySlotId: booking.availabilitySlotId,
+        remainingDueAt: booking.remainingDueAt?.toISOString() ?? null,
+        meetingUrl: booking.meetingUrl,
+        completedAt: booking.completedAt?.toISOString() ?? null,
+        cancelledAt: booking.cancelledAt?.toISOString() ?? null,
+        cancelledBy: booking.cancelledBy,
+        cancellationReason: booking.cancellationReason,
+        refundStatus: booking.refundStatus,
+        refundNote: booking.refundNote,
         createdAt: booking.createdAt.toISOString(),
         updatedAt: booking.updatedAt?.toISOString() ?? null,
       })),
+    };
+  }
+
+  async updateMentorBookingRefund(bookingId: string, dto: UpdateAdminMentorBookingRefundDto) {
+    const booking = await this.mentorBookings.findOne({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Mentor booking not found');
+    if (booking.refundStatus !== 'PENDING') {
+      throw new BadRequestException('Mentor booking is not pending refund review');
+    }
+    booking.refundStatus = dto.status;
+    booking.refundNote = dto.note.trim();
+    const saved = await this.mentorBookings.save(booking);
+    return {
+      id: saved.id,
+      status: saved.status,
+      refundStatus: saved.refundStatus,
+      refundNote: saved.refundNote,
+      updatedAt: saved.updatedAt?.toISOString?.() ?? null,
     };
   }
 

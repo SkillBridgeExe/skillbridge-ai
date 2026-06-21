@@ -12,6 +12,7 @@ import {
   CreateAdminBillingPlanDto,
   ReplaceAdminPlanFeaturesDto,
   UpdateAdminBillingPlanDto,
+  UpdateAdminMentorBookingRefundDto,
 } from './dto/admin-billing.dto';
 
 @ApiTags('Admin Billing')
@@ -62,5 +63,14 @@ export class AdminBillingController {
   @ApiOperation({ summary: 'Admin list mentor bookings' })
   listMentorBookings(@Query() query: AdminListMentorBookingsQueryDto) {
     return this.billing.listMentorBookings(query);
+  }
+
+  @Patch('mentor-bookings/:bookingId/refund')
+  @ApiOperation({ summary: 'Record a manual mentor-booking refund outcome' })
+  updateMentorBookingRefund(
+    @Param('bookingId') bookingId: string,
+    @Body() dto: UpdateAdminMentorBookingRefundDto,
+  ) {
+    return this.billing.updateMentorBookingRefund(bookingId, dto);
   }
 }

@@ -1,9 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { BillingPlanEntity } from '../../../database/entities/billing-plan.entity';
-import { MentorBookingEntity } from '../../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
-import { UserEntity } from '../../../database/entities/user.entity';
 import { PaymentProviderRegistry } from '../payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './billing-checkout.service';
 
@@ -27,8 +25,6 @@ describe('BillingCheckoutService', () => {
   function setup() {
     const plans = repo<BillingPlanEntity>();
     const orders = repo<PaymentOrderEntity>();
-    const mentorBookings = repo<MentorBookingEntity>();
-    const users = repo<UserEntity>();
     const provider = {
       code: 'PAYOS',
       createPaymentLink: jest.fn().mockResolvedValue({
@@ -48,8 +44,6 @@ describe('BillingCheckoutService', () => {
     const service = new BillingCheckoutService(
       plans as unknown as Repository<BillingPlanEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
-      mentorBookings as unknown as Repository<MentorBookingEntity>,
-      users as unknown as Repository<UserEntity>,
       registry,
     );
     return { service, plans, orders, provider, registry };
@@ -93,5 +87,29 @@ describe('BillingCheckoutService', () => {
       service.createCheckout('user-1', { purpose: 'SUBSCRIPTION', planCode: 'FREE' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(provider.createPaymentLink).not.toHaveBeenCalled();
+  });
+
+  it('marks mentor orders failed when the provider link cannot be created', async () => {
+    const { service, orders, provider } = setup();
+    orders.save.mockImplementation((input) =>
+      Promise.resolve({ id: 'order-1', createdAt: new Date(), ...input }),
+    );
+    provider.createPaymentLink.mockRejectedValue(new Error('payOS unavailable'));
+
+    await expect(
+      service.createMentorDepositCheckout({
+        userId: 'student-1',
+        bookingId: 'booking-1',
+        amountVnd: 50000,
+        currency: 'VND',
+      }),
+    ).rejects.toThrow('payOS unavailable');
+
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'order-1',
+        status: 'FAILED',
+      }),
+    );
   });
 });
