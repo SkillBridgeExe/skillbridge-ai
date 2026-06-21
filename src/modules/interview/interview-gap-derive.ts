@@ -164,12 +164,12 @@ function deriveBehavioralGap(c: AnswerGapContext): InterviewGapItem | null {
   // Review-locked: ONLY behavioral/scenario phases — never a short technical answer.
   if (!BEHAVIORAL_PHASES.has(c.topic_phase)) return null;
 
-  // L2 (model-judged) star_present is the source of truth. All four present → complete, no gap.
+  // L2 (model-judged) star_present is the source of truth. Missing entirely (defensive) or all four
+  // present → complete → no gap. (After this guard, `missing` always has >= 1 entry.)
   const sp = c.insight.star_present;
-  if (sp.situation && sp.task && sp.action && sp.result) return null;
+  if (!sp || (sp.situation && sp.task && sp.action && sp.result)) return null;
 
   const missing = STAR_PART_LABELS.filter(([key]) => !sp[key]).map(([, label]) => label);
-  if (missing.length === 0) return null;
 
   return {
     requirement_id: null,
