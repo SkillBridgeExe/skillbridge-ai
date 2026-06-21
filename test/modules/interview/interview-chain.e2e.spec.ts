@@ -46,6 +46,8 @@ const INSIGHT: AnswerInsight = {
   confidence_tone: 'over',
   evidence_quality: 'overclaimed',
   note: 'Confident but no concrete example.',
+  has_specific_example: false,
+  star_present: { situation: true, task: true, action: true, result: true },
 };
 
 const CONTEXT: AnswerGapContext = {
