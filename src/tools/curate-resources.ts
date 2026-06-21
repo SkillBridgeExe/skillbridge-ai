@@ -8,9 +8,7 @@
 import { NestFactory } from '@nestjs/core';
 import * as fs from 'fs';
 import * as path from 'path';
-import { AppModule } from '../app.module';
 import { LearningResource, coerceLearningResources } from '../modules/roadmap/learning-resource';
-import { CurationService } from '../modules/resource-curation/curation.service';
 import { CuratedResource } from '../modules/resource-curation/curation-scoring';
 
 export interface CurateResourcesArgs {
@@ -87,6 +85,10 @@ async function main(): Promise<void> {
   );
   if (selected.length === 0) return;
 
+  const [{ AppModule }, { CurationService }] = await Promise.all([
+    import('../app.module'),
+    import('../modules/resource-curation/curation.service'),
+  ]);
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
   try {
     const curation = app.get(CurationService);
