@@ -1,4 +1,1525 @@
 {
   "_note": "Explicit LearningResource entries (docs/videos/exercises/mini-projects/drills/cv-fix-tasks). Merged on top of the course-catalog.json seed; duplicate id overrides the seed. Empty until curation adds non-course resources.",
-  "resources": []
+  "resources": [
+    {
+      "id": "deeplearningai-langchain-short-course",
+      "title": "LangChain for LLM Application Development",
+      "provider": "DeepLearning.AI",
+      "url": "https://www.deeplearning.ai/short-courses/langchain-for-llm-application-development/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 3
+        }
+      ],
+      "difficulty": "INTERMEDIATE",
+      "description": "Free short course introducing LangChain patterns for LLM application development.",
+      "source_type": "official_doc",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "docker-official-get-started",
+      "title": "Docker Get Started",
+      "provider": "docs.docker.com",
+      "url": "https://docs.docker.com/get-started/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 60,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "docker",
+          "teaches_level": 3
+        }
+      ],
+      "quality_score": 95,
+      "description": "Official Docker onboarding documentation selected from the docs.docker.com sitemap metadata.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "docs-python-tutorial",
+      "title": "The Python Tutorial",
+      "provider": "docs.python.org",
+      "url": "https://docs.python.org/3/tutorial/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 300,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "python",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official Python tutorial covering syntax, data structures, modules, and classes.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-html-css-course",
+      "title": "HTML CSS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/html-css",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Vietnamese HTML and CSS course from F8, manually seeded as metadata and link only.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-javascript-basic",
+      "title": "JavaScript Basic Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/javascript-co-ban",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 360,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Vietnamese JavaScript basics course from F8, manually seeded as metadata and link only.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-nodejs-express-course",
+      "title": "NodeJS & ExpressJS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/nodejs",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Vietnamese Node.js and Express course from F8, manually seeded as metadata and link only.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "f8-reactjs-course",
+      "title": "ReactJS Course",
+      "provider": "fullstack.edu.vn",
+      "url": "https://fullstack.edu.vn/courses/reactjs",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 360,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Vietnamese React course landing page from F8, manually seeded as metadata and link only.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "git-scm-book",
+      "title": "Pro Git Book",
+      "provider": "git-scm.com",
+      "url": "https://git-scm.com/book/en/v2",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "git",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Officially hosted Pro Git book covering Git basics, branching, remotes, and workflows.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "github-freecodecamp-curriculum",
+      "title": "freeCodeCamp Curriculum",
+      "provider": "freeCodeCamp GitHub",
+      "url": "https://github.com/freeCodeCamp/freeCodeCamp",
+      "source_type": "course",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 600,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "quality_score": 88,
+      "description": "freeCodeCamp.org's open-source codebase and curriculum. Learn math, programming, and computer science for free.",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mdn-javascript-guide",
+      "title": "JavaScript Guide",
+      "provider": "MDN Web Docs",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 300,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        }
+      ],
+      "description": "MDN guide for core JavaScript syntax, control flow, objects, and functions.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mdn-learn-html-css",
+      "title": "MDN Learn Web Development",
+      "provider": "MDN Web Docs",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 480,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "description": "MDN learning area for HTML, CSS, JavaScript, and foundational web development.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "mslearn-dotnet-csharp-module",
+      "title": "Add decision logic to your code using `if`, `else`, and `else if` statements in C#",
+      "provider": "learn.microsoft.com",
+      "url": "https://learn.microsoft.com/en-us/training/modules/csharp-if-elseif-else/?WT.mc_id=api_CatalogApi",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 56,
+      "difficulty": "BEGINNER",
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "dotnet",
+          "teaches_level": 1
+        }
+      ],
+      "quality_score": 95,
+      "description": "Microsoft Learn catalog module for .NET/C# learning, selected via the public catalog API.",
+      "source_type": "official_doc",
+      "outcome_type": "understand",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "nodejs-learn-introduction",
+      "title": "Introduction to Node.js",
+      "provider": "nodejs.org",
+      "url": "https://nodejs.org/en/learn/getting-started/introduction-to-nodejs",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official Node.js learning material for getting started with the runtime.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "postgresql-official-tutorial-docs",
+      "title": "PostgreSQL Tutorial",
+      "provider": "postgresql.org",
+      "url": "https://www.postgresql.org/docs/current/tutorial.html",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 180,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "postgresql",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official PostgreSQL tutorial for relational concepts, SQL, and database basics.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "reactdev-learn-quick-start",
+      "title": "React Quick Start",
+      "provider": "react.dev",
+      "url": "https://react.dev/learn",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 90,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official React learning guide for components, JSX, props, and state basics.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-communication-l2-drill",
+      "title": "Technical communication level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.communication.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Technical communication drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-communication-l4-project",
+      "title": "Technical communication level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.communication.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Technical communication project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-css-l1-drill",
+      "title": "CSS level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.css.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge CSS drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-css-l4-project",
+      "title": "CSS level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.css.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge CSS project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-cv-writing-l1-drill",
+      "title": "CV writing level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.cv_writing.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cv_writing",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "cv_improvement",
+      "quality_score": 88,
+      "description": "Internal SkillBridge CV writing drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-cv-writing-l4-project",
+      "title": "CV writing level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.cv_writing.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cv_writing",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "cv_improvement",
+      "quality_score": 90,
+      "description": "Internal SkillBridge CV writing project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-docker-l1-drill",
+      "title": "Docker level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.docker.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "docker",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Docker drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-docker-l4-project",
+      "title": "Docker level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.docker.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "docker",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Docker project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-dotnet-l1-drill",
+      "title": ".NET level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.dotnet.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "dotnet",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge .NET drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-dotnet-l4-project",
+      "title": ".NET level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.dotnet.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "dotnet",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge .NET project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-english-proficiency-l1-drill",
+      "title": "English interview communication level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.english_proficiency.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 88,
+      "description": "Internal SkillBridge English interview communication drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-english-proficiency-l4-project",
+      "title": "English interview communication level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.english_proficiency.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 90,
+      "description": "Internal SkillBridge English interview communication project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-git-l1-drill",
+      "title": "Git level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.git.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "git",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Git drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-git-l5-project",
+      "title": "Git level 5 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.git.l5.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "git",
+          "teaches_level": 5
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Git project for level 5 portfolio evidence.",
+      "difficulty": "ADVANCED",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-html-l1-drill",
+      "title": "HTML level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.html.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge HTML drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-html-l4-project",
+      "title": "HTML level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.html.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge HTML project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-java-l1-drill",
+      "title": "Java level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.java.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "java",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Java drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-java-l4-project",
+      "title": "Java level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.java.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "java",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Java project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-javascript-l1-drill",
+      "title": "JavaScript level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.javascript.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge JavaScript drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-javascript-l4-project",
+      "title": "JavaScript level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.javascript.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge JavaScript project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-llm-engineering-l2-drill",
+      "title": "LLM engineering level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.llm_engineering.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge LLM engineering drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-llm-engineering-l5-project",
+      "title": "LLM engineering level 5 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.llm_engineering.l5.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 5
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge LLM engineering project for level 5 portfolio evidence.",
+      "difficulty": "ADVANCED",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-node-js-l2-drill",
+      "title": "Node.js level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.node_js.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Node.js drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-node-js-l4-project",
+      "title": "Node.js level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.node_js.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Node.js project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-postgresql-l2-drill",
+      "title": "PostgreSQL level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.postgresql.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "postgresql",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge PostgreSQL drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-postgresql-l4-project",
+      "title": "PostgreSQL level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.postgresql.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "postgresql",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge PostgreSQL project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-python-l1-drill",
+      "title": "Python level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.python.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "python",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Python drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-python-l4-project",
+      "title": "Python level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.python.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "python",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Python project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-react-l1-drill",
+      "title": "React level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.react.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge React drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-react-l4-project",
+      "title": "React level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.react.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge React project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-rest-api-l2-drill",
+      "title": "REST API level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.rest_api.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "rest_api",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge REST API drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-rest-api-l4-project",
+      "title": "REST API level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.rest_api.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "rest_api",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge REST API project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-spring-boot-l2-drill",
+      "title": "Spring Boot level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.spring_boot.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "spring_boot",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge Spring Boot drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-spring-boot-l4-project",
+      "title": "Spring Boot level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.spring_boot.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "spring_boot",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge Spring Boot project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-sql-l1-drill",
+      "title": "SQL level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.sql.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "sql",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge SQL drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-sql-l4-project",
+      "title": "SQL level 4 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.sql.l4.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "sql",
+          "teaches_level": 4
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge SQL project for level 4 portfolio evidence.",
+      "difficulty": "INTERMEDIATE",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-system-design-l2-drill",
+      "title": "System design level 2 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.system_design.l2.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "system_design",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 88,
+      "description": "Internal SkillBridge System design drill for learners building toward level 2.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-system-design-l5-project",
+      "title": "System design level 5 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.system_design.l5.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "system_design",
+          "teaches_level": 5
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 90,
+      "description": "Internal SkillBridge System design project for level 5 portfolio evidence.",
+      "difficulty": "ADVANCED",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-typescript-l1-drill",
+      "title": "TypeScript level 1 diagnostic drill",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.typescript.l1.drill",
+      "source_type": "exercise",
+      "is_internal": true,
+      "language": "en",
+      "duration_minutes": 45,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "typescript",
+          "teaches_level": 1
+        }
+      ],
+      "outcome_type": "practice",
+      "quality_score": 88,
+      "description": "Internal SkillBridge TypeScript drill for learners building toward level 1.",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "skillbridge-typescript-l5-project",
+      "title": "TypeScript level 5 evidence project",
+      "provider": "SkillBridge Internal",
+      "content_template_id": "skillbridge.typescript.l5.project",
+      "source_type": "mini_project",
+      "is_internal": true,
+      "language": "vi",
+      "duration_minutes": 420,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "typescript",
+          "teaches_level": 5
+        }
+      ],
+      "outcome_type": "build_evidence",
+      "quality_score": 90,
+      "description": "Internal SkillBridge TypeScript project for level 5 portfolio evidence.",
+      "difficulty": "ADVANCED",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "spring-guides-building-rest-service",
+      "title": "Building a RESTful Web Service",
+      "provider": "spring.io",
+      "url": "https://spring.io/guides/gs/rest-service/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "java",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "spring_boot",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "rest_api",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official Spring guide for building a simple REST service with Java and Spring Boot.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "sqlbolt-interactive-sql-lessons",
+      "title": "SQLBolt Interactive Lessons",
+      "provider": "sqlbolt.com",
+      "url": "https://sqlbolt.com/",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 180,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "sql",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Interactive SQL lesson set for select queries, joins, aggregation, and table operations.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "system-design-primer-github",
+      "title": "System Design Primer",
+      "provider": "github.com/donnemartin/system-design-primer",
+      "url": "https://github.com/donnemartin/system-design-primer",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 600,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "system_design",
+          "teaches_level": 3
+        }
+      ],
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "interview_answer",
+      "description": "Public GitHub system design study guide for interview practice and architecture basics.",
+      "source_type": "official_doc",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "talkfirst-english-interview",
+      "title": "English Interview Practice",
+      "provider": "talkfirst.vn",
+      "url": "https://talkfirst.vn/phong-van-tieng-anh/",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 90,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "description": "Vietnamese landing resource for practicing English interview communication.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "topcv-cv-writing-guide",
+      "title": "CV Writing Guide",
+      "provider": "topcv.vn",
+      "url": "https://www.topcv.vn/huong-dan-viet-cv",
+      "is_internal": false,
+      "language": "vi",
+      "duration_minutes": 60,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cv_writing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "cv_improvement",
+      "description": "Vietnamese CV writing guidance from TopCV, seeded as metadata and link only.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "typescriptlang-handbook",
+      "title": "TypeScript Handbook",
+      "provider": "typescriptlang.org",
+      "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "typescript",
+          "teaches_level": 3
+        }
+      ],
+      "description": "Official TypeScript handbook covering language basics, types, and everyday usage.",
+      "source_type": "official_doc",
+      "difficulty": "INTERMEDIATE",
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21",
+      "validation_status": "verified"
+    },
+    {
+      "id": "youtube-english-interview-ld0cvWnrVsU",
+      "title": "Cracking the Behavioral Interview for Software Developers",
+      "provider": "YouTube - Keep On Coding",
+      "url": "https://www.youtube.com/watch?v=ld0cvWnrVsU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 9,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "english_proficiency",
+          "teaches_level": 2
+        },
+        {
+          "skill_canonical_name": "communication",
+          "teaches_level": 2
+        }
+      ],
+      "outcome_type": "interview_answer",
+      "quality_score": 0,
+      "validation_status": "pending",
+      "description": "Instagram: https://www.instagram.com/keep_on_coding/ Merch: https://teespring.com/stores/keep-on-coding Patreon: ...",
+      "difficulty": "BEGINNER",
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-21"
+    }
+  ]
 }

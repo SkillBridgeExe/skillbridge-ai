@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,20 +15,25 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import {
+  LearningLanguagePref,
+  UserLearningPreferenceEntity,
+} from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import {
   GapReportService,
   SkillBridgeGapReport,
 } from '../../modules/gap-report/gap-report.service';
-import { deriveRoadmapGapsFromReport } from '../../modules/gap-report/gap-report';
+import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
 import {
   baselineProgress,
   diffGapProgress,
   ProgressDelta,
 } from '../../modules/gap-report/gap-progress';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
-import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
+import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
+import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import {
   buildInterviewPlanFromGapItems,
   InterviewFocusArea,
@@ -70,6 +76,12 @@ export class CvMatchesService {
     // Optional for positional unit-test construction; Nest injects it via InterviewModule. Used only
     // by generateInterviewPlanFromMatch (server-derived interview practice plan).
     private readonly interviewPlan?: InterviewPlanService,
+    // Optional for positional unit-test construction; Nest injects it via RoadmapModule. Used by the
+    // deterministic roadmap-from-match flow.
+    private readonly roadmapComposer?: RoadmapComposerService,
+    @Optional()
+    @InjectRepository(UserLearningPreferenceEntity)
+    private readonly learningPreferences?: Repository<UserLearningPreferenceEntity>,
   ) {}
 
   async createMatch(
@@ -262,52 +274,49 @@ export class CvMatchesService {
   }
 
   /**
-   * Generate a learning roadmap whose skills are derived SERVER-SIDE from the match's GapReport
-   * (only fixability==='learn' gaps, severity-ordered) — the client cannot inject arbitrary skills.
-   * Reuses getGapReport for load + ownership; delegates generation to the unchanged AI-lane
-   * RoadmapService.generate. When there are no learning gaps, returns an honest empty-state with
-   * no LLM call (remaining gaps are CV-tailoring/evidence, not new skills to learn).
+   * Generate a deterministic learning roadmap from server-derived GapItems.
+   * UnifiedDevelopmentPlan selects learn items; RoadmapComposerService handles feasibility and resources.
    */
   async generateRoadmapFromMatch(
     userId: string,
     matchId: string,
     dto: RoadmapFromMatchDto,
-  ): Promise<RoadmapGenerateResponseDto> {
+  ): Promise<ComposedRoadmap> {
     const report = await this.getGapReport(userId, matchId);
-    const { missing_skills, partial_skills } = deriveRoadmapGapsFromReport(report.gap_items);
+    const plan = buildUnifiedPlan({
+      matchId,
+      sessionId: null,
+      gapItems: report.gap_items,
+      interviewItems: [],
+    });
+    const preferences = await this.learningPreferences?.findOne({ where: { userId } });
+    const budget = {
+      available_days: dto.available_days ?? preferences?.availableDays ?? 30,
+      hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
+    };
+    const languagePref: LearningLanguagePref =
+      dto.language_pref ?? preferences?.languagePref ?? 'both';
 
-    if (missing_skills.length === 0 && partial_skills.length === 0) {
+    if (plan.learn_items.length === 0) {
       return {
-        ai_request_id: '',
-        retrieval_log_id: null,
-        retrieved_chunks_count: 0,
-        token_usage: 0,
-        parsed_response: {
-          title: 'Lộ trình học',
-          total_weeks: 0,
-          phases: [],
-          steps: [],
-          ai_summary:
-            'Không có khoảng trống kỹ năng cần HỌC cho vai trò này — kỹ năng của bạn đã đáp ứng yêu cầu. ' +
-            'Nếu vẫn còn khoảng cách, đó là về minh chứng/diễn đạt trong CV (xem mục chỉnh sửa CV), không phải học kỹ năng mới.',
-          ai_advice: '',
-          uncovered_skills: [],
-          skills_without_courses: [],
-          no_learning_gaps: true,
-        },
+        budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
+        steps: [],
+        not_feasible_items: [],
+        ai_summary:
+          'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
+        no_learning_gaps: true,
       };
     }
 
-    if (!this.roadmap) {
-      throw new Error('Roadmap dependency is not configured');
+    if (!this.roadmapComposer) {
+      throw new Error('Roadmap composer dependency is not configured');
     }
-    return this.roadmap.generate(userId, {
-      target_role: report.target_role ?? '',
-      hours_per_week: dto.hours_per_week ?? 8,
-      prompt_template_code: dto.prompt_template_code ?? 'roadmap_v1',
-      missing_skills,
-      partial_skills,
-      user_profile: dto.user_profile,
+
+    return this.roadmapComposer.compose({
+      learnItems: plan.learn_items,
+      gapItems: report.gap_items,
+      budget,
+      languagePref,
     });
   }
 

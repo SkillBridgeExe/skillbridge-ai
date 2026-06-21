@@ -1,4 +1,4 @@
-import { IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
 
 /**
  * Body for POST /api/cv-matches/:matchId/roadmap.
@@ -11,8 +11,18 @@ export class RoadmapFromMatchDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(365)
+  available_days?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   @Max(80)
   hours_per_week?: number;
+
+  @IsOptional()
+  @IsIn(['vi', 'en', 'both'])
+  language_pref?: 'vi' | 'en' | 'both';
 
   @IsOptional()
   @IsString()

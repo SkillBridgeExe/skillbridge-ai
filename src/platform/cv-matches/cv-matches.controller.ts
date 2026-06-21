@@ -29,7 +29,7 @@ import { CvMatchListQueryDto } from './dto/cv-match-list-query.dto';
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
 import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { CvMatchesService } from './cv-matches.service';
-import { RoadmapGenerateResponseDto } from '../../modules/roadmap/dto/roadmap-response.dto';
+import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { UnifiedPlanService } from './unified-plan.service';
 
@@ -213,7 +213,7 @@ export class CvMatchReportsController {
     @CurrentUser() user: JwtUser,
     @Param('matchId') matchId: string,
     @Body() dto: RoadmapFromMatchDto,
-  ): Promise<RoadmapGenerateResponseDto> {
+  ): Promise<ComposedRoadmap> {
     return this.matches.generateRoadmapFromMatch(user.userId, matchId, dto);
   }
 

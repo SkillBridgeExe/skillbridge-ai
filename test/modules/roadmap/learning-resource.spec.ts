@@ -88,6 +88,46 @@ describe('matchResources', () => {
     expect(out.per_skill[0].resources[0].low_confidence).toBe(false);
   });
 
+  it('defaults to language-neutral scoring for both-language users', () => {
+    const catalog = [
+      res({
+        id: 'a',
+        quality_score: 92,
+        language: 'vi',
+        is_free: true,
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+    ];
+    const out = matchResources(catalog, reqs);
+    // 27.6(quality) + 0(both) + 15(free) + 20(level>=) + 15(multi: 1/1) = 77.6 -> 78
+    expect(out.per_skill[0].resources[0].match_score).toBe(78);
+    expect(out.per_skill[0].resources[0].low_confidence).toBe(false);
+  });
+
+  it('boosts the preferred language without filtering other languages', () => {
+    const catalog = [
+      res({
+        id: 'en',
+        quality_score: 80,
+        language: 'en',
+        is_free: false,
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+      res({
+        id: 'vi',
+        quality_score: 80,
+        language: 'vi',
+        is_free: false,
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+    ];
+
+    const out = matchResources(catalog, reqs, { langPref: 'en' });
+
+    expect(out.per_skill[0].resources.map((r) => r.id)).toEqual(['en', 'vi']);
+    expect(out.per_skill[0].resources.map((r) => r.match_breakdown.language_pts)).toEqual([20, 0]);
+  });
+
   it('excludes flagged + dead_link resources entirely', () => {
     const catalog = [
       res({
@@ -201,7 +241,7 @@ describe('coerceLearningResources', () => {
     expect(out[0].id).toBe('v1');
   });
 
-  it('drops resources with an invalid enum (source_type/validation_status/outcome_type/difficulty) + warns each', () => {
+  it('drops resources with an invalid enum (source_type/validation_status/outcome_type/difficulty/language) + warns each', () => {
     const dropped: string[] = [];
     const out = coerceLearningResources(
       [
@@ -209,11 +249,12 @@ describe('coerceLearningResources', () => {
         { ...valid, validation_status: 'nope' },
         { ...valid, outcome_type: 'x' },
         { ...valid, difficulty: 'EASY' },
+        { ...valid, language: 'jp' },
       ],
       (why) => dropped.push(why),
     );
     expect(out).toEqual([]);
-    expect(dropped).toHaveLength(4);
+    expect(dropped).toHaveLength(5);
   });
 
   it('drops resources with empty id/title/provider or non-number fields', () => {

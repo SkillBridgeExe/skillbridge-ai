@@ -20,6 +20,15 @@ describe('providerTier', () => {
     expect(providerTier('MDN Web Docs')).toBe('T1');
     expect(providerTier('freeCodeCamp')).toBe('T1');
     expect(providerTier('Coursera')).toBe('T1');
+    expect(providerTier('typescriptlang.org')).toBe('T1');
+    expect(providerTier('nodejs.org')).toBe('T1');
+    expect(providerTier('spring.io')).toBe('T1');
+    expect(providerTier('docs.python.org')).toBe('T1');
+    expect(providerTier('git-scm.com')).toBe('T1');
+    expect(providerTier('sqlbolt.com')).toBe('T1');
+    expect(providerTier('github.com/donnemartin/system-design-primer')).toBe('T1');
+    expect(providerTier('DeepLearning.AI')).toBe('T1');
+    expect(providerTier('SkillBridge Internal')).toBe('T1');
   });
 
   it('classifies known commercial platforms as T2', () => {

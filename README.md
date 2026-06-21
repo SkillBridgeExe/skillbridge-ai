@@ -44,7 +44,7 @@ Node 20+ · **NestJS 11** · TypeScript 5.6 strict · **TypeORM 0.3** (Postgres 
 ```powershell
 npm install
 Copy-Item .env.example .env
-# Fill: DATABASE_URL (Postgres set up by the platform dev), GEMINI_API_KEY,
+# Fill: DATABASE_URL (local Postgres or Supabase Postgres), GEMINI_API_KEY,
 #       INTERNAL_AUTH_SECRET, JWT secrets (dev defaults exist).
 
 npm run dev          # = nest start --watch  ->  http://localhost:3002
@@ -65,6 +65,8 @@ npm run migration:generate -- src/database/migrations/<Name>   # then: npm run m
 ## Database
 
 NestJS **owns** PostgreSQL via **TypeORM** (no more .NET split). Schema source of truth: `../skillbridge-fe-official/docs/database/skillbridge-mvp.dbml` (38 tables). `synchronize: false` outside personal dev — **migrations are authoritative** (like EF Migrations). Entities in `src/database/entities/`.
+
+Supabase may be used as the PostgreSQL host only. Auth remains in this backend; see `docs/SUPABASE_DATABASE.md` for the required `DATABASE_URL`, `DB_SSL=true`, and migration flow.
 
 ## Project structure
 

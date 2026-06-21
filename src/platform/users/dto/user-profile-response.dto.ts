@@ -25,7 +25,14 @@ export interface CurrentUserProfileResponseDto {
   roles: string[];
   isEmailVerified: boolean;
   profile: UserProfileResponseDto;
+  learningPreferences: LearningPreferencesResponseDto;
   skills: UserSkillResponseDto[];
+}
+
+export interface LearningPreferencesResponseDto {
+  language_pref: 'vi' | 'en' | 'both';
+  available_days: number;
+  hours_per_week: number;
 }
 
 export interface SkillPickerItemDto {
