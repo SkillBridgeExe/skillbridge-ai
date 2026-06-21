@@ -43,7 +43,11 @@ describe('answer_insight_v1 prompt contract', () => {
   it('defines a specific-example rubric with at least one worked example', () => {
     const lower = prompt.toLowerCase();
     expect(lower).toMatch(/specific example/);
-    expect(lower).toMatch(/example:|e\.g\.|for instance/);
+    // Pin the actual worked-example block headings in the prompt (not just any "e.g." usage).
+    // The prompt uses numbered examples with descriptive labels: "Example 1 — ..." and
+    // "Example 2 — generic / hypothetical ...". This assertion would fail if the worked-example
+    // block were removed or replaced with inline e.g. notes only.
+    expect(prompt).toMatch(/Example\s+\d\s*[—–-]|full-STAR answer|generic.*hypothetical/i);
   });
 
   it('instructs the model to judge only and NOT recompute Layer 1 counts', () => {
