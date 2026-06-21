@@ -135,6 +135,12 @@ describe('decideTurn', () => {
     );
   });
 
+  it('treats every early-career band (intern/junior/entry_level, case-insensitive) as fresher for drilling — consistent with interview-scoring (review P1-1, shared EARLY_CAREER_BANDS)', () => {
+    for (const band of ['intern', 'junior', 'entry_level', 'Entry_Level']) {
+      expect(decideTurn({ ...baseTurn, signal: 'deep', seniority_target: band })).toBe('advance');
+    }
+  });
+
   it('advances on a strong answer once past half-depth', () => {
     expect(decideTurn({ ...baseTurn, signal: 'deep', drill_depth: 2, drill_budget: 4 })).toBe(
       'advance',
