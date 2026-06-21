@@ -132,7 +132,11 @@
           "linked_question_id": "q1",
           "answer": "I disagreed with a teammate about an approach and it was a bit awkward at the time for everyone.",
           "language": "en",
-          "insight": { "off_topic": false, "clarity": "clear" }
+          "insight": {
+            "off_topic": false,
+            "clarity": "clear",
+            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+          }
         }
       ],
       "expect": [
@@ -194,7 +198,11 @@
           "answer": "Um, you know, like, I am not sure honestly, I would just try a few things and see what sticks, I guess.",
           "jd_terms": ["React", "Redux", "GraphQL"],
           "language": "en",
-          "insight": { "off_topic": true, "clarity": "unclear" }
+          "insight": {
+            "off_topic": true,
+            "clarity": "unclear",
+            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+          }
         }
       ],
       "expect": [
@@ -250,7 +258,11 @@
           "linked_question_id": "q1",
           "answer": "When our team was behind on a release, I was responsible for the recovery plan. I implemented a triage board and rewrote the flaky tests. As a result we cut our defect backlog by 40% that month.",
           "language": "en",
-          "insight": { "off_topic": false, "clarity": "clear" }
+          "insight": {
+            "off_topic": false,
+            "clarity": "clear",
+            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+          }
         }
       ],
       "expect": []

@@ -195,12 +195,21 @@ describe('deriveInterviewGaps — communication_gap', () => {
 });
 
 describe('deriveInterviewGaps — behavioral_gap (review-locked)', () => {
-  it('fires behavioral_gap on BEHAVIORAL when STAR is incomplete, evidence cites missing parts', () => {
+  it('fires behavioral_gap when insight.star_present is incomplete on BEHAVIORAL (even if the answer is substantive with no corroborating weakness)', () => {
+    // Key discriminator vs the interim corroboration gate: a long, clear, on-topic answer that
+    // L2 explicitly marks STAR incomplete → MUST fire. Old corroboration gate would suppress it.
     const out = deriveInterviewGaps([
       ctx({
         topic_phase: 'BEHAVIORAL',
         answer:
-          'I disagreed with a teammate about an approach and it was a bit awkward at the time.',
+          'At my previous job I was asked to onboard a new team member but the documentation was outdated. ' +
+          'I spent two days rewriting the setup guide and pair-programmed with them for a week.',
+        // no filler, not short, clear, on-topic — corroborating weakness signals absent
+        insight: {
+          star_present: { situation: true, task: false, action: true, result: false },
+          off_topic: false,
+          clarity: 'clear',
+        },
       }),
     ]);
     const beh = out.find((g) => g.weakness_type === 'behavioral_gap');
@@ -208,6 +217,24 @@ describe('deriveInterviewGaps — behavioral_gap (review-locked)', () => {
     expect(beh!.target_type).toBe('behavioral');
     expect(beh!.severity).toBeGreaterThan(0);
     expect(beh!.recommended_action).toMatch(/STAR/i);
+  });
+
+  it('does NOT fire behavioral_gap when insight.star_present is complete (all true), even if the answer is short/rambling', () => {
+    // Key discriminator: short, rambling answer (old gate would fire based on corroboration),
+    // but L2 says all STAR parts present → must NOT fire.
+    const out = deriveInterviewGaps([
+      ctx({
+        topic_phase: 'BEHAVIORAL',
+        answer: 'Um, I disagreed with someone and it was awkward honestly.',
+        // L1: short + filler → corroborating weakness present — old gate WOULD fire
+        insight: {
+          star_present: { situation: true, task: true, action: true, result: true },
+          off_topic: false,
+          clarity: 'clear',
+        },
+      }),
+    ]);
+    expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(false);
   });
 
   it('does NOT fire behavioral_gap on a short SKILL_PROBE answer that lacks STAR (review rule)', () => {
@@ -234,27 +261,31 @@ describe('deriveInterviewGaps — behavioral_gap (review-locked)', () => {
     expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(false);
   });
 
-  it('CAN fire behavioral_gap on SCENARIO when STAR incomplete', () => {
+  it('CAN fire behavioral_gap on SCENARIO when insight.star_present is incomplete', () => {
     const out = deriveInterviewGaps([
       ctx({
         topic_phase: 'SCENARIO',
         skill_canonical: 'react',
         answer: 'I would probably just try a few things and see what sticks honestly.',
         jd_terms: ['React'],
+        insight: { star_present: { situation: true, task: false, action: false, result: false } },
       }),
     ]);
     expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(true);
   });
 
-  it('does NOT fire behavioral_gap on a substantive, clear behavioral answer with varied STAR phrasing (L1 STAR brittle — calibration 2026-06-21)', () => {
-    // ~45 words, no filler, clear, on-topic: L1 cue-matching marks STAR incomplete (varied phrasing),
-    // but no reliable weakness signal corroborates → must NOT flag a STAR gap.
+  it('does NOT fire behavioral_gap on BEHAVIORAL when insight.star_present is complete (all true)', () => {
+    // Regression: even if the answer phrasing would fool L1 cue-matching, L2 complete → no gap.
     const out = deriveInterviewGaps([
       ctx({
         topic_phase: 'BEHAVIORAL',
         answer:
           'At my previous job I disagreed with my manager over the technology stack. I requested a meeting and prepared a comparison of both approaches, then presented my findings. After discussion the team adopted a hybrid approach and it produced a more maintainable solution.',
-        insight: { off_topic: false, clarity: 'clear' },
+        insight: {
+          star_present: { situation: true, task: true, action: true, result: true },
+          off_topic: false,
+          clarity: 'clear',
+        },
       }),
     ]);
     expect(out.some((g) => g.weakness_type === 'behavioral_gap')).toBe(false);
