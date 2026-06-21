@@ -9,6 +9,7 @@ import { BillingModule } from './platform/billing/billing.module';
 import { CvMatchesModule } from './platform/cv-matches/cv-matches.module';
 import { CvsModule } from './platform/cvs/cvs.module';
 import { InterviewsModule } from './platform/interviews/interviews.module';
+import { LearningModule } from './platform/learning/learning.module';
 import { MentorsModule } from './platform/mentors/mentors.module';
 import { UsersModule } from './platform/users/users.module';
 
@@ -29,6 +30,7 @@ import { PromptsModule } from './modules/prompts/prompts.module';
 import { TracingModule } from './modules/tracing/tracing.module';
 import { EmbeddingsModule } from './modules/embeddings/embeddings.module';
 import { RagModule } from './modules/rag/rag.module';
+import { ResourceCurationModule } from './modules/resource-curation/resource-curation.module';
 import { CvReviewModule } from './modules/cv-review/cv-review.module';
 import { CvJdMatchModule } from './modules/cv-jd-match/cv-jd-match.module';
 import { InterviewModule } from './modules/interview/interview.module';
@@ -49,6 +51,7 @@ const PLATFORM_MODULES =
         CvsModule,
         CvMatchesModule,
         InterviewsModule,
+        LearningModule,
         MentorsModule,
       ];
 
@@ -91,6 +94,7 @@ const PLATFORM_MODULES =
     HealthModule,
     EmbeddingsModule,
     RagModule,
+    ResourceCurationModule,
     CvReviewModule,
     CvJdMatchModule,
     InterviewModule,

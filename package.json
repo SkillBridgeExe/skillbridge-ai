@@ -52,6 +52,7 @@
     "reco:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-reco.ts",
     "trends:refresh": "ts-node -r tsconfig-paths/register src/tools/refresh-trends.ts",
     "jobs:crawl": "ts-node -r tsconfig-paths/register src/tools/crawl-jobs.ts",
+    "curate:resources": "ts-node -r tsconfig-paths/register src/tools/curate-resources.ts",
     "revalidate:links": "ts-node -r tsconfig-paths/register src/tools/revalidate-links.ts",
     "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts",
     "cv-files:cleanup": "ts-node -r tsconfig-paths/register src/tools/cleanup-cv-files.ts",
