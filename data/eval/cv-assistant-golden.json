@@ -1,0 +1,72 @@
+{
+  "cases": [
+    { "id": "gaps-weak-en", "kind": "gaps", "language": "en", "bullet": "Worked on the project for a few months.", "expected_gaps": ["action", "tech", "result"] },
+    { "id": "gaps-strong-en", "kind": "gaps", "language": "en", "bullet": "Built a checkout API with Node and Redis, cut p95 latency by 30%.", "expected_gaps": [] },
+    { "id": "gaps-partial-en", "kind": "gaps", "language": "en", "bullet": "Built a small dashboard.", "expected_gaps": ["tech", "result"] },
+    { "id": "gaps-weak-vi", "kind": "gaps", "language": "vi", "bullet": "Em làm dự án nhóm ở trường.", "expected_gaps": ["action", "tech", "result"] },
+    { "id": "gaps-strong-vi", "kind": "gaps", "language": "vi", "bullet": "Em xây API thanh toán bằng Node, giảm 30% thời gian load.", "expected_gaps": [] },
+
+    {
+      "id": "rewrite-accept-en", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [
+        { "gap": "action", "option_id": "built" },
+        { "gap": "tech", "option_id": "backend", "detail": "Node.js" },
+        { "gap": "result", "option_id": "faster" }
+      ],
+      "model_after": "Built the feature with Node.js, making it faster.",
+      "model_used_facts": ["built", "Node.js", "faster"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-accept-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm việc đó.",
+      "answers": [
+        { "gap": "action", "option_id": "built" },
+        { "gap": "tech", "option_id": "frontend", "detail": "React" },
+        { "gap": "result", "option_id": "faster" }
+      ],
+      "model_after": "Xây giao diện bằng React, tải nhanh hơn.",
+      "model_used_facts": ["xây", "React", "nhanh hơn"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-reject-fabricated-number", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [
+        { "gap": "action", "option_id": "built" },
+        { "gap": "tech", "option_id": "backend", "detail": "Node.js" }
+      ],
+      "model_after": "Built with Node.js and cut latency by 40%.",
+      "model_used_facts": ["built", "Node.js"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-tech", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [
+        { "gap": "action", "option_id": "built" },
+        { "gap": "tech", "option_id": "backend", "detail": "Node.js" }
+      ],
+      "model_after": "Built it with Node.js and Kafka.",
+      "model_used_facts": ["built", "Node.js"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-used-facts-superset", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built it.",
+      "model_used_facts": ["built", "Redis"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-needs-detail", "kind": "rewrite", "language": "en",
+      "before": "Worked on it.",
+      "answers": [{ "gap": "tech", "option_id": "backend" }],
+      "model_after": "Built it with some tools.",
+      "model_used_facts": [],
+      "expect_ok": false
+    }
+  ]
+}

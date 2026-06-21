@@ -1,6 +1,7 @@
 import {
   analyzeBulletGaps,
   buildCvAssistantTurn,
+  cvBuilderAssistantTurn1,
 } from '../../../src/modules/cv-assistant/cv-assistant';
 
 describe('analyzeBulletGaps — deterministic weakness detection', () => {
@@ -80,5 +81,41 @@ describe('buildCvAssistantTurn — asks concrete questions, never fabricates', (
     // eslint-disable-next-line no-console
     console.log('\n--- SAMPLE TURN (vi) ---\n' + JSON.stringify(turn, null, 2) + '\n');
     expect(turn).toBeDefined();
+  });
+});
+
+describe('cvBuilderAssistantTurn1 — companion shell routing', () => {
+  it('routes a cv_builder project section to Turn-1 on the current value', () => {
+    const t = cvBuilderAssistantTurn1({
+      page: 'cv_builder',
+      section: 'projects',
+      current_value: 'Worked on it.',
+      locale: 'en',
+    });
+    expect(t).not.toBeNull();
+    expect(t!.questions.length).toBeGreaterThan(0);
+    expect(t!.questions[0].allows_free_text).toBe(true);
+  });
+
+  it('returns null out of V1a scope (other section / other page / empty value)', () => {
+    expect(
+      cvBuilderAssistantTurn1({
+        page: 'cv_builder',
+        section: 'skills',
+        current_value: 'x',
+        locale: 'en',
+      }),
+    ).toBeNull();
+    expect(
+      cvBuilderAssistantTurn1({ page: 'diagnosis', current_value: 'x', locale: 'en' }),
+    ).toBeNull();
+    expect(
+      cvBuilderAssistantTurn1({
+        page: 'cv_builder',
+        section: 'projects',
+        current_value: '   ',
+        locale: 'en',
+      }),
+    ).toBeNull();
   });
 });

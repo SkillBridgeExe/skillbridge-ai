@@ -37,6 +37,7 @@
     "eval:interview-coaching": "ts-node -r tsconfig-paths/register src/calibration/eval-interview-coaching.ts",
     "eval:learning": "ts-node -r tsconfig-paths/register src/calibration/eval-learning.ts",
     "eval:curation": "ts-node -r tsconfig-paths/register src/calibration/eval-curation.ts",
+    "eval:cv-assistant": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-assistant-turns.ts",
     "determinism:cv-jd-match": "ts-node -r tsconfig-paths/register src/calibration/determinism-cv-jd-match.ts",
     "drift:cv-corpus": "ts-node -r tsconfig-paths/register src/calibration/drift-prevalence-cv-corpus.ts",
     "taxonomy:validate": "ts-node -r tsconfig-paths/register src/tools/validate-taxonomy.ts",

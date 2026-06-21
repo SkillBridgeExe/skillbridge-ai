@@ -24,6 +24,8 @@ export interface AssistantQuestion {
   gap: BulletGap;
   prompt: string;
   options: AssistantOption[];
+  /** whether the FE should also offer a free-text field (a category chip alone may not be enough). */
+  allows_free_text: boolean;
 }
 export interface CvAssistantTurn {
   message: string;
@@ -32,6 +34,28 @@ export interface CvAssistantTurn {
   requires_user_confirmation: boolean;
   /** a rewrite patch is produced only AFTER the user answers (a later turn) — never fabricated here. */
   field_patch: null;
+}
+
+/**
+ * Companion shell context — tells a skill WHERE the user is + WHAT real value is being edited, so the
+ * assistant is context-aware (a mascot), not a free-floating utility. V1 routes only `page==='cv_builder'`
+ * + a project/experience `section` → this skill.
+ */
+export interface CompanionContext {
+  page: 'cv_builder' | 'diagnosis';
+  section?: 'summary' | 'projects' | 'experience' | 'skills' | 'education';
+  cv_id?: string;
+  field_path?: string;
+  current_value?: string;
+  locale: Language;
+}
+
+/** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */
+export interface CvAnswer {
+  gap: BulletGap;
+  option_id: string;
+  /** free text OR a picked known-tech; REQUIRED for `tech` before a rewrite (a category alone is not enough). */
+  detail?: string;
 }
 
 const ACTION_VERBS: Record<Language, string[]> = {
@@ -125,7 +149,10 @@ export function analyzeBulletGaps(bullet: string, language: Language): BulletGap
   return gaps;
 }
 
-const QUESTIONS: Record<Language, Record<BulletGap, AssistantQuestion>> = {
+const QUESTIONS: Record<
+  Language,
+  Record<BulletGap, Omit<AssistantQuestion, 'allows_free_text'>>
+> = {
   en: {
     action: {
       gap: 'action',
@@ -220,8 +247,19 @@ export function buildCvAssistantTurn(bullet: string, language: Language): CvAssi
   }
   return {
     message: WEAK_MSG[language],
-    questions: gaps.map((g) => QUESTIONS[language][g]),
+    questions: gaps.map((g) => ({ ...QUESTIONS[language][g], allows_free_text: true })),
     requires_user_confirmation: false,
     field_patch: null,
   };
+}
+
+/**
+ * Companion shell entry: route a CV-builder project/experience section to Turn-1 on its current value.
+ * Returns null when out of V1a scope (other page/section, or no value) — the shell shows nothing then.
+ */
+export function cvBuilderAssistantTurn1(ctx: CompanionContext): CvAssistantTurn | null {
+  if (ctx.page !== 'cv_builder') return null;
+  if (ctx.section && ctx.section !== 'projects' && ctx.section !== 'experience') return null;
+  if (!ctx.current_value || ctx.current_value.trim().length === 0) return null;
+  return buildCvAssistantTurn(ctx.current_value, ctx.locale);
 }
