@@ -78,3 +78,33 @@ describe('configValidationSchema — CV_JD_MATCH_EXTRACTION_CACHE_ENABLED', () =
     expect(value.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED).toBe(false);
   });
 });
+
+describe('configValidationSchema — interview chain model overrides', () => {
+  it('defaults optional interview chain model overrides safely', () => {
+    const { error, value } = configValidationSchema.validate(base, { allowUnknown: true });
+    expect(error).toBeUndefined();
+    expect(value.INTERVIEW_ASSESS_MODEL).toBe('gpt-4o-mini');
+    expect(value.INTERVIEW_ASK_MODEL).toBe('gpt-4o-mini');
+    expect(value.ANSWER_INSIGHT_MODEL).toBe('');
+    expect(value.INTERVIEW_COACHING_MODEL).toBe('');
+  });
+
+  it('accepts explicit model overrides for each interview chain LLM call', () => {
+    const { error, value } = configValidationSchema.validate(
+      {
+        ...base,
+        INTERVIEW_ASSESS_MODEL: 'gpt-4o-mini',
+        INTERVIEW_ASK_MODEL: 'gpt-4o-mini',
+        ANSWER_INSIGHT_MODEL: 'gpt-4o-mini',
+        INTERVIEW_COACHING_MODEL: 'gpt-4o-mini',
+      },
+      { allowUnknown: true },
+    );
+
+    expect(error).toBeUndefined();
+    expect(value.INTERVIEW_ASSESS_MODEL).toBe('gpt-4o-mini');
+    expect(value.INTERVIEW_ASK_MODEL).toBe('gpt-4o-mini');
+    expect(value.ANSWER_INSIGHT_MODEL).toBe('gpt-4o-mini');
+    expect(value.INTERVIEW_COACHING_MODEL).toBe('gpt-4o-mini');
+  });
+});

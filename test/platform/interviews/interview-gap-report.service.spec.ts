@@ -41,6 +41,28 @@ describe('InterviewGapReportService.get', () => {
     });
   });
 
+  it('prefers persisted session.gapItems from the new interview chain', async () => {
+    const svc = new InterviewGapReportService(
+      sessionsRepo({
+        id: 's1',
+        userId: 'u1',
+        cvMatchId: 'm1',
+        finalAiRequestId: null,
+        gapItems: [GAP_ITEM],
+        coaching: { summary: 'New chain summary.' },
+      }) as never,
+      aiResultsRepo(null) as never,
+      undefined,
+    );
+
+    await expect(svc.get('u1', 's1')).resolves.toMatchObject({
+      session_id: 's1',
+      match_id: 'm1',
+      interviewer_summary: 'New chain summary.',
+      gap_items: [expect.objectContaining({ display_name: 'React' })],
+    });
+  });
+
   it('reads and coerces interview_gap_items from ai_results.parsed_response', async () => {
     const svc = new InterviewGapReportService(
       sessionsRepo({ id: 's1', userId: 'u1', cvMatchId: null, finalAiRequestId: 'req1' }) as never,
@@ -128,7 +150,9 @@ describe('InterviewGapReportService.getLatestForMatch', () => {
     await expect(svc.getLatestForMatch('u1', 'm1')).resolves.toBeNull();
     expect(sessions.findOne).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ userId: 'u1', cvMatchId: 'm1', status: 'COMPLETED' }),
+        where: expect.arrayContaining([
+          expect.objectContaining({ userId: 'u1', cvMatchId: 'm1', status: 'COMPLETED' }),
+        ]),
       }),
     );
   });

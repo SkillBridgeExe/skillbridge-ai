@@ -10,6 +10,7 @@ import { InterviewModule } from '../../modules/interview/interview.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvMatchesModule } from '../cv-matches/cv-matches.module';
 import { InterviewsController } from './interviews.controller';
+import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { InterviewGapReportService } from './interview-gap-report.service';
 import { InterviewsService } from './interviews.service';
 import { OpenAiQuestionAudioService } from './openai-question-audio.service';
@@ -35,6 +36,7 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
     OpenAiRealtimeTokenService,
     OpenAiQuestionAudioService,
     InterviewGapReportService,
+    InterviewChainLlmService,
   ],
   exports: [InterviewGapReportService],
 })

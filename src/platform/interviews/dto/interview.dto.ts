@@ -22,7 +22,8 @@ import {
   INTERVIEW_VOICES,
   InterviewVoice,
 } from '../../../database/entities/interview-session.entity';
-import { InterviewPhase } from '../../../modules/interview/dto/start-interview.dto';
+import { InterviewTurnPhase } from '../../../database/entities/interview-turn.entity';
+import { InterviewPhase as AgendaInterviewPhase } from '../../../modules/interview/interview-agenda';
 
 const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
@@ -207,7 +208,8 @@ export interface InterviewTurnDto {
   id: string;
   sessionId: string;
   turnOrder: number;
-  phase: InterviewPhase | null;
+  phase: InterviewTurnPhase | null;
+  topicPhase: AgendaInterviewPhase | null;
   modality: 'TEXT' | 'AUDIO';
   aiRequestId: string | null;
   interviewerMessage: string | null;
@@ -215,6 +217,11 @@ export interface InterviewTurnDto {
   userAnswerText: string | null;
   userAnswerTranscript: string | null;
   perQuestionScore: number | null;
+  depthSignal: string | null;
+  signals: unknown;
+  insight: unknown;
+  currentThread: string | null;
+  skillCanonical: string | null;
   strengths: unknown;
   improvements: unknown;
   askedAt: string;
@@ -242,6 +249,10 @@ export interface InterviewSessionDto {
   llmScore: number | null;
   communicationScore: number | null;
   aiFeedback: unknown;
+  finalScore: unknown;
+  gapItems: unknown;
+  devPlan: unknown;
+  coaching: unknown;
   durationSeconds: number | null;
   startedAt: string;
   endedAt: string | null;
@@ -252,7 +263,7 @@ export interface InterviewSessionDto {
 export interface StartInterviewResponseDto extends InterviewSessionDto {
   firstMessage: string;
   firstQuestion: string;
-  phase: InterviewPhase | null;
+  phase: InterviewTurnPhase | null;
   realtime: RealtimeClientSecretDto;
 }
 

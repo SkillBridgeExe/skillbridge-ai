@@ -6,9 +6,11 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { InterviewPhase } from '../../modules/interview/dto/start-interview.dto';
+import { InterviewPhase as LegacyInterviewPhase } from '../../modules/interview/dto/start-interview.dto';
+import { InterviewPhase as AgendaInterviewPhase } from '../../modules/interview/interview-agenda';
 
 export type InterviewTurnModality = 'TEXT' | 'AUDIO';
+export type InterviewTurnPhase = LegacyInterviewPhase | AgendaInterviewPhase;
 
 @Entity('interview_turns')
 @Index('idx_interview_turns_session_order_unique', ['sessionId', 'turnOrder'], { unique: true })
@@ -24,7 +26,10 @@ export class InterviewTurnEntity {
   turnOrder!: number;
 
   @Column({ type: 'varchar', nullable: true })
-  phase!: InterviewPhase | null;
+  phase!: InterviewTurnPhase | null;
+
+  @Column({ type: 'varchar', name: 'topic_phase', nullable: true })
+  topicPhase!: AgendaInterviewPhase | null;
 
   @Column({ type: 'varchar', default: 'TEXT' })
   modality!: InterviewTurnModality;
@@ -52,6 +57,21 @@ export class InterviewTurnEntity {
     nullable: true,
   })
   perQuestionScore!: string | null;
+
+  @Column({ type: 'varchar', name: 'depth_signal', nullable: true })
+  depthSignal!: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  signals!: unknown | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  insight!: unknown | null;
+
+  @Column({ type: 'text', name: 'current_thread', nullable: true })
+  currentThread!: string | null;
+
+  @Column({ type: 'varchar', name: 'skill_canonical', nullable: true })
+  skillCanonical!: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
   strengths!: unknown | null;

@@ -121,6 +121,13 @@ export const configValidationSchema = Joi.object({
   CV_JD_MATCH_EXTRACTION_MODEL: Joi.string().allow('').default(''),
   CV_JD_MATCH_EXTRACTION_SEED: Joi.number().integer().optional(),
 
+  // Interview platform chain. Assess/ask use cheap deterministic models by default; the insight and
+  // coaching services read empty-string as "use provider default" for optional overrides.
+  INTERVIEW_ASSESS_MODEL: Joi.string().default('gpt-4o-mini'),
+  INTERVIEW_ASK_MODEL: Joi.string().default('gpt-4o-mini'),
+  ANSWER_INSIGHT_MODEL: Joi.string().allow('').default(''),
+  INTERVIEW_COACHING_MODEL: Joi.string().allow('').default(''),
+
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
   // when deterministic metrics say it is better. All bounded to protect Cloud Run resources.
