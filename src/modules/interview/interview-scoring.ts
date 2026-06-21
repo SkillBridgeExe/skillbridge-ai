@@ -1,4 +1,4 @@
-import { DepthSignal, InterviewPhase } from './interview-agenda';
+import { DepthSignal, EARLY_CAREER_BANDS, InterviewPhase } from './interview-agenda';
 
 export type Dimension =
   | 'technical_depth'
@@ -66,11 +66,6 @@ export const ROLE_RUBRIC_WEIGHTS: Record<RoleFamily, Record<Dimension, number>> 
   },
 };
 
-// Seniority bands that map to the low-evidence fresher_intern column REGARDLESS of role (spec §2 principle).
-// MUST stay consistent with interview-agenda FRESHER_BANDS (fresher+junior) — a band drilled as fresher must
-// also be SCORED on the fresher column, else junior drills easy but scores on the high-evidence IC weights.
-const FRESHER_SENIORITY = new Set(['fresher', 'intern', 'junior', 'entry_level']);
-
 // Keyword → role-family (checked in order; first hit wins). Mirrors the taxonomy's role families.
 const FAMILY_KEYWORDS: Array<{ family: RoleFamily; terms: string[] }> = [
   { family: 'lead_manager', terms: ['manager', 'lead', 'principal', 'staff', 'head', 'director'] },
@@ -88,7 +83,7 @@ const FAMILY_KEYWORDS: Array<{ family: RoleFamily; terms: string[] }> = [
  * keyword-match the role string to a family, defaulting to ic_eng. Deterministic.
  */
 export function resolveRoleFamily(role: string, seniority: string): RoleFamily {
-  if (FRESHER_SENIORITY.has(seniority.trim().toLowerCase())) return 'fresher_intern';
+  if (EARLY_CAREER_BANDS.has(seniority.trim().toLowerCase())) return 'fresher_intern';
   const r = role.toLowerCase();
   for (const { family, terms } of FAMILY_KEYWORDS) {
     if (terms.some((t) => r.includes(t))) return family;

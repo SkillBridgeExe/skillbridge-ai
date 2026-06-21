@@ -99,14 +99,26 @@ describe('buildCoachingFacts', () => {
     expect(facts.strengths.every((s) => s.band === 'solid' || s.band === 'outstanding')).toBe(true);
   });
 
-  it('pulls priorities across all 3 plan buckets sorted by priority desc, capped', () => {
-    const facts = buildCoachingFacts({ score: score(), gaps: [gap()], plan: plan() });
-    expect(facts.priorities.length).toBeLessThanOrEqual(4);
-    // highest priority first: Kubernetes(0.9) > React(0.8) > STAR(0.6) > GraphQL(0.4)
-    expect(facts.priorities[0]).toMatchObject({ track: 'learn', title: 'Kubernetes' });
-    expect(facts.priorities.map((p) => p.title)).toContain('React');
-    const sorted = [...facts.priorities].sort((a, b) => b.severity - a.severity);
-    expect(facts.priorities).toEqual(sorted);
+  it('pulls priorities across all 3 plan buckets sorted by PRIORITY desc (NOT severity), capped', () => {
+    // In real data buildUnifiedPlan boosts priority above severity (BOTH_BOOST 1.3x), so priority != severity.
+    // 'Boosted' = high priority / low severity; 'GraphQL' = low priority / high severity. ONLY a priority-sort
+    // keeps Boosted in the top-4 and drops GraphQL; a (wrong) severity-sort would do the opposite.
+    const p = plan({
+      learn_items: [
+        planItem({ track: 'learn', display_name: 'Kubernetes', priority: 0.9, severity: 0.9 }),
+        planItem({ track: 'learn', display_name: 'Boosted', priority: 0.85, severity: 0.5 }),
+        planItem({ track: 'learn', display_name: 'GraphQL', priority: 0.4, severity: 0.95 }),
+      ],
+    });
+    const facts = buildCoachingFacts({ score: score(), gaps: [gap()], plan: p });
+    expect(facts.priorities.length).toBe(4); // MAX_PRIORITIES cap
+    // priority order: Kubernetes(.9) > Boosted(.85) > React(.8) > STAR(.6); GraphQL(.4) drops out.
+    expect(facts.priorities.map((x) => x.title)).toEqual([
+      'Kubernetes',
+      'Boosted',
+      'React',
+      'STAR storytelling',
+    ]);
   });
 
   it('copies overall + band from the score', () => {
