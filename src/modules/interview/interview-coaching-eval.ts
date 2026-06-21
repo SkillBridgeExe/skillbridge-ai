@@ -50,20 +50,22 @@ function arrEq(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-export function scoreInterviewCoachingCase(
-  c: InterviewCoachingCase,
-): InterviewCoachingEvalResult {
+export function scoreInterviewCoachingCase(c: InterviewCoachingCase): InterviewCoachingEvalResult {
   const grounded: InterviewCoaching = groundCoaching(c.model_output, c.facts);
   const mismatches: string[] = [];
   const e = c.expect;
 
   if (e.strengths && !arrEq(grounded.strengths, e.strengths)) {
-    mismatches.push(`strengths ${JSON.stringify(grounded.strengths)} != ${JSON.stringify(e.strengths)}`);
+    mismatches.push(
+      `strengths ${JSON.stringify(grounded.strengths)} != ${JSON.stringify(e.strengths)}`,
+    );
   }
   if (e.priority_titles) {
     const titles = grounded.priorities.map((p) => p.title);
     if (!arrEq(titles, e.priority_titles)) {
-      mismatches.push(`priority_titles ${JSON.stringify(titles)} != ${JSON.stringify(e.priority_titles)}`);
+      mismatches.push(
+        `priority_titles ${JSON.stringify(titles)} != ${JSON.stringify(e.priority_titles)}`,
+      );
     }
   }
   if (e.summary_equals !== undefined && grounded.summary !== e.summary_equals) {

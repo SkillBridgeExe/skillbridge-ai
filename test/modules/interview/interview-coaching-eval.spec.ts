@@ -72,7 +72,9 @@ describe('interview-coaching grounding golden set', () => {
     // null output → fallback
     expect(golden.cases.some((c) => c.model_output === null)).toBe(true);
     // url strip
-    expect(golden.cases.some((c) => (c.expect.summary_excludes ?? []).some((s) => /http|www/.test(s)))).toBe(true);
+    expect(
+      golden.cases.some((c) => (c.expect.summary_excludes ?? []).some((s) => /http|www/.test(s))),
+    ).toBe(true);
     // model-fabricated priority ignored (code titles asserted despite a fake in model_output)
     expect(
       golden.cases.some(

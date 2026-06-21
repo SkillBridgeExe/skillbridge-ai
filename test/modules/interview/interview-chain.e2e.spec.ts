@@ -100,9 +100,7 @@ describe('interview chain e2e (signals → insight → gaps → plan → facts)'
     const facts = buildCoachingFacts({ score, gaps, plan });
 
     // the no-concrete answer must surface a cv_fix priority targeting React evidence.
-    const cvFixPriority = facts.priorities.find(
-      (p) => p.track === 'cv_fix' && p.title === 'React',
-    );
+    const cvFixPriority = facts.priorities.find((p) => p.track === 'cv_fix' && p.title === 'React');
     expect(cvFixPriority).toBeDefined();
 
     // and the gap itself rides through to top_gaps as an evidence weakness.
