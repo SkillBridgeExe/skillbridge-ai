@@ -158,7 +158,8 @@ describe('deriveInterviewGaps — evidence_gap', () => {
       ctx({
         topic_phase: 'SKILL_PROBE',
         skill_canonical: 'react',
-        answer: 'I once walked a new teammate through our code review process and it went smoothly.',
+        answer:
+          'I once walked a new teammate through our code review process and it went smoothly.',
         jd_terms: [],
         insight: { evidence_quality: 'strong' },
       }),
