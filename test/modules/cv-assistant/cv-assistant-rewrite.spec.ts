@@ -81,7 +81,20 @@ describe('groundCvRewrite — rejects any fabricated fact (anti-fabrication chok
       OPTS,
     );
     expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.detail).toMatch(/Kafka/);
+    if (!v.ok) expect(v.detail).toMatch(/kafka/i);
+  });
+
+  it('ACCEPTS generic descriptors the model adds (REST, API, service) — only SPECIFIC tech is gated', () => {
+    const v = groundCvRewrite(
+      before,
+      {
+        after: 'Built a REST API service with Node.js, making it faster.',
+        used_facts: ['built', 'Node.js', 'faster'],
+      },
+      grounded,
+      OPTS,
+    );
+    expect(v.ok).toBe(true);
   });
 
   it('REJECTS when used_facts is not a subset of the allowed facts', () => {

@@ -96,35 +96,75 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
 // ---------------------------------------------------------------------------
 
 const NUMBER_RE = /\d+(?:\.\d+)?/g;
-const COMMON_CAPS = new Set([
-  'I',
-  'A',
-  'The',
-  'We',
-  'My',
-  'It',
-  'In',
-  'On',
-  'At',
-  'For',
-  'To',
-  'And',
-  'Em',
-  'Tôi',
-]);
 
-/** capitalized proper-noun-looking tokens NOT at sentence start (React, Node, Kafka, PostgreSQL). */
-function properTokens(text: string): string[] {
-  const out: string[] = [];
-  for (const sentence of text.split(/[.!?…\n]+/)) {
-    const toks = sentence.trim().split(/\s+/).filter(Boolean);
-    for (let i = 1; i < toks.length; i++) {
-      const raw = toks[i].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
-      if (raw.length >= 2 && /^[A-Z][A-Za-z0-9.+#]*$/.test(raw) && !COMMON_CAPS.has(raw))
-        out.push(raw);
-    }
-  }
-  return out;
+/**
+ * KNOWN specific technologies/products. The anti-fabrication gate rejects a SPECIFIC tech the user did
+ * not give (e.g. the model adds "Kafka"). It deliberately does NOT reject generic descriptors (API,
+ * REST, UI, service…) — flagging every capitalized word over-rejects plausible prose and spams re-asks.
+ * Numbers are still exact-checked, the prompt forbids fabrication, and the user confirms before Apply.
+ */
+const NAMED_TECH = [
+  'react',
+  'vue',
+  'angular',
+  'svelte',
+  'next.js',
+  'nuxt',
+  'node',
+  'node.js',
+  'nodejs',
+  'express',
+  'nestjs',
+  'spring',
+  'spring boot',
+  'django',
+  'flask',
+  'rails',
+  'laravel',
+  '.net',
+  'dotnet',
+  'typescript',
+  'javascript',
+  'python',
+  'java',
+  'golang',
+  'rust',
+  'kotlin',
+  'swift',
+  'php',
+  'redis',
+  'postgres',
+  'postgresql',
+  'mysql',
+  'mongodb',
+  'sqlite',
+  'elasticsearch',
+  'cassandra',
+  'kafka',
+  'rabbitmq',
+  'graphql',
+  'grpc',
+  'docker',
+  'kubernetes',
+  'k8s',
+  'terraform',
+  'nginx',
+  'aws',
+  'gcp',
+  'azure',
+  'firebase',
+  'supabase',
+  'vercel',
+  'stripe',
+  'tensorflow',
+  'pytorch',
+  'flutter',
+];
+
+/** whole-word, case-insensitive, unicode-aware presence of `word` in `text` (so 'node' ≠ 'nodemon'). */
+function hasWord(text: string, word: string): boolean {
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
 
 export function groundCvRewrite(
@@ -141,19 +181,10 @@ export function groundCvRewrite(
       detail: 'missing concrete detail',
     };
   }
-  // allowed evidence = the user's facts + words already in the original bullet (the model may reuse those).
-  // Match numbers + entities as WHOLE tokens (NOT substrings): a fabricated "30%" must not hide inside a
-  // legit "300 users" ('30' ⊂ '300'), which substring matching would wrongly accept.
+  // allowed evidence = the user's facts + the words already in the original bullet.
   const source = `${grounded.facts.join(' ')} ${before}`;
+  // numbers are matched EXACTLY (whole), so a fabricated "30%" can't hide inside a legit "300 users".
   const allowedNumbers = new Set(source.match(NUMBER_RE) ?? []);
-  // split on ANY non-alphanumeric so the allowed set is tokenized the SAME way properTokens splits
-  // (e.g. 'Node.js' → 'node','js') — otherwise a grounded 'Node.js' would be wrongly rejected.
-  const allowedTokens = new Set(
-    source
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter(Boolean),
-  );
 
   // (a) every declared used_fact must be one of the allowed facts.
   for (const uf of model.used_facts) {
@@ -167,10 +198,11 @@ export function groundCvRewrite(
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated number: ${num}` };
     }
   }
-  // (c) every proper-noun/tech entity in `after` must be a whole token from the facts or the original.
-  for (const tok of properTokens(model.after)) {
-    if (!allowedTokens.has(tok.toLowerCase())) {
-      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity/tech: ${tok}` };
+  // (c) no fabricated SPECIFIC tech: a known tech name appears in `after` but the user never gave it.
+  //     Generic descriptors (API/REST/UI/service) are intentionally allowed (avoids re-ask spam).
+  for (const tech of NAMED_TECH) {
+    if (hasWord(model.after, tech) && !hasWord(source, tech)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated tech: ${tech}` };
     }
   }
   return {
