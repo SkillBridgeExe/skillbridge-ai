@@ -4,6 +4,7 @@
  * Proves: (1) the model produces a good grounded rewrite, (2) it PASSES the anti-fabrication gate
  * (not over-rejected), (3) the gate still catches any fabricated number/tech. Directional, not a CI gate.
  */
+import * as dotenv from 'dotenv';
 import OpenAI from 'openai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -13,6 +14,10 @@ import {
   type RewriteModelOutput,
 } from '../modules/cv-assistant/cv-assistant-rewrite';
 import { CvAnswer, Language } from '../modules/cv-assistant/cv-assistant';
+
+// The NestJS app loads .env via ConfigModule; this standalone script must do it itself.
+// override:true so the real key in .env wins over a stale OPENAI_API_KEY exported in the shell.
+dotenv.config({ override: true });
 
 const raw = readFileSync(join(process.cwd(), 'prompts', 'cv_assistant_rewrite_v1.md'), 'utf8');
 const fm = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
