@@ -66,7 +66,9 @@ export function assembleExtraction(narrative: string, llm: IntakeLlmOutput): Exp
       continue;
     }
     const sourceSpan = raw.source_span ?? '';
-    const grounded = isGrounded(stringify(raw.value), narrative);
+    // company/position are single named atoms → require a contiguous phrase match (no recombination).
+    const mode = key === 'company' || key === 'position' ? 'atom' : 'prose';
+    const grounded = isGrounded(stringify(raw.value), narrative, mode);
     fields[key] = {
       value: grounded ? raw.value : '',
       found: grounded,

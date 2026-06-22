@@ -119,6 +119,26 @@
         }
       },
       "expectFabricationDropped": true
+    },
+    {
+      "id": "fab-company-recombined-vi",
+      "narrative": "Tôi làm ở Smart Data, trong nhóm Cloud Solutions, vị trí Backend Engineer từ 02/2022 đến 05/2023, xây dựng API nội bộ.",
+      "llm": {
+        "fields": {
+          "company": { "value": "Smart Solutions", "source_span": "" },
+          "position": { "value": "Backend Engineer", "source_span": "vị trí Backend Engineer" },
+          "description": { "value": ["Xây dựng API nội bộ."], "source_span": "xây dựng API nội bộ" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "position": "Backend Engineer",
+          "start": "02/2022",
+          "end": "05/2023",
+          "description": ["Xây dựng API nội bộ."]
+        }
+      },
+      "expectFabricationDropped": true
     }
   ]
 }
