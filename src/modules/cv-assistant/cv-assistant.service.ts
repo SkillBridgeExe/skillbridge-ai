@@ -52,6 +52,10 @@ const REASK_TECH: Record<Language, string> = {
   en: 'Which specific tech did you use (e.g. Node.js, React, PostgreSQL)?',
   vi: 'Bạn dùng công nghệ cụ thể nào (vd Node.js, React, PostgreSQL)?',
 };
+const REASK_STRENGTH: Record<Language, string> = {
+  en: 'Which specific skills are your strengths (e.g. React, Python, SQL)?',
+  vi: 'Thế mạnh cụ thể của bạn là kỹ năng nào (vd React, Python, SQL)?',
+};
 const REASK_GENERIC: Record<Language, string> = {
   en: 'Tell me a bit more so I can rewrite it without inventing anything.',
   vi: 'Cho mình thêm chút thông tin để viết lại mà không bịa gì nhé.',
@@ -90,11 +94,12 @@ export class CvAssistantRewriteService {
 
     // re-ask BEFORE spending any LLM call (deterministic gate).
     if (grounded.needs_detail.length > 0) {
+      const gap = grounded.needs_detail[0];
       return {
         ok: false,
         reason: 'NEEDS_DETAIL',
-        gap: grounded.needs_detail[0],
-        message: REASK_TECH[language],
+        gap,
+        message: gap === 'strength' ? REASK_STRENGTH[language] : REASK_TECH[language],
       };
     }
     if (grounded.facts.length === 0) {

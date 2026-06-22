@@ -2,8 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -19,6 +21,7 @@ const LANGS = ['vi', 'en'] as const;
 export class AssistantAnalyzeRequestDto {
   @ApiProperty({ example: 'Worked on the project.', maxLength: 2000 })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(2000)
   current_value!: string;
 
@@ -61,11 +64,13 @@ export class AssistantAnswerDto {
 export class AssistantRewriteRequestDto {
   @ApiProperty({ example: 'Worked on the project.', maxLength: 2000 })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(2000)
   before!: string;
 
   @ApiProperty({ type: [AssistantAnswerDto], maxItems: 6 })
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(6)
   @ValidateNested({ each: true })
   @Type(() => AssistantAnswerDto)

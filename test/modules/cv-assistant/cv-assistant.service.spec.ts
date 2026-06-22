@@ -94,4 +94,23 @@ describe('CvAssistantRewriteService.rewrite', () => {
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.reason).toBe('DEGRADED');
   });
+
+  it('selects the summary prompt when kind=summary', async () => {
+    const complete = llmOk({
+      after: 'Backend Developer skilled in Node.js.',
+      used_facts: ['Node.js'],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    await svc.rewrite({
+      before: 'Looking for a job.',
+      answers: [{ gap: 'strength', option_id: 'backend', detail: 'Node.js' }],
+      target: 'summary',
+      language: 'en',
+      kind: 'summary',
+    });
+    const prompts = d.prompts as unknown as { get: jest.Mock; render: jest.Mock };
+    expect(prompts.get).toHaveBeenCalledWith('cv_summary_rewrite_v1');
+    expect(prompts.render).toHaveBeenCalledWith('cv_summary_rewrite_v1', expect.anything());
+  });
 });
