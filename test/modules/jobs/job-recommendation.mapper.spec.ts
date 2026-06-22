@@ -27,6 +27,9 @@ describe('buildJobRecommendation', () => {
 
     const job = {
       id: 'job-1',
+      slug: 'fe-dev-job-1',
+      application_mode: 'NATIVE' as const,
+      saved: true,
       title: 'FE Dev',
       company_name: 'Acme',
       location: 'HCMC',
@@ -34,6 +37,7 @@ describe('buildJobRecommendation', () => {
       experience_level: 'JUNIOR',
       salary_min: '1000',
       salary_max: '2000',
+      salary_visible: true,
       currency: 'VND',
       source_url: 'https://x',
       posted_at: '2026-06-01',
@@ -48,6 +52,10 @@ describe('buildJobRecommendation', () => {
     });
 
     expect(rec.match_score).toBe(diff.overall_score);
+    expect(rec.slug).toBe('fe-dev-job-1');
+    expect(rec.application_mode).toBe('NATIVE');
+    expect(rec.saved).toBe(true);
+    expect(rec.salary_min).toBe(1000);
     // fits → recommendation_score equals the skill match_score (no seniority demotion), not severe.
     expect(rec.recommendation_score).toBe(diff.overall_score);
     expect(rec.severe_stretch).toBe(false);
@@ -75,6 +83,9 @@ describe('buildJobRecommendation', () => {
 
     const job = {
       id: 'job-2',
+      slug: 'senior-fe-dev-job-2',
+      application_mode: 'EXTERNAL' as const,
+      saved: false,
       title: 'Senior FE Dev',
       company_name: 'Acme',
       location: 'HCMC',
@@ -82,6 +93,7 @@ describe('buildJobRecommendation', () => {
       experience_level: 'SENIOR',
       salary_min: '3000',
       salary_max: '5000',
+      salary_visible: false,
       currency: 'VND',
       source_url: 'https://x',
       posted_at: '2026-06-01',
@@ -101,6 +113,8 @@ describe('buildJobRecommendation', () => {
     expect(rec.match_score).toBe(diff.overall_score);
     expect(rec.recommendation_score).toBeLessThan(rec.match_score);
     expect(rec.severe_stretch).toBe(true);
+    expect(rec.salary_min).toBeNull();
+    expect(rec.salary_max).toBeNull();
   });
 });
 
