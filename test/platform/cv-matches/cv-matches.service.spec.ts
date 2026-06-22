@@ -499,4 +499,50 @@ describe('CvMatchesService', () => {
       expect(input.target_band).toBeUndefined();
     });
   });
+
+  describe('getNextSteps (gap_next_step_advisor)', () => {
+    const fullGap = (over: Record<string, unknown>) => ({
+      requirement_id: 'jd:hard_skill:x',
+      source: 'jd',
+      type: 'hard_skill',
+      canonical_name: 'x',
+      display_name: 'X',
+      importance: 'REQUIRED',
+      cv_status: 'missing',
+      cv_level: null,
+      required_level: 3,
+      gap_levels: 3,
+      satisfied_by: null,
+      evidence_refs: [],
+      evidence_risk: 'unproven',
+      fixability: 'learn',
+      market_demand: 50,
+      severity: 0.5,
+      confidence: 1,
+      recommended_next_action: 'do',
+      ...over,
+    });
+
+    it('returns prioritized next steps from the match gap report (matched gaps excluded)', async () => {
+      const { service } = build();
+      jest.spyOn(service, 'getGapReport').mockResolvedValue({
+        target_role: 'frontend_developer',
+        gap_items: [
+          fullGap({ canonical_name: 'react', display_name: 'React', cv_status: 'matched' }),
+          fullGap({
+            canonical_name: 'aws',
+            display_name: 'AWS',
+            cv_status: 'missing',
+            market_demand: 90,
+          }),
+        ],
+      } as never);
+
+      const out = await service.getNextSteps('user-1', 'match-1', 'en');
+      expect(out.match_id).toBe('match-1');
+      expect(out.target_role).toBe('frontend_developer');
+      expect(out.steps.map((s) => s.skill)).toEqual(['AWS']);
+      expect(out.steps[0].action).toMatch(/Learn this skill/);
+    });
+  });
 });

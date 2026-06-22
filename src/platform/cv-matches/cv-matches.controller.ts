@@ -184,6 +184,21 @@ export class CvMatchReportsController {
     return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang));
   }
 
+  @Get(':matchId/next-steps')
+  @ApiOperation({
+    summary:
+      'Prioritized next steps from the match gap report (gap_next_step_advisor, deterministic)',
+  })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  nextSteps(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+    @Query('lang') lang?: string,
+  ) {
+    return this.matches.getNextSteps(user.userId, matchId, normalizeLang(lang));
+  }
+
   @Get(':matchId/progress')
   @ApiOperation({ summary: 'Gap progress vs the previous match for the same CV and JD' })
   @ApiParam({ name: 'matchId', format: 'uuid' })
