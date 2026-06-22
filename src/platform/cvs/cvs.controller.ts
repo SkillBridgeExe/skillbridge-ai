@@ -33,7 +33,11 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { EvaluateSectionRequestDto } from '../../modules/cv-builder/dto/evaluate-section.dto';
 import { RewriteRequestDto } from '../../modules/cv-builder/dto/rewrite.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
-import { AssistantAnalyzeRequestDto, AssistantRewriteRequestDto } from './dto/cv-assistant.dto';
+import {
+  AssistantAnalyzeRequestDto,
+  AssistantRewriteRequestDto,
+  ExtractRequestDto,
+} from './dto/cv-assistant.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
@@ -277,6 +281,22 @@ export class CvsController {
     @Body() dto: AssistantRewriteRequestDto,
   ) {
     return this.cvs.assistantRewrite(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/assistant/extract')
+  @ApiOperation({
+    summary:
+      'CV Builder assistant — extract structured fields from a free-text work-experience story',
+    description:
+      'Checks ownership, then turns the narrative into structured experience fields (company/position/dates/description/achievements). Anti-fabrication is enforced server-side. Consumes CV_BUILDER_REWRITE quota only when the extraction is not degraded.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  assistantExtract(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: ExtractRequestDto,
+  ) {
+    return this.cvs.assistantExtract(user.userId, id, dto);
   }
 
   @Get(':id/builder/assistant/skills-nudge')

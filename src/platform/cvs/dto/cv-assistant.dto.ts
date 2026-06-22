@@ -16,6 +16,7 @@ const SECTIONS = ['summary', 'projects', 'experience', 'skills', 'education'] as
 const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence'] as const;
 const KINDS = ['bullet', 'summary'] as const;
 const LANGS = ['vi', 'en'] as const;
+const INTAKE_SECTIONS = ['experience'] as const;
 
 /** Turn-1: ask the engine to analyze one CV field and produce structured questions. */
 export class AssistantAnalyzeRequestDto {
@@ -94,4 +95,41 @@ export class AssistantRewriteRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   locale?: (typeof LANGS)[number];
+}
+
+/**
+ * Narrative intake (Phase 1: experience): turn a user's free-text story about ONE work-experience
+ * entry into structured fields. `locale` is the UI language (user-facing messages); `output_lang`
+ * is the CV's language (the extracted text). Anti-fabrication is enforced server-side.
+ */
+export class ExtractRequestDto {
+  @ApiProperty({ enum: INTAKE_SECTIONS, default: 'experience' })
+  @IsIn(INTAKE_SECTIONS as unknown as string[])
+  section!: (typeof INTAKE_SECTIONS)[number];
+
+  @ApiProperty({
+    example: 'Tôi làm ở SmartAI Solutions vị trí AI Engineer từ 05/2023 tới nay.',
+    maxLength: 4000,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  narrative!: string;
+
+  @ApiPropertyOptional({
+    enum: LANGS,
+    default: 'en',
+    description: 'UI language for user-facing text',
+  })
+  @IsOptional()
+  @IsIn(LANGS as unknown as string[])
+  locale?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    enum: LANGS,
+    description: "The CV's language for the extracted text. Defaults to locale when absent.",
+  })
+  @IsOptional()
+  @IsIn(LANGS as unknown as string[])
+  output_lang?: (typeof LANGS)[number];
 }
