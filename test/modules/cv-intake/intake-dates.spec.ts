@@ -21,4 +21,27 @@ describe('parseDateRange', () => {
   it('no dates → nulls', () => {
     expect(parseDateRange('built a chatbot')).toEqual({ start: null, end: null, ongoing: false });
   });
+
+  // Issue #2: a stray 4-digit number must NOT become a date when explicit MM/YYYY / month-name exist.
+  it('ignores a stray 4-digit count when explicit MM/YYYY dates exist', () => {
+    expect(parseDateRange('handling 2048 requests at TechCorp from 05/2023 to 06/2024')).toEqual({
+      start: '05/2023',
+      end: '06/2024',
+      ongoing: false,
+    });
+  });
+  it('prefers month-name dates over stray latency numbers', () => {
+    expect(parseDateRange('reduced from 1500 to 2000 ms, May 2023 - Jun 2024')).toEqual({
+      start: '05/2023',
+      end: '06/2024',
+      ongoing: false,
+    });
+  });
+  it('ignores a graduation year, takes the MM/YYYY job range', () => {
+    expect(parseDateRange('graduated in 2019, then joined in 03/2021 until 12/2022')).toEqual({
+      start: '03/2021',
+      end: '12/2022',
+      ongoing: false,
+    });
+  });
 });
