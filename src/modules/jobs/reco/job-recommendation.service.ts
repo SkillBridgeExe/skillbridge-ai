@@ -17,6 +17,9 @@ import {
 
 export interface JobRecommendation {
   job_id: string;
+  slug: string;
+  application_mode: 'NATIVE' | 'EXTERNAL';
+  saved: boolean;
   title: string;
   company_name: string;
   location: string | null;
@@ -24,6 +27,7 @@ export interface JobRecommendation {
   experience_level: string | null;
   salary_min: number | null;
   salary_max: number | null;
+  salary_visible: boolean;
   currency: string;
   source_url: string | null;
   posted_at: string | null;
@@ -64,6 +68,9 @@ export interface JobRecommendationResponse {
 
 interface CandidateJobRow {
   id: string;
+  slug: string;
+  application_mode: 'NATIVE' | 'EXTERNAL';
+  saved: boolean;
   title: string;
   company_name: string;
   location: string | null;
@@ -71,6 +78,7 @@ interface CandidateJobRow {
   experience_level: string | null;
   salary_min: string | null;
   salary_max: string | null;
+  salary_visible: boolean;
   currency: string;
   source_url: string | null;
   posted_at: string | null;
@@ -158,8 +166,10 @@ export class JobRecommendationService {
 
     // 2. Candidate pool (active, unexpired, canonical representatives, with their skills).
     const candidates = await this.db.query<CandidateJobRow>(
-      `SELECT j.id, j.title, c.name AS company_name, j.location, j.role_code,
-              j.experience_level, j.salary_min, j.salary_max, j.currency, j.source_url,
+      `SELECT j.id, j.slug, j.application_mode,
+              EXISTS (SELECT 1 FROM public.saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $2) AS saved,
+              j.title, c.name AS company_name, j.location, j.role_code,
+              j.experience_level, j.salary_min, j.salary_max, j.salary_visible, j.currency, j.source_url,
               j.posted_at::text AS posted_at,
               COALESCE(
                 json_agg(json_build_object('canonical', s.canonical_name, 'importance', js.importance))
@@ -173,10 +183,17 @@ export class JobRecommendationService {
         WHERE j.status = 'active'
           AND (j.expires_at IS NULL OR j.expires_at > now())
           AND j.canonical_job_id IS NULL
+          AND (
+            j.application_mode = 'EXTERNAL'
+            OR EXISTS (
+              SELECT 1 FROM public.business_profiles bp
+               WHERE bp.company_id = j.company_id AND bp.status = 'VERIFIED'
+            )
+          )
           AND ($1::varchar IS NULL OR j.role_code = $1)
         GROUP BY j.id, c.name
         ORDER BY j.id`, // deterministic source order → reproducible RRF for tied scores
-      [options.roleCode ?? null],
+      [options.roleCode ?? null, userId],
     );
     if (candidates.length === 0 || cvCanonicals.length === 0) {
       return {
@@ -285,15 +302,19 @@ export function buildJobRecommendation(
   const policy = recommendationSeniorityPolicy(experienceFit);
   return {
     job_id: job.id,
+    slug: job.slug,
+    application_mode: job.application_mode,
+    saved: job.saved,
     title: job.title,
     company_name: job.company_name,
     location: job.location,
     role_code: job.role_code,
     experience_level: job.experience_level,
-    salary_min: job.salary_min ? Number(job.salary_min) : null,
-    salary_max: job.salary_max ? Number(job.salary_max) : null,
+    salary_min: job.salary_visible && job.salary_min ? Number(job.salary_min) : null,
+    salary_max: job.salary_visible && job.salary_max ? Number(job.salary_max) : null,
+    salary_visible: job.salary_visible,
     currency: job.currency,
-    source_url: job.source_url,
+    source_url: job.application_mode === 'EXTERNAL' ? job.source_url : null,
     posted_at: job.posted_at,
     match_score: diff.overall_score,
     recommendation_score: Math.round(diff.overall_score * policy.factor),

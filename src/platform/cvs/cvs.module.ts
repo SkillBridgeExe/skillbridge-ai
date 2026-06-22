@@ -56,6 +56,6 @@ import { CvAssistantRewriteService } from '../../modules/cv-assistant/cv-assista
     // Companion V1a — CV Builder assistant Turn-2 rewrite engine (deps Llm/Prompts are @Global).
     CvAssistantRewriteService,
   ],
-  exports: [CvsRetentionService, CvsService],
+  exports: [CvsRetentionService, CvsService, CvPdfRendererService],
 })
 export class CvsModule {}

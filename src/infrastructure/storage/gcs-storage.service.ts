@@ -55,6 +55,20 @@ export class GcsStorageService {
     return `avatars/${userId}/${safeName || 'avatar'}`;
   }
 
+  buildApplicationCvObjectKey(applicationId: string, originalName: string): string {
+    const safeName = this.sanitize(originalName, 160);
+    return `job-applications/${applicationId}/${safeName || 'cv.pdf'}`;
+  }
+
+  buildCompanyMediaObjectKey(
+    companyId: string,
+    kind: 'logo' | 'cover',
+    originalName: string,
+  ): string {
+    const safeName = this.sanitize(originalName, 160);
+    return `companies/${companyId}/${kind}/${safeName || kind}`;
+  }
+
   async upload(input: StorageUploadInput): Promise<UploadedObject> {
     const file = this.bucket.file(input.key);
     await file.save(input.body, { contentType: input.contentType, resumable: false });

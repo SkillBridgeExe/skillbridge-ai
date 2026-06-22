@@ -40,4 +40,25 @@ export class EmailService {
       });
     }
   }
+
+  async sendTransactionalEmail(
+    to: string,
+    subject: string,
+    html: string,
+    text: string,
+  ): Promise<void> {
+    const { error } = await this.resend.emails.send({
+      from: this.fromEmail,
+      to,
+      subject,
+      html,
+      text,
+    });
+    if (error) {
+      throw new ServiceUnavailableException({
+        errorCode: 'EMAIL_SEND_FAILED',
+        message: 'Failed to send transactional email',
+      });
+    }
+  }
 }

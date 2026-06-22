@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type VerificationPurpose = 'EMAIL_VERIFY' | 'PASSWORD_RESET';
+export type VerificationPurpose = 'EMAIL_VERIFY' | 'PASSWORD_RESET' | 'BUSINESS_EMAIL_VERIFY';
 
 /** Maps `verifications` - short-lived hashed tokens for email verification/reset flows. */
 @Entity('verifications')
@@ -18,6 +18,9 @@ export class VerificationEntity {
 
   @Column({ type: 'varchar', name: 'value_hash' })
   valueHash!: string;
+
+  @Column({ type: 'varchar', name: 'target_value_hash', length: 64, nullable: true })
+  targetValueHash!: string | null;
 
   @Column({ type: 'timestamptz', name: 'expires_at' })
   expiresAt!: Date;

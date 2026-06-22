@@ -59,6 +59,7 @@
     "revalidate:links": "ts-node -r tsconfig-paths/register src/tools/revalidate-links.ts",
     "eval:cv-builder": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-builder.ts",
     "cv-files:cleanup": "ts-node -r tsconfig-paths/register src/tools/cleanup-cv-files.ts",
+    "business-jobs:maintenance": "ts-node -r tsconfig-paths/register src/tools/maintain-business-jobs.ts",
     "payos:webhook:confirm": "ts-node -r tsconfig-paths/register src/tools/confirm-payos-webhook.ts",
     "import:onet": "ts-node src/tools/import-onet-tech-skills.ts",
     "import:esco": "ts-node src/tools/import-esco-it.ts",
