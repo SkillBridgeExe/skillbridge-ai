@@ -37,7 +37,10 @@ describe('CvIntakeService.extract', () => {
       fields: {
         company: { value: 'SmartAI Solutions', source_span: 'ở SmartAI Solutions' },
         position: { value: 'AI Engineer', source_span: 'vị trí AI Engineer' },
-        description: { value: ['Xây chatbot bằng GPT-4o.'], source_span: 'xây chatbot bằng GPT-4o' },
+        description: {
+          value: ['Xây chatbot bằng GPT-4o.'],
+          source_span: 'xây chatbot bằng GPT-4o',
+        },
       },
     });
     const d = makeDeps(complete);
@@ -91,7 +94,14 @@ describe('CvIntakeService.extract', () => {
     expect(out.degraded).toBe(true);
     expect(out.fields.company.found).toBe(false);
     expect(out.missing).toEqual(
-      expect.arrayContaining(['company', 'position', 'start', 'end', 'description', 'achievements']),
+      expect.arrayContaining([
+        'company',
+        'position',
+        'start',
+        'end',
+        'description',
+        'achievements',
+      ]),
     );
   });
 
