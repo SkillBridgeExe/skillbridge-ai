@@ -121,6 +121,22 @@ describe('CvsService — Companion assistant endpoints', () => {
       expect(entitlements.assertCanUse).toHaveBeenCalledTimes(1);
       expect(entitlements.recordUsage).not.toHaveBeenCalled();
     });
+
+    it('does NOT gate quota on a re-ask (bare answer) — free even for an out-of-quota user', async () => {
+      const { service, entitlements } = build({
+        rewriteResult: { ok: false, reason: 'NEEDS_DETAIL', message: 'which tech?' },
+      });
+      const bareDto: AssistantRewriteRequestDto = {
+        before: 'Worked on it.',
+        answers: [{ gap: 'tech', option_id: 'backend' }], // no detail → re-ask, no LLM
+        target: 'projects[0].bullets[0]',
+        locale: 'en',
+      };
+      const r = await service.assistantRewrite('u1', 'cv1', bareDto);
+      expect(r.ok).toBe(false);
+      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
   });
 
   describe('assistantSkillsNudge', () => {

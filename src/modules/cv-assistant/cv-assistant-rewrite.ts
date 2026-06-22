@@ -141,7 +141,20 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
 // 2) validate the model rewrite against the allowed facts (anti-fabrication)
 // ---------------------------------------------------------------------------
 
-const NUMBER_RE = /\d+(?:\.\d+)?/g;
+/**
+ * A number, an optional range, and an optional ADJACENT unit, captured as ONE token. This makes the
+ * gate unit-aware ("30%" ≠ "30ms") and range-atomic ("3-5 years" does not authorize the bare digits
+ * 3 or 5 as standalone metrics) — both real anti-fabrication holes a bare-digit set would miss.
+ */
+const NUMBER_TOKEN_RE =
+  /\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)?/giu;
+
+/** normalized number+unit tokens (spaces stripped, lowercased) for exact, unit-aware comparison. */
+function numberTokens(text: string): string[] {
+  return (text.match(NUMBER_TOKEN_RE) ?? [])
+    .map((t) => t.replace(/\s+/g, '').toLowerCase())
+    .filter((t) => /\d/.test(t));
+}
 
 /**
  * KNOWN specific technologies/products. The anti-fabrication gate rejects a SPECIFIC tech the user did
@@ -258,8 +271,8 @@ export function groundCvRewrite(
   }
   // allowed evidence = the user's facts + the words already in the original bullet.
   const source = `${grounded.facts.join(' ')} ${before}`;
-  // numbers are matched EXACTLY (whole), so a fabricated "30%" can't hide inside a legit "300 users".
-  const allowedNumbers = new Set(source.match(NUMBER_RE) ?? []);
+  // numbers are matched as whole UNIT-aware tokens: "30%" ≠ "30ms", and "3-5 years" ≠ "5 years".
+  const allowedNumbers = new Set(numberTokens(source));
 
   // (a) every declared used_fact must be one of the allowed facts.
   for (const uf of model.used_facts) {
@@ -267,8 +280,8 @@ export function groundCvRewrite(
       return { ok: false, reason: 'UNGROUNDED', detail: `used_fact not in allowed facts: ${uf}` };
     }
   }
-  // (b) every number in `after` must be a number the user actually gave (exact, not a substring).
-  for (const num of model.after.match(NUMBER_RE) ?? []) {
+  // (b) every number+unit in `after` must be one the user actually gave (exact token, unit-aware).
+  for (const num of numberTokens(model.after)) {
     if (!allowedNumbers.has(num)) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated number: ${num}` };
     }

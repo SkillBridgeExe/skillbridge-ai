@@ -26,6 +26,7 @@ import {
   CvAssistantRewriteService,
   CvAssistantRewriteResult,
 } from '../../modules/cv-assistant/cv-assistant.service';
+import { groundCvAssistantAnswers } from '../../modules/cv-assistant/cv-assistant-rewrite';
 import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
 import {
   analyzeSkillsSection,
@@ -417,13 +418,19 @@ export class CvsService {
   ): Promise<CvAssistantRewriteResult> {
     await this.findOwnedCv(userId, cvId);
     if (!this.cvAssistant) throw new Error('CvAssistantRewriteService is not configured');
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const language = dto.locale ?? 'en';
+    // A re-ask (missing/insufficient detail) spends NO LLM and must stay free — gate quota only when a
+    // rewrite will actually run, so an out-of-quota user can still get the "tell me more" follow-up.
+    const grounded = groundCvAssistantAnswers(dto.answers, language);
+    if (grounded.needs_detail.length === 0 && grounded.facts.length > 0) {
+      await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    }
     const result = await this.cvAssistant.rewrite(
       {
         before: dto.before,
         answers: dto.answers,
         target: dto.target,
-        language: dto.locale ?? 'en',
+        language,
         kind: dto.kind ?? 'bullet',
       },
       userId,
