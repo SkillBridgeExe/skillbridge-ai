@@ -81,7 +81,20 @@ describe('groundCvRewrite — rejects any fabricated fact (anti-fabrication chok
       OPTS,
     );
     expect(v.ok).toBe(false);
-    if (!v.ok) expect(v.detail).toMatch(/Kafka/);
+    if (!v.ok) expect(v.detail).toMatch(/kafka/i);
+  });
+
+  it('ACCEPTS generic descriptors the model adds (REST, API, service) — only SPECIFIC tech is gated', () => {
+    const v = groundCvRewrite(
+      before,
+      {
+        after: 'Built a REST API service with Node.js, making it faster.',
+        used_facts: ['built', 'Node.js', 'faster'],
+      },
+      grounded,
+      OPTS,
+    );
+    expect(v.ok).toBe(true);
   });
 
   it('REJECTS when used_facts is not a subset of the allowed facts', () => {
@@ -118,5 +131,28 @@ describe('groundCvRewrite — rejects any fabricated fact (anti-fabrication chok
     );
     expect(v.ok).toBe(false);
     if (!v.ok) expect(v.detail).toMatch(/fabricated number: 30/);
+  });
+
+  it('is UNIT-aware — a "30%" fact does NOT authorize a fabricated "30ms"', () => {
+    const g = groundCvAssistantAnswers(
+      [{ gap: 'result', option_id: 'faster', detail: '30%' }],
+      'en',
+    ); // facts: faster · 30%
+    const reject = groundCvRewrite(
+      'Worked on it.',
+      { after: 'Made it 30ms faster.', used_facts: ['faster', '30%'] },
+      g,
+      OPTS,
+    );
+    expect(reject.ok).toBe(false);
+    if (!reject.ok) expect(reject.detail).toMatch(/fabricated number: 30ms/);
+
+    const accept = groundCvRewrite(
+      'Worked on it.',
+      { after: 'Improved performance by 30%.', used_facts: ['faster', '30%'] },
+      g,
+      OPTS,
+    );
+    expect(accept.ok).toBe(true);
   });
 });

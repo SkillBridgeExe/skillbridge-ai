@@ -9,13 +9,13 @@
  *      `after` must come from the user's facts OR the original bullet; the model's declared `used_facts`
  *      must be a subset of the allowed facts. Any violation → REJECT (return a follow-up, never a patch).
  */
-import { BulletGap, CvAnswer, Language } from './cv-assistant';
+import { AssistantGap, CvAnswer, Language } from './cv-assistant';
 
 export interface GroundedAnswers {
   /** the ONLY fact phrases the rewrite model may use (action verb · named tech · result phrase · number). */
   facts: string[];
   /** gaps whose concrete detail is still missing → RE-ASK, do not rewrite. */
-  needs_detail: BulletGap[];
+  needs_detail: AssistantGap[];
 }
 
 /** what the rewrite LLM must return (schema-enforced). */
@@ -34,7 +34,7 @@ export interface FieldPatch {
 
 export type RewriteVerdict =
   | { ok: true; field_patch: FieldPatch }
-  | { ok: false; reason: 'NEEDS_DETAIL' | 'UNGROUNDED'; gap?: BulletGap; detail: string };
+  | { ok: false; reason: 'NEEDS_DETAIL' | 'UNGROUNDED'; gap?: AssistantGap; detail: string };
 
 // ---------------------------------------------------------------------------
 // 1) ground the user's answers → allowed facts
@@ -60,32 +60,78 @@ const RESULT_FACT: Record<Language, Record<string, string>> = {
     none: '',
   },
 };
+const ROLE_FACT: Record<Language, Record<string, string>> = {
+  en: {
+    frontend: 'Frontend Developer',
+    backend: 'Backend Developer',
+    fullstack: 'Fullstack Developer',
+    data: 'Data Analyst',
+    other: '',
+  },
+  vi: {
+    frontend: 'Lập trình viên Frontend',
+    backend: 'Lập trình viên Backend',
+    fullstack: 'Lập trình viên Fullstack',
+    data: 'Chuyên viên phân tích dữ liệu',
+    other: '',
+  },
+};
+const EVIDENCE_FACT: Record<Language, Record<string, string>> = {
+  en: { fresher: '', '1_2y': '1-2 years', '3_5y': '3-5 years', '5y_plus': '5+ years', none: '' },
+  vi: { fresher: '', '1_2y': '1-2 năm', '3_5y': '3-5 năm', '5y_plus': '5+ năm', none: '' },
+};
+
+/** split a free-text "React, Node and Redis" into individual fact tokens. */
+function pushList(detail: string, facts: string[]): void {
+  for (const t of detail
+    .split(/[,/;]| and | và /i)
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    facts.push(t);
+  }
+}
 
 export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language): GroundedAnswers {
   const facts: string[] = [];
-  const needs_detail: BulletGap[] = [];
+  const needs_detail: AssistantGap[] = [];
   for (const a of answers) {
-    if (a.gap === 'action') {
-      const phrase =
-        a.option_id === 'other' ? (a.detail ?? '') : (ACTION_FACT[language][a.option_id] ?? '');
-      if (phrase.trim()) facts.push(phrase.trim());
-    } else if (a.gap === 'tech') {
-      // a bare category ('Backend') is NOT enough — require a concrete named tech (Codex fix #3).
-      if (!a.detail || a.detail.trim().length < 2) {
-        needs_detail.push('tech');
-        continue;
+    switch (a.gap) {
+      case 'action': {
+        const phrase =
+          a.option_id === 'other' ? (a.detail ?? '') : (ACTION_FACT[language][a.option_id] ?? '');
+        if (phrase.trim()) facts.push(phrase.trim());
+        break;
       }
-      for (const t of a.detail
-        .split(/[,/;]| and | và /i)
-        .map((s) => s.trim())
-        .filter(Boolean)) {
-        facts.push(t);
+      case 'tech':
+      case 'strength': {
+        // a bare category ('Backend') is NOT enough — require concrete named tech/skills (Codex fix #3).
+        if (!a.detail || a.detail.trim().length < 2) {
+          needs_detail.push(a.gap);
+          break;
+        }
+        pushList(a.detail, facts);
+        break;
       }
-    } else {
-      // result: the chip gives a QUALITATIVE result (no number); an optional detail may add a number.
-      const phrase = RESULT_FACT[language][a.option_id] ?? '';
-      if (phrase.trim()) facts.push(phrase.trim());
-      if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+      case 'result': {
+        // the chip gives a QUALITATIVE result (no number); an optional detail may add a number.
+        const phrase = RESULT_FACT[language][a.option_id] ?? '';
+        if (phrase.trim()) facts.push(phrase.trim());
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
+      case 'role': {
+        const phrase =
+          a.option_id === 'other' ? (a.detail ?? '') : (ROLE_FACT[language][a.option_id] ?? '');
+        if (phrase.trim()) facts.push(phrase.trim());
+        else if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
+      case 'evidence': {
+        const phrase = EVIDENCE_FACT[language][a.option_id] ?? '';
+        if (phrase.trim()) facts.push(phrase.trim());
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
     }
   }
   return { facts, needs_detail };
@@ -95,36 +141,118 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
 // 2) validate the model rewrite against the allowed facts (anti-fabrication)
 // ---------------------------------------------------------------------------
 
-const NUMBER_RE = /\d+(?:\.\d+)?/g;
-const COMMON_CAPS = new Set([
-  'I',
-  'A',
-  'The',
-  'We',
-  'My',
-  'It',
-  'In',
-  'On',
-  'At',
-  'For',
-  'To',
-  'And',
-  'Em',
-  'Tôi',
-]);
+/**
+ * A number, an optional range, and an optional ADJACENT unit, captured as ONE token. This makes the
+ * gate unit-aware ("30%" ≠ "30ms") and range-atomic ("3-5 years" does not authorize the bare digits
+ * 3 or 5 as standalone metrics) — both real anti-fabrication holes a bare-digit set would miss.
+ */
+const NUMBER_TOKEN_RE =
+  /\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)?/giu;
 
-/** capitalized proper-noun-looking tokens NOT at sentence start (React, Node, Kafka, PostgreSQL). */
-function properTokens(text: string): string[] {
-  const out: string[] = [];
-  for (const sentence of text.split(/[.!?…\n]+/)) {
-    const toks = sentence.trim().split(/\s+/).filter(Boolean);
-    for (let i = 1; i < toks.length; i++) {
-      const raw = toks[i].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
-      if (raw.length >= 2 && /^[A-Z][A-Za-z0-9.+#]*$/.test(raw) && !COMMON_CAPS.has(raw))
-        out.push(raw);
-    }
-  }
-  return out;
+/** normalized number+unit tokens (spaces stripped, lowercased) for exact, unit-aware comparison. */
+function numberTokens(text: string): string[] {
+  return (text.match(NUMBER_TOKEN_RE) ?? [])
+    .map((t) => t.replace(/\s+/g, '').toLowerCase())
+    .filter((t) => /\d/.test(t));
+}
+
+/**
+ * KNOWN specific technologies/products. The anti-fabrication gate rejects a SPECIFIC tech the user did
+ * not give (e.g. the model adds "Kafka"). It deliberately does NOT reject generic descriptors (API,
+ * REST, UI, service…) — flagging every capitalized word over-rejects plausible prose and spams re-asks.
+ * Numbers are still exact-checked, the prompt forbids fabrication, and the user confirms before Apply.
+ */
+const NAMED_TECH = [
+  'react',
+  'vue',
+  'angular',
+  'svelte',
+  'next.js',
+  'nuxt',
+  'node',
+  'node.js',
+  'nodejs',
+  'express',
+  'nestjs',
+  'spring',
+  'spring boot',
+  'django',
+  'flask',
+  'rails',
+  'laravel',
+  '.net',
+  'dotnet',
+  'typescript',
+  'javascript',
+  'python',
+  'java',
+  'golang',
+  'rust',
+  'kotlin',
+  'swift',
+  'php',
+  'redis',
+  'postgres',
+  'postgresql',
+  'mysql',
+  'mongodb',
+  'sqlite',
+  'elasticsearch',
+  'cassandra',
+  'kafka',
+  'rabbitmq',
+  'graphql',
+  'grpc',
+  'docker',
+  'kubernetes',
+  'k8s',
+  'terraform',
+  'nginx',
+  'aws',
+  'gcp',
+  'azure',
+  'firebase',
+  'supabase',
+  'vercel',
+  'stripe',
+  'tensorflow',
+  'pytorch',
+  'flutter',
+  // AI / ML / vector-DB / data products — the high-value fabrication risk on an AI career platform.
+  'langchain',
+  'llamaindex',
+  'pinecone',
+  'chroma',
+  'weaviate',
+  'qdrant',
+  'milvus',
+  'ollama',
+  'huggingface',
+  'transformers',
+  'mistral',
+  'llama',
+  'gemini',
+  'openai',
+  'anthropic',
+  'gpt',
+  'claude',
+  'bert',
+  'spark',
+  'hadoop',
+  'airflow',
+  'snowflake',
+  'databricks',
+  'tableau',
+  // CI / SCM tooling commonly fabricated into pipelines.
+  'jenkins',
+  'github',
+  'gitlab',
+];
+
+/** whole-word, case-insensitive, unicode-aware presence of `word` in `text` (so 'node' ≠ 'nodemon'). */
+function hasWord(text: string, word: string): boolean {
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
 
 export function groundCvRewrite(
@@ -141,19 +269,10 @@ export function groundCvRewrite(
       detail: 'missing concrete detail',
     };
   }
-  // allowed evidence = the user's facts + words already in the original bullet (the model may reuse those).
-  // Match numbers + entities as WHOLE tokens (NOT substrings): a fabricated "30%" must not hide inside a
-  // legit "300 users" ('30' ⊂ '300'), which substring matching would wrongly accept.
+  // allowed evidence = the user's facts + the words already in the original bullet.
   const source = `${grounded.facts.join(' ')} ${before}`;
-  const allowedNumbers = new Set(source.match(NUMBER_RE) ?? []);
-  // split on ANY non-alphanumeric so the allowed set is tokenized the SAME way properTokens splits
-  // (e.g. 'Node.js' → 'node','js') — otherwise a grounded 'Node.js' would be wrongly rejected.
-  const allowedTokens = new Set(
-    source
-      .toLowerCase()
-      .split(/[^\p{L}\p{N}]+/u)
-      .filter(Boolean),
-  );
+  // numbers are matched as whole UNIT-aware tokens: "30%" ≠ "30ms", and "3-5 years" ≠ "5 years".
+  const allowedNumbers = new Set(numberTokens(source));
 
   // (a) every declared used_fact must be one of the allowed facts.
   for (const uf of model.used_facts) {
@@ -161,16 +280,17 @@ export function groundCvRewrite(
       return { ok: false, reason: 'UNGROUNDED', detail: `used_fact not in allowed facts: ${uf}` };
     }
   }
-  // (b) every number in `after` must be a number the user actually gave (exact, not a substring).
-  for (const num of model.after.match(NUMBER_RE) ?? []) {
+  // (b) every number+unit in `after` must be one the user actually gave (exact token, unit-aware).
+  for (const num of numberTokens(model.after)) {
     if (!allowedNumbers.has(num)) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated number: ${num}` };
     }
   }
-  // (c) every proper-noun/tech entity in `after` must be a whole token from the facts or the original.
-  for (const tok of properTokens(model.after)) {
-    if (!allowedTokens.has(tok.toLowerCase())) {
-      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity/tech: ${tok}` };
+  // (c) no fabricated SPECIFIC tech: a known tech name appears in `after` but the user never gave it.
+  //     Generic descriptors (API/REST/UI/service) are intentionally allowed (avoids re-ask spam).
+  for (const tech of NAMED_TECH) {
+    if (hasWord(model.after, tech) && !hasWord(source, tech)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated tech: ${tech}` };
     }
   }
   return {

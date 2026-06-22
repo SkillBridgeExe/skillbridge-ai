@@ -50,6 +50,7 @@ describe('CV match OpenAPI docs', () => {
     expect(document.paths['/api/cvs/{cvId}/matches']?.get).toBeDefined();
     expect(document.paths['/api/cvs/{cvId}/matches/{matchId}']?.get).toBeDefined();
     expect(document.paths['/api/cv-matches/{matchId}/gap-report']?.get).toBeDefined();
+    expect(document.paths['/api/cv-matches/{matchId}/next-steps']?.get).toBeDefined();
     expect(document.paths['/api/cv-matches/{matchId}/progress']?.get).toBeDefined();
     expect(document.paths['/api/cv-matches/{matchId}/development-plan']?.get).toBeDefined();
 

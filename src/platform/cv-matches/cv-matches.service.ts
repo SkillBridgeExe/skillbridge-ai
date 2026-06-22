@@ -38,6 +38,7 @@ import {
   buildInterviewPlanFromGapItems,
   InterviewFocusArea,
 } from '../../modules/interview/interview-planner';
+import { buildNextSteps, NextStep } from '../../modules/gap-advisor/gap-advisor';
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
@@ -352,6 +353,30 @@ export class CvMatchesService {
       throw new Error('Interview plan dependency is not configured');
     }
     return this.interviewPlan.phrasePlan(userId, focusAreas, report.target_role ?? '', lang);
+  }
+
+  /**
+   * gap_next_step_advisor: prioritized, grounded next steps for a match, derived SERVER-SIDE from the
+   * canonical gap_items (severity-ranked, REAL gaps only). Reuses getGapReport for load + ownership.
+   * Deterministic — no LLM, can never invent a gap.
+   */
+  async getNextSteps(
+    userId: string,
+    matchId: string,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<{
+    match_id: string;
+    target_role: string | null;
+    language: 'vi' | 'en';
+    steps: NextStep[];
+  }> {
+    const report = await this.getGapReport(userId, matchId, lang);
+    return {
+      match_id: matchId,
+      target_role: report.target_role ?? null,
+      language: lang,
+      steps: buildNextSteps(report.gap_items, lang),
+    };
   }
 
   /**
