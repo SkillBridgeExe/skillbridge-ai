@@ -10,6 +10,7 @@ import { CvMatchesModule } from './platform/cv-matches/cv-matches.module';
 import { CvsModule } from './platform/cvs/cvs.module';
 import { InterviewsModule } from './platform/interviews/interviews.module';
 import { MentorsModule } from './platform/mentors/mentors.module';
+import { BusinessJobsModule } from './platform/business-jobs/business-jobs.module';
 import { UsersModule } from './platform/users/users.module';
 
 import configuration from './config/configuration';
@@ -50,6 +51,7 @@ const PLATFORM_MODULES =
         CvMatchesModule,
         InterviewsModule,
         MentorsModule,
+        BusinessJobsModule,
       ];
 
 @Module({

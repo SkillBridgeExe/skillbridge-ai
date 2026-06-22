@@ -53,6 +53,6 @@ import { TextExtractorService } from './text-extractor.service';
     CvsRetentionService,
     CvAnalysisQuotaService,
   ],
-  exports: [CvsRetentionService, CvsService],
+  exports: [CvsRetentionService, CvsService, CvPdfRendererService],
 })
 export class CvsModule {}

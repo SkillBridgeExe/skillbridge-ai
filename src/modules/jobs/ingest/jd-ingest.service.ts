@@ -153,6 +153,11 @@ export class JdIngestService {
     return rows.length;
   }
 
+  /** Refresh the shared job embedding after an employer publishes a confirmed skill set. */
+  async refreshEmployerJobEmbedding(jobId: string, sortedCanonicals: string[]): Promise<void> {
+    await this.embedJob(jobId, [...new Set(sortedCanonicals)].sort());
+  }
+
   private async ingestOne(
     item: RawJobInput,
   ): Promise<'inserted' | 'updated' | 'skipped_no_skills'> {
