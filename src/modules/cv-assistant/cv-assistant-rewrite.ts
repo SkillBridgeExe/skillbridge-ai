@@ -150,7 +150,7 @@ const NUMBER_TOKEN_RE =
   /\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)?/giu;
 
 /** normalized number+unit tokens (spaces stripped, lowercased) for exact, unit-aware comparison. */
-function numberTokens(text: string): string[] {
+export function numberTokens(text: string): string[] {
   return (text.match(NUMBER_TOKEN_RE) ?? [])
     .map((t) => t.replace(/\s+/g, '').toLowerCase())
     .filter((t) => /\d/.test(t));
@@ -162,7 +162,7 @@ function numberTokens(text: string): string[] {
  * REST, UI, service…) — flagging every capitalized word over-rejects plausible prose and spams re-asks.
  * Numbers are still exact-checked, the prompt forbids fabrication, and the user confirms before Apply.
  */
-const NAMED_TECH = [
+export const NAMED_TECH = [
   'react',
   'vue',
   'angular',
@@ -250,7 +250,7 @@ const NAMED_TECH = [
 ];
 
 /** whole-word, case-insensitive, unicode-aware presence of `word` in `text` (so 'node' ≠ 'nodemon'). */
-function hasWord(text: string, word: string): boolean {
+export function hasWord(text: string, word: string): boolean {
   const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
