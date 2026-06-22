@@ -13,7 +13,12 @@ import {
   groundCvRewrite,
   type RewriteModelOutput,
 } from '../modules/cv-assistant/cv-assistant-rewrite';
-import { CvAnswer, Language } from '../modules/cv-assistant/cv-assistant';
+import {
+  CvAnswer,
+  CompanionContext,
+  Language,
+  cvBuilderAssistantTurn1,
+} from '../modules/cv-assistant/cv-assistant';
 
 // The NestJS app loads .env via ConfigModule; this standalone script must do it itself.
 // override:true so the real key in .env wins over a stale OPENAI_API_KEY exported in the shell.
@@ -112,6 +117,71 @@ async function main(): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`\n=== ${accepted}/${CASES.length} accepted by the gate (model: ${model}) ===`);
+  await flowDemo(client, model);
+}
+
+/** One full OPERATION conversation with the real LLM: Turn-1 ask → bare answer re-asks → detail → patch. */
+async function flowDemo(client: OpenAI, model: string): Promise<void> {
+  const log = (s: string): void => {
+    // eslint-disable-next-line no-console
+    console.log(s);
+  };
+  const before = 'Worked on the project.';
+  const ctx: CompanionContext = {
+    page: 'cv_builder',
+    section: 'projects',
+    current_value: before,
+    locale: 'en',
+  };
+  log('\n========== OPERATION FLOW (real LLM) ==========');
+  const turn1 = cvBuilderAssistantTurn1(ctx);
+  log(`Turn-1 — weak bullet "${before}" → assistant asks:`);
+  turn1?.questions.forEach((q) => log(`   • [${q.gap}] ${q.prompt}`));
+
+  const round1: CvAnswer[] = [
+    { gap: 'action', option_id: 'built' },
+    { gap: 'tech', option_id: 'backend' }, // bare category, no concrete tech
+    { gap: 'result', option_id: 'faster' },
+  ];
+  const g1 = groundCvAssistantAnswers(round1, 'en');
+  log(
+    `\nRound 1 — user picks tech = "Backend" (no name) → needs_detail=${JSON.stringify(g1.needs_detail)} → RE-ASK, no rewrite`,
+  );
+
+  const round2: CvAnswer[] = [
+    { gap: 'action', option_id: 'built' },
+    { gap: 'tech', option_id: 'backend', detail: 'Node.js' },
+    { gap: 'result', option_id: 'faster' },
+  ];
+  const g2 = groundCvAssistantAnswers(round2, 'en');
+  const resp = await client.chat.completions.create({
+    model,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: render({
+          language: 'en',
+          before,
+          facts: g2.facts.map((f) => `- ${f}`).join('\n'),
+        }),
+      },
+    ],
+  });
+  const parsed = JSON.parse(resp.choices[0].message.content ?? '{}') as Partial<RewriteModelOutput>;
+  const verdict = groundCvRewrite(
+    before,
+    { after: parsed.after ?? '', used_facts: parsed.used_facts ?? [] },
+    g2,
+    { target: 'projects[0].bullets[0]', why: 'from your answers' },
+  );
+  log(`\nRound 2 — user adds tech "Node.js" → Turn-2 rewrite:`);
+  log(`   model: ${parsed.after}`);
+  log(
+    `   GATE:  ${verdict.ok ? 'ACCEPT ✅ → patch ready for the user to Apply' : 'REJECT ❌ (' + verdict.detail + ')'}`,
+  );
 }
 
 void main();
