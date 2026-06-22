@@ -3,7 +3,7 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { maskPii } from '../../common/services/pii-mask';
-import { BulletGap, CvAnswer, Language } from './cv-assistant';
+import { AssistantGap, CvAnswer, Language } from './cv-assistant';
 import {
   FieldPatch,
   RewriteModelOutput,
@@ -11,7 +11,10 @@ import {
   groundCvRewrite,
 } from './cv-assistant-rewrite';
 
-const PROMPT_CODE = 'cv_assistant_rewrite_v1';
+const PROMPT_CODE: Record<'bullet' | 'summary', string> = {
+  bullet: 'cv_assistant_rewrite_v1',
+  summary: 'cv_summary_rewrite_v1',
+};
 
 /** the model may output exactly these two fields — code verifies them against the allowed facts. */
 const REWRITE_SCHEMA: Record<string, unknown> = {
@@ -32,6 +35,8 @@ export interface CvAssistantRewriteInput {
   /** CV field path this patch targets (e.g. 'projects[0].bullets[0]'). */
   target: string;
   language: Language;
+  /** which kind of field is being rewritten — selects the prompt (default 'bullet'). */
+  kind?: 'bullet' | 'summary';
 }
 
 export type CvAssistantRewriteResult =
@@ -39,7 +44,7 @@ export type CvAssistantRewriteResult =
   | {
       ok: false;
       reason: 'NEEDS_DETAIL' | 'UNGROUNDED' | 'DEGRADED';
-      gap?: BulletGap;
+      gap?: AssistantGap;
       message: string;
     };
 
@@ -56,8 +61,8 @@ const DEGRADED_MSG: Record<Language, string> = {
   vi: 'Mình tạm chưa viết lại được — bạn thử lại sau chút nhé.',
 };
 const WHY: Record<Language, string> = {
-  en: 'Rewritten from your answers (action / tech / result) — nothing fabricated.',
-  vi: 'Viết lại từ câu trả lời của bạn (hành động / công nghệ / kết quả) — không bịa gì.',
+  en: 'Rewritten from your answers — nothing fabricated.',
+  vi: 'Viết lại từ câu trả lời của bạn — không bịa gì.',
 };
 
 /**
@@ -97,9 +102,10 @@ export class CvAssistantRewriteService {
     }
 
     const startedAt = Date.now();
+    const promptCode = PROMPT_CODE[input.kind ?? 'bullet'];
     let aiRequestId: string | undefined;
     try {
-      const template = this.prompts.get(PROMPT_CODE);
+      const template = this.prompts.get(promptCode);
       aiRequestId = await this.tracing
         .startAiRequest({
           userId,
@@ -111,7 +117,7 @@ export class CvAssistantRewriteService {
         })
         .catch(() => undefined);
 
-      const userPrompt = this.prompts.render(PROMPT_CODE, {
+      const userPrompt = this.prompts.render(promptCode, {
         language,
         before: maskPii(input.before),
         facts: grounded.facts.map((f) => `- ${f}`).join('\n'),

@@ -11,7 +11,8 @@ import {
 } from 'class-validator';
 
 const SECTIONS = ['summary', 'projects', 'experience', 'skills', 'education'] as const;
-const GAPS = ['action', 'tech', 'result'] as const;
+const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence'] as const;
+const KINDS = ['bullet', 'summary'] as const;
 const LANGS = ['vi', 'en'] as const;
 
 /** Turn-1: ask the engine to analyze one CV field and produce structured questions. */
@@ -74,6 +75,15 @@ export class AssistantRewriteRequestDto {
   @IsString()
   @MaxLength(120)
   target!: string;
+
+  @ApiPropertyOptional({
+    enum: KINDS,
+    default: 'bullet',
+    description: 'bullet (project/experience) or summary',
+  })
+  @IsOptional()
+  @IsIn(KINDS as unknown as string[])
+  kind?: (typeof KINDS)[number];
 
   @ApiPropertyOptional({ enum: LANGS, default: 'en' })
   @IsOptional()

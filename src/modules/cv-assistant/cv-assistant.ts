@@ -15,13 +15,17 @@
 export type Language = 'vi' | 'en';
 /** what a strong project/experience bullet needs but may be missing. */
 export type BulletGap = 'action' | 'tech' | 'result';
+/** what a strong professional summary needs but may be missing. */
+export type SummaryGap = 'role' | 'strength' | 'evidence';
+/** any gap the assistant can ask about — bullets + summary share the answer/grounding pipeline. */
+export type AssistantGap = BulletGap | SummaryGap;
 
 export interface AssistantOption {
   id: string;
   label: string;
 }
 export interface AssistantQuestion {
-  gap: BulletGap;
+  gap: AssistantGap;
   prompt: string;
   options: AssistantOption[];
   /** whether the FE should also offer a free-text field (a category chip alone may not be enough). */
@@ -52,7 +56,7 @@ export interface CompanionContext {
 
 /** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */
 export interface CvAnswer {
-  gap: BulletGap;
+  gap: AssistantGap;
   option_id: string;
   /** free text OR a picked known-tech; REQUIRED for `tech` before a rewrite (a category alone is not enough). */
   detail?: string;
@@ -149,6 +153,51 @@ export function analyzeBulletGaps(bullet: string, language: Language): BulletGap
   return gaps;
 }
 
+/** role nouns that signal a professional summary already states a target role. */
+const ROLE_WORDS: Record<Language, string[]> = {
+  en: [
+    'developer',
+    'engineer',
+    'analyst',
+    'designer',
+    'manager',
+    'specialist',
+    'scientist',
+    'architect',
+    'administrator',
+    'consultant',
+    'tester',
+    'marketer',
+    'intern',
+    'student',
+  ],
+  vi: [
+    'lập trình',
+    'kỹ sư',
+    'phân tích',
+    'thiết kế',
+    'quản lý',
+    'chuyên viên',
+    'kiến trúc',
+    'kiểm thử',
+    'thực tập',
+    'sinh viên',
+  ],
+};
+
+/** a stated amount of experience, e.g. "2 years", "3+ năm". */
+const YEARS_RE = /\b\d+\+?\s?(?:years?|năm)\b/iu;
+
+/** Deterministically detect which professional-summary ingredients are missing. */
+export function analyzeSummaryGaps(summary: string, language: Language): SummaryGap[] {
+  const lower = summary.toLowerCase();
+  const gaps: SummaryGap[] = [];
+  if (!hasAny(lower, ROLE_WORDS[language])) gaps.push('role');
+  if (!hasTechToken(summary)) gaps.push('strength');
+  if (!NUMBER_UNIT.test(summary) && !YEARS_RE.test(summary)) gaps.push('evidence');
+  return gaps;
+}
+
 const QUESTIONS: Record<
   Language,
   Record<BulletGap, Omit<AssistantQuestion, 'allows_free_text'>>
@@ -225,6 +274,82 @@ const QUESTIONS: Record<
   },
 };
 
+const SUMMARY_QUESTIONS: Record<
+  Language,
+  Record<SummaryGap, Omit<AssistantQuestion, 'allows_free_text'>>
+> = {
+  en: {
+    role: {
+      gap: 'role',
+      prompt: 'What role is this summary aimed at?',
+      options: [
+        { id: 'frontend', label: 'Frontend Developer' },
+        { id: 'backend', label: 'Backend Developer' },
+        { id: 'fullstack', label: 'Fullstack Developer' },
+        { id: 'data', label: 'Data Analyst' },
+        { id: 'other', label: 'Other (type it)' },
+      ],
+    },
+    strength: {
+      gap: 'strength',
+      prompt: 'Your 2-3 strongest skills or technologies?',
+      options: [
+        { id: 'frontend', label: 'Frontend (React, Vue, …)' },
+        { id: 'backend', label: 'Backend (Node, Java, …)' },
+        { id: 'data', label: 'Data / ML' },
+        { id: 'devops', label: 'DevOps / Cloud' },
+        { id: 'other', label: 'Other (type them)' },
+      ],
+    },
+    evidence: {
+      gap: 'evidence',
+      prompt: 'Years of experience or a standout result? (optional)',
+      options: [
+        { id: 'fresher', label: 'Fresher / student' },
+        { id: '1_2y', label: '1-2 years' },
+        { id: '3_5y', label: '3-5 years' },
+        { id: '5y_plus', label: '5+ years' },
+        { id: 'none', label: 'Skip' },
+      ],
+    },
+  },
+  vi: {
+    role: {
+      gap: 'role',
+      prompt: 'Bản tóm tắt này hướng tới vị trí nào?',
+      options: [
+        { id: 'frontend', label: 'Lập trình Frontend' },
+        { id: 'backend', label: 'Lập trình Backend' },
+        { id: 'fullstack', label: 'Lập trình Fullstack' },
+        { id: 'data', label: 'Phân tích dữ liệu' },
+        { id: 'other', label: 'Khác (tự nhập)' },
+      ],
+    },
+    strength: {
+      gap: 'strength',
+      prompt: '2-3 kỹ năng / công nghệ mạnh nhất của bạn?',
+      options: [
+        { id: 'frontend', label: 'Frontend (React, Vue, …)' },
+        { id: 'backend', label: 'Backend (Node, Java, …)' },
+        { id: 'data', label: 'Data / ML' },
+        { id: 'devops', label: 'DevOps / Cloud' },
+        { id: 'other', label: 'Khác (tự nhập)' },
+      ],
+    },
+    evidence: {
+      gap: 'evidence',
+      prompt: 'Số năm kinh nghiệm hoặc một kết quả nổi bật? (không bắt buộc)',
+      options: [
+        { id: 'fresher', label: 'Mới ra trường / sinh viên' },
+        { id: '1_2y', label: '1-2 năm' },
+        { id: '3_5y', label: '3-5 năm' },
+        { id: '5y_plus', label: '5+ năm' },
+        { id: 'none', label: 'Bỏ qua' },
+      ],
+    },
+  },
+};
+
 const STRONG_MSG: Record<Language, string> = {
   en: 'This bullet is already strong — it shows an action, a tech, and a result.',
   vi: 'Mục này đã đủ mạnh — có hành động, công nghệ và kết quả.',
@@ -253,13 +378,44 @@ export function buildCvAssistantTurn(bullet: string, language: Language): CvAssi
   };
 }
 
+const SUMMARY_STRONG_MSG: Record<Language, string> = {
+  en: 'This summary is already strong — it names a role, concrete strengths, and evidence.',
+  vi: 'Bản tóm tắt đã đủ mạnh — có vị trí, thế mạnh cụ thể và bằng chứng.',
+};
+const SUMMARY_WEAK_MSG: Record<Language, string> = {
+  en: 'This summary can be sharper — answer a few questions and I will rewrite it (I will NOT invent skills, titles, or numbers).',
+  vi: 'Bản tóm tắt có thể sắc hơn — trả lời vài câu để mình viết lại (mình KHÔNG bịa kỹ năng, chức danh hay số liệu).',
+};
+
+/** Build ONE deterministic assistant turn for a professional summary: ask for missing facts, never fabricate. */
+export function buildSummaryTurn(summary: string, language: Language): CvAssistantTurn {
+  const gaps = analyzeSummaryGaps(summary, language);
+  if (gaps.length === 0) {
+    return {
+      message: SUMMARY_STRONG_MSG[language],
+      questions: [],
+      requires_user_confirmation: false,
+      field_patch: null,
+    };
+  }
+  return {
+    message: SUMMARY_WEAK_MSG[language],
+    questions: gaps.map((g) => ({ ...SUMMARY_QUESTIONS[language][g], allows_free_text: true })),
+    requires_user_confirmation: false,
+    field_patch: null,
+  };
+}
+
 /**
- * Companion shell entry: route a CV-builder project/experience section to Turn-1 on its current value.
- * Returns null when out of V1a scope (other page/section, or no value) — the shell shows nothing then.
+ * Companion shell entry: route a CV-builder section to Turn-1 on its current value.
+ * `summary` → summary gaps; `projects`/`experience` (or unspecified) → bullet gaps; others → null.
  */
 export function cvBuilderAssistantTurn1(ctx: CompanionContext): CvAssistantTurn | null {
   if (ctx.page !== 'cv_builder') return null;
-  if (ctx.section && ctx.section !== 'projects' && ctx.section !== 'experience') return null;
   if (!ctx.current_value || ctx.current_value.trim().length === 0) return null;
-  return buildCvAssistantTurn(ctx.current_value, ctx.locale);
+  if (ctx.section === 'summary') return buildSummaryTurn(ctx.current_value, ctx.locale);
+  if (!ctx.section || ctx.section === 'projects' || ctx.section === 'experience') {
+    return buildCvAssistantTurn(ctx.current_value, ctx.locale);
+  }
+  return null;
 }

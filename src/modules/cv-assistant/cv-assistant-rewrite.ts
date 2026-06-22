@@ -9,13 +9,13 @@
  *      `after` must come from the user's facts OR the original bullet; the model's declared `used_facts`
  *      must be a subset of the allowed facts. Any violation → REJECT (return a follow-up, never a patch).
  */
-import { BulletGap, CvAnswer, Language } from './cv-assistant';
+import { AssistantGap, CvAnswer, Language } from './cv-assistant';
 
 export interface GroundedAnswers {
   /** the ONLY fact phrases the rewrite model may use (action verb · named tech · result phrase · number). */
   facts: string[];
   /** gaps whose concrete detail is still missing → RE-ASK, do not rewrite. */
-  needs_detail: BulletGap[];
+  needs_detail: AssistantGap[];
 }
 
 /** what the rewrite LLM must return (schema-enforced). */
@@ -34,7 +34,7 @@ export interface FieldPatch {
 
 export type RewriteVerdict =
   | { ok: true; field_patch: FieldPatch }
-  | { ok: false; reason: 'NEEDS_DETAIL' | 'UNGROUNDED'; gap?: BulletGap; detail: string };
+  | { ok: false; reason: 'NEEDS_DETAIL' | 'UNGROUNDED'; gap?: AssistantGap; detail: string };
 
 // ---------------------------------------------------------------------------
 // 1) ground the user's answers → allowed facts
@@ -60,32 +60,78 @@ const RESULT_FACT: Record<Language, Record<string, string>> = {
     none: '',
   },
 };
+const ROLE_FACT: Record<Language, Record<string, string>> = {
+  en: {
+    frontend: 'Frontend Developer',
+    backend: 'Backend Developer',
+    fullstack: 'Fullstack Developer',
+    data: 'Data Analyst',
+    other: '',
+  },
+  vi: {
+    frontend: 'Lập trình viên Frontend',
+    backend: 'Lập trình viên Backend',
+    fullstack: 'Lập trình viên Fullstack',
+    data: 'Chuyên viên phân tích dữ liệu',
+    other: '',
+  },
+};
+const EVIDENCE_FACT: Record<Language, Record<string, string>> = {
+  en: { fresher: '', '1_2y': '1-2 years', '3_5y': '3-5 years', '5y_plus': '5+ years', none: '' },
+  vi: { fresher: '', '1_2y': '1-2 năm', '3_5y': '3-5 năm', '5y_plus': '5+ năm', none: '' },
+};
+
+/** split a free-text "React, Node and Redis" into individual fact tokens. */
+function pushList(detail: string, facts: string[]): void {
+  for (const t of detail
+    .split(/[,/;]| and | và /i)
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    facts.push(t);
+  }
+}
 
 export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language): GroundedAnswers {
   const facts: string[] = [];
-  const needs_detail: BulletGap[] = [];
+  const needs_detail: AssistantGap[] = [];
   for (const a of answers) {
-    if (a.gap === 'action') {
-      const phrase =
-        a.option_id === 'other' ? (a.detail ?? '') : (ACTION_FACT[language][a.option_id] ?? '');
-      if (phrase.trim()) facts.push(phrase.trim());
-    } else if (a.gap === 'tech') {
-      // a bare category ('Backend') is NOT enough — require a concrete named tech (Codex fix #3).
-      if (!a.detail || a.detail.trim().length < 2) {
-        needs_detail.push('tech');
-        continue;
+    switch (a.gap) {
+      case 'action': {
+        const phrase =
+          a.option_id === 'other' ? (a.detail ?? '') : (ACTION_FACT[language][a.option_id] ?? '');
+        if (phrase.trim()) facts.push(phrase.trim());
+        break;
       }
-      for (const t of a.detail
-        .split(/[,/;]| and | và /i)
-        .map((s) => s.trim())
-        .filter(Boolean)) {
-        facts.push(t);
+      case 'tech':
+      case 'strength': {
+        // a bare category ('Backend') is NOT enough — require concrete named tech/skills (Codex fix #3).
+        if (!a.detail || a.detail.trim().length < 2) {
+          needs_detail.push(a.gap);
+          break;
+        }
+        pushList(a.detail, facts);
+        break;
       }
-    } else {
-      // result: the chip gives a QUALITATIVE result (no number); an optional detail may add a number.
-      const phrase = RESULT_FACT[language][a.option_id] ?? '';
-      if (phrase.trim()) facts.push(phrase.trim());
-      if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+      case 'result': {
+        // the chip gives a QUALITATIVE result (no number); an optional detail may add a number.
+        const phrase = RESULT_FACT[language][a.option_id] ?? '';
+        if (phrase.trim()) facts.push(phrase.trim());
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
+      case 'role': {
+        const phrase =
+          a.option_id === 'other' ? (a.detail ?? '') : (ROLE_FACT[language][a.option_id] ?? '');
+        if (phrase.trim()) facts.push(phrase.trim());
+        else if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
+      case 'evidence': {
+        const phrase = EVIDENCE_FACT[language][a.option_id] ?? '';
+        if (phrase.trim()) facts.push(phrase.trim());
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
     }
   }
   return { facts, needs_detail };
