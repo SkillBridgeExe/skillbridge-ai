@@ -279,6 +279,23 @@ export class CvsController {
     return this.cvs.assistantRewrite(user.userId, id, dto);
   }
 
+  @Get(':id/builder/assistant/skills-nudge')
+  @ApiOperation({
+    summary:
+      'CV Builder assistant — completeness nudges for the skills section (deterministic, no quota)',
+    description:
+      'Checks ownership, then flags thin/missing parts of the draft skills. Never invents skills.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  assistantSkillsNudge(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Query('lang') lang?: string,
+  ) {
+    return this.cvs.assistantSkillsNudge(user.userId, id, normalizeLang(lang));
+  }
+
   @Post(':id/render-pdf')
   @Header('Cache-Control', 'private, no-store')
   @ApiProduces('application/pdf')

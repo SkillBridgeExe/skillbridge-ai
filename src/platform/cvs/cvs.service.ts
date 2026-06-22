@@ -27,6 +27,11 @@ import {
   CvAssistantRewriteResult,
 } from '../../modules/cv-assistant/cv-assistant.service';
 import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
+import {
+  analyzeSkillsSection,
+  SkillsNudge,
+  SkillsSection,
+} from '../../modules/cv-assistant/cv-assistant-skills';
 import { AssistantAnalyzeRequestDto, AssistantRewriteRequestDto } from './dto/cv-assistant.dto';
 import {
   DownloadedFile,
@@ -430,6 +435,16 @@ export class CvsService {
       });
     }
     return result;
+  }
+
+  /** Companion (skills section): deterministic completeness nudges from the draft's skills. No quota, no LLM. */
+  async assistantSkillsNudge(
+    userId: string,
+    cvId: string,
+    language: 'vi' | 'en',
+  ): Promise<SkillsNudge[]> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    return analyzeSkillsSection((cv.parsedJson?.skills ?? {}) as SkillsSection, language);
   }
 
   async renderPdf(userId: string, cvId: string): Promise<RenderedCvPdf> {

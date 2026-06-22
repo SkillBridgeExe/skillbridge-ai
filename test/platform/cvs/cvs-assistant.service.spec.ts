@@ -6,8 +6,19 @@ import type {
   AssistantRewriteRequestDto,
 } from '../../../src/platform/cvs/dto/cv-assistant.dto';
 
-function build(opts: { owned?: boolean; rewriteResult?: CvAssistantRewriteResult } = {}) {
-  const cv = { id: 'cv1', userId: 'u1', cvKind: 'BUILT' };
+function build(
+  opts: {
+    owned?: boolean;
+    rewriteResult?: CvAssistantRewriteResult;
+    skills?: Record<string, string[]>;
+  } = {},
+) {
+  const cv = {
+    id: 'cv1',
+    userId: 'u1',
+    cvKind: 'BUILT',
+    parsedJson: opts.skills ? { skills: opts.skills } : null,
+  };
   const cvsRepo = { findOne: jest.fn().mockResolvedValue(opts.owned === false ? null : cv) };
   const entitlements = {
     assertCanUse: jest.fn().mockResolvedValue(undefined),
@@ -109,6 +120,35 @@ describe('CvsService — Companion assistant endpoints', () => {
       expect(r.ok).toBe(false);
       expect(entitlements.assertCanUse).toHaveBeenCalledTimes(1);
       expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('assistantSkillsNudge', () => {
+    it('rejects a CV the user does not own', async () => {
+      const { service } = build({ owned: false });
+      await expect(service.assistantSkillsNudge('u1', 'cvX', 'en')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('returns deterministic nudges for a thin skills section, without touching quota', async () => {
+      const { service, entitlements } = build({
+        skills: { technical: ['React'], tools: [], languages: [] },
+      });
+      const nudges = await service.assistantSkillsNudge('u1', 'cv1', 'en');
+      expect(nudges.map((n) => n.code)).toEqual(['too_few_technical', 'no_tools', 'no_languages']);
+      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+    });
+
+    it('returns no nudges for a complete skills section', async () => {
+      const { service } = build({
+        skills: {
+          technical: ['React', 'Node.js', 'SQL', 'Docker'],
+          tools: ['Git'],
+          languages: ['English'],
+        },
+      });
+      expect(await service.assistantSkillsNudge('u1', 'cv1', 'en')).toEqual([]);
     });
   });
 });
