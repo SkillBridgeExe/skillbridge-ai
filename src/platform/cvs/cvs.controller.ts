@@ -33,6 +33,7 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { EvaluateSectionRequestDto } from '../../modules/cv-builder/dto/evaluate-section.dto';
 import { RewriteRequestDto } from '../../modules/cv-builder/dto/rewrite.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
+import { AssistantAnalyzeRequestDto, AssistantRewriteRequestDto } from './dto/cv-assistant.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
@@ -246,6 +247,36 @@ export class CvsController {
     @Body() dto: RewriteRequestDto,
   ) {
     return this.cvs.rewriteBuilderText(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/assistant/analyze')
+  @ApiOperation({
+    summary: 'CV Builder assistant — analyze a field and ask (Turn-1, deterministic, no quota)',
+    description:
+      'Checks ownership, then detects which strong-bullet ingredients are missing and asks.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  assistantAnalyze(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: AssistantAnalyzeRequestDto,
+  ) {
+    return this.cvs.assistantAnalyze(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/assistant/rewrite')
+  @ApiOperation({
+    summary: 'CV Builder assistant — rewrite a bullet from grounded answers (Turn-2)',
+    description:
+      'Grounds the rewrite in the user answers and rejects any fabricated number/tech. Consumes CV_BUILDER_REWRITE quota only when a patch is produced.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  assistantRewrite(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: AssistantRewriteRequestDto,
+  ) {
+    return this.cvs.assistantRewrite(user.userId, id, dto);
   }
 
   @Post(':id/render-pdf')

@@ -23,6 +23,12 @@ import { documentToPlainText } from '../../common/services/cv-document-text';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import {
+  CvAssistantRewriteService,
+  CvAssistantRewriteResult,
+} from '../../modules/cv-assistant/cv-assistant.service';
+import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
+import { AssistantAnalyzeRequestDto, AssistantRewriteRequestDto } from './dto/cv-assistant.dto';
+import {
   DownloadedFile,
   GcsStorageService,
 } from '../../infrastructure/storage/gcs-storage.service';
@@ -91,6 +97,9 @@ export class CvsService {
     // app fails to boot loudly if that import is dropped). Do NOT add @Optional() — the guard below
     // would then be the only thing standing between a mis-wired prod and an unverified tailor.
     private readonly tailorVerifier?: TailorVerifierService,
+    // Companion V1a — CV Builder assistant Turn-2 rewrite engine. Provided at runtime via CvsModule;
+    // the `?` only satisfies TS (it follows the optionals above) and lets unit tests omit it.
+    private readonly cvAssistant?: CvAssistantRewriteService,
   ) {}
 
   async create(
@@ -374,6 +383,52 @@ export class CvsService {
       sourceId: cvId,
     });
     return response;
+  }
+
+  /** Companion Turn-1: verify ownership, then deterministically detect gaps + ask (no LLM, no quota). */
+  async assistantAnalyze(
+    userId: string,
+    cvId: string,
+    dto: AssistantAnalyzeRequestDto,
+  ): Promise<CvAssistantTurn | null> {
+    await this.findOwnedCv(userId, cvId);
+    return cvBuilderAssistantTurn1({
+      page: 'cv_builder',
+      section: dto.section,
+      field_path: dto.field_path,
+      current_value: dto.current_value,
+      locale: dto.locale ?? 'en',
+    });
+  }
+
+  /**
+   * Companion Turn-2: verify ownership + quota, then ground-rewrite one bullet. A delivered patch
+   * consumes CV_BUILDER_REWRITE quota; a re-ask / degraded / ungrounded response is free (no LLM value).
+   */
+  async assistantRewrite(
+    userId: string,
+    cvId: string,
+    dto: AssistantRewriteRequestDto,
+  ): Promise<CvAssistantRewriteResult> {
+    await this.findOwnedCv(userId, cvId);
+    if (!this.cvAssistant) throw new Error('CvAssistantRewriteService is not configured');
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const result = await this.cvAssistant.rewrite(
+      {
+        before: dto.before,
+        answers: dto.answers,
+        target: dto.target,
+        language: dto.locale ?? 'en',
+      },
+      userId,
+    );
+    if (result.ok) {
+      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+        sourceType: 'cv',
+        sourceId: cvId,
+      });
+    }
+    return result;
   }
 
   async renderPdf(userId: string, cvId: string): Promise<RenderedCvPdf> {
