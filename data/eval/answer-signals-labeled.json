@@ -1,0 +1,128 @@
+[
+  {
+    "id": "en-strong-metrics",
+    "note": "strong STAR + numeric result; expect concrete=true, all STAR",
+    "input": { "language": "en", "jd_terms": ["Redis", "API"],
+      "answer": "In my last internship, our checkout API kept timing out under load. I was asked to bring p95 latency under 200ms. I added a Redis cache for product lookups and batched the database writes. After the change p95 dropped from 800ms to about 120ms and the timeouts stopped." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": ["Redis", "API"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-rambling-filler",
+    "note": "mentions React but no action/example; filler-heavy",
+    "input": { "language": "vi", "jd_terms": ["React"],
+      "answer": "Ờ thì, kiểu, em nghĩ là, à, em cũng có làm React á, nói chung là cũng ổn, ờ, em thích lập trình lắm, kiểu vậy đó ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": ["React"], "filler_count": 6 }
+  },
+  {
+    "id": "vi-tech-list-noaction",
+    "note": "KEY: bare tech list, no action -> concrete must be false",
+    "input": { "language": "vi", "jd_terms": ["React", "Node.js"],
+      "answer": "Em có biết React, Node.js, Docker và PostgreSQL ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": ["React", "Node.js"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-irrelevant-number",
+    "note": "KEY: number present but irrelevant -> concrete must be false (bare-number guard)",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Nhà em có 3 anh chị em, em là con cả nên em khá quen với việc sắp xếp công việc ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "vi-quantified-cue-nodigit",
+    "note": "action + quantified-result cue without a digit -> concrete=true (rule b)",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Em đã refactor lại module thanh toán, nhờ vậy thời gian build giảm đáng kể và cả team deploy nhanh hơn hẳn." },
+    "gold": { "has_concrete_example": true, "star": { "situation": false, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "vi-java-not-javascript",
+    "note": "KEY: jd term JavaScript, answer says Java -> jd_hits must be empty (word-boundary)",
+    "input": { "language": "vi", "jd_terms": ["JavaScript"],
+      "answer": "Em chủ yếu làm backend bằng Java với Spring Boot, có xây dựng vài REST API cho hệ thống nội bộ." },
+    "gold": { "has_concrete_example": true, "star": { "situation": false, "task": false, "action": true, "result": false }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "vi-too-short",
+    "note": "trivially short non-answer",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Dạ em làm được ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "en-verbose-rambling",
+    "note": "long, vague, no specific example/result -> concrete=false despite generic action",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "So, I think the project I want to talk about is, well, there were a lot of things going on, and honestly it is a bit hard to summarize because we kept changing direction. Basically the team wanted to build some kind of dashboard, and I was sort of involved in a few parts of it, like the frontend mostly but also a little backend here and there. We used a bunch of tools, you know, the usual stack, and there were meetings almost every day which took up a lot of time. I remember we had some issues with deadlines and people were stressed, and I tried to help where I could, fixing small things and reviewing some pull requests when I had time. In the end the thing kind of shipped, more or less, although there were still bugs and we never really finished all the features we originally planned." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": false, "action": true, "result": false }, "jd_hits": [], "filler_count": 5 }
+  },
+  {
+    "id": "en-filler-heavy",
+    "note": "filler-dominated non-answer",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "Um, so like, I, you know, worked on this thing, it was, um, a website I guess, and like, yeah, it was okay I think." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": [], "filler_count": 7 }
+  },
+  {
+    "id": "en-strong-no-metrics",
+    "note": "clear STAR + action + result, NO number -> concrete=true",
+    "input": { "language": "en", "jd_terms": ["CI"],
+      "answer": "When our team CI pipeline kept failing because of flaky tests, I took ownership of stabilizing it. I went through the failing suites, quarantined the unreliable tests, and added proper waits instead of fixed sleeps. After that the pipeline became reliable and people stopped ignoring red builds." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": ["CI"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-action-project-tech",
+    "note": "built a real app with tech -> concrete=true (rule c)",
+    "input": { "language": "vi", "jd_terms": ["Flutter"],
+      "answer": "Trong đồ án môn học, em xây dựng một ứng dụng quản lý chi tiêu cá nhân bằng Flutter và Firebase, có chức năng nhắc nhở và thống kê theo tháng." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": false, "action": true, "result": false }, "jd_hits": ["Flutter"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-alias-ts",
+    "note": "alias TS -> TypeScript should hit; built API in internship -> concrete=true",
+    "input": { "language": "vi", "jd_terms": ["TypeScript"], "aliases": { "TypeScript": ["TS"] },
+      "answer": "Em dùng TS và Nest để viết REST API cho dự án thực tập, có thêm validation và phân quyền." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": false, "action": true, "result": false }, "jd_hits": ["TypeScript"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-metric-number",
+    "note": "explicit metric 5s->1s -> concrete=true (rule a)",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Em tối ưu lại câu query chính, thời gian phản hồi giảm từ khoảng 5 giây xuống còn dưới 1 giây." },
+    "gold": { "has_concrete_example": true, "star": { "situation": false, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "vi-hedging-but-concrete",
+    "note": "KEY: heavy hedging but a real 40% metric -> concrete stays true",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Em nghĩ là, không chắc lắm, nhưng hình như em đã giảm được khoảng 40% số bug bằng cách viết thêm unit test cho các module chính." },
+    "gold": { "has_concrete_example": true, "star": { "situation": false, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "en-used-tech-generic",
+    "note": "KEY boundary: generic 'used X in some projects', no situation/result -> concrete=false (heuristic may over-fire)",
+    "input": { "language": "en", "jd_terms": ["React", "Redux"],
+      "answer": "I have used React and Redux in some projects before, and I am comfortable with both." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": ["React", "Redux"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-repeated-term",
+    "note": "repeated 'dự án', generic role, no specific action/result -> concrete=false",
+    "input": { "language": "vi", "jd_terms": [],
+      "answer": "Em có làm dự án, dự án đó là dự án nhóm ở trường, trong dự án em phụ trách phần giao diện, dự án cũng khá vui ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": false, "action": false, "result": false }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "vi-strong-star-metric",
+    "note": "full STAR + Lighthouse 45->90 -> concrete=true, all STAR",
+    "input": { "language": "vi", "jd_terms": ["cache", "CDN"],
+      "answer": "Ở kỳ thực tập, website công ty load rất chậm trên mobile. Em được giao tối ưu trang chủ. Em lazy-load ảnh, tách bundle và thêm cache CDN. Kết quả điểm Lighthouse tăng từ 45 lên 90 và bounce rate giảm rõ rệt." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": ["cache", "CDN"], "filler_count": 0 }
+  },
+  {
+    "id": "vi-no-experience",
+    "note": "honest no-experience; mentions Kubernetes (coverage=mention) -> jd_hit yes, concrete=false",
+    "input": { "language": "vi", "jd_terms": ["Kubernetes"],
+      "answer": "Dạ thật ra em chưa từng làm việc với Kubernetes nên em chưa có kinh nghiệm cụ thể về phần này ạ." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": ["Kubernetes"], "filler_count": 0 }
+  }
+]

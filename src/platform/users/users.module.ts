@@ -9,6 +9,7 @@ import { RoleEntity } from '../../database/entities/role.entity';
 import { SessionEntity } from '../../database/entities/session.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UsageEventEntity } from '../../database/entities/usage-event.entity';
+import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserProfileEntity } from '../../database/entities/user-profile.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
@@ -29,6 +30,7 @@ import { UsersService } from './users.service';
       SkillEntity,
       RoleEntity,
       UserRoleEntity,
+      UserLearningPreferenceEntity,
       AccountEntity,
       SessionEntity,
       CvEntity,

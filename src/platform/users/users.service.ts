@@ -11,6 +11,10 @@ import { randomUUID } from 'crypto';
 import { FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { RoleEntity } from '../../database/entities/role.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
+import {
+  LearningLanguagePref,
+  UserLearningPreferenceEntity,
+} from '../../database/entities/user-learning-preference.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserProfileEntity } from '../../database/entities/user-profile.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
@@ -22,10 +26,12 @@ import {
 } from '../../infrastructure/storage/gcs-storage.service';
 import { ReplaceUserSkillsDto } from './dto/replace-user-skills.dto';
 import { SkillListQueryDto } from './dto/skill-list-query.dto';
+import { UpdateLearningPreferencesDto } from './dto/update-learning-preferences.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import {
   AvatarResponseDto,
   CurrentUserProfileResponseDto,
+  LearningPreferencesResponseDto,
   SkillPickerItemDto,
   UserProfileResponseDto,
   UserSkillResponseDto,
@@ -55,6 +61,12 @@ const PROFILE_FIELDS: ProfileField[] = [
   'portfolioUrl',
 ];
 
+export const DEFAULT_LEARNING_PREFERENCES: LearningPreferencesResponseDto = {
+  language_pref: 'both',
+  available_days: 30,
+  hours_per_week: 8,
+};
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -66,17 +78,20 @@ export class UsersService {
     @InjectRepository(SkillEntity) private readonly skills: Repository<SkillEntity>,
     @InjectRepository(RoleEntity) private readonly roles: Repository<RoleEntity>,
     @InjectRepository(UserRoleEntity) private readonly userRoles: Repository<UserRoleEntity>,
+    @InjectRepository(UserLearningPreferenceEntity)
+    private readonly learningPreferences: Repository<UserLearningPreferenceEntity>,
     private readonly storage: GcsStorageService,
   ) {}
 
   async getCurrentUserAggregate(userId: string): Promise<CurrentUserProfileResponseDto> {
     const user = await this.requireCurrentUser(userId);
-    const [roles, profile, skills] = await Promise.all([
+    const [roles, profile, preferences, skills] = await Promise.all([
       this.roleCodes(userId),
       this.profiles.findOne({ where: { userId } }),
+      this.getLearningPreferences(userId, { requireUser: false }),
       this.listCurrentUserSkills(userId),
     ]);
-    return this.toCurrentUserResponse(user, roles, profile, skills);
+    return this.toCurrentUserResponse(user, roles, profile, preferences, skills);
   }
 
   async updateProfile(
@@ -105,11 +120,38 @@ export class UsersService {
       profile = await this.profiles.save(profile);
     }
 
-    const [roles, skills] = await Promise.all([
+    const [roles, preferences, skills] = await Promise.all([
       this.roleCodes(user.id),
+      this.getLearningPreferences(user.id, { requireUser: false }),
       this.listCurrentUserSkills(user.id),
     ]);
-    return this.toCurrentUserResponse(user, roles, profile, skills);
+    return this.toCurrentUserResponse(user, roles, profile, preferences, skills);
+  }
+
+  async getLearningPreferences(
+    userId: string,
+    opts: { requireUser?: boolean } = {},
+  ): Promise<LearningPreferencesResponseDto> {
+    if (opts.requireUser !== false) await this.requireCurrentUser(userId);
+    const prefs = await this.learningPreferences.findOne({ where: { userId } });
+    return this.toLearningPreferencesResponse(prefs);
+  }
+
+  async updateLearningPreferences(
+    userId: string,
+    dto: UpdateLearningPreferencesDto,
+  ): Promise<LearningPreferencesResponseDto> {
+    await this.requireCurrentUser(userId);
+    const current = await this.learningPreferences.findOne({ where: { userId } });
+    const base = current ?? this.learningPreferences.create({ userId });
+    const existing = this.toLearningPreferencesResponse(current);
+
+    base.languagePref = (dto.language_pref ?? existing.language_pref) as LearningLanguagePref;
+    base.availableDays = dto.available_days ?? existing.available_days;
+    base.hoursPerWeek = dto.hours_per_week ?? existing.hours_per_week;
+
+    const saved = await this.learningPreferences.save(base);
+    return this.toLearningPreferencesResponse(saved);
   }
 
   async listCurrentUserSkills(userId: string): Promise<UserSkillResponseDto[]> {
@@ -268,6 +310,7 @@ export class UsersService {
     user: UserEntity,
     roles: string[],
     profile: UserProfileEntity | null,
+    learningPreferences: LearningPreferencesResponseDto,
     skills: UserSkillResponseDto[],
   ): CurrentUserProfileResponseDto {
     return {
@@ -278,7 +321,18 @@ export class UsersService {
       roles,
       isEmailVerified: user.isEmailVerified,
       profile: this.toProfileResponse(profile),
+      learningPreferences,
       skills,
+    };
+  }
+
+  private toLearningPreferencesResponse(
+    preferences: UserLearningPreferenceEntity | null,
+  ): LearningPreferencesResponseDto {
+    return {
+      language_pref: preferences?.languagePref ?? DEFAULT_LEARNING_PREFERENCES.language_pref,
+      available_days: preferences?.availableDays ?? DEFAULT_LEARNING_PREFERENCES.available_days,
+      hours_per_week: preferences?.hoursPerWeek ?? DEFAULT_LEARNING_PREFERENCES.hours_per_week,
     };
   }
 

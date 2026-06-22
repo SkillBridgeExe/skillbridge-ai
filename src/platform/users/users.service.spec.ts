@@ -6,6 +6,7 @@ import {
 import { Repository } from 'typeorm';
 import { RoleEntity } from '../../database/entities/role.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
+import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserProfileEntity } from '../../database/entities/user-profile.entity';
 import { UserRoleEntity } from '../../database/entities/user-role.entity';
@@ -76,6 +77,7 @@ describe('UsersService', () => {
     const skills = createRepositoryMock<SkillEntity>();
     const roles = createRepositoryMock<RoleEntity>();
     const userRoles = createRepositoryMock<UserRoleEntity>();
+    const learningPreferences = createRepositoryMock<UserLearningPreferenceEntity>();
     const storage = {
       buildAvatarObjectKey: jest.fn().mockReturnValue('avatars/user-1/avatar'),
       upload: jest.fn().mockResolvedValue({ bucket: 'bucket', key: 'avatars/user-1/avatar' }),
@@ -85,6 +87,7 @@ describe('UsersService', () => {
 
     users.findOne.mockResolvedValue({ ...baseUser });
     profiles.findOne.mockResolvedValue(null);
+    learningPreferences.findOne.mockResolvedValue(null);
     userSkills.find.mockResolvedValue([]);
     userRoles.find.mockResolvedValue([]);
 
@@ -95,13 +98,24 @@ describe('UsersService', () => {
       skills as unknown as Repository<SkillEntity>,
       roles as unknown as Repository<RoleEntity>,
       userRoles as unknown as Repository<UserRoleEntity>,
+      learningPreferences as unknown as Repository<UserLearningPreferenceEntity>,
       storage as unknown as GcsStorageService,
     );
     userSkills.manager.transaction.mockImplementation(async (callback) =>
       callback({ getRepository: jest.fn().mockReturnValue(userSkills) }),
     );
 
-    return { service, users, profiles, userSkills, skills, roles, userRoles, storage };
+    return {
+      service,
+      users,
+      profiles,
+      userSkills,
+      skills,
+      roles,
+      userRoles,
+      learningPreferences,
+      storage,
+    };
   }
 
   it('upserts profile fields and trims string input for the current user', async () => {
@@ -136,6 +150,48 @@ describe('UsersService', () => {
         targetJob: 'Frontend Developer',
       }),
     );
+    expect(result.learningPreferences).toEqual({
+      language_pref: 'both',
+      available_days: 30,
+      hours_per_week: 8,
+    });
+  });
+
+  it('returns default learning preferences when no persisted row exists', async () => {
+    const { service } = setup();
+
+    await expect(service.getLearningPreferences('user-1')).resolves.toEqual({
+      language_pref: 'both',
+      available_days: 30,
+      hours_per_week: 8,
+    });
+  });
+
+  it('upserts learning preferences for the current user', async () => {
+    const { service, learningPreferences } = setup();
+
+    const result = await service.updateLearningPreferences('user-1', {
+      language_pref: 'en',
+      available_days: 45,
+      hours_per_week: 12,
+    });
+
+    expect(learningPreferences.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+    );
+    expect(learningPreferences.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        languagePref: 'en',
+        availableDays: 45,
+        hoursPerWeek: 12,
+      }),
+    );
+    expect(result).toEqual({
+      language_pref: 'en',
+      available_days: 45,
+      hours_per_week: 12,
+    });
   });
 
   it('rejects duplicate skill ids when replacing current user skills', async () => {

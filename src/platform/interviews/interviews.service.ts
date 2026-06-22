@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { maskPii } from '../../common/services/pii-mask';
 import { deriveCvSeniority } from '../../common/services/seniority';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
@@ -16,6 +17,40 @@ import { JobDescriptionEntity } from '../../database/entities/job-description.en
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
 import { InterviewFocusArea } from '../../modules/interview/interview-planner';
 import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-interview.dto';
+import {
+  AgendaTopic,
+  buildInterviewAgenda,
+  decideTurn,
+  DepthSignal,
+  filterRecognizedConcepts,
+  InterviewAgenda,
+  InterviewPhase as AgendaInterviewPhase,
+  InterviewState,
+  TURN_BUDGET_BY_TIER,
+  TurnAction,
+} from '../../modules/interview/interview-agenda';
+import {
+  analyzeAnswerSignals,
+  AnswerSignals,
+  Language,
+} from '../../modules/interview/answer-analyzer';
+import { AnswerInsight } from '../../modules/interview/answer-insight';
+import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
+import {
+  aggregateInterviewScore,
+  Dimension,
+  InterviewScore,
+  topicDimensions,
+} from '../../modules/interview/interview-scoring';
+import {
+  AnswerGapContext,
+  deriveInterviewGaps,
+} from '../../modules/interview/interview-gap-derive';
+import { groundInterviewGaps } from '../../modules/interview/interview-gap';
+import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
+import { GapItem } from '../../modules/gap-engine/gap-item';
+import { InterviewCoaching } from '../../modules/interview/interview-coaching';
+import { InterviewCoachingService } from '../../modules/interview/interview-coaching.service';
 import { classifySeniority, SeniorityLevel } from '../../modules/jobs/ingest/ingest-normalizers';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
@@ -34,6 +69,7 @@ import {
 } from './dto/interview.dto';
 import { OpenAiQuestionAudioService, QuestionAudioResult } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
+import { InterviewAssessOutput, InterviewChainLlmService } from './interview-chain-llm.service';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
@@ -76,6 +112,7 @@ interface InterviewContext {
   cv: CvEntity | null;
   match: CvMatchEntity | null;
   jd: JobDescriptionEntity | null;
+  focusAreas: InterviewFocusArea[];
   targetRole: string;
   snapshot: InterviewContextSnapshot;
   promptContext: string;
@@ -92,6 +129,17 @@ interface ReviewedLiveTurn {
   userAnswerText: string;
   userAnswerTranscript: string;
   durationSeconds: number | null;
+}
+
+interface FinalizedTurnAnalysis {
+  turn: InterviewTurnEntity;
+  topicPhase: AgendaInterviewPhase;
+  skillCanonical: string | null;
+  displayName: string;
+  score: number | null;
+  depthSignal: DepthSignal | null;
+  signals: AnswerSignals;
+  insight: AnswerInsight;
 }
 
 type InterviewDifficultyLevel = 'intern' | 'fresher' | 'junior' | 'mid' | 'senior' | 'lead';
@@ -123,14 +171,29 @@ export class InterviewsService {
     // Optional positionally (keeps existing unit-test constructions valid) but always DI-provided in
     // prod via CvMatchesModule — used to inject the canonical gap focus areas into the live interview.
     private readonly cvMatches?: CvMatchesService,
+    private readonly interviewChain?: InterviewChainLlmService,
+    private readonly answerInsight?: AnswerInsightService,
+    private readonly coachingService?: InterviewCoachingService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
     const context = await this.resolveContext(userId, dto);
     await this.entitlements.assertCanUse(userId, BillingFeatureKey.INTERVIEW_SESSION);
-    const maxDurationSeconds = await this.resolveMaxDurationSeconds(userId);
+    const entitlements = await this.entitlements.getCurrentEntitlements(userId);
+    const maxDurationSeconds = this.maxDurationSecondsForPlan(entitlements.planCode);
     const startedAt = new Date();
     const expiresAt = this.addSeconds(startedAt, maxDurationSeconds);
+    const language = dto.language ?? 'vi';
+    const mode = dto.mode ?? 'HYBRID';
+    const agenda =
+      mode === 'VOICE'
+        ? null
+        : buildInterviewAgenda({
+            focusAreas: context.focusAreas,
+            seniority: context.snapshot.interviewDifficulty.level,
+            turnBudget: this.turnBudgetForPlan(entitlements.planCode),
+          });
+    const interviewState = agenda ? this.initialInterviewState(agenda) : null;
 
     let session = await this.sessions.save(
       this.sessions.create({
@@ -139,8 +202,8 @@ export class InterviewsService {
         jobDescriptionId: context.jd?.id ?? null,
         cvMatchId: context.match?.id ?? null,
         targetRole: context.targetRole,
-        language: dto.language ?? 'vi',
-        mode: dto.mode ?? 'HYBRID',
+        language,
+        mode,
         interviewType: dto.interviewType ?? 'TECHNICAL',
         voice: dto.voice ?? DEFAULT_INTERVIEW_VOICE,
         speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
@@ -149,6 +212,8 @@ export class InterviewsService {
         startedAt,
         expiresAt,
         contextSnapshot: context.snapshot,
+        agenda,
+        interviewState,
       }),
     );
 
@@ -158,31 +223,33 @@ export class InterviewsService {
     if (session.mode === 'VOICE') {
       session.totalQuestionsPlanned = this.defaultQuestionCount(session.interviewType);
     } else {
-      const aiStart = await this.interviewAi.start(userId, {
-        session_id: session.id,
-        interview_type: session.interviewType,
-        topic: session.targetRole,
-        language: session.language,
-        cv_context: context.promptContext,
-        prompt_template_code: this.startPromptCode(session.interviewType),
-      });
+      const firstTopic = agenda?.topics[0];
+      if (!firstTopic) {
+        throw new BadRequestException({
+          errorCode: ERROR_CODES.VALIDATION_ERROR,
+          message: 'Interview agenda has no topics',
+        });
+      }
 
       await this.turns.save(
         this.turns.create({
           sessionId: session.id,
           turnOrder: 1,
-          phase: aiStart.phase,
+          phase: firstTopic.phase,
+          topicPhase: firstTopic.phase,
           modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          aiRequestId: aiStart.ai_request_id,
-          interviewerMessage: aiStart.first_message,
-          interviewerQuestion: aiStart.first_question,
+          aiRequestId: null,
+          interviewerMessage: '',
+          interviewerQuestion: firstTopic.seed_question,
+          currentThread: firstTopic.what_to_probe,
+          skillCanonical: firstTopic.skill_canonical,
         }),
       );
 
-      firstMessage = aiStart.first_message;
-      firstQuestion = aiStart.first_question;
-      phase = aiStart.phase;
-      session.totalQuestionsPlanned = aiStart.total_questions_planned;
+      firstMessage = '';
+      firstQuestion = firstTopic.seed_question;
+      phase = firstTopic.phase;
+      session.totalQuestionsPlanned = agenda.turn_budget;
     }
     const realtime = await this.createRealtimeIfNeeded(
       userId,
@@ -220,52 +287,130 @@ export class InterviewsService {
       });
     }
 
-    const aiAnswer = await this.interviewAi.answer(userId, {
-      session_id: session.id,
-      question_history: this.questionHistory(answerContext.historyTurns, current, dto.userAnswer),
-      current_user_answer: dto.userAnswer,
-      current_question_order: current.turnOrder,
+    if (!this.hasNewTurnDependencies(session)) {
+      return this.answerLegacy(userId, session, dto, answerContext, current);
+    }
+
+    const agenda = this.asInterviewAgenda(session.agenda);
+    const state = this.asInterviewState(session.interviewState);
+    const topic = this.findTopic(agenda, state.current_topic_id);
+    if (!topic) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview session agenda is out of sync',
+      });
+    }
+
+    const targetDimension = this.primaryDimension(topic.phase);
+    const recentQa = this.questionHistory(answerContext.historyTurns, current, dto.userAnswer);
+    const assessment = await this.interviewChain!.assess(userId, {
+      sessionId: session.id,
+      turnOrder: current.turnOrder,
+      language: this.language(session.language),
+      seniorityTarget: topic.seniority_target,
+      currentTopic: this.topicForPrompt(topic),
+      targetDimension,
+      currentThread: state.current_thread || topic.what_to_probe,
+      drillDepth: state.drill_depth,
+      recentQa,
+    });
+    const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, dto.userAnswer);
+    const signals = analyzeAnswerSignals({
+      answer: dto.userAnswer,
+      question: current.interviewerQuestion,
+      jd_terms: this.topicTerms(topic),
+      language: this.language(session.language),
+    });
+    const insight = await this.answerInsight!.judge(
+      {
+        answer: dto.userAnswer,
+        question: current.interviewerQuestion,
+        target_dimension: targetDimension,
+        language: this.language(session.language),
+        signals,
+      },
+      userId,
+    );
+
+    const nextState = this.advanceStateBeforeDecision(state, assessment);
+    let action = decideTurn({
+      signal: assessment.depthSignal,
+      drill_depth: nextState.drill_depth,
+      drill_budget: topic.drill_budget,
+      turns_used: nextState.turns_used,
+      turn_budget: agenda.turn_budget,
+      evasive_streak: nextState.evasive_streak,
+      seniority_target: topic.seniority_target,
+    });
+    const nextTopic = action === 'advance' ? this.nextTopic(agenda, topic.id) : topic;
+    if (action === 'advance' && !nextTopic) action = 'wrap';
+    const askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
+    const updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
+    const nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
+    const ask = await this.interviewChain!.ask(userId, {
+      sessionId: session.id,
+      turnOrder: nextTurnOrder,
+      decision: action,
+      language: this.language(session.language),
+      seniorityTarget: askTopic.seniority_target,
+      currentTopic: this.topicForPrompt(askTopic),
+      currentThread: updatedState.current_thread,
+      recentQa,
+      runningNotes: updatedState.running_notes,
+      prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
     });
 
     current.userAnswerText = dto.userAnswer;
     current.userAnswerTranscript = dto.userTranscript ?? null;
     current.modality = dto.modality ?? current.modality;
-    current.perQuestionScore = this.score(aiAnswer.per_question_score);
-    current.strengths = aiAnswer.per_question_strengths;
-    current.improvements = aiAnswer.per_question_improvements;
+    current.aiRequestId = assessment.aiRequestId;
+    current.perQuestionScore = this.score(assessment.score);
+    current.strengths = recognized;
+    current.improvements = assessment.gapsRevealed;
+    current.topicPhase = topic.phase;
+    current.depthSignal = assessment.depthSignal;
+    current.signals = signals;
+    current.insight = insight;
+    current.currentThread = assessment.currentThread || updatedState.current_thread;
+    current.skillCanonical = topic.skill_canonical;
     current.answeredAt = new Date();
     current.durationSeconds = dto.durationSeconds ?? null;
     await this.turns.save(current);
 
     let nextTurn: InterviewTurnEntity | null = null;
-    if (aiAnswer.next_question) {
+    if (action !== 'wrap') {
       nextTurn = await this.turns.save(
         this.turns.create({
           sessionId: session.id,
-          turnOrder: await this.nextTurnOrder(session.id, current.turnOrder),
-          phase: aiAnswer.phase,
+          turnOrder: nextTurnOrder,
+          phase: askTopic.phase,
+          topicPhase: askTopic.phase,
           modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          aiRequestId: aiAnswer.ai_request_id,
-          interviewerMessage: aiAnswer.ai_message,
-          interviewerQuestion: aiAnswer.next_question,
+          aiRequestId: ask.aiRequestId,
+          interviewerMessage: ask.aiMessage,
+          interviewerQuestion: ask.question || askTopic.seed_question,
+          currentThread: updatedState.current_thread,
+          skillCanonical: askTopic.skill_canonical,
         }),
       );
     }
 
-    if (aiAnswer.finished || !aiAnswer.next_question) {
+    session.interviewState = updatedState;
+    if (action === 'wrap') {
       session.status = 'COMPLETED';
       session.endedAt = new Date();
       session.durationSeconds = this.durationSeconds(session.startedAt, session.endedAt);
-      await this.sessions.save(session);
     }
+    await this.sessions.save(session);
 
     return {
       session: this.toSessionDto(session),
       answeredTurn: this.toTurnDto(current),
       nextTurn: nextTurn ? this.toTurnDto(nextTurn) : null,
-      aiMessage: aiAnswer.ai_message,
-      nextQuestion: aiAnswer.next_question,
-      finished: aiAnswer.finished,
+      aiMessage: ask.aiMessage,
+      nextQuestion:
+        action === 'wrap' ? ask.question || null : (nextTurn?.interviewerQuestion ?? null),
+      finished: action === 'wrap',
     };
   }
 
@@ -289,28 +434,68 @@ export class InterviewsService {
       };
     }
 
-    const scoring = await this.interviewAi.end(userId, {
-      session_id: session.id,
-      all_questions_answers: answeredTurns.map((turn) => ({
-        order: turn.turnOrder,
-        question: turn.interviewerQuestion,
-        answer: turn.userAnswerText ?? '',
-      })),
-      duration_seconds: this.durationSeconds(session.startedAt, endedAt),
-      scoring_template_code: 'interview_scoring_v1',
-      probed_skills: await this.resolveProbedSkills(userId, session),
+    if (!this.hasNewEndDependencies()) {
+      return this.endLegacy(userId, session, answeredTurns, turns, endedAt);
+    }
+
+    const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
+    const difficulty = this.resolveSessionInterviewDifficulty(session);
+    const score = aggregateInterviewScore({
+      answers: analyses
+        .filter((item) => item.score !== null && item.depthSignal !== null)
+        .map((item) => ({
+          topic_phase: item.topicPhase,
+          score: item.score as number,
+          depth_signal: item.depthSignal as DepthSignal,
+        })),
+      role: session.targetRole,
+      seniority: difficulty.level,
     });
-    const parsed = scoring.parsed_response;
+    const contexts = analyses.map(
+      (item): AnswerGapContext => ({
+        topic_phase: item.topicPhase,
+        skill_canonical: item.skillCanonical,
+        display_name: item.displayName,
+        linked_question_id: item.turn.id,
+        answer_excerpt: item.turn.userAnswerText ?? '',
+        signals: item.signals,
+        insight: item.insight,
+      }),
+    );
+    const probedSkills = this.probedSkillSet(analyses);
+    const interviewGaps = groundInterviewGaps(
+      deriveInterviewGaps(contexts),
+      probedSkills.size > 0 ? probedSkills : null,
+    );
+    const matchGapItems = await this.loadMatchGapItems(userId, session);
+    const plan = buildUnifiedPlan({
+      matchId: session.cvMatchId ?? '',
+      sessionId: session.id,
+      gapItems: matchGapItems,
+      interviewItems: interviewGaps,
+    });
+    const coaching = await this.coachingService!.coach(
+      {
+        score,
+        gaps: interviewGaps,
+        plan,
+        language: this.language(session.language),
+      },
+      userId,
+    );
 
     session.status = 'COMPLETED';
     session.endedAt = endedAt;
     session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
-    session.finalAiRequestId = scoring.ai_request_id;
-    session.overallScore = this.score(parsed.overall_score);
-    session.semanticScore = this.score(parsed.semantic_score);
-    session.llmScore = this.score(parsed.llm_score);
-    session.communicationScore = this.score(parsed.communication_score);
-    session.aiFeedback = parsed.ai_feedback;
+    session.finalScore = score;
+    session.gapItems = interviewGaps;
+    session.devPlan = plan;
+    session.coaching = coaching;
+    session.overallScore = this.score(score.overall);
+    session.semanticScore = this.score(this.dimensionScore(score, 'technical_depth'));
+    session.llmScore = this.score(this.dimensionScore(score, 'evidence_credibility'));
+    session.communicationScore = this.score(this.dimensionScore(score, 'communication'));
+    session.aiFeedback = this.compatAiFeedback(coaching);
     const saved = await this.sessions.save(session);
 
     return {
@@ -381,6 +566,394 @@ export class InterviewsService {
     return this.questionAudio.createQuestionAudio(userId, session, current.interviewerQuestion);
   }
 
+  private hasNewTurnDependencies(session: InterviewSessionEntity): boolean {
+    return Boolean(
+      this.interviewChain && this.answerInsight && session.agenda && session.interviewState,
+    );
+  }
+
+  private hasNewEndDependencies(): boolean {
+    return Boolean(this.interviewChain && this.answerInsight && this.coachingService);
+  }
+
+  private initialInterviewState(agenda: InterviewAgenda): InterviewState {
+    const first = agenda.topics[0];
+    return {
+      current_phase: first.phase,
+      current_topic_id: first.id,
+      drill_depth: 0,
+      current_thread: first.what_to_probe,
+      running_notes: [],
+      covered_topic_ids: [],
+      uncovered_topic_ids: agenda.uncovered.map((topic) => topic.id),
+      turns_used: 0,
+      evasive_streak: 0,
+    };
+  }
+
+  private asInterviewAgenda(value: unknown): InterviewAgenda {
+    if (!value || typeof value !== 'object' || !Array.isArray((value as InterviewAgenda).topics)) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview session agenda is missing',
+      });
+    }
+    return value as InterviewAgenda;
+  }
+
+  private asInterviewState(value: unknown): InterviewState {
+    if (!value || typeof value !== 'object') {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview session state is missing',
+      });
+    }
+    return value as InterviewState;
+  }
+
+  private findTopic(agenda: InterviewAgenda, topicId: string): AgendaTopic | null {
+    return agenda.topics.find((topic) => topic.id === topicId) ?? null;
+  }
+
+  private nextTopic(agenda: InterviewAgenda, topicId: string): AgendaTopic | null {
+    const index = agenda.topics.findIndex((topic) => topic.id === topicId);
+    return index >= 0 ? (agenda.topics[index + 1] ?? null) : null;
+  }
+
+  private primaryDimension(phase: AgendaInterviewPhase): Dimension {
+    return topicDimensions(phase)[0] ?? 'communication';
+  }
+
+  private topicTerms(topic: AgendaTopic): string[] {
+    return [topic.display_name, topic.skill_canonical].filter((value): value is string =>
+      Boolean(value),
+    );
+  }
+
+  private topicForPrompt(topic: AgendaTopic): Record<string, unknown> {
+    return {
+      id: topic.id,
+      phase: topic.phase,
+      skill_canonical: topic.skill_canonical,
+      display_name: topic.display_name,
+      seniority_target: topic.seniority_target,
+      drill_budget: topic.drill_budget,
+      what_to_probe: topic.what_to_probe,
+      seed_question: topic.seed_question,
+    };
+  }
+
+  private advanceStateBeforeDecision(
+    state: InterviewState,
+    assessment: InterviewAssessOutput,
+  ): InterviewState {
+    const note = assessment.note.trim();
+    return {
+      ...state,
+      drill_depth: state.drill_depth + 1,
+      turns_used: state.turns_used + 1,
+      evasive_streak: assessment.depthSignal === 'evasive' ? state.evasive_streak + 1 : 0,
+      current_thread: assessment.currentThread || state.current_thread,
+      running_notes: note ? [...state.running_notes, note].slice(-5) : state.running_notes,
+    };
+  }
+
+  private applyTurnDecision(
+    state: InterviewState,
+    agenda: InterviewAgenda,
+    currentTopic: AgendaTopic,
+    askTopic: AgendaTopic,
+    action: TurnAction,
+  ): InterviewState {
+    if (action !== 'advance') {
+      return {
+        ...state,
+        current_phase: currentTopic.phase,
+        current_topic_id: currentTopic.id,
+      };
+    }
+
+    return {
+      ...state,
+      current_phase: askTopic.phase,
+      current_topic_id: askTopic.id,
+      current_thread: askTopic.what_to_probe,
+      drill_depth: 0,
+      evasive_streak: 0,
+      covered_topic_ids: [...new Set([...state.covered_topic_ids, currentTopic.id])],
+      uncovered_topic_ids: agenda.uncovered.map((topic) => topic.id),
+    };
+  }
+
+  private prevTopicOutcome(topic: AgendaTopic, assessment: InterviewAssessOutput): string {
+    return [
+      topic.display_name,
+      assessment.depthSignal,
+      assessment.claimStatus !== 'ok' ? assessment.claimStatus : '',
+      assessment.note,
+    ]
+      .filter(Boolean)
+      .join(' | ');
+  }
+
+  private async answerLegacy(
+    userId: string,
+    session: InterviewSessionEntity,
+    dto: AnswerPlatformInterviewDto,
+    answerContext: AnswerTurnContext,
+    current: InterviewTurnEntity,
+  ): Promise<AnswerInterviewResponseDto> {
+    const aiAnswer = await this.interviewAi.answer(userId, {
+      session_id: session.id,
+      question_history: this.questionHistory(answerContext.historyTurns, current, dto.userAnswer),
+      current_user_answer: maskPii(dto.userAnswer),
+      current_question_order: current.turnOrder,
+    });
+
+    current.userAnswerText = dto.userAnswer;
+    current.userAnswerTranscript = dto.userTranscript ?? null;
+    current.modality = dto.modality ?? current.modality;
+    current.perQuestionScore = this.score(aiAnswer.per_question_score);
+    current.strengths = aiAnswer.per_question_strengths;
+    current.improvements = aiAnswer.per_question_improvements;
+    current.answeredAt = new Date();
+    current.durationSeconds = dto.durationSeconds ?? null;
+    await this.turns.save(current);
+
+    let nextTurn: InterviewTurnEntity | null = null;
+    if (aiAnswer.next_question) {
+      nextTurn = await this.turns.save(
+        this.turns.create({
+          sessionId: session.id,
+          turnOrder: await this.nextTurnOrder(session.id, current.turnOrder),
+          phase: aiAnswer.phase,
+          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+          aiRequestId: aiAnswer.ai_request_id,
+          interviewerMessage: aiAnswer.ai_message,
+          interviewerQuestion: aiAnswer.next_question,
+        }),
+      );
+    }
+
+    if (aiAnswer.finished || !aiAnswer.next_question) {
+      session.status = 'COMPLETED';
+      session.endedAt = new Date();
+      session.durationSeconds = this.durationSeconds(session.startedAt, session.endedAt);
+      await this.sessions.save(session);
+    }
+
+    return {
+      session: this.toSessionDto(session),
+      answeredTurn: this.toTurnDto(current),
+      nextTurn: nextTurn ? this.toTurnDto(nextTurn) : null,
+      aiMessage: aiAnswer.ai_message,
+      nextQuestion: aiAnswer.next_question,
+      finished: aiAnswer.finished,
+    };
+  }
+
+  private async endLegacy(
+    userId: string,
+    session: InterviewSessionEntity,
+    answeredTurns: InterviewTurnEntity[],
+    turns: InterviewTurnEntity[],
+    endedAt: Date,
+  ): Promise<InterviewDetailResponseDto> {
+    const scoring = await this.interviewAi.end(userId, {
+      session_id: session.id,
+      all_questions_answers: answeredTurns.map((turn) => ({
+        order: turn.turnOrder,
+        question: turn.interviewerQuestion,
+        answer: turn.userAnswerText ?? '',
+      })),
+      duration_seconds: this.durationSeconds(session.startedAt, endedAt),
+      scoring_template_code: 'interview_scoring_v1',
+      probed_skills: await this.resolveProbedSkills(userId, session),
+    });
+    const parsed = scoring.parsed_response;
+
+    session.status = 'COMPLETED';
+    session.endedAt = endedAt;
+    session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
+    session.finalAiRequestId = scoring.ai_request_id;
+    session.overallScore = this.score(parsed.overall_score);
+    session.semanticScore = this.score(parsed.semantic_score);
+    session.llmScore = this.score(parsed.llm_score);
+    session.communicationScore = this.score(parsed.communication_score);
+    session.aiFeedback = parsed.ai_feedback;
+    const saved = await this.sessions.save(session);
+
+    return {
+      ...this.toSessionDto(saved),
+      turns: turns.map((turn) => this.toTurnDto(turn)),
+    };
+  }
+
+  private async ensureTurnAnalyses(
+    userId: string,
+    session: InterviewSessionEntity,
+    turns: InterviewTurnEntity[],
+  ): Promise<FinalizedTurnAnalysis[]> {
+    const out: FinalizedTurnAnalysis[] = [];
+    for (const turn of turns) {
+      out.push(await this.ensureTurnAnalysis(userId, session, turn));
+    }
+    return out;
+  }
+
+  private async ensureTurnAnalysis(
+    userId: string,
+    session: InterviewSessionEntity,
+    turn: InterviewTurnEntity,
+  ): Promise<FinalizedTurnAnalysis> {
+    const topicPhase = this.resolveTurnTopicPhase(turn);
+    const skillCanonical = turn.skillCanonical ?? null;
+    const displayName = this.displayNameForTurn(turn, topicPhase);
+    let signals = this.maybeSignals(turn.signals);
+    let insight = this.maybeInsight(turn.insight);
+    let score = this.numberOrNull(turn.perQuestionScore);
+    let depthSignal = this.maybeDepthSignal(turn.depthSignal);
+
+    if (!signals || !insight || score === null || !depthSignal) {
+      const assessment = await this.interviewChain!.assess(userId, {
+        sessionId: session.id,
+        turnOrder: turn.turnOrder,
+        language: this.language(session.language),
+        seniorityTarget: this.resolveSessionInterviewDifficulty(session).level,
+        currentTopic: {
+          phase: topicPhase,
+          display_name: displayName,
+          skill_canonical: skillCanonical,
+        },
+        targetDimension: this.primaryDimension(topicPhase),
+        currentThread: turn.currentThread ?? displayName,
+        drillDepth: 0,
+        recentQa: [
+          {
+            order: turn.turnOrder,
+            question: turn.interviewerQuestion,
+            answer: maskPii(turn.userAnswerText ?? ''),
+          },
+        ],
+      });
+      signals = analyzeAnswerSignals({
+        answer: turn.userAnswerText ?? '',
+        question: turn.interviewerQuestion,
+        jd_terms: skillCanonical ? [skillCanonical, displayName] : [],
+        language: this.language(session.language),
+      });
+      insight = await this.answerInsight!.judge(
+        {
+          answer: turn.userAnswerText ?? '',
+          question: turn.interviewerQuestion,
+          target_dimension: this.primaryDimension(topicPhase),
+          language: this.language(session.language),
+          signals,
+        },
+        userId,
+      );
+      score = assessment.score;
+      depthSignal = assessment.depthSignal;
+      turn.aiRequestId = turn.aiRequestId ?? assessment.aiRequestId;
+      turn.perQuestionScore = this.score(score);
+      turn.depthSignal = depthSignal;
+      turn.signals = signals;
+      turn.insight = insight;
+      turn.topicPhase = topicPhase;
+      turn.skillCanonical = skillCanonical;
+      turn.currentThread = assessment.currentThread || turn.currentThread || displayName;
+      await this.turns.save(turn);
+    }
+
+    return { turn, topicPhase, skillCanonical, displayName, score, depthSignal, signals, insight };
+  }
+
+  private resolveTurnTopicPhase(turn: InterviewTurnEntity): AgendaInterviewPhase {
+    const phase = turn.phase as string | null;
+    if (this.isAgendaPhase(turn.topicPhase)) return turn.topicPhase;
+    if (this.isAgendaPhase(phase)) return phase;
+    if (phase === 'SCENARIO') return 'SCENARIO';
+    if (phase === 'BEHAVIORAL') return 'BEHAVIORAL';
+    if (phase === 'WRAP_UP') return 'WRAP';
+    if (turn.turnOrder === 1) return 'SCREENING';
+    return 'SKILL_PROBE';
+  }
+
+  private displayNameForTurn(turn: InterviewTurnEntity, topicPhase: AgendaInterviewPhase): string {
+    if (turn.skillCanonical) return turn.skillCanonical;
+    if (turn.currentThread) return turn.currentThread;
+    return topicPhase === 'SCREENING' ? 'Screening' : `Question ${turn.turnOrder}`;
+  }
+
+  private maybeSignals(value: unknown): AnswerSignals | null {
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Partial<AnswerSignals>;
+    return candidate.jd_term_hits && candidate.filler && candidate.flags
+      ? (value as AnswerSignals)
+      : null;
+  }
+
+  private maybeInsight(value: unknown): AnswerInsight | null {
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Partial<AnswerInsight>;
+    return candidate.evidence_quality && candidate.star_present ? (value as AnswerInsight) : null;
+  }
+
+  private maybeDepthSignal(value: unknown): DepthSignal | null {
+    return value === 'shallow' || value === 'adequate' || value === 'deep' || value === 'evasive'
+      ? value
+      : null;
+  }
+
+  private isAgendaPhase(value: unknown): value is AgendaInterviewPhase {
+    return (
+      value === 'SCREENING' ||
+      value === 'SKILL_PROBE' ||
+      value === 'JD_REQUIREMENT' ||
+      value === 'SCENARIO' ||
+      value === 'BEHAVIORAL' ||
+      value === 'WRAP'
+    );
+  }
+
+  private probedSkillSet(analyses: FinalizedTurnAnalysis[]): Set<string> {
+    return new Set(
+      analyses
+        .map((item) => item.skillCanonical)
+        .filter((skill): skill is string => Boolean(skill)),
+    );
+  }
+
+  private async loadMatchGapItems(
+    userId: string,
+    session: InterviewSessionEntity,
+  ): Promise<GapItem[]> {
+    if (!session.cvMatchId || !this.cvMatches) return [];
+    try {
+      return (
+        await this.cvMatches.getGapReport(
+          userId,
+          session.cvMatchId,
+          this.language(session.language),
+        )
+      ).gap_items;
+    } catch {
+      return [];
+    }
+  }
+
+  private dimensionScore(score: InterviewScore, dimension: Dimension): number | null {
+    return score.dimensions.find((item) => item.dimension === dimension)?.score ?? null;
+  }
+
+  private compatAiFeedback(coaching: InterviewCoaching): Record<string, unknown> {
+    return {
+      summary: coaching.summary,
+      strengths: coaching.strengths,
+      priorities: coaching.priorities,
+    };
+  }
+
   private async resolveContext(
     userId: string,
     dto: StartPlatformInterviewDto,
@@ -447,6 +1020,7 @@ export class InterviewsService {
       cv,
       match,
       jd,
+      focusAreas,
       targetRole,
       snapshot,
       promptContext: this.buildPromptContext(
@@ -779,10 +1353,13 @@ export class InterviewsService {
     });
   }
 
-  private async resolveMaxDurationSeconds(userId: string): Promise<number> {
-    const entitlements = await this.entitlements.getCurrentEntitlements(userId);
-    if (entitlements.planCode === 'PREMIUM') return PREMIUM_INTERVIEW_SECONDS;
+  private maxDurationSecondsForPlan(planCode: string | null | undefined): number {
+    if (planCode === 'PREMIUM') return PREMIUM_INTERVIEW_SECONDS;
     return PRO_INTERVIEW_SECONDS;
+  }
+
+  private turnBudgetForPlan(planCode: string | null | undefined): number {
+    return TURN_BUDGET_BY_TIER[planCode === 'PREMIUM' || planCode === 'PRO' ? 'paid' : 'free'];
   }
 
   private async getTurns(sessionId: string): Promise<InterviewTurnEntity[]> {
@@ -825,8 +1402,8 @@ export class InterviewsService {
       .filter((turn) => turn.userAnswerText || turn.id === current.id)
       .map((turn) => ({
         order: turn.turnOrder,
-        question: turn.interviewerQuestion,
-        answer: turn.id === current.id ? currentAnswer : (turn.userAnswerText ?? ''),
+        question: maskPii(turn.interviewerQuestion),
+        answer: maskPii(turn.id === current.id ? currentAnswer : (turn.userAnswerText ?? '')),
       }));
   }
 
@@ -928,6 +1505,10 @@ export class InterviewsService {
       llmScore: this.numberOrNull(session.llmScore),
       communicationScore: this.numberOrNull(session.communicationScore),
       aiFeedback: session.aiFeedback,
+      finalScore: session.finalScore,
+      gapItems: session.gapItems,
+      devPlan: session.devPlan,
+      coaching: session.coaching,
       durationSeconds: session.durationSeconds,
       startedAt: this.dateIso(session.startedAt ?? session.createdAt),
       endedAt: session.endedAt ? session.endedAt.toISOString() : null,
@@ -942,6 +1523,7 @@ export class InterviewsService {
       sessionId: turn.sessionId,
       turnOrder: turn.turnOrder,
       phase: turn.phase,
+      topicPhase: turn.topicPhase,
       modality: turn.modality,
       aiRequestId: turn.aiRequestId,
       interviewerMessage: turn.interviewerMessage,
@@ -949,6 +1531,11 @@ export class InterviewsService {
       userAnswerText: turn.userAnswerText,
       userAnswerTranscript: turn.userAnswerTranscript,
       perQuestionScore: this.numberOrNull(turn.perQuestionScore),
+      depthSignal: turn.depthSignal,
+      signals: turn.signals,
+      insight: turn.insight,
+      currentThread: turn.currentThread,
+      skillCanonical: turn.skillCanonical,
       strengths: turn.strengths,
       improvements: turn.improvements,
       askedAt: this.dateIso(turn.askedAt ?? turn.createdAt),
@@ -959,6 +1546,10 @@ export class InterviewsService {
 
   private score(value: number | null | undefined): string | null {
     return value === null || value === undefined ? null : value.toFixed(2);
+  }
+
+  private language(value: string | null | undefined): Language {
+    return value === 'en' ? 'en' : 'vi';
   }
 
   private speechSpeed(value: string | number | null | undefined): number {

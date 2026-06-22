@@ -58,6 +58,13 @@ export default () => ({
       : undefined,
   },
 
+  interviewChain: {
+    assessModel: process.env.INTERVIEW_ASSESS_MODEL ?? 'gpt-4o-mini',
+    askModel: process.env.INTERVIEW_ASK_MODEL ?? 'gpt-4o-mini',
+    answerInsightModel: process.env.ANSWER_INSIGHT_MODEL ?? '',
+    coachingModel: process.env.INTERVIEW_COACHING_MODEL ?? '',
+  },
+
   database: {
     url: process.env.DATABASE_URL ?? '',
   },

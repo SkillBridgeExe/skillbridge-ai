@@ -29,6 +29,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { ReplaceUserSkillsDto } from './dto/replace-user-skills.dto';
 import { SkillListQueryDto } from './dto/skill-list-query.dto';
+import { UpdateLearningPreferencesDto } from './dto/update-learning-preferences.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { UsersService } from './users.service';
 
@@ -109,6 +110,21 @@ export class UsersController {
   @ApiOperation({ summary: 'Replace skills for the current user' })
   replaceSkills(@CurrentUser() user: JwtUser, @Body() dto: ReplaceUserSkillsDto) {
     return this.users.replaceSkills(user.userId, dto);
+  }
+
+  @Get('me/learning-preferences')
+  @ApiOperation({ summary: 'Get learning roadmap preferences for the current user' })
+  learningPreferences(@CurrentUser() user: JwtUser) {
+    return this.users.getLearningPreferences(user.userId);
+  }
+
+  @Patch('me/learning-preferences')
+  @ApiOperation({ summary: 'Update learning roadmap preferences for the current user' })
+  updateLearningPreferences(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: UpdateLearningPreferencesDto,
+  ) {
+    return this.users.updateLearningPreferences(user.userId, dto);
   }
 }
 

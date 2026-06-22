@@ -36,6 +36,15 @@ const TIER_1 = [
   'developer.apple',
   'postgresql.org',
   'python.org',
+  'typescriptlang.org',
+  'nodejs.org',
+  'spring.io',
+  'docs.python.org',
+  'git-scm.com',
+  'sqlbolt.com',
+  'github.com/donnemartin/system-design-primer',
+  'deeplearning.ai',
+  'skillbridge internal',
   'aws skill builder',
 ];
 const TIER_2 = [

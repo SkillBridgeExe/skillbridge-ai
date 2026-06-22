@@ -55,6 +55,7 @@ tmp/
 temp/
 
 *.md
+!docs/SUPABASE_DATABASE.md
 # prompts/*.md = template runtime (PromptsService load lúc chạy) — PHẢI giữ trong git
 !prompts/
 !prompts/*.md

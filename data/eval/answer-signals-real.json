@@ -1,0 +1,72 @@
+[
+  {
+    "id": "real-disagreement-manager",
+    "note": "source: github.com/ashishps1/awesome-behavioral-interviews. Specific example but no number/named-tech -> concrete=false by guideline (a human sees a 'specific' example -> design tension).",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "At my previous job as a software engineer, I disagreed with my manager over the technology stack for a new feature. My manager wanted one approach, but I believed another was more beneficial for long-term goals. I requested a one-on-one meeting and prepared a comprehensive comparison of both stacks, highlighting long-term maintainability, performance, and compatibility. I presented my findings respectfully. After discussion with the team, we adopted a hybrid approach incorporating elements from both suggestions. This led to a more robust solution and strengthened my relationship with my manager." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-failed-testing",
+    "note": "source: github awesome-behavioral-interviews. 'fixed within 24 hours' = resolution-time metric -> concrete=true.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "In my role as a software developer at a tech startup, I was developing an anticipated feature. In my eagerness to meet the deadline, I rushed through testing, skipping thorough tests I normally perform. The feature deployed with a critical bug severely affecting user experience. Realizing my mistake, I immediately took responsibility and informed my team lead. I worked diligently to fix the bug and conducted comprehensive review and testing. The bug was fixed within 24 hours." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-led-team-metrics",
+    "note": "source: github awesome-behavioral-interviews. Clear numbers 20%/15%/five devs/2 weeks -> concrete=true, full STAR.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "At my previous job, I was appointed lead developer for a critical project to develop a new feature for our flagship product. I led five developers and two designers to deliver within six months. I organized a kickoff meeting to align everyone with goals and timelines, established clear communication channels, and delegated tasks according to each member's strengths. We successfully completed the project two weeks ahead of schedule and within budget. The feature was well-received, leading to 20% increased customer satisfaction and 15% increased sales." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-pressure-48h",
+    "note": "source: github awesome-behavioral-interviews. '48 hours' deadline + specific fix -> concrete=true.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "At my previous position, a major client reported a critical bug affecting their operations. I had 48 hours to resolve it. I meticulously combed through the code to identify the source, breaking the task into smaller parts with mini-deadlines. I stayed in constant communication with my team and coordinated with the client's technical team. After focused work, I identified a flaw in the recent update, fixed it, and rigorously tested the solution before deployment. The bug was resolved well within the deadline." },
+    "gold": { "has_concrete_example": true, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-promotion-goal",
+    "note": "source: interviewbit.com/star-interview-questions. Only durations, no work-metric/named-tech -> concrete=false (vague self-improvement).",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "During my time at my last employer, I was eager to advance into the position of a senior software engineer. Having been there for over two years, I set a target of completing my goal in three years. During this period, I worked diligently to enhance my skills and take on more challenging projects. Even though I had no prior experience with such projects, I tried to deliver superior quality. My supervisor finally put me at ease and I got promoted within six months of setting that goal." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-cope-generic",
+    "note": "source: interviewbit. Generic strategies, NO specific instance -> concrete=false, no STAR.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "As a software developer, I have faced sudden workplace changes multiple times. I cope by following a few key strategies. Firstly, I assess the impact of the change and the tasks that need to be completed. Next, I communicate with my team members and seek their opinions. I also stay organized by breaking down my tasks into smaller manageable units and prioritizing them. Finally, I remain flexible and adaptable to adjust to the new situation." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": false, "result": false }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-correct-superior",
+    "note": "source: interviewbit. Generic narrative, no number/named-tech -> concrete=false; has action+result.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "I identified a mistake made by my superior in a software project. I reviewed the code and identified the issue in detail. Then I discussed the mistake with my superior in a professional and respectful manner, providing evidence and suggesting possible solutions. My superior acknowledged the mistake and appreciated my input. Together, we corrected the issue and implemented necessary changes to prevent similar mistakes in the future." },
+    "gold": { "has_concrete_example": false, "star": { "situation": false, "task": false, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-member-quit",
+    "note": "source: interviewbit. Specific situation + result-on-time but no number/named-tech -> concrete=false by guideline (design tension: a human sees a specific example).",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "I was working on a project with my team, and one of our team members decided to quit in the middle of the project due to personal reasons. I knew I had to finish the project to keep the organization's reputation intact. I went to the other member and we agreed to divide the remaining work equally. We went above and beyond to complete the tasks. Despite the tight deadline, we were able to complete the project on time." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-missing-requirements",
+    "note": "source: interviewbit. Specific instance, no number/named-tech -> concrete=false; full STAR.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "Recently, I was working on a project that had a tight deadline. As we approached the deadline, we realized that there were some missing requirements that had not been addressed. I took the initiative to convene a meeting with the project team and stakeholders to discuss the missing requirements. After the meeting, I identified the tasks that needed to be completed and assigned them to team members. Through my proactive approach, we were able to address the missing requirements and meet the project deadline." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  },
+  {
+    "id": "real-complex-bug",
+    "note": "source: geeksforgeeks.org STAR methodology. Specific bug example, no number/named-tech -> concrete=false; full STAR.",
+    "input": { "language": "en", "jd_terms": [],
+      "answer": "During a software development project, I encountered a critical bug that threatened to delay the launch. My task was to identify the root cause of the bug and implement a solution before the deadline. I meticulously analyzed the code, traced the bug's origin, and devised a fix that addressed the issue without compromising functionality. The bug was successfully resolved, and the project launched on time." },
+    "gold": { "has_concrete_example": false, "star": { "situation": true, "task": true, "action": true, "result": true }, "jd_hits": [], "filler_count": 0 }
+  }
+]
