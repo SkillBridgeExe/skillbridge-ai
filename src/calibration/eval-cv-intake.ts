@@ -79,7 +79,9 @@ export function scoreIntakeCase(c: CvIntakeEvalCase): CvIntakeEvalResult {
   const noFabrication = keptKeys.every((k) => {
     if (DATE_FIELDS.has(k)) return true;
     const v = stringify(out.fields[k].value);
-    return v === '' ? true : isGrounded(v, c.narrative);
+    // company/position use the stricter contiguous-phrase ('atom') gate in prod — mirror it here.
+    const mode = k === 'company' || k === 'position' ? 'atom' : 'prose';
+    return v === '' ? true : isGrounded(v, c.narrative, mode);
   });
 
   return { id: c.id, fieldRecall, fieldPrecision, noFabrication };

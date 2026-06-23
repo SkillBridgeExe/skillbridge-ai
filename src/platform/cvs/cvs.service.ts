@@ -430,7 +430,9 @@ export class CvsService {
     const language = dto.locale ?? 'en';
     // A re-ask (missing/insufficient detail) spends NO LLM and must stay free — gate quota only when a
     // rewrite will actually run, so an out-of-quota user can still get the "tell me more" follow-up.
-    const grounded = groundCvAssistantAnswers(dto.answers, language);
+    // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
+    // diverge from the rewrite's own re-ask gate.
+    const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
     if (grounded.needs_detail.length === 0 && grounded.facts.length > 0) {
       await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
     }
