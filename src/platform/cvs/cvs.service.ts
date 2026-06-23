@@ -440,6 +440,7 @@ export class CvsService {
         answers: dto.answers,
         target: dto.target,
         language,
+        outputLang: dto.output_lang ?? language,
         kind: dto.kind ?? 'bullet',
       },
       userId,

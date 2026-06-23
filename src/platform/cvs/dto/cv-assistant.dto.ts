@@ -95,6 +95,14 @@ export class AssistantRewriteRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   locale?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    enum: LANGS,
+    description: "The CV's language for the rewritten text. Defaults to locale when absent.",
+  })
+  @IsOptional()
+  @IsIn(LANGS as unknown as string[])
+  output_lang?: (typeof LANGS)[number];
 }
 
 /**

@@ -35,6 +35,8 @@ export interface CvAssistantRewriteInput {
   /** CV field path this patch targets (e.g. 'projects[0].bullets[0]'). */
   target: string;
   language: Language;
+  /** the CV's language for the rewritten text + grounded facts (defaults to `language` when absent). */
+  outputLang?: Language;
   /** which kind of field is being rewritten — selects the prompt (default 'bullet'). */
   kind?: 'bullet' | 'summary';
 }
@@ -89,8 +91,9 @@ export class CvAssistantRewriteService {
     input: CvAssistantRewriteInput,
     userId = 'system',
   ): Promise<CvAssistantRewriteResult> {
-    const language = input.language;
-    const grounded = groundCvAssistantAnswers(input.answers, language);
+    const language = input.language; // UI language → user-facing re-ask / degraded messages.
+    const outputLang = input.outputLang ?? language; // CV language → grounded facts + the rewritten text.
+    const grounded = groundCvAssistantAnswers(input.answers, outputLang);
 
     // re-ask BEFORE spending any LLM call (deterministic gate).
     if (grounded.needs_detail.length > 0) {
@@ -123,7 +126,7 @@ export class CvAssistantRewriteService {
         .catch(() => undefined);
 
       const userPrompt = this.prompts.render(promptCode, {
-        language,
+        language: outputLang,
         before: maskPii(input.before),
         facts: grounded.facts.map((f) => `- ${f}`).join('\n'),
       });
