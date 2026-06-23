@@ -77,8 +77,8 @@ describe('LearningChatPlatformService', () => {
       'ai-req-1',
       expect.objectContaining({ status: 'SUCCESS' }),
     );
-    expect(out.conversation_id).toBe('conv-1');
-    expect(out.cited_resources.map((resource) => resource.resource_id)).toEqual(['docker-docs']);
+    expect(out.conversationId).toBe('conv-1');
+    expect(out.citations.map((c) => c.title)).toEqual(['Docker']);
   });
 
   it('does not return history for a conversation owned by someone else', async () => {

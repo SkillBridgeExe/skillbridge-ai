@@ -12,7 +12,9 @@ function repoMock(): RepoMock {
   return {
     create: jest.fn((value) => value),
     findOne: jest.fn(),
-    save: jest.fn((value) => Promise.resolve({ ...value, updatedAt: new Date('2026-06-23T10:00:00.000Z') })),
+    save: jest.fn((value) =>
+      Promise.resolve({ ...value, updatedAt: new Date('2026-06-23T10:00:00.000Z') }),
+    ),
   } as RepoMock;
 }
 
@@ -20,7 +22,9 @@ describe('LearningSessionProgressService', () => {
   it('returns empty progress when the user has not started a session', async () => {
     const repo = repoMock();
     repo.findOne.mockResolvedValue(null);
-    const service = new LearningSessionProgressService(repo as unknown as Repository<LearningSessionProgressEntity>);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
 
     await expect(service.getProgress('user-1', 'roadmap-react')).resolves.toEqual({
       session_id: 'roadmap-react',
@@ -33,7 +37,9 @@ describe('LearningSessionProgressService', () => {
   it('creates a user-scoped progress row with checked items and exercise proof', async () => {
     const repo = repoMock();
     repo.findOne.mockResolvedValue(null);
-    const service = new LearningSessionProgressService(repo as unknown as Repository<LearningSessionProgressEntity>);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
 
     const result = await service.saveProgress('user-1', 'roadmap-react', {
       checked_checklist_items: { intro: ['Create a component'] },
@@ -65,7 +71,9 @@ describe('LearningSessionProgressService', () => {
       exerciseProofs: {},
       updatedAt: new Date('2026-06-23T09:00:00.000Z'),
     });
-    const service = new LearningSessionProgressService(repo as unknown as Repository<LearningSessionProgressEntity>);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
 
     await service.saveProgress('user-1', 'roadmap-react', {
       checked_checklist_items: { intro: ['Create a component'] },

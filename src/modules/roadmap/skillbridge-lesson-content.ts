@@ -1,12 +1,6 @@
-export type LessonContentLicenseType =
-  | 'skillbridge_original'
-  | 'official_reference'
-  | 'link_only';
+export type LessonContentLicenseType = 'skillbridge_original' | 'official_reference' | 'link_only';
 
-export type LessonContentReusePolicy =
-  | 'full_reuse_allowed'
-  | 'summary_only'
-  | 'link_only';
+export type LessonContentReusePolicy = 'full_reuse_allowed' | 'summary_only' | 'link_only';
 
 export interface LessonSectionContent {
   id: string;
@@ -64,6 +58,61 @@ export const SKILLBRIDGE_LESSON_SKILLS = [
   'cv_writing',
   'system_design',
   'llm_engineering',
+  'teamwork',
+  'security',
+  'ci_cd',
+  'cloud_aws',
+  'backend_development',
+  'agile_scrum',
+  'cloud_azure',
+  'machine_learning',
+  'microservices',
+  'kubernetes',
+  'linux',
+  'cloud_gcp',
+  'nosql',
+  'manual_testing',
+  'frontend_development',
+  'monitoring_logging',
+  'time_management',
+  'critical_thinking',
+  'networking',
+  'nextjs',
+  'css',
+  'kafka',
+  'test_automation',
+  'html',
+  'infrastructure_as_code',
+  'database_design',
+  'statistics',
+  'oop',
+  'api_testing',
+  'etl',
+  'data_analysis',
+  'cpp',
+  'swift',
+  'web_performance',
+  'figma',
+  'data_structures_algorithms',
+  'angular',
+  'frontend_testing',
+  'golang',
+  'authentication_authorization',
+  'mlops',
+  'rabbitmq',
+  'prompt_engineering',
+  'computer_vision',
+  'caching',
+  'kotlin',
+  'power_bi',
+  'elasticsearch',
+  'vue',
+  'php',
+  'react_native',
+  'orm',
+  'graphql',
+  'flutter',
+  'excel',
 ] as const;
 
 type SkillBridgeLessonSkill = (typeof SKILLBRIDGE_LESSON_SKILLS)[number];
@@ -108,8 +157,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'components-props',
         title: 'Components and props',
-        body:
-          'A React component should represent one focused part of the interface. Props carry data from a parent to a child so each component can render predictably without reaching into global state.',
+        body: 'A React component should represent one focused part of the interface. Props carry data from a parent to a child so each component can render predictably without reaching into global state.',
         checklist: [
           'Create one parent component and two child components.',
           'Pass at least two props into a child component.',
@@ -119,8 +167,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'state-events',
         title: 'Local state and events',
-        body:
-          'Use local state for values that change because a user interacts with the page. Keep state close to the component that owns the interaction and update arrays or objects immutably.',
+        body: 'Use local state for values that change because a user interacts with the page. Keep state close to the component that owns the interaction and update arrays or objects immutably.',
         checklist: [
           'Add a click or form event handler.',
           'Update state without mutating the existing value.',
@@ -173,8 +220,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'named-shapes',
         title: 'Types and interfaces',
-        body:
-          'Named types make API responses, form values, and component props easier to understand. They also let the compiler warn you when code expects fields that do not exist.',
+        body: 'Named types make API responses, form values, and component props easier to understand. They also let the compiler warn you when code expects fields that do not exist.',
         checklist: [
           'Create a type for a resource or user object.',
           'Use that type in at least one function parameter.',
@@ -184,8 +230,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'narrowing',
         title: 'Narrowing unknown data',
-        body:
-          'When data comes from outside the program, check it before treating it as trusted. Narrowing protects the rest of the code from nulls, bad variants, and incomplete payloads.',
+        body: 'When data comes from outside the program, check it before treating it as trusted. Narrowing protects the rest of the code from nulls, bad variants, and incomplete payloads.',
         checklist: [
           'Guard nullable values before reading properties.',
           'Use union types for known variants.',
@@ -231,8 +276,7 @@ const LESSON_BLUEPRINTS = {
         'The formatting function handles missing optional values.',
         'No any type is used.',
       ],
-      proof_of_completion:
-        'Save the typed function and one example input/output pair.',
+      proof_of_completion: 'Save the typed function and one example input/output pair.',
     },
   },
   javascript: {
@@ -243,8 +287,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'data-functions',
         title: 'Data and functions',
-        body:
-          'Most application JavaScript transforms arrays, objects, and strings. Keep functions small, name the input and output clearly, and avoid changing data unexpectedly.',
+        body: 'Most application JavaScript transforms arrays, objects, and strings. Keep functions small, name the input and output clearly, and avoid changing data unexpectedly.',
         checklist: [
           'Write one pure function that transforms an array.',
           'Use map, filter, or reduce for a clear purpose.',
@@ -254,8 +297,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'async-errors',
         title: 'Async flow and errors',
-        body:
-          'Async code should make loading, success, and failure states visible. Promise chains and async functions both need a clear place where errors are caught and converted into useful messages.',
+        body: 'Async code should make loading, success, and failure states visible. Promise chains and async functions both need a clear place where errors are caught and converted into useful messages.',
         checklist: [
           'Call one async function with await.',
           'Handle failure with try/catch or a rejected promise branch.',
@@ -274,8 +316,7 @@ const LESSON_BLUEPRINTS = {
           'It depends on random timing',
         ],
         correct_option_index: 1,
-        explanation:
-          'Clear inputs and outputs let you test the function without hidden setup.',
+        explanation: 'Clear inputs and outputs let you test the function without hidden setup.',
       },
       {
         id: 'async-error',
@@ -301,8 +342,7 @@ const LESSON_BLUEPRINTS = {
         'The async function handles a failed load.',
         'The result shape is documented with an example.',
       ],
-      proof_of_completion:
-        'Save the function, one success example, and one failure example.',
+      proof_of_completion: 'Save the function, one success example, and one failure example.',
     },
   },
   node_js: {
@@ -313,8 +353,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'routes-input',
         title: 'Routes and request data',
-        body:
-          'A backend route should receive input, validate the important fields, call a focused service function, and return a consistent response shape.',
+        body: 'A backend route should receive input, validate the important fields, call a focused service function, and return a consistent response shape.',
         checklist: [
           'Define one GET route and one POST route.',
           'Validate required body fields before using them.',
@@ -324,8 +363,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'service-boundary',
         title: 'Service boundary',
-        body:
-          'Keep business logic outside the route handler so the logic can be tested without starting the HTTP server. The handler should translate HTTP into service calls.',
+        body: 'Keep business logic outside the route handler so the logic can be tested without starting the HTTP server. The handler should translate HTTP into service calls.',
         checklist: [
           'Move business logic into a function or service.',
           'Write one success case and one error case.',
@@ -357,8 +395,7 @@ const LESSON_BLUEPRINTS = {
           'Pretend the request succeeded',
         ],
         correct_option_index: 0,
-        explanation:
-          'Validation errors should be explicit so clients can correct the request.',
+        explanation: 'Validation errors should be explicit so clients can correct the request.',
       },
     ],
     exercise: {
@@ -371,8 +408,7 @@ const LESSON_BLUEPRINTS = {
         'Valid titles return an id, title, and createdAt timestamp.',
         'The creation logic is testable outside the route handler.',
       ],
-      proof_of_completion:
-        'Save the request/response examples and one passing service test.',
+      proof_of_completion: 'Save the request/response examples and one passing service test.',
     },
   },
   dotnet: {
@@ -383,8 +419,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'controller-dto',
         title: 'Controllers and DTOs',
-        body:
-          'A controller should expose the HTTP contract while DTOs describe the request and response shape. Keeping entity models out of public responses reduces accidental data leaks.',
+        body: 'A controller should expose the HTTP contract while DTOs describe the request and response shape. Keeping entity models out of public responses reduces accidental data leaks.',
         checklist: [
           'Create one request DTO and one response DTO.',
           'Return a consistent status code for success.',
@@ -394,8 +429,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'service-validation',
         title: 'Services and validation',
-        body:
-          'Service classes hold business behavior that can be tested without HTTP. Validate required inputs before the service changes state or calls a repository.',
+        body: 'Service classes hold business behavior that can be tested without HTTP. Validate required inputs before the service changes state or calls a repository.',
         checklist: [
           'Move business logic into a service method.',
           'Add validation for required fields.',
@@ -427,8 +461,7 @@ const LESSON_BLUEPRINTS = {
           'It replaces status codes',
         ],
         correct_option_index: 0,
-        explanation:
-          'Service logic can be tested directly and reused by multiple entry points.',
+        explanation: 'Service logic can be tested directly and reused by multiple entry points.',
       },
     ],
     exercise: {
@@ -453,8 +486,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'classes-methods',
         title: 'Classes and methods',
-        body:
-          'A Java class should group related data and behavior. Method names should reveal the action, and parameters should make the required input obvious.',
+        body: 'A Java class should group related data and behavior. Method names should reveal the action, and parameters should make the required input obvious.',
         checklist: [
           'Create one class with private fields.',
           'Add a constructor or factory method.',
@@ -464,8 +496,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'collections-errors',
         title: 'Collections and exceptions',
-        body:
-          'Collections help model lists and maps of domain data. Exceptions should be used for invalid states that the caller needs to handle or prevent.',
+        body: 'Collections help model lists and maps of domain data. Exceptions should be used for invalid states that the caller needs to handle or prevent.',
         checklist: [
           'Use a List or Map for a real lookup task.',
           'Handle the empty or missing case clearly.',
@@ -484,8 +515,7 @@ const LESSON_BLUEPRINTS = {
           'To remove the need for tests',
         ],
         correct_option_index: 0,
-        explanation:
-          'Private fields protect state and let methods enforce rules around changes.',
+        explanation: 'Private fields protect state and let methods enforce rules around changes.',
       },
       {
         id: 'collection-choice',
@@ -497,8 +527,7 @@ const LESSON_BLUEPRINTS = {
           'Only inside comments',
         ],
         correct_option_index: 0,
-        explanation:
-          'A Map is useful when a key should quickly locate a related value.',
+        explanation: 'A Map is useful when a key should quickly locate a related value.',
       },
     ],
     exercise: {
@@ -523,8 +552,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'controller-service',
         title: 'Controller to service flow',
-        body:
-          'A Spring controller should receive HTTP input and delegate business rules to a service. This keeps endpoint code small and makes service behavior easier to test.',
+        body: 'A Spring controller should receive HTTP input and delegate business rules to a service. This keeps endpoint code small and makes service behavior easier to test.',
         checklist: [
           'Create one controller method for a simple resource.',
           'Call a service from the controller.',
@@ -534,8 +562,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'validation-errors',
         title: 'Validation and error responses',
-        body:
-          'Validation annotations and explicit error handling help clients understand what went wrong. The API should avoid exposing stack traces or ambiguous failure messages.',
+        body: 'Validation annotations and explicit error handling help clients understand what went wrong. The API should avoid exposing stack traces or ambiguous failure messages.',
         checklist: [
           'Mark at least one request field as required.',
           'Return a clear message for invalid input.',
@@ -567,8 +594,7 @@ const LESSON_BLUEPRINTS = {
           'To avoid naming fields',
         ],
         correct_option_index: 0,
-        explanation:
-          'Validation catches missing or invalid client input at the API boundary.',
+        explanation: 'Validation catches missing or invalid client input at the API boundary.',
       },
     ],
     exercise: {
@@ -593,8 +619,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'functions-data',
         title: 'Readable functions',
-        body:
-          'Python functions should do one thing clearly. Use descriptive names, simple parameters, and return values that are easy to assert in tests.',
+        body: 'Python functions should do one thing clearly. Use descriptive names, simple parameters, and return values that are easy to assert in tests.',
         checklist: [
           'Write one function with a clear input and output.',
           'Use list or dictionary operations intentionally.',
@@ -604,8 +629,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'errors-tests',
         title: 'Errors and tests',
-        body:
-          'Good Python code handles invalid input before it reaches deeper logic. A small test set can document normal, empty, and invalid cases.',
+        body: 'Good Python code handles invalid input before it reaches deeper logic. A small test set can document normal, empty, and invalid cases.',
         checklist: [
           'Validate the shape or type of incoming data.',
           'Return or raise a clear error for invalid input.',
@@ -637,8 +661,7 @@ const LESSON_BLUEPRINTS = {
           'Return random output',
         ],
         correct_option_index: 0,
-        explanation:
-          'Explicit errors make failures easier to diagnose and safer to recover from.',
+        explanation: 'Explicit errors make failures easier to diagnose and safer to recover from.',
       },
     ],
     exercise: {
@@ -663,8 +686,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'select-filter',
         title: 'Select and filter',
-        body:
-          'Start every query by being clear about the table, the columns needed, and the filter that narrows the result to the user story.',
+        body: 'Start every query by being clear about the table, the columns needed, and the filter that narrows the result to the user story.',
         checklist: [
           'Select only needed columns.',
           'Use WHERE for a specific condition.',
@@ -674,8 +696,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'join-related',
         title: 'Join related tables',
-        body:
-          'A join combines rows from related tables. Use explicit join conditions so the relationship is readable and accidental cross joins are avoided.',
+        body: 'A join combines rows from related tables. Use explicit join conditions so the relationship is readable and accidental cross joins are avoided.',
         checklist: [
           'Identify the foreign key relationship.',
           'Use an explicit JOIN clause.',
@@ -694,8 +715,7 @@ const LESSON_BLUEPRINTS = {
           'Changes the database password',
         ],
         correct_option_index: 0,
-        explanation:
-          'WHERE narrows the returned rows to records that satisfy the condition.',
+        explanation: 'WHERE narrows the returned rows to records that satisfy the condition.',
       },
       {
         id: 'join-purpose',
@@ -707,8 +727,7 @@ const LESSON_BLUEPRINTS = {
           'To disable indexes',
         ],
         correct_option_index: 0,
-        explanation:
-          'JOIN connects tables through a relationship such as a foreign key.',
+        explanation: 'JOIN connects tables through a relationship such as a foreign key.',
       },
     ],
     exercise: {
@@ -733,8 +752,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'constraints-indexes',
         title: 'Constraints and indexes',
-        body:
-          'Constraints protect data correctness while indexes help common lookups stay fast. Choose both based on the rules and access patterns of the application.',
+        body: 'Constraints protect data correctness while indexes help common lookups stay fast. Choose both based on the rules and access patterns of the application.',
         checklist: [
           'Add a NOT NULL or UNIQUE rule to a table design.',
           'Identify one lookup that deserves an index.',
@@ -744,8 +762,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'json-queries',
         title: 'JSON and structured fields',
-        body:
-          'PostgreSQL can store structured JSON data, but it should not replace relational design for every relationship. Use JSON when the shape is flexible and queries are limited.',
+        body: 'PostgreSQL can store structured JSON data, but it should not replace relational design for every relationship. Use JSON when the shape is flexible and queries are limited.',
         checklist: [
           'Describe one field that fits JSON storage.',
           'Describe one relationship that should stay relational.',
@@ -791,8 +808,7 @@ const LESSON_BLUEPRINTS = {
         'The index is tied to a realistic query.',
         'The JSON field is justified and not used for core relationships.',
       ],
-      proof_of_completion:
-        'Save the CREATE TABLE sketch and explain each constraint and index.',
+      proof_of_completion: 'Save the CREATE TABLE sketch and explain each constraint and index.',
     },
   },
   docker: {
@@ -803,8 +819,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'image-container',
         title: 'Images and containers',
-        body:
-          'An image is the packaged blueprint of an app. A container is a running instance of that image with its own process and environment.',
+        body: 'An image is the packaged blueprint of an app. A container is a running instance of that image with its own process and environment.',
         checklist: [
           'Explain the difference between an image and a container.',
           'Build an image from a Dockerfile.',
@@ -814,8 +829,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'dockerfile-env',
         title: 'Dockerfile and environment',
-        body:
-          'A Dockerfile should install only what the app needs, copy the right files, expose the expected port, and allow configuration through environment variables.',
+        body: 'A Dockerfile should install only what the app needs, copy the right files, expose the expected port, and allow configuration through environment variables.',
         checklist: [
           'Write a Dockerfile with a clear base image.',
           'Pass one configuration value through an environment variable.',
@@ -873,8 +887,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'branch-commit',
         title: 'Branches and commits',
-        body:
-          'A branch isolates work while commits record meaningful checkpoints. Good commit history makes collaboration and review easier.',
+        body: 'A branch isolates work while commits record meaningful checkpoints. Good commit history makes collaboration and review easier.',
         checklist: [
           'Create a feature branch.',
           'Make two focused commits.',
@@ -884,8 +897,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'review-merge',
         title: 'Review and merge readiness',
-        body:
-          'Before merging, inspect the diff, run verification, and describe what changed. A clear review packet reduces back-and-forth and protects unrelated work.',
+        body: 'Before merging, inspect the diff, run verification, and describe what changed. A clear review packet reduces back-and-forth and protects unrelated work.',
         checklist: [
           'Review the diff before sharing it.',
           'Run the relevant tests or build command.',
@@ -931,8 +943,7 @@ const LESSON_BLUEPRINTS = {
         'The commit is focused.',
         'The summary includes what changed and how it was tested.',
       ],
-      proof_of_completion:
-        'Save the branch name, commit hash, and pull request summary draft.',
+      proof_of_completion: 'Save the branch name, commit hash, and pull request summary draft.',
     },
   },
   rest_api: {
@@ -943,8 +954,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'resources-methods',
         title: 'Resources and methods',
-        body:
-          'A REST API should model meaningful resources and use HTTP methods consistently. Endpoint names should describe nouns, while methods describe the action.',
+        body: 'A REST API should model meaningful resources and use HTTP methods consistently. Endpoint names should describe nouns, while methods describe the action.',
         checklist: [
           'Name one resource collection with a plural noun.',
           'Map GET, POST, PATCH, and DELETE to clear actions.',
@@ -954,8 +964,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'status-errors',
         title: 'Status codes and errors',
-        body:
-          'Status codes should match the outcome, and error bodies should explain what the client can fix. Consistent envelopes make frontend handling simpler.',
+        body: 'Status codes should match the outcome, and error bodies should explain what the client can fix. Consistent envelopes make frontend handling simpler.',
         checklist: [
           'Choose success and failure status codes for one endpoint.',
           'Design a consistent error body.',
@@ -967,15 +976,9 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'resource-url',
         question: 'What should a REST URL usually represent?',
-        options: [
-          'A resource',
-          'A random sentence',
-          'Only a database password',
-          'A CSS selector',
-        ],
+        options: ['A resource', 'A random sentence', 'Only a database password', 'A CSS selector'],
         correct_option_index: 0,
-        explanation:
-          'REST URLs usually identify resources, while HTTP methods describe actions.',
+        explanation: 'REST URLs usually identify resources, while HTTP methods describe actions.',
       },
       {
         id: 'bad-request',
@@ -996,8 +999,7 @@ const LESSON_BLUEPRINTS = {
         'Success and error status codes are listed.',
         'The create request has at least one validation rule.',
       ],
-      proof_of_completion:
-        'Save the API contract table and one example request/response pair.',
+      proof_of_completion: 'Save the API contract table and one example request/response pair.',
     },
   },
   html: {
@@ -1008,8 +1010,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'semantic-layout',
         title: 'Semantic page structure',
-        body:
-          'Semantic elements such as header, main, section, nav, and button communicate purpose. Good structure helps both people and tools understand the page.',
+        body: 'Semantic elements such as header, main, section, nav, and button communicate purpose. Good structure helps both people and tools understand the page.',
         checklist: [
           'Use one main element for primary content.',
           'Choose button for actions and anchor for navigation.',
@@ -1019,8 +1020,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'forms-accessibility',
         title: 'Forms and accessible labels',
-        body:
-          'Inputs need labels, helpful error text, and predictable focus behavior. A form should be usable from the keyboard and understandable without placeholder-only instructions.',
+        body: 'Inputs need labels, helpful error text, and predictable focus behavior. A form should be usable from the keyboard and understandable without placeholder-only instructions.',
         checklist: [
           'Connect each input to a visible label.',
           'Add helpful text for an invalid field.',
@@ -1039,8 +1039,7 @@ const LESSON_BLUEPRINTS = {
           'Never',
         ],
         correct_option_index: 0,
-        explanation:
-          'Buttons perform actions, while anchors navigate to destinations.',
+        explanation: 'Buttons perform actions, while anchors navigate to destinations.',
       },
       {
         id: 'label-purpose',
@@ -1052,8 +1051,7 @@ const LESSON_BLUEPRINTS = {
           'So the input cannot receive focus',
         ],
         correct_option_index: 0,
-        explanation:
-          'Labels communicate the purpose of an input and improve accessibility.',
+        explanation: 'Labels communicate the purpose of an input and improve accessibility.',
       },
     ],
     exercise: {
@@ -1078,8 +1076,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'box-layout',
         title: 'Box model and spacing',
-        body:
-          'Every element occupies a box. Spacing, borders, and sizing should be predictable so components do not jump or overlap when content changes.',
+        body: 'Every element occupies a box. Spacing, borders, and sizing should be predictable so components do not jump or overlap when content changes.',
         checklist: [
           'Set width or max-width where content needs a boundary.',
           'Use padding for internal space and margin or gap between items.',
@@ -1089,8 +1086,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'responsive-grid',
         title: 'Responsive flex and grid',
-        body:
-          'Flexbox and grid help content adapt across screen sizes. Choose flex for one-dimensional alignment and grid when rows and columns both matter.',
+        body: 'Flexbox and grid help content adapt across screen sizes. Choose flex for one-dimensional alignment and grid when rows and columns both matter.',
         checklist: [
           'Build one flex row that wraps on small screens.',
           'Build one grid that changes column count responsively.',
@@ -1122,8 +1118,7 @@ const LESSON_BLUEPRINTS = {
           'When no layout is needed',
         ],
         correct_option_index: 0,
-        explanation:
-          'Grid is strong for two-dimensional layouts with rows and columns.',
+        explanation: 'Grid is strong for two-dimensional layouts with rows and columns.',
       },
     ],
     exercise: {
@@ -1136,8 +1131,7 @@ const LESSON_BLUEPRINTS = {
         'Cards keep consistent padding and gap.',
         'Long titles wrap cleanly inside their card.',
       ],
-      proof_of_completion:
-        'Save the CSS and screenshots or notes for mobile and desktop widths.',
+      proof_of_completion: 'Save the CSS and screenshots or notes for mobile and desktop widths.',
     },
   },
   english_proficiency: {
@@ -1148,8 +1142,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'answer-structure',
         title: 'Structure a STAR answer',
-        body:
-          'A strong interview answer gives context, your responsibility, your action, and the result. STAR keeps the answer organized when speaking under pressure.',
+        body: 'A strong interview answer gives context, your responsibility, your action, and the result. STAR keeps the answer organized when speaking under pressure.',
         checklist: [
           'Write one answer with Situation, Task, Action, and Result.',
           'Keep the answer under two minutes.',
@@ -1159,8 +1152,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'spoken-clarity',
         title: 'Speak clearly and naturally',
-        body:
-          'Good interview English is not about complex words. It is about clear pacing, direct verbs, and enough detail for the interviewer to trust your experience.',
+        body: 'Good interview English is not about complex words. It is about clear pacing, direct verbs, and enough detail for the interviewer to trust your experience.',
         checklist: [
           'Replace vague words with specific action verbs.',
           'Practice the answer aloud once without reading.',
@@ -1179,8 +1171,7 @@ const LESSON_BLUEPRINTS = {
           'Style, Theme, Animation, and Render',
         ],
         correct_option_index: 0,
-        explanation:
-          'STAR is a simple structure for evidence-based interview answers.',
+        explanation: 'STAR is a simple structure for evidence-based interview answers.',
       },
       {
         id: 'clear-answer',
@@ -1192,8 +1183,7 @@ const LESSON_BLUEPRINTS = {
           'Using unclear buzzwords',
         ],
         correct_option_index: 0,
-        explanation:
-          'Direct language and concrete evidence make answers easier to follow.',
+        explanation: 'Direct language and concrete evidence make answers easier to follow.',
       },
     ],
     exercise: {
@@ -1218,8 +1208,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'explain-context',
         title: 'Explain context before details',
-        body:
-          'Start with the user goal or technical problem before jumping into implementation. Context helps listeners understand why your details matter.',
+        body: 'Start with the user goal or technical problem before jumping into implementation. Context helps listeners understand why your details matter.',
         checklist: [
           'Summarize the problem in one sentence.',
           'Name the audience for the explanation.',
@@ -1229,8 +1218,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'tradeoffs-blockers',
         title: 'Describe trade-offs and blockers',
-        body:
-          'Strong technical communication is honest about constraints. Explain what you tried, what changed, and what decision you recommend next.',
+        body: 'Strong technical communication is honest about constraints. Explain what you tried, what changed, and what decision you recommend next.',
         checklist: [
           'State one trade-off between two options.',
           'Describe one blocker without blame.',
@@ -1249,8 +1237,7 @@ const LESSON_BLUEPRINTS = {
           'It replaces all evidence',
         ],
         correct_option_index: 0,
-        explanation:
-          'Context gives the listener a frame for judging the technical details.',
+        explanation: 'Context gives the listener a frame for judging the technical details.',
       },
       {
         id: 'blocker-update',
@@ -1262,8 +1249,7 @@ const LESSON_BLUEPRINTS = {
           'Removing all deadlines',
         ],
         correct_option_index: 0,
-        explanation:
-          'A useful blocker update helps the team decide what to do next.',
+        explanation: 'A useful blocker update helps the team decide what to do next.',
       },
     ],
     exercise: {
@@ -1276,8 +1262,7 @@ const LESSON_BLUEPRINTS = {
         'The update includes one trade-off or risk.',
         'The final sentence asks for or states a next action.',
       ],
-      proof_of_completion:
-        'Save the update and one revised version that is shorter and clearer.',
+      proof_of_completion: 'Save the update and one revised version that is shorter and clearer.',
     },
   },
   cv_writing: {
@@ -1288,8 +1273,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'bullet-anatomy',
         title: 'Build evidence-based bullets',
-        body:
-          'A strong bullet usually names the action, the object of the work, the tool or method, and the result. If no metric exists, use concrete scope or outcome instead.',
+        body: 'A strong bullet usually names the action, the object of the work, the tool or method, and the result. If no metric exists, use concrete scope or outcome instead.',
         checklist: [
           'Start one bullet with a strong action verb.',
           'Name the technology, domain, or artifact involved.',
@@ -1299,8 +1283,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'target-role-match',
         title: 'Match bullets to the target role',
-        body:
-          'CV writing is selective. Emphasize bullets that prove the skills in the job description and remove detail that distracts from the target role.',
+        body: 'CV writing is selective. Emphasize bullets that prove the skills in the job description and remove detail that distracts from the target role.',
         checklist: [
           'Mark two job requirements from the JD.',
           'Map each requirement to one bullet or project.',
@@ -1319,8 +1302,7 @@ const LESSON_BLUEPRINTS = {
           'A paragraph with no verb',
         ],
         correct_option_index: 0,
-        explanation:
-          'Evidence-based bullets show what you did and why it mattered.',
+        explanation: 'Evidence-based bullets show what you did and why it mattered.',
       },
       {
         id: 'metric-honesty',
@@ -1332,8 +1314,7 @@ const LESSON_BLUEPRINTS = {
           'Write only adjectives',
         ],
         correct_option_index: 0,
-        explanation:
-          'Concrete scope is honest and more useful than a fabricated number.',
+        explanation: 'Concrete scope is honest and more useful than a fabricated number.',
       },
     ],
     exercise: {
@@ -1358,8 +1339,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'requirements-scope',
         title: 'Clarify requirements and scope',
-        body:
-          'Before drawing architecture, define what the system must do, who uses it, and which constraints matter most. Good scope prevents overbuilding the answer.',
+        body: 'Before drawing architecture, define what the system must do, who uses it, and which constraints matter most. Good scope prevents overbuilding the answer.',
         checklist: [
           'List functional and non-functional requirements separately.',
           'Name one assumption and one out-of-scope item.',
@@ -1369,8 +1349,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'architecture-tradeoffs',
         title: 'Architecture and trade-offs',
-        body:
-          'A system design answer should connect components to requirements. Every major choice has a trade-off, such as consistency versus availability or speed versus cost.',
+        body: 'A system design answer should connect components to requirements. Every major choice has a trade-off, such as consistency versus availability or speed versus cost.',
         checklist: [
           'Draw or describe the main components.',
           'Explain one data flow from request to storage.',
@@ -1389,8 +1368,7 @@ const LESSON_BLUEPRINTS = {
           'Write production code immediately',
         ],
         correct_option_index: 0,
-        explanation:
-          'Requirements and constraints define what the architecture must optimize for.',
+        explanation: 'Requirements and constraints define what the architecture must optimize for.',
       },
       {
         id: 'tradeoff',
@@ -1402,8 +1380,7 @@ const LESSON_BLUEPRINTS = {
           'To hide requirements',
         ],
         correct_option_index: 0,
-        explanation:
-          'Trade-offs show that you understand the consequences of design choices.',
+        explanation: 'Trade-offs show that you understand the consequences of design choices.',
       },
     ],
     exercise: {
@@ -1416,8 +1393,7 @@ const LESSON_BLUEPRINTS = {
         'The design includes API, database, and search components.',
         'At least one bottleneck and trade-off is explained.',
       ],
-      proof_of_completion:
-        'Save the diagram or outline and a 2-minute spoken walkthrough script.',
+      proof_of_completion: 'Save the diagram or outline and a 2-minute spoken walkthrough script.',
     },
   },
   llm_engineering: {
@@ -1428,8 +1404,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'prompt-contract',
         title: 'Prompt contract and output shape',
-        body:
-          'A production prompt should define the task, input boundaries, allowed behavior, and expected output shape. Structured output makes responses easier to validate.',
+        body: 'A production prompt should define the task, input boundaries, allowed behavior, and expected output shape. Structured output makes responses easier to validate.',
         checklist: [
           'Write a prompt with task, context, and constraints.',
           'Define a JSON or section-based output shape.',
@@ -1439,8 +1414,7 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'grounding-evaluation',
         title: 'Grounding and evaluation',
-        body:
-          'LLM features need evidence and tests. Ground answers in supplied data when possible, then evaluate common failure cases such as hallucination, missing fields, and unsafe advice.',
+        body: 'LLM features need evidence and tests. Ground answers in supplied data when possible, then evaluate common failure cases such as hallucination, missing fields, and unsafe advice.',
         checklist: [
           'Provide the model with explicit source context.',
           'Create two test cases for expected behavior.',
@@ -1472,8 +1446,7 @@ const LESSON_BLUEPRINTS = {
           'Return unrelated content',
         ],
         correct_option_index: 0,
-        explanation:
-          'Honest insufficient-evidence behavior reduces hallucination risk.',
+        explanation: 'Honest insufficient-evidence behavior reduces hallucination risk.',
       },
     ],
     exercise: {
@@ -1486,32 +1459,444 @@ const LESSON_BLUEPRINTS = {
         'The output includes at least one field for uncertainty or missing evidence.',
         'Two evaluation examples are written: one strong input and one insufficient input.',
       ],
-      proof_of_completion:
-        'Save the prompt, output schema, and two evaluation examples.',
+      proof_of_completion: 'Save the prompt, output schema, and two evaluation examples.',
     },
   },
-} satisfies Record<SkillBridgeLessonSkill, LessonBlueprint>;
+  teamwork: {
+    title: 'Effective teamwork and collaboration',
+    summary:
+      'Learn the fundamentals of engineering collaboration: clear role alignment, active feedback loops, and using pull requests to share context.',
+    sections: [
+      {
+        id: 'role-alignment',
+        title: 'Role alignment and scope',
+        body: 'Every team project needs clear ownership. Define roles early, align on interface contracts, and communicate changes before they impact others.',
+        checklist: [
+          'Define clear ownership for at least one module or component.',
+          "Document the interface contract between your work and a teammate's work.",
+          'Align on a delivery timeline for the interface.',
+        ],
+      },
+      {
+        id: 'feedback-loops',
+        title: 'Collaborative code reviews',
+        body: 'Code reviews are for sharing context and protecting quality. Write clear reviews, explain the reasoning behind your suggestions, and handle feedback constructively.',
+        checklist: [
+          "Review a teammate's changes with constructive comments.",
+          "Explain the 'why' behind at least one review suggestion.",
+          'Resolve all comments before merging the pull request.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'team-ownership',
+        question: 'What is the main goal of role alignment in a team project?',
+        options: [
+          'To assign clear ownership and prevent duplicate work',
+          'To make one person do all the work',
+          'To avoid writing code altogether',
+          'To hide bugs from other developers',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Clear ownership ensures team members know their responsibilities and can build interfaces that fit together cleanly.',
+      },
+      {
+        id: 'review-value',
+        question: 'What makes a code review comment most useful?',
+        options: [
+          'Explaining the rationale or alternative suggestions constructively',
+          'Demanding changes without explanation',
+          "Saying only 'looks good' to finish quickly",
+          'Focusing only on formatting rules',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Explaining the rationale helps the author learn and make informed adjustments.',
+      },
+    ],
+    exercise: {
+      id: 'collaboration-pr',
+      title: 'Create a collaborative pull request',
+      prompt:
+        'Prepare a pull request with a detailed description, highlight trade-offs, and request review from a peer.',
+      acceptance_criteria: [
+        'The PR description lists the problem and the solution.',
+        'Trade-offs or architectural decisions are documented.',
+        'At least one peer is tagged for review.',
+      ],
+      proof_of_completion: 'Save the pull request description and peer comments in your notes.',
+    },
+  },
+  security: {
+    title: 'Web application security fundamentals',
+    summary:
+      'Learn the core security practices for web apps: input validation, escaping output, secure token storage, and basic authentication guards.',
+    sections: [
+      {
+        id: 'input-output-sanitize',
+        title: 'Sanitize input and escape output',
+        body: 'Never trust client input. Validate all incoming parameters to prevent SQL injection, and escape rendering variables to prevent cross-site scripting (XSS).',
+        checklist: [
+          'Validate the type and length of all request parameters.',
+          'Escape user-provided strings before rendering them in HTML.',
+          'Use parameterized queries for database access.',
+        ],
+      },
+      {
+        id: 'secure-tokens',
+        title: 'Secure authentication and tokens',
+        body: 'Authentication tokens must be kept safe from theft. Store tokens in secure, HttpOnly cookies or protected storage, and enforce short expiration times.',
+        checklist: [
+          'Configure a token cookie with HttpOnly and Secure flags.',
+          'Verify token signature and expiration on every protected request.',
+          'Enforce HTTPS for all authentication traffic.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'parameterized-queries',
+        question: 'Why should SQL queries use parameterized values?',
+        options: [
+          'To prevent SQL injection attacks',
+          'To make the query run faster',
+          'To use less database memory',
+          'To hide column names',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Parameterized queries treat client data as variables, preventing attackers from injecting executable SQL command structures.',
+      },
+      {
+        id: 'httponly-cookie',
+        question: 'What is the primary benefit of the HttpOnly flag on a cookie?',
+        options: [
+          'It prevents client-side JavaScript from reading the cookie',
+          'It makes the cookie load faster',
+          'It encrypts the database password',
+          'It disables all CSS on the page',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'HttpOnly blocks access via document.cookie, protecting sensitive tokens from cross-site scripting (XSS) extraction.',
+      },
+    ],
+    exercise: {
+      id: 'secure-endpoint-design',
+      title: 'Design a secure endpoint',
+      prompt:
+        'Write a backend handler or design a spec that authenticates requests, validates input, and uses parameterized queries.',
+      acceptance_criteria: [
+        'Authentication is verified via a token header or cookie.',
+        'All client parameters are validated against a schema.',
+        'Relational queries are parameterized.',
+      ],
+      proof_of_completion:
+        'Save the handler code or design spec demonstrating validation and token verification.',
+    },
+  },
+  ci_cd: {
+    title: 'CI/CD pipelines for automated delivery',
+    summary:
+      'Learn how to configure automated validation and deployment pipelines so that every commit is tested and built before reaching production.',
+    sections: [
+      {
+        id: 'continuous-integration',
+        title: 'Continuous integration and validation',
+        body: 'Continuous Integration automatically runs linting, formatting, and unit tests on every pull request, catching regressions before code is merged.',
+        checklist: [
+          'Write a workflow configuration to run tests on push.',
+          'Ensure code formatting is verified automatically.',
+          'Confirm that failing tests block the merge process.',
+        ],
+      },
+      {
+        id: 'continuous-delivery',
+        title: 'Continuous delivery and deployment',
+        body: 'Continuous Deployment packages the application (e.g., using Docker) and deploys it to a staging or production host when tests pass.',
+        checklist: [
+          'Add a step to build the production package or container image.',
+          'Secure deployment credentials using workflow secrets.',
+          'Configure a trigger to deploy only from the main branch.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'ci-purpose',
+        question: 'What is the main purpose of Continuous Integration (CI)?',
+        options: [
+          'To automatically run tests and check code quality on code changes',
+          'To write code on behalf of the developer',
+          'To run the database backups',
+          'To deploy code directly to users without testing',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'CI ensures changes are linted and tested automatically, preserving main branch stability.',
+      },
+      {
+        id: 'env-secrets',
+        question: 'How should deployment credentials be handled in a CI/CD workflow?',
+        options: [
+          'Stored as encrypted secrets in the repository settings',
+          'Written directly in the workflow YAML file',
+          'Committed as a plain text dotenv file',
+          'Sent in a chat channel',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Workflow secrets encrypt sensitive keys, preventing them from being exposed in public code files.',
+      },
+    ],
+    exercise: {
+      id: 'github-actions-pipeline',
+      title: 'Create a GitHub Actions workflow',
+      prompt:
+        'Write a workflow YAML file that triggers on pull requests, installs dependencies, runs tests, and runs a build step.',
+      acceptance_criteria: [
+        'The workflow triggers on pushes and pull requests to main.',
+        'It runs linting and testing commands.',
+        'It fails if any check or test fails.',
+      ],
+      proof_of_completion:
+        'Save the workflow YAML file and the terminal output showing a successful validation run.',
+    },
+  },
+  cloud_aws: {
+    title: 'Cloud development with AWS',
+    summary:
+      'Learn the fundamentals of AWS architecture: host application compute, store objects, manage networking, and deploy serverless functions.',
+    sections: [
+      {
+        id: 'compute-storage',
+        title: 'Compute and object storage',
+        body: 'Deploy app servers on EC2 or ECS, and store static files, assets, and backups in S3 buckets with restricted access policies.',
+        checklist: [
+          'Configure an S3 bucket with private access.',
+          'Understand the difference between EC2 and container hosting (ECS).',
+          'Define compute size and scaling options for a small service.',
+        ],
+      },
+      {
+        id: 'networking-security',
+        title: 'Networking and access control',
+        body: 'Keep resources secure by placing database servers in private subnets, configuring Security Groups, and managing access using IAM policies.',
+        checklist: [
+          'Create an IAM user or role with least-privilege permissions.',
+          'Configure a Security Group to allow only specific port traffic.',
+          'Explain the difference between public and private subnets.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 's3-use',
+        question: 'What is Amazon S3 best suited for?',
+        options: [
+          'Storing unstructured objects and files like images or backups',
+          'Running dynamic Node.js api servers',
+          'Hosting relational database schemas',
+          'Compiling Java applications',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Amazon S3 is a scalable object storage service, perfect for static assets, backups, and user files.',
+      },
+      {
+        id: 'iam-policy',
+        question: 'What is the security best practice for IAM user permissions?',
+        options: [
+          'Grant the minimum permissions required for their tasks',
+          'Give administrator access to all users',
+          'Share one root credential across the team',
+          'Disable all IAM users',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'The principle of least privilege limits credentials to only what is needed, reducing security risks.',
+      },
+    ],
+    exercise: {
+      id: 'aws-architecture-spec',
+      title: 'Draft an AWS hosting plan',
+      prompt:
+        'Design a basic AWS hosting architecture for a web app: name the compute, database, asset storage, and security groups.',
+      acceptance_criteria: [
+        'S3 is chosen for asset storage.',
+        'IAM roles are used for resource access.',
+        'Compute and database isolation is described.',
+      ],
+      proof_of_completion: 'Save the hosting diagram or written specification in your notes.',
+    },
+  },
+  backend_development: {
+    title: 'Backend system design and logic',
+    summary:
+      'Learn the structural patterns of backend apps: API routing, business services, database persistence layers, and error middleware.',
+    sections: [
+      {
+        id: 'mvc-service-layers',
+        title: 'Separation of layers',
+        body: 'Backend projects are easier to maintain when they separate delivery (controllers), business rules (services), and data access (repositories).',
+        checklist: [
+          'Create a controller that receives HTTP input.',
+          'Create a service class for core logic.',
+          'Create a repository interface or class for persistence.',
+        ],
+      },
+      {
+        id: 'error-handling-middleware',
+        title: 'Consistent error responses',
+        body: 'A central error middleware catches unhandled exceptions, logs detailed diagnostics for developers, and returns a clean, safe JSON payload to clients.',
+        checklist: [
+          'Write a global error handler or middleware.',
+          'Log details on the server while returning user-safe responses.',
+          'Map different exception types to distinct HTTP status codes.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'layer-separation',
+        question: 'Why separate controllers from services in a backend app?',
+        options: [
+          'To keep business logic independent of the HTTP protocol',
+          'To make the application run faster in production',
+          'To force all databases to use SQLite',
+          'To write duplicate code',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Controllers handle HTTP details, while services focus on business rules, making both easier to test and modify.',
+      },
+      {
+        id: 'global-error-handling',
+        question: 'What is a primary benefit of global error middleware?',
+        options: [
+          'It ensures unhandled errors do not crash the app and returns safe HTTP responses',
+          'It automatically fixes database bugs',
+          'It hides all server logs',
+          'It speeds up network transit',
+        ],
+        correct_option_index: 0,
+        explanation:
+          'Global error handling catches unforeseen exceptions and formats consistent, client-safe error envelopes.',
+      },
+    ],
+    exercise: {
+      id: 'crud-layer-flow',
+      title: 'Implement a backend request flow',
+      prompt:
+        'Build or sketch a request handler flow that accepts client data, processes it in a service layer, handles errors, and returns JSON.',
+      acceptance_criteria: [
+        'The controller, service, and data layers are separate.',
+        'Invalid inputs return a 4xx error via middleware or explicit checks.',
+        'A database repository is referenced.',
+      ],
+      proof_of_completion:
+        'Save the code files or design document showing the flow of data across the three layers.',
+    },
+  },
+} satisfies Partial<Record<SkillBridgeLessonSkill, LessonBlueprint>>;
+
+function startCase(str: string): string {
+  return str
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function generateFallbackBlueprint(skill: string): LessonBlueprint {
+  const displayName = startCase(skill);
+  return {
+    title: `${displayName} fundamentals`,
+    summary: `Learn the core principles and practical applications of ${displayName} to build confidence in real-world scenarios.`,
+    sections: [
+      {
+        id: 'core-concepts',
+        title: `Core concepts of ${displayName}`,
+        body: `Understand the fundamental concepts, vocabulary, and primary use cases of ${displayName} in professional development.`,
+        checklist: [
+          `Review the primary documentation for ${displayName}.`,
+          `Identify two key advantages of using ${displayName}.`,
+          `Write a short summary explaining when to choose ${displayName}.`,
+        ],
+      },
+      {
+        id: 'practical-application',
+        title: `Practical application of ${displayName}`,
+        body: `Practice using ${displayName} in daily tasks, project structures, and technical workflows.`,
+        checklist: [
+          `Run or sketch a basic setup or scenario using ${displayName}.`,
+          `Identify one common mistake or blocker when applying ${displayName}.`,
+          `Verify the result and record a brief note in your portfolio.`,
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'primary-benefit',
+        question: `What is a primary benefit of ${displayName}?`,
+        options: [
+          'Helps organize, track, and improve quality',
+          'Makes code run slower',
+          'Replaces all programming languages',
+          'Eliminates the need for testing',
+        ],
+        correct_option_index: 0,
+        explanation: `${displayName} provides structured practices that help teams build and maintain robust software systems.`,
+      },
+      {
+        id: 'when-recommended',
+        question: `When is ${displayName} typically recommended?`,
+        options: [
+          'When designing, developing, or managing project delivery',
+          'Only for personal styling files',
+          'Only when coding on paper',
+          'Never',
+        ],
+        correct_option_index: 0,
+        explanation: `${displayName} is widely used to streamline development lifecycle stages.`,
+      },
+    ],
+    exercise: {
+      id: 'hands-on-setup',
+      title: `Hands-on ${displayName} exercise`,
+      prompt: `Set up, sketch, or write a small artifact utilizing the core features of ${displayName} and document your results.`,
+      acceptance_criteria: [
+        'The implementation covers a realistic scenario.',
+        'You identify and resolve at least one challenge.',
+        'The final output is verified.',
+      ],
+      proof_of_completion: 'Save a screenshot, log, or note of your setup in your portfolio notes.',
+    },
+  };
+}
 
 function buildLesson(
   skill: SkillBridgeLessonSkill,
-  blueprint: LessonBlueprint,
+  blueprint: LessonBlueprint | undefined,
 ): Omit<SkillBridgeLessonContent, 'source_resource_ids'> {
+  const actualBlueprint = blueprint || generateFallbackBlueprint(skill);
   return {
     skill_canonical: skill,
-    title: blueprint.title,
-    summary: blueprint.summary,
+    title: actualBlueprint.title,
+    summary: actualBlueprint.summary,
     license_type: 'skillbridge_original',
     reuse_policy: 'full_reuse_allowed',
-    sections: blueprint.sections,
-    quiz: blueprint.quiz,
-    exercises: [blueprint.exercise],
+    sections: actualBlueprint.sections,
+    quiz: actualBlueprint.quiz,
+    exercises: [actualBlueprint.exercise],
   };
 }
 
 const LESSONS: Record<string, Omit<SkillBridgeLessonContent, 'source_resource_ids'>> = {};
 
 for (const skill of SKILLBRIDGE_LESSON_SKILLS) {
-  LESSONS[skill] = buildLesson(skill, LESSON_BLUEPRINTS[skill]);
+  LESSONS[skill] = buildLesson(skill, LESSON_BLUEPRINTS[skill as keyof typeof LESSON_BLUEPRINTS]);
 }
 
 export function getSkillBridgeLessonContent(

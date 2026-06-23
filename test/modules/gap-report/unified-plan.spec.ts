@@ -77,9 +77,7 @@ describe('buildUnifiedPlan', () => {
       interviewItems: [],
     });
 
-    expect(out.learn_items.map((item) => item.skill_canonical)).toEqual([
-      'english_proficiency',
-    ]);
+    expect(out.learn_items.map((item) => item.skill_canonical)).toEqual(['english_proficiency']);
   });
 
   it('routes interview weakness_type into tracks', () => {

@@ -6,7 +6,7 @@ import { ChatConversationEntity } from '../../database/entities/chat-conversatio
 import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
 import { ChatService } from '../../modules/learning-chat/learning-chat.service';
 import { buildChatFacts } from '../../modules/learning-chat/chat-grounding';
-import { RetrievedResource } from '../../modules/roadmap/resource-embedding';
+
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import { LearningChatRequestDto } from './dto/learning-chat.dto';
@@ -16,21 +16,21 @@ const LEARNING_CHAT_REQUEST_TYPE = 'learning_chat';
 const DAILY_CHAT_LIMIT = 50;
 
 export interface LearningChatTurnResponse {
-  conversation_id: string;
+  conversationId: string;
   message: string;
-  cited_resources: RetrievedResource[];
-  suggested_next_step: string | null;
+  citations: Array<{ title: string; url?: string }>;
+  suggestedNextStep: string | null;
 }
 
 export interface LearningChatHistoryResponse {
-  conversation_id: string;
-  match_id: string | null;
-  messages: Array<{
+  conversationId: string;
+  matchId: string | null;
+  history: Array<{
     id: string;
     role: 'user' | 'assistant';
-    content: string;
-    metadata: Record<string, unknown> | null;
-    created_at: Date;
+    message: string;
+    text: string;
+    createdAt: Date;
   }>;
 }
 
@@ -104,10 +104,13 @@ export class LearningChatPlatformService {
       });
 
       return {
-        conversation_id: conversation.id,
+        conversationId: conversation.id,
         message: answer.message,
-        cited_resources: answer.cited_resources,
-        suggested_next_step: answer.suggested_next_step,
+        citations: answer.cited_resources.map((res) => ({
+          title: res.title,
+          url: res.url,
+        })),
+        suggestedNextStep: answer.suggested_next_step,
       };
     } catch (err) {
       await this.tracing.markFailed(aiRequestId, Date.now(), err);
@@ -126,14 +129,14 @@ export class LearningChatPlatformService {
       order: { createdAt: 'ASC' },
     });
     return {
-      conversation_id: conversation.id,
-      match_id: conversation.matchId,
-      messages: messages.map((message) => ({
+      conversationId: conversation.id,
+      matchId: conversation.matchId,
+      history: messages.map((message) => ({
         id: message.id,
-        role: message.role,
-        content: message.content,
-        metadata: message.metadata,
-        created_at: message.createdAt,
+        role: message.role as 'user' | 'assistant',
+        message: message.content,
+        text: message.content,
+        createdAt: message.createdAt,
       })),
     };
   }

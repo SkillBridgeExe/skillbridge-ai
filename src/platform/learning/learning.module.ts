@@ -12,7 +12,11 @@ import { LearningSessionProgressService } from './session-progress.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ChatConversationEntity, ChatMessageEntity, LearningSessionProgressEntity]),
+    TypeOrmModule.forFeature([
+      ChatConversationEntity,
+      ChatMessageEntity,
+      LearningSessionProgressEntity,
+    ]),
     RoadmapModule,
     forwardRef(() => CvMatchesModule),
   ],

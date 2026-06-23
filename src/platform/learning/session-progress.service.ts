@@ -14,7 +14,10 @@ export class LearningSessionProgressService {
     private readonly progress: Repository<LearningSessionProgressEntity>,
   ) {}
 
-  async getProgress(userId: string, sessionId: string): Promise<LearningSessionProgressResponseDto> {
+  async getProgress(
+    userId: string,
+    sessionId: string,
+  ): Promise<LearningSessionProgressResponseDto> {
     const row = await this.progress.findOne({ where: { userId, sessionId } });
     if (!row) return this.emptyResponse(sessionId);
     return this.toResponse(row);
