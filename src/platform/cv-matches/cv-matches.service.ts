@@ -253,8 +253,9 @@ export class CvMatchesService {
 
     const currReport = await this.getGapReport(userId, matchId);
     const currGaps = currReport.gap_items;
+    const currScore = this.numberOrNull(current.overallScore);
 
-    if (!current.jobDescriptionId) return baselineProgress(currGaps);
+    if (!current.jobDescriptionId) return baselineProgress(currGaps, currScore);
 
     const prior = await this.matches.findOne({
       where: {
@@ -264,13 +265,18 @@ export class CvMatchesService {
       },
       order: { createdAt: 'DESC' },
     });
-    if (!prior) return baselineProgress(currGaps);
+    if (!prior) return baselineProgress(currGaps, currScore);
 
     try {
       const prevReport = await this.getGapReport(userId, prior.id);
-      return diffGapProgress(prevReport.gap_items, currGaps);
+      return diffGapProgress(
+        prevReport.gap_items,
+        currGaps,
+        this.numberOrNull(prior.overallScore),
+        currScore,
+      );
     } catch {
-      return baselineProgress(currGaps);
+      return baselineProgress(currGaps, currScore);
     }
   }
 
