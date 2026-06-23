@@ -44,4 +44,15 @@ describe('parseDateRange', () => {
       ongoing: false,
     });
   });
+
+  // An out-of-range month (13/2023, 00/2023) is a typo, not a date — salvage the year as a bare year
+  // instead of emitting a bogus "13/2023" with high confidence.
+  it('rejects an invalid month and salvages the year', () => {
+    expect(parseDateRange('dự án từ 13/2023')).toEqual({
+      start: '2023',
+      end: null,
+      ongoing: false,
+    });
+    expect(parseDateRange('00/2023')).toEqual({ start: '2023', end: null, ongoing: false });
+  });
 });

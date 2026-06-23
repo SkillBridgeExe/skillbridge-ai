@@ -65,10 +65,17 @@ export function assembleExtraction(narrative: string, llm: IntakeLlmOutput): Exp
       fields[key] = emptyField();
       continue;
     }
+    // An empty / whitespace value is never a real extraction — never let it ground to found:true
+    // (that would silently drop the field from `missing` and no-op the empty-only apply).
+    const text = stringify(raw.value);
+    if (text.trim() === '') {
+      fields[key] = emptyField();
+      continue;
+    }
     const sourceSpan = raw.source_span ?? '';
     // company/position are single named atoms → require a contiguous phrase match (no recombination).
     const mode = key === 'company' || key === 'position' ? 'atom' : 'prose';
-    const grounded = isGrounded(stringify(raw.value), narrative, mode);
+    const grounded = isGrounded(text, narrative, mode);
     fields[key] = {
       value: grounded ? raw.value : '',
       found: grounded,

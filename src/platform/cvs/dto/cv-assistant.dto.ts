@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -119,6 +119,7 @@ export class ExtractRequestDto {
     example: 'Tôi làm ở SmartAI Solutions vị trí AI Engineer từ 05/2023 tới nay.',
     maxLength: 4000,
   })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(4000)

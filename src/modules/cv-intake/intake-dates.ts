@@ -31,7 +31,10 @@ export function parseDateRange(text: string): {
   const bareYears: string[] = [];
   for (const m of text.matchAll(TOKEN_RE)) {
     if (m[1] && m[2]) {
-      explicit.push(`${m[1].padStart(2, '0')}/${m[2]}`);
+      const mm = Number(m[1]);
+      // Reject an out-of-range month (e.g. 13/2023, 00/2023) — it's a typo, not a date; salvage the year.
+      if (mm >= 1 && mm <= 12) explicit.push(`${m[1].padStart(2, '0')}/${m[2]}`);
+      else bareYears.push(m[2]);
     } else if (m[3] && m[4]) {
       const mm = MONTHS[m[3].slice(0, 3).toLowerCase()];
       if (mm) explicit.push(`${mm}/${m[4]}`);

@@ -31,9 +31,10 @@ export function isGrounded(
   for (const tech of NAMED_TECH)
     if (hasWord(value, tech) && !hasWord(narrative, tech)) return false;
   if (mode === 'atom') {
-    // (c-atom) the whole value must appear as a contiguous phrase in the narrative.
+    // (c-atom) a named entity must be a real ≥2-char contiguous phrase present in the narrative.
+    // (<2 chars would substring-match a common letter and slip a fabricated/empty atom through.)
     const phrase = normPhrase(value);
-    if (phrase.length >= 2 && !normPhrase(narrative).includes(phrase)) return false;
+    if (phrase.length < 2 || !normPhrase(narrative).includes(phrase)) return false;
   } else {
     // (c-prose) every alphabetic word (≥3 chars) must appear as a WHOLE WORD in the narrative.
     const words = norm(value)
