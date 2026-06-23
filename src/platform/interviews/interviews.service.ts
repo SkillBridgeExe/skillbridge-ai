@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -161,6 +167,8 @@ interface InterviewDifficultyProfile {
 
 @Injectable()
 export class InterviewsService {
+  private readonly logger = new Logger(InterviewsService.name);
+
   constructor(
     @InjectRepository(InterviewSessionEntity)
     private readonly sessions: Repository<InterviewSessionEntity>,
@@ -674,20 +682,28 @@ export class InterviewsService {
   ): Promise<InterviewQuestionBankCandidate[]> {
     if (!this.questionBankItems) return [];
     const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
-    const rows = await this.questionBankItems.find({
-      where: {
-        active: true,
-        language,
-        targetRole: normalizedRole,
-      },
-      order: { priority: 'DESC', questionKey: 'ASC' },
-    });
-    return rows.filter(
-      (row) =>
-        row.interviewType === interviewType ||
-        row.interviewType === 'MIXED' ||
-        interviewType === 'MIXED',
-    );
+    try {
+      const rows = await this.questionBankItems.find({
+        where: {
+          active: true,
+          language,
+          targetRole: normalizedRole,
+        },
+        order: { priority: 'DESC', questionKey: 'ASC' },
+      });
+      return rows.filter(
+        (row) =>
+          row.interviewType === interviewType ||
+          row.interviewType === 'MIXED' ||
+          interviewType === 'MIXED',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to load interview question bank items for ${normalizedRole}/${language}/${interviewType}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return [];
+    }
   }
 
   private applyQuestionBankToAgenda(

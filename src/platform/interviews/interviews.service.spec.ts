@@ -273,7 +273,17 @@ describe('InterviewsService', () => {
       interviewType: 'TECHNICAL',
     });
 
-    expect(questionBank.find).toHaveBeenCalled();
+    expect(questionBank.find).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        language: 'vi',
+        targetRole: 'backend_developer',
+      },
+      order: {
+        priority: 'DESC',
+        questionKey: 'ASC',
+      },
+    });
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         interviewerQuestion: 'Hay gioi thieu du an backend gan nhat cua ban.',
@@ -282,6 +292,60 @@ describe('InterviewsService', () => {
       }),
     );
     expect(response.firstQuestion).toBe('Hay gioi thieu du an backend gan nhat cua ban.');
+  });
+
+  it('continues interview creation when question bank lookup fails', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const realtime = {
+      createClientSecret: jest.fn(async () => ({
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-realtime-2',
+        clientSecret: 'live_secret',
+        expiresAt: null,
+      })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-live-bank-fallback-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    questionBank.find.mockRejectedValue(new Error('db unavailable'));
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      realtime as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+
+    const response = await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+    });
+
+    expect(response.id).toBe('session-live-bank-fallback-1');
+    expect(turns.save).not.toHaveBeenCalled();
+    expect(realtime.createClientSecret).toHaveBeenCalled();
   });
 
   it('starts a live VOICE interview without backend-generated question turns', async () => {
