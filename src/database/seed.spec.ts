@@ -1,4 +1,5 @@
 import { AccountEntity } from './entities/account.entity';
+import { InterviewQuestionBankItemEntity } from './entities/interview-question-bank-item.entity';
 import { MentorProfileEntity } from './entities/mentor-profile.entity';
 import { MentorProfileSkillEntity } from './entities/mentor-profile-skill.entity';
 import { RoleEntity } from './entities/role.entity';
@@ -25,6 +26,7 @@ describe('seedDatabase', () => {
     const skills = createRepositoryMock();
     const mentorProfiles = createRepositoryMock();
     const mentorProfileSkills = createRepositoryMock();
+    const interviewQuestionBankItems = createRepositoryMock();
     skills.findOne.mockImplementation(async ({ where }) => {
       const canonicalName = (where as { canonicalName?: string })?.canonicalName;
       return canonicalName ? { id: `skill-${canonicalName}`, canonicalName } : null;
@@ -38,6 +40,7 @@ describe('seedDatabase', () => {
         if (entity === SkillEntity) return skills;
         if (entity === MentorProfileEntity) return mentorProfiles;
         if (entity === MentorProfileSkillEntity) return mentorProfileSkills;
+        if (entity === InterviewQuestionBankItemEntity) return interviewQuestionBankItems;
         throw new Error('Unexpected repository');
       }),
     };
@@ -84,6 +87,7 @@ describe('seedDatabase', () => {
       true,
     );
     expect(mentorProfileSkills.save).toHaveBeenCalled();
+    expect(interviewQuestionBankItems.save).toHaveBeenCalledTimes(600);
   });
 
   it('refreshes existing mentor seed data without creating duplicate rows or links', async () => {
@@ -94,6 +98,7 @@ describe('seedDatabase', () => {
     const skills = createRepositoryMock();
     const mentorProfiles = createRepositoryMock();
     const mentorProfileSkills = createRepositoryMock();
+    const interviewQuestionBankItems = createRepositoryMock();
     roles.findOne.mockResolvedValue({ id: 'role-1', code: 'USER', name: 'User' });
     users.findOne.mockResolvedValue({ id: 'user-1', emailNormalized: 'existing@example.com' });
     accounts.findOne.mockResolvedValue({ id: 'account-1' });
@@ -101,6 +106,7 @@ describe('seedDatabase', () => {
     skills.findOne.mockResolvedValue({ id: 'skill-1', canonicalName: 'react' });
     mentorProfiles.findOne.mockResolvedValue({ id: 'mentor-profile-1', slug: 'existing-mentor' });
     mentorProfileSkills.findOne.mockResolvedValue({ id: 'mentor-skill-1' });
+    interviewQuestionBankItems.findOne.mockResolvedValue({ id: 'question-1' });
     const dataSource = {
       getRepository: jest.fn((entity) => {
         if (entity === RoleEntity) return roles;
@@ -110,6 +116,7 @@ describe('seedDatabase', () => {
         if (entity === SkillEntity) return skills;
         if (entity === MentorProfileEntity) return mentorProfiles;
         if (entity === MentorProfileSkillEntity) return mentorProfileSkills;
+        if (entity === InterviewQuestionBankItemEntity) return interviewQuestionBankItems;
         throw new Error('Unexpected repository');
       }),
     };
@@ -129,6 +136,7 @@ describe('seedDatabase', () => {
     expect(skills.save).not.toHaveBeenCalled();
     expect(mentorProfiles.create).not.toHaveBeenCalled();
     expect(mentorProfileSkills.save).not.toHaveBeenCalled();
+    expect(interviewQuestionBankItems.save).not.toHaveBeenCalled();
   });
 
   it('stores stock portrait URLs in seeded mentor users', () => {

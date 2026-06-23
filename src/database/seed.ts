@@ -7,10 +7,15 @@ import dataSource from './data-source';
 import { AccountEntity } from './entities/account.entity';
 import { MentorProfileEntity } from './entities/mentor-profile.entity';
 import { MentorProfileSkillEntity } from './entities/mentor-profile-skill.entity';
+import { InterviewQuestionBankItemEntity } from './entities/interview-question-bank-item.entity';
 import { RoleCode, RoleEntity } from './entities/role.entity';
 import { SkillEntity } from './entities/skill.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRoleEntity } from './entities/user-role.entity';
+import {
+  buildInterviewQuestionBankSeeds,
+  InterviewQuestionBankSeed,
+} from './interview-question-bank-seeds';
 import { MENTOR_SEEDS, MentorSeed } from './mentor-seeds';
 
 const ROLE_SEEDS: Array<{ code: RoleCode; name: string }> = [
@@ -36,6 +41,7 @@ interface SeedRepositories {
   userRoles: Repository<UserRoleEntity>;
   mentorProfiles: Repository<MentorProfileEntity>;
   mentorProfileSkills: Repository<MentorProfileSkillEntity>;
+  interviewQuestionBankItems: Repository<InterviewQuestionBankItemEntity>;
 }
 
 interface SkillSeed {
@@ -60,6 +66,7 @@ export async function seedDatabase(
     userRoles: source.getRepository(UserRoleEntity),
     mentorProfiles: source.getRepository(MentorProfileEntity),
     mentorProfileSkills: source.getRepository(MentorProfileSkillEntity),
+    interviewQuestionBankItems: source.getRepository(InterviewQuestionBankItemEntity),
   };
 
   const roles = new Map<RoleCode, RoleEntity>();
@@ -82,6 +89,7 @@ export async function seedDatabase(
   await ensureUserRole(repos.userRoles, admin.id, roles.get('ADMIN')!.id);
   await ensureUserRole(repos.userRoles, user.id, roles.get('USER')!.id);
   await seedMentors(repos, roles.get('MENTOR')!, admin.id, options.defaultPassword);
+  await seedInterviewQuestionBank(repos.interviewQuestionBankItems);
 }
 
 function loadSeedOptions(): SeedOptions {
@@ -122,6 +130,45 @@ async function seedSkills(skills: Repository<SkillEntity>): Promise<void> {
     if (existing) continue;
     await skills.save(skills.create(payload));
   }
+}
+
+async function seedInterviewQuestionBank(
+  questions: Repository<InterviewQuestionBankItemEntity>,
+): Promise<void> {
+  for (const seed of buildInterviewQuestionBankSeeds()) {
+    const existing = await questions.findOne({
+      where: { questionKey: seed.questionKey, language: seed.language },
+    });
+    if (existing) continue;
+    await questions.save(questions.create(toQuestionBankEntity(seed)));
+  }
+}
+
+function toQuestionBankEntity(
+  seed: InterviewQuestionBankSeed,
+): Partial<InterviewQuestionBankItemEntity> {
+  return {
+    questionKey: seed.questionKey,
+    language: seed.language,
+    targetRole: seed.targetRole,
+    interviewType: seed.interviewType,
+    phase: seed.phase,
+    skillCanonical: seed.skillCanonical,
+    focusType: seed.focusType,
+    seniority: seed.seniority,
+    difficulty: seed.difficulty,
+    questionText: seed.questionText,
+    expectedSignals: seed.expectedSignals,
+    rubricDimensions: seed.rubricDimensions,
+    sourceKind: seed.sourceKind,
+    sourceUrl: seed.sourceUrl,
+    sourceBasis: seed.sourceBasis,
+    license: seed.license,
+    attribution: seed.attribution,
+    reviewStatus: seed.reviewStatus,
+    priority: seed.priority,
+    active: seed.active,
+  };
 }
 
 function loadSkillSeeds(): SkillSeed[] {
