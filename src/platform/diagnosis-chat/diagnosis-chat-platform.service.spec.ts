@@ -1,0 +1,166 @@
+import { NotFoundException } from '@nestjs/common';
+import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service';
+import { DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
+
+const USER_ID = 'user-1';
+const MATCH_ID = 'match-1';
+const CONVERSATION_ID = 'conv-1';
+const CV_ID = '11111111-1111-1111-1111-111111111111';
+
+const REVIEW = {
+  overall_score: 70,
+  ats_rule_score: 60,
+  llm_score_dimensions: { skills_relevance: 12 },
+  rationale: { skills_relevance: 'Some JD skills missing.' },
+  top_summary: { prioritized_actions: ['Add Docker evidence'] },
+} as never;
+
+const GAP_REPORT = {
+  gap_items: [
+    {
+      requirement_id: 'jd:hard_skill:docker',
+      display_name: 'Docker',
+      cv_status: 'missing',
+      severity: 0.5,
+      market_demand: 60,
+      recommended_next_action: 'Học & bổ sung kỹ năng này',
+    },
+  ],
+} as never;
+
+interface SavedMessage {
+  conversationId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * Build the platform service with plain-object mocks at the IO boundary (mirrors the module spec's
+ * positional-construction style). `saved` collects every persisted chat_messages row so a test can
+ * assert what was actually written (e.g. the user row content is masked).
+ */
+function makeService(overrides?: {
+  getGapReport?: jest.Mock;
+  getLatestReview?: jest.Mock;
+  turn?: jest.Mock;
+}) {
+  const saved: SavedMessage[] = [];
+
+  const conversations = {
+    findOne: jest
+      .fn()
+      .mockResolvedValue({ id: CONVERSATION_ID, userId: USER_ID, matchId: MATCH_ID }),
+    create: jest.fn((v) => v),
+    save: jest.fn((v) => Promise.resolve({ id: CONVERSATION_ID, ...v })),
+  };
+
+  const messages = {
+    create: jest.fn((v: SavedMessage) => v),
+    save: jest.fn((v: SavedMessage) => {
+      saved.push(v);
+      return Promise.resolve({ id: `msg-${saved.length}`, ...v });
+    }),
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const chat = {
+    turn:
+      overrides?.turn ??
+      jest.fn().mockResolvedValue({
+        answer: 'Focus on skills_relevance.',
+        cited_dimension: 'skills_relevance',
+        cited_gap_id: 'jd:hard_skill:docker',
+        suggested_next_step: null,
+      }),
+  };
+
+  const cvMatches = {
+    getGapReport: overrides?.getGapReport ?? jest.fn().mockResolvedValue(GAP_REPORT),
+  };
+
+  const cvs = {
+    getLatestReview: overrides?.getLatestReview ?? jest.fn().mockResolvedValue(REVIEW),
+  };
+
+  const tracing = {
+    countRequestsSince: jest.fn().mockResolvedValue(0),
+    startAiRequest: jest.fn().mockResolvedValue('ai-req-1'),
+    completeAiRequest: jest.fn().mockResolvedValue(undefined),
+    markFailed: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const service = new DiagnosisChatPlatformService(
+    conversations as never,
+    messages as never,
+    chat as never,
+    cvMatches as never,
+    cvs as never,
+    tracing as never,
+  );
+
+  return { service, saved, conversations, messages, chat, cvMatches, cvs, tracing };
+}
+
+describe('DiagnosisChatPlatformService.turn — PII (D1)', () => {
+  it('persists the user message MASKED (no raw email/phone in chat_messages content)', async () => {
+    const { service, saved, chat } = makeService();
+    const dto: DiagnosisChatRequestDto = {
+      question: 'Liên hệ tôi qua taithi@skillbridge.vn hoặc 0901234567 nhé',
+      cvId: CV_ID,
+    };
+
+    await service.turn(USER_ID, MATCH_ID, dto);
+
+    const userRow = saved.find((m) => m.role === 'user');
+    expect(userRow).toBeDefined();
+    // The persisted user row must be masked — raw PII must never land in the audit/history store.
+    expect(userRow!.content).not.toContain('taithi@skillbridge.vn');
+    expect(userRow!.content).not.toContain('0901234567');
+    expect(userRow!.content).toContain('[redacted-email]');
+    expect(userRow!.content).toContain('[redacted-phone]');
+
+    // And the LLM-bound copy is masked too (same masked value used for both).
+    const turnArg = (chat.turn as jest.Mock).mock.calls[0][0];
+    expect(turnArg.question).not.toContain('taithi@skillbridge.vn');
+    expect(turnArg.question).toBe(userRow!.content);
+  });
+});
+
+describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', () => {
+  it('(a) getGapReport throws NotFound AND no cvId → rejects NotFound (no degraded answer)', async () => {
+    const getGapReport = jest.fn().mockRejectedValue(new NotFoundException('CV match not found'));
+    const { service, saved } = makeService({ getGapReport });
+    const dto: DiagnosisChatRequestDto = { question: 'where am I weakest?' }; // no cvId
+
+    await expect(service.turn(USER_ID, MATCH_ID, dto)).rejects.toBeInstanceOf(NotFoundException);
+    // It must NOT have produced/persisted an assistant answer via the CV-only path.
+    expect(saved.find((m) => m.role === 'assistant')).toBeUndefined();
+  });
+
+  it('(b) getGapReport throws a generic (transient) Error → rethrows it (not swallowed to CV-only)', async () => {
+    const transient = new Error('db connection reset');
+    const getGapReport = jest.fn().mockRejectedValue(transient);
+    const getLatestReview = jest.fn().mockResolvedValue(REVIEW);
+    const { service } = makeService({ getGapReport, getLatestReview });
+    const dto: DiagnosisChatRequestDto = { question: 'q', cvId: CV_ID };
+
+    await expect(service.turn(USER_ID, MATCH_ID, dto)).rejects.toBe(transient);
+    // The transient error must surface — the CV-only fallback must NOT mask it.
+    expect(getLatestReview).not.toHaveBeenCalled();
+  });
+
+  it('(c) getGapReport throws NotFound BUT a valid cvId with a review → CV-only facts (legit degrade)', async () => {
+    const getGapReport = jest.fn().mockRejectedValue(new NotFoundException('CV match not found'));
+    const getLatestReview = jest.fn().mockResolvedValue(REVIEW);
+    const { service, chat } = makeService({ getGapReport, getLatestReview });
+    const dto: DiagnosisChatRequestDto = { question: 'q', cvId: CV_ID };
+
+    const res = await service.turn(USER_ID, MATCH_ID, dto);
+    expect(res.answer).toBeDefined();
+    expect(getLatestReview).toHaveBeenCalledWith(USER_ID, CV_ID);
+    // CV-only facts → no gap_items.
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg.gap_items).toEqual([]);
+  });
+});

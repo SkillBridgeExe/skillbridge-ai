@@ -128,6 +128,10 @@ export const configValidationSchema = Joi.object({
   ANSWER_INSIGHT_MODEL: Joi.string().allow('').default(''),
   INTERVIEW_COACHING_MODEL: Joi.string().allow('').default(''),
 
+  // CV-diagnosis advisor (diagnosis-chat). Optional override; empty/unset → provider default
+  // (the service reads `process.env.DIAGNOSIS_CHAT_MODEL || undefined`).
+  DIAGNOSIS_CHAT_MODEL: Joi.string().allow('').default(''),
+
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
   // when deterministic metrics say it is better. All bounded to protect Cloud Run resources.
