@@ -31,11 +31,18 @@ const IMPORTANCE_WEIGHT: Record<string, number> = {
   NICE_TO_HAVE: 0.3,
 };
 const BOTH_BOOST = 1.3;
+const COURSE_ADDRESSABLE_TYPES: ReadonlySet<GapItem['type']> = new Set([
+  'hard_skill',
+  'soft_skill',
+  'language',
+]);
 
 const round3 = (value: number): number => Math.round(value * 1000) / 1000;
 
 const gapTrack = (item: GapItem): UnifiedTrack | null => {
-  if (item.fixability === 'learn') return 'learn';
+  if (item.fixability === 'learn') {
+    return COURSE_ADDRESSABLE_TYPES.has(item.type) ? 'learn' : null;
+  }
   if (item.fixability === 'rewrite' || item.fixability === 'add_evidence') return 'cv_fix';
   return null;
 };
@@ -52,6 +59,9 @@ const keyOf = (
   name: string,
 ): string => (skill ?? requirementId ?? name).toLowerCase();
 
+const learningSkillCanonical = (gap: GapItem): string | null =>
+  gap.type === 'language' ? 'english_proficiency' : (gap.canonical_name ?? null);
+
 export function buildUnifiedPlan(input: {
   matchId: string;
   sessionId: string | null;
@@ -67,11 +77,13 @@ export function buildUnifiedPlan(input: {
   for (const gap of input.gapItems) {
     const track = gapTrack(gap);
     if (!track) continue;
-    const key = keyOf(gap.canonical_name, gap.requirement_id, gap.display_name);
+    const skillCanonical =
+      track === 'learn' ? learningSkillCanonical(gap) : (gap.canonical_name ?? null);
+    const key = keyOf(skillCanonical, gap.requirement_id, gap.display_name);
     buckets[track].set(key, {
       source: 'gap',
       track,
-      skill_canonical: gap.canonical_name ?? null,
+      skill_canonical: skillCanonical,
       display_name: gap.display_name,
       priority: round3(gap.severity * (IMPORTANCE_WEIGHT[gap.importance] ?? 0.6)),
       severity: gap.severity,

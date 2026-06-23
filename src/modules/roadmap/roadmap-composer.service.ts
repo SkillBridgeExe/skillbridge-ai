@@ -11,6 +11,7 @@ import {
   NotFeasibleItem,
   toFeasibilityInputs,
 } from './roadmap-composer';
+import { getSkillBridgeLessonContent } from './skillbridge-lesson-content';
 
 const LEARN_SOURCE_TYPES = ['course', 'official_doc', 'video', 'exercise', 'mini_project'] as const;
 
@@ -66,6 +67,8 @@ export class RoadmapComposerService {
         title: resource.title,
         url: resource.url,
         is_internal: resource.is_internal,
+        content_template_id: resource.content_template_id,
+        description: resource.description,
         duration_minutes: resource.duration_minutes,
         outcome_type: resource.outcome_type,
         proof_of_completion: resource.proof_of_completion,
@@ -85,6 +88,10 @@ export class RoadmapComposerService {
         recommended_courses: skillResources
           .filter((resource) => resource.source_type === 'course')
           .map(toRecommendedCourse),
+        lesson_content: getSkillBridgeLessonContent(
+          item.skill_canonical,
+          skillResources.map((resource) => resource.id),
+        ),
       });
     }
 

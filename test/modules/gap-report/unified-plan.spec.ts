@@ -56,6 +56,32 @@ describe('buildUnifiedPlan', () => {
     expect(out.interview_practice_items).toEqual([]);
   });
 
+  it('does not route non-course-addressable learn gaps into learning items', () => {
+    const out = buildUnifiedPlan({
+      matchId: 'm1',
+      sessionId: null,
+      gapItems: [
+        gap({
+          type: 'seniority',
+          canonical_name: 'seniority',
+          display_name: 'Cấp độ / kinh nghiệm',
+          fixability: 'learn',
+        }),
+        gap({
+          type: 'language',
+          canonical_name: 'language',
+          display_name: 'English',
+          fixability: 'learn',
+        }),
+      ],
+      interviewItems: [],
+    });
+
+    expect(out.learn_items.map((item) => item.skill_canonical)).toEqual([
+      'english_proficiency',
+    ]);
+  });
+
   it('routes interview weakness_type into tracks', () => {
     const out = buildUnifiedPlan({
       matchId: 'm1',
