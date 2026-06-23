@@ -109,7 +109,8 @@ export class DiagnosisChatService {
       );
     }
 
-    // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback.
-    return groundDiagnosis(parsed, input.facts);
+    // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
+    // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
+    return groundDiagnosis(parsed, input.facts, language);
   }
 }

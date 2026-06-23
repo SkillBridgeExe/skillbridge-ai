@@ -203,4 +203,49 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(typeof fallback.answer).toBe('string');
     expect(fallback.answer.length).toBeGreaterThan(0);
   });
+
+  // P1-C — the deterministic fallback must answer in the user's language (was hardcoded Vietnamese,
+  // so English users got a Vietnamese answer on EVERY Gemini timeout/429/empty-parse).
+  describe('fallback language (P1-C)', () => {
+    /** Vietnamese marker words present ONLY in the vi fallback framing — used to assert the en path is NOT vi. */
+    const VI_MARKERS = ['Dựa trên', 'của bạn', 'nên ưu tiên', 'chẩn đoán'];
+
+    it('language="en" → fallback is English (carries the user own prioritized action, no Vietnamese framing)', () => {
+      const result = groundDiagnosis(null, facts, 'en');
+      // still grounded in the user's OWN prioritized action (verbatim from FACTS)
+      expect(result.answer).toContain('Add Docker evidence');
+      // English framing — none of the Vietnamese marker words leak through
+      for (const marker of VI_MARKERS) {
+        expect(result.answer).not.toContain(marker);
+      }
+    });
+
+    it('language="vi" → fallback is Vietnamese (the default framing)', () => {
+      const result = groundDiagnosis(null, facts, 'vi');
+      expect(result.answer).toContain('Add Docker evidence');
+      expect(result.answer).toContain('Dựa trên');
+    });
+
+    it('language undefined → defaults to Vietnamese', () => {
+      const result = groundDiagnosis(null, facts);
+      expect(result.answer).toContain('Dựa trên');
+    });
+
+    it('empty-message fallback also honors language="en"', () => {
+      const result = groundDiagnosis({ message: '   ' }, facts, 'en');
+      expect(result.answer).toContain('Add Docker evidence');
+      for (const marker of VI_MARKERS) {
+        expect(result.answer).not.toContain(marker);
+      }
+    });
+
+    it('English "no data" fallback (no prioritized actions) is English, not the Vietnamese default', () => {
+      const bareFacts = buildDiagnosisFacts({} as unknown as CvReviewParsedResponse, null);
+      const result = groundDiagnosis(null, bareFacts, 'en');
+      expect(result.answer.length).toBeGreaterThan(0);
+      for (const marker of VI_MARKERS) {
+        expect(result.answer).not.toContain(marker);
+      }
+    });
+  });
 });

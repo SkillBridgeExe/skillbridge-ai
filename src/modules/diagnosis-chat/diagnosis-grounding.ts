@@ -146,28 +146,46 @@ export function buildDiagnosisFacts(
 }
 
 /** Deterministic grounded fallback built ONLY from the user's own FACTS — used on empty / failed model
- *  output, and on an LLM transport failure (the domain service calls this). Never throws, never empty. */
-function fallback(facts: DiagnosisFacts): DiagnosisChatResult {
+ *  output, and on an LLM transport failure (the domain service calls this). Never throws, never empty.
+ *  Localized: English framing when language === 'en', otherwise the Vietnamese default — so an English
+ *  user does NOT get a Vietnamese answer on every Gemini timeout/429/empty-parse. The prioritized actions
+ *  themselves are read VERBATIM from FACTS (in whatever language the CV review produced them). */
+function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult {
   const actions = facts.top_summary.prioritized_actions.slice(0, 3);
-  const answer = actions.length
-    ? `Dựa trên kết quả chẩn đoán CV của bạn, đây là những việc nên ưu tiên: ${actions
-        .map((a, i) => `(${i + 1}) ${a}`)
-        .join('; ')}.`
-    : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
+  const isEn = language === 'en';
+  let answer: string;
+  if (actions.length) {
+    const list = actions.map((a, i) => `(${i + 1}) ${a}`).join('; ');
+    answer = isEn
+      ? `Based on your CV diagnosis, here are the actions to prioritize: ${list}.`
+      : `Dựa trên kết quả chẩn đoán CV của bạn, đây là những việc nên ưu tiên: ${list}.`;
+  } else {
+    answer = isEn
+      ? "I don't have enough diagnosis data to answer specifically yet — please re-run your CV diagnosis and ask again."
+      : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
+  }
   return { answer: stripRawUrls(answer) };
 }
 
 /**
  * The anti-fabrication boundary. Treats the parsed model output as PROSE ONLY:
- *  - message empty / not an object → deterministic {@link fallback} (grounded in top_summary).
+ *  - message empty / not an object → deterministic {@link fallback} (grounded in top_summary, localized).
  *  - cited_dimension kept ONLY if it is one of the 4 real dimension keys (else dropped).
  *  - cited_gap_id kept ONLY if it is a requirement_id present in facts.gap_items (else dropped).
  *  - message + suggested_next_step run through the raw-URL backstop.
+ *
+ * `language` is threaded to the fallback ONLY (the model already phrases the happy-path message in the
+ * user's language); 'en' → English framing, anything else (default / 'vi' / undefined) → Vietnamese.
  */
-export function groundDiagnosis(parsed: unknown, facts: DiagnosisFacts): DiagnosisChatResult {
-  if (typeof parsed !== 'object' || parsed === null) return fallback(facts);
+export function groundDiagnosis(
+  parsed: unknown,
+  facts: DiagnosisFacts,
+  language?: string,
+): DiagnosisChatResult {
+  if (typeof parsed !== 'object' || parsed === null) return fallback(facts, language);
   const obj = parsed as Record<string, unknown>;
-  if (typeof obj.message !== 'string' || obj.message.trim() === '') return fallback(facts);
+  if (typeof obj.message !== 'string' || obj.message.trim() === '')
+    return fallback(facts, language);
 
   const result: DiagnosisChatResult = { answer: stripRawUrls(obj.message) };
 
