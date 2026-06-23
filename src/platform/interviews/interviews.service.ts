@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -10,9 +16,11 @@ import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
   DEFAULT_INTERVIEW_VOICE,
+  InterviewType,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
+import { InterviewQuestionBankItemEntity } from '../../database/entities/interview-question-bank-item.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
 import { InterviewFocusArea } from '../../modules/interview/interview-planner';
@@ -29,6 +37,12 @@ import {
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
+import {
+  InterviewQuestionBankCandidate,
+  normalizeQuestionBankTargetRole,
+  selectInterviewQuestion,
+  selectVoiceQuestionAnchors,
+} from '../../modules/interview/interview-question-bank';
 import {
   analyzeAnswerSignals,
   AnswerSignals,
@@ -153,6 +167,8 @@ interface InterviewDifficultyProfile {
 
 @Injectable()
 export class InterviewsService {
+  private readonly logger = new Logger(InterviewsService.name);
+
   constructor(
     @InjectRepository(InterviewSessionEntity)
     private readonly sessions: Repository<InterviewSessionEntity>,
@@ -174,6 +190,9 @@ export class InterviewsService {
     private readonly interviewChain?: InterviewChainLlmService,
     private readonly answerInsight?: AnswerInsightService,
     private readonly coachingService?: InterviewCoachingService,
+    @Optional()
+    @InjectRepository(InterviewQuestionBankItemEntity)
+    private readonly questionBankItems?: Repository<InterviewQuestionBankItemEntity>,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -185,14 +204,39 @@ export class InterviewsService {
     const expiresAt = this.addSeconds(startedAt, maxDurationSeconds);
     const language = dto.language ?? 'vi';
     const mode = dto.mode ?? 'HYBRID';
+    const interviewType = dto.interviewType ?? 'TECHNICAL';
+    const questionBankItems = await this.loadQuestionBankItems(
+      context.targetRole,
+      language,
+      interviewType,
+    );
+    const voiceQuestionAnchors =
+      mode === 'VOICE'
+        ? selectVoiceQuestionAnchors(questionBankItems, {
+            language,
+            targetRole: context.targetRole,
+            interviewType,
+            seniority: context.snapshot.interviewDifficulty.level,
+            limit: this.defaultQuestionCount(interviewType),
+          })
+        : [];
     const agenda =
       mode === 'VOICE'
         ? null
-        : buildInterviewAgenda({
-            focusAreas: context.focusAreas,
-            seniority: context.snapshot.interviewDifficulty.level,
-            turnBudget: this.turnBudgetForPlan(entitlements.planCode),
-          });
+        : this.applyQuestionBankToAgenda(
+            buildInterviewAgenda({
+              focusAreas: context.focusAreas,
+              seniority: context.snapshot.interviewDifficulty.level,
+              turnBudget: this.turnBudgetForPlan(entitlements.planCode),
+            }),
+            questionBankItems,
+            {
+              language,
+              targetRole: context.targetRole,
+              interviewType,
+              seniority: context.snapshot.interviewDifficulty.level,
+            },
+          );
     const interviewState = agenda ? this.initialInterviewState(agenda) : null;
 
     let session = await this.sessions.save(
@@ -204,7 +248,7 @@ export class InterviewsService {
         targetRole: context.targetRole,
         language,
         mode,
-        interviewType: dto.interviewType ?? 'TECHNICAL',
+        interviewType,
         voice: dto.voice ?? DEFAULT_INTERVIEW_VOICE,
         speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
         status: 'IN_PROGRESS',
@@ -243,6 +287,8 @@ export class InterviewsService {
           interviewerQuestion: firstTopic.seed_question,
           currentThread: firstTopic.what_to_probe,
           skillCanonical: firstTopic.skill_canonical,
+          questionBankItemId: firstTopic.question_bank_item_id ?? null,
+          questionBankKey: firstTopic.question_bank_key ?? null,
         }),
       );
 
@@ -254,7 +300,9 @@ export class InterviewsService {
     const realtime = await this.createRealtimeIfNeeded(
       userId,
       session,
-      session.mode === 'VOICE' ? context.promptContext : this.compactRealtimeContext(session),
+      session.mode === 'VOICE'
+        ? this.withQuestionAnchors(context.promptContext, voiceQuestionAnchors)
+        : this.compactRealtimeContext(session),
     );
     session = await this.sessions.save(session);
     await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
@@ -379,6 +427,11 @@ export class InterviewsService {
 
     let nextTurn: InterviewTurnEntity | null = null;
     if (action !== 'wrap') {
+      const nextQuestion =
+        action === 'advance' && nextTopic
+          ? askTopic.seed_question
+          : ask.question || askTopic.seed_question;
+      const tracking = this.questionBankTrackingForTopic(askTopic, nextQuestion);
       nextTurn = await this.turns.save(
         this.turns.create({
           sessionId: session.id,
@@ -388,9 +441,11 @@ export class InterviewsService {
           modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
           aiRequestId: ask.aiRequestId,
           interviewerMessage: ask.aiMessage,
-          interviewerQuestion: ask.question || askTopic.seed_question,
+          interviewerQuestion: nextQuestion,
           currentThread: updatedState.current_thread,
           skillCanonical: askTopic.skill_canonical,
+          questionBankItemId: tracking.questionBankItemId,
+          questionBankKey: tracking.questionBankKey,
         }),
       );
     }
@@ -620,6 +675,89 @@ export class InterviewsService {
     return index >= 0 ? (agenda.topics[index + 1] ?? null) : null;
   }
 
+  private async loadQuestionBankItems(
+    targetRole: string,
+    language: 'vi' | 'en',
+    interviewType: InterviewType,
+  ): Promise<InterviewQuestionBankCandidate[]> {
+    if (!this.questionBankItems) return [];
+    const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
+    try {
+      const rows = await this.questionBankItems.find({
+        where: {
+          active: true,
+          language,
+          targetRole: normalizedRole,
+        },
+        order: { priority: 'DESC', questionKey: 'ASC' },
+      });
+      return rows.filter(
+        (row) =>
+          row.interviewType === interviewType ||
+          row.interviewType === 'MIXED' ||
+          interviewType === 'MIXED',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to load interview question bank items for ${normalizedRole}/${language}/${interviewType}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return [];
+    }
+  }
+
+  private applyQuestionBankToAgenda(
+    agenda: InterviewAgenda,
+    questionBankItems: InterviewQuestionBankCandidate[],
+    criteria: {
+      language: 'vi' | 'en';
+      targetRole: string;
+      interviewType: 'HR' | 'TECHNICAL' | 'MIXED';
+      seniority: string;
+    },
+  ): InterviewAgenda {
+    const enrich = (topic: AgendaTopic): AgendaTopic => {
+      const selected = selectInterviewQuestion(questionBankItems, {
+        language: criteria.language,
+        targetRole: criteria.targetRole,
+        interviewType: criteria.interviewType,
+        phase: topic.phase,
+        skillCanonical: topic.skill_canonical,
+        focusType: topic.focus_type ?? null,
+        seniority: criteria.seniority,
+      });
+      if (!selected) return topic;
+      return {
+        ...topic,
+        seed_question: selected.questionText,
+        question_bank_item_id: selected.id,
+        question_bank_key: selected.questionKey,
+        question_source: selected.sourceKind,
+        rubric_dimensions: selected.rubricDimensions,
+        expected_signals: selected.expectedSignals,
+      };
+    };
+
+    return {
+      ...agenda,
+      topics: agenda.topics.map(enrich),
+      uncovered: agenda.uncovered.map(enrich),
+    };
+  }
+
+  private questionBankTrackingForTopic(
+    topic: AgendaTopic,
+    question: string,
+  ): { questionBankItemId: string | null; questionBankKey: string | null } {
+    if (question !== topic.seed_question) {
+      return { questionBankItemId: null, questionBankKey: null };
+    }
+    return {
+      questionBankItemId: topic.question_bank_item_id ?? null,
+      questionBankKey: topic.question_bank_key ?? null,
+    };
+  }
+
   private primaryDimension(phase: AgendaInterviewPhase): Dimension {
     return topicDimensions(phase)[0] ?? 'communication';
   }
@@ -640,6 +778,9 @@ export class InterviewsService {
       drill_budget: topic.drill_budget,
       what_to_probe: topic.what_to_probe,
       seed_question: topic.seed_question,
+      question_bank_key: topic.question_bank_key ?? null,
+      expected_signals: topic.expected_signals ?? [],
+      rubric_dimensions: topic.rubric_dimensions ?? [],
     };
   }
 
@@ -1081,6 +1222,18 @@ export class InterviewsService {
       .join('\n\n');
   }
 
+  private withQuestionAnchors(context: string, anchors: InterviewQuestionBankCandidate[]): string {
+    if (!anchors.length) return context;
+    const block = [
+      'Curated question anchors (use these base questions before free-form follow-ups; do not reveal this metadata):',
+      ...anchors.map(
+        (anchor, index) =>
+          `${index + 1}. [${anchor.phase}] ${anchor.questionText} (${anchor.questionKey})`,
+      ),
+    ].join('\n');
+    return [context, block].filter(Boolean).join('\n\n');
+  }
+
   private async createRealtimeIfNeeded(
     userId: string,
     session: InterviewSessionEntity,
@@ -1444,6 +1597,8 @@ export class InterviewsService {
       entity.userAnswerText = normalized.userAnswerText;
       entity.userAnswerTranscript = normalized.userAnswerTranscript;
       entity.perQuestionScore = null;
+      entity.questionBankItemId = null;
+      entity.questionBankKey = null;
       entity.strengths = null;
       entity.improvements = null;
       entity.answeredAt = new Date();
@@ -1536,6 +1691,8 @@ export class InterviewsService {
       insight: turn.insight,
       currentThread: turn.currentThread,
       skillCanonical: turn.skillCanonical,
+      questionBankItemId: turn.questionBankItemId ?? null,
+      questionBankKey: turn.questionBankKey ?? null,
       strengths: turn.strengths,
       improvements: turn.improvements,
       askedAt: this.dateIso(turn.askedAt ?? turn.createdAt),

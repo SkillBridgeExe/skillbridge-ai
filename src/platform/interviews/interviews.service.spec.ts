@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
+import { InterviewQuestionBankItemEntity } from '../../database/entities/interview-question-bank-item.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
@@ -202,6 +203,151 @@ describe('InterviewsService', () => {
     );
   });
 
+  it('uses a DB question bank item for the first guided interview turn', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-bank-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'turn-bank-1',
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    questionBank.find.mockResolvedValue([
+      {
+        id: 'bank-screening-vi',
+        questionKey: 'backend-common-screening-01',
+        language: 'vi',
+        targetRole: 'backend_developer',
+        interviewType: 'TECHNICAL',
+        phase: 'SCREENING',
+        skillCanonical: null,
+        focusType: null,
+        seniority: null,
+        difficulty: 1,
+        questionText: 'Hay gioi thieu du an backend gan nhat cua ban.',
+        expectedSignals: ['specific_project'],
+        rubricDimensions: ['technical_depth', 'evidence_credibility', 'communication'],
+        sourceKind: 'authored_from_taxonomy',
+        sourceUrl: 'https://www.onetcenter.org/database.html',
+        sourceBasis: 'SkillBridge-authored from role taxonomy.',
+        license: 'CC BY 4.0 + SkillBridge-authored',
+        attribution: 'O*NET Resource Center; ESCO; SkillBridge authored wording.',
+        reviewStatus: 'draft',
+        priority: 50,
+        active: true,
+      },
+    ]);
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      entitlements as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+
+    const response = await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    });
+
+    expect(questionBank.find).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        language: 'vi',
+        targetRole: 'backend_developer',
+      },
+      order: {
+        priority: 'DESC',
+        questionKey: 'ASC',
+      },
+    });
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interviewerQuestion: 'Hay gioi thieu du an backend gan nhat cua ban.',
+        questionBankItemId: 'bank-screening-vi',
+        questionBankKey: 'backend-common-screening-01',
+      }),
+    );
+    expect(response.firstQuestion).toBe('Hay gioi thieu du an backend gan nhat cua ban.');
+  });
+
+  it('continues interview creation when question bank lookup fails', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const realtime = {
+      createClientSecret: jest.fn(async () => ({
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-realtime-2',
+        clientSecret: 'live_secret',
+        expiresAt: null,
+      })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-live-bank-fallback-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    questionBank.find.mockRejectedValue(new Error('db unavailable'));
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      realtime as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+
+    const response = await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+    });
+
+    expect(response.id).toBe('session-live-bank-fallback-1');
+    expect(turns.save).not.toHaveBeenCalled();
+    expect(realtime.createClientSecret).toHaveBeenCalled();
+  });
+
   it('starts a live VOICE interview without backend-generated question turns', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:00:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
@@ -273,6 +419,84 @@ describe('InterviewsService', () => {
       phase: null,
       realtime: { enabled: true, clientSecret: 'live_secret' },
     });
+  });
+
+  it('adds DB question bank anchors to live VOICE realtime instructions', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const realtime = {
+      createClientSecret: jest.fn(async () => ({
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-realtime-2',
+        clientSecret: 'live_secret',
+        expiresAt: null,
+      })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-live-bank-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    questionBank.find.mockResolvedValue([
+      {
+        id: 'bank-voice-1',
+        questionKey: 'backend-common-screening-01',
+        language: 'vi',
+        targetRole: 'backend_developer',
+        interviewType: 'TECHNICAL',
+        phase: 'SCREENING',
+        skillCanonical: null,
+        focusType: null,
+        seniority: null,
+        difficulty: 1,
+        questionText: 'Hay mo dau bang du an backend gan nhat cua ung vien.',
+        expectedSignals: ['specific_project'],
+        rubricDimensions: ['technical_depth', 'evidence_credibility', 'communication'],
+        sourceKind: 'authored_from_taxonomy',
+        sourceUrl: 'https://www.onetcenter.org/database.html',
+        sourceBasis: 'SkillBridge-authored from role taxonomy.',
+        license: 'CC BY 4.0 + SkillBridge-authored',
+        attribution: 'O*NET Resource Center; ESCO; SkillBridge authored wording.',
+        reviewStatus: 'draft',
+        priority: 50,
+        active: true,
+      },
+    ]);
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      realtime as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+
+    await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+    });
+
+    const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
+    expect(instructions).toContain('Curated question anchors');
+    expect(instructions).toContain('Hay mo dau bang du an backend gan nhat cua ung vien.');
   });
 
   it('calibrates live interview difficulty from an explicit fresher target role without a JD', async () => {

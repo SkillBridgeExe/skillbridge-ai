@@ -14,11 +14,17 @@ export interface AgendaTopic {
   skill_canonical: string | null;
   display_name: string;
   source: 'cv' | 'jd' | 'gap' | 'fixed';
+  focus_type?: InterviewFocusArea['focus_type'] | null;
   priority: number;
   seniority_target: string;
   drill_budget: number;
   what_to_probe: string;
   seed_question: string;
+  question_bank_item_id?: string;
+  question_bank_key?: string;
+  question_source?: string;
+  rubric_dimensions?: string[];
+  expected_signals?: string[];
   cv_evidence_excerpt?: string;
   jd_requirement_text?: string;
 }
@@ -65,6 +71,7 @@ export function buildInterviewAgenda(input: {
     skill_canonical: focus.skill_canonical ?? null,
     display_name: focus.display_name,
     source: focus.focus_type === 'strength_showcase' ? 'cv' : 'gap',
+    focus_type: focus.focus_type,
     priority,
     seniority_target: input.seniority,
     drill_budget: drillBudget,

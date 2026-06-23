@@ -222,6 +222,8 @@ export interface InterviewTurnDto {
   insight: unknown;
   currentThread: string | null;
   skillCanonical: string | null;
+  questionBankItemId: string | null;
+  questionBankKey: string | null;
   strengths: unknown;
   improvements: unknown;
   askedAt: string;

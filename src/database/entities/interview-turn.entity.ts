@@ -73,6 +73,12 @@ export class InterviewTurnEntity {
   @Column({ type: 'varchar', name: 'skill_canonical', nullable: true })
   skillCanonical!: string | null;
 
+  @Column('uuid', { name: 'question_bank_item_id', nullable: true })
+  questionBankItemId!: string | null;
+
+  @Column({ type: 'varchar', name: 'question_bank_key', nullable: true })
+  questionBankKey!: string | null;
+
   @Column({ type: 'jsonb', nullable: true })
   strengths!: unknown | null;
 

@@ -6,6 +6,7 @@ import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { InterviewQuestionBankItemEntity } from '../../database/entities/interview-question-bank-item.entity';
 import { InterviewModule } from '../../modules/interview/interview.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvMatchesModule } from '../cv-matches/cv-matches.module';
@@ -25,6 +26,7 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
       CvMatchEntity,
       JobDescriptionEntity,
       AiResultEntity,
+      InterviewQuestionBankItemEntity,
     ]),
     InterviewModule,
     BillingModule,
