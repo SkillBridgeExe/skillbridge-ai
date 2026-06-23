@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
@@ -21,7 +21,7 @@ export class DiagnosisChatController {
   @ApiParam({ name: 'matchId', format: 'uuid' })
   turn(
     @CurrentUser() user: JwtUser,
-    @Param('matchId') matchId: string,
+    @Param('matchId', new ParseUUIDPipe()) matchId: string,
     @Body() dto: DiagnosisChatRequestDto,
   ) {
     return this.diagnosisChat.turn(user.userId, matchId, dto);

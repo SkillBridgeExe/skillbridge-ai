@@ -48,16 +48,16 @@ export class DiagnosisChatPlatformService {
   ) {}
 
   /**
-   * JD-match path: `POST /api/cv-matches/:matchId/chat`. FACTS prefer the ownership-scoped gap report
-   * (with CV-only degrade when a cvId is supplied and the match is absent). Conversation keyed by
-   * (userId, matchId). Unchanged contract.
+   * JD-match path: `POST /api/cv-matches/:matchId/chat`. FACTS are rebuilt from the owned match only:
+   * gap report + the review for that match's own CV. A client-supplied cvId is ignored here; CV-only
+   * diagnosis has its own route and match NotFound must fail closed.
    */
   async turn(
     userId: string,
     matchId: string,
     dto: DiagnosisChatRequestDto,
   ): Promise<DiagnosisChatTurnResponse> {
-    const facts = await this.buildFacts(userId, matchId, dto.cvId);
+    const facts = await this.buildFactsForMatch(userId, matchId);
     const conversation = await this.resolveConversation(userId, matchId);
     return this.runTurn(userId, conversation, facts, dto, { match_id: matchId });
   }
@@ -147,50 +147,34 @@ export class DiagnosisChatPlatformService {
         }),
       );
 
-      await this.tracing.completeAiRequest(aiRequestId, {
-        promptTokens: 0,
-        completionTokens: 0,
-        totalTokens: 0,
-        latencyMs: 0,
-        status: 'SUCCESS',
-      });
+      await this.tracing
+        .completeAiRequest(aiRequestId, {
+          promptTokens: answer.trace?.promptTokens ?? 0,
+          completionTokens: answer.trace?.completionTokens ?? 0,
+          totalTokens: answer.trace?.totalTokens ?? 0,
+          estimatedCost: answer.trace?.estimatedCostUsd,
+          latencyMs: answer.trace?.latencyMs ?? 0,
+          status: 'SUCCESS',
+          modelCode: answer.trace?.modelCode,
+        })
+        .catch(() => undefined);
 
       return this.toResponse(answer);
     } catch (err) {
-      await this.tracing.markFailed(aiRequestId, Date.now(), err);
+      await this.tracing.markFailed(aiRequestId, Date.now(), err).catch(() => undefined);
       throw err;
     }
   }
 
   /**
-   * Deterministic FACTS — the ONLY number source. Prefer the JD-match gap report (ownership-scoped,
-   * carries the CV review + gap_items). When it can't be built (e.g. CV-only, no JD match) and a cvId
-   * is supplied, fall back to the latest CV review with NO gap_items. Both paths rebuild every number
-   * server-side; the client supplies none.
+   * Deterministic match FACTS — the ONLY number source for the JD-match route. The match id owns both
+   * the gap report and the CV review. Do not use caller-supplied cvId here, otherwise a client could
+   * mix gaps from one match with score dimensions from another CV.
    */
-  private async buildFacts(
-    userId: string,
-    matchId: string,
-    cvId?: string,
-  ): Promise<DiagnosisFacts> {
-    try {
-      const report = await this.cvMatches.getGapReport(userId, matchId);
-      // getGapReport already validated ownership + loaded the review-derived dimensions/gap_items, but
-      // the report only carries gap_items + overall_score — re-read the review for the full dimension
-      // breakdown when a cvId is known; otherwise distill from the report alone.
-      const review = cvId ? await this.cvs.getLatestReview(userId, cvId) : null;
-      return buildDiagnosisFacts(review, report);
-    } catch (err) {
-      // Only the ownership/absence NotFound degrades to the CV-only path. A real/transient error
-      // (e.g. a DB fault) must surface — never let it masquerade as "no JD match".
-      if (!(err instanceof NotFoundException)) throw err;
-      if (cvId) {
-        const review = await this.cvs.getLatestReview(userId, cvId);
-        if (review) return buildDiagnosisFacts(review, null);
-      }
-      // No JD match AND no usable CV → surface the 404 (don't fabricate a degraded answer).
-      throw err;
-    }
+  private async buildFactsForMatch(userId: string, matchId: string): Promise<DiagnosisFacts> {
+    const report = await this.cvMatches.getGapReport(userId, matchId);
+    const review = await this.cvMatches.getReviewForMatch(userId, matchId);
+    return buildDiagnosisFacts(review, report);
   }
 
   private async assertQuota(userId: string): Promise<void> {

@@ -103,6 +103,20 @@ export class DiagnosisChatService {
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);
+      const grounded = groundDiagnosis(parsed, input.facts, language);
+      return {
+        ...grounded,
+        trace: {
+          promptTokens: result.tokenUsage?.promptTokens ?? 0,
+          completionTokens: result.tokenUsage?.completionTokens ?? 0,
+          totalTokens: result.tokenUsage?.totalTokens ?? 0,
+          latencyMs: result.latencyMs ?? 0,
+          modelCode: result.modelCode ?? '',
+          ...(result.estimatedCostUsd === undefined
+            ? {}
+            : { estimatedCostUsd: result.estimatedCostUsd }),
+        },
+      };
     } catch (err) {
       this.logger.warn(
         `diagnosis_chat LLM call failed — serving grounded fallback: ${(err as Error).message}`,

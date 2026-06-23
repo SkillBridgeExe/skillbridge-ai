@@ -61,6 +61,14 @@ export interface DiagnosisChatResult {
   cited_dimension?: DiagnosisDimensionKey;
   cited_gap_id?: string;
   suggested_next_step?: string | null;
+  trace?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    latencyMs: number;
+    modelCode: string;
+    estimatedCostUsd?: number;
+  };
 }
 
 const MAX_GAP_ITEMS = 8;
@@ -92,12 +100,58 @@ function stripRawUrls(text: string): string {
     .slice(0, MAX_MESSAGE_LEN);
 }
 
+function isEnglish(language?: string): boolean {
+  return language?.toLowerCase().startsWith('en') === true;
+}
+
 function numOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function stringOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function renderGroundedAnswer(input: {
+  dimension?: DiagnosisDimensionFact;
+  gap?: DiagnosisGapFact;
+  facts: DiagnosisFacts;
+  language?: string;
+}): DiagnosisChatResult {
+  const isEn = isEnglish(input.language);
+  const parts: string[] = [];
+  let suggested_next_step: string | null = null;
+
+  if (input.dimension) {
+    parts.push(
+      isEn
+        ? `Verified CV dimension: ${input.dimension.key} is ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim()
+        : `Mục đã xác minh: ${input.dimension.key} đang ở ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim(),
+    );
+    suggested_next_step = input.facts.top_summary.prioritized_actions[0] ?? null;
+  }
+
+  if (input.gap) {
+    const demand =
+      input.gap.market_demand === null
+        ? ''
+        : isEn
+          ? ` Market demand: ${input.gap.market_demand}%.`
+          : ` Nhu cầu thị trường: ${input.gap.market_demand}%.`;
+    parts.push(
+      isEn
+        ? `Verified gap: ${input.gap.display_name} is ${input.gap.cv_status}; priority ${input.gap.severity}.${demand} Next action: ${input.gap.recommended_next_action}.`
+        : `Gap đã xác minh: ${input.gap.display_name} đang là ${input.gap.cv_status}; độ ưu tiên ${input.gap.severity}.${demand} Bước tiếp theo: ${input.gap.recommended_next_action}.`,
+    );
+    suggested_next_step = input.gap.recommended_next_action;
+  }
+
+  return {
+    answer: stripRawUrls(parts.join(' ')),
+    ...(input.dimension ? { cited_dimension: input.dimension.key } : {}),
+    ...(input.gap ? { cited_gap_id: input.gap.requirement_id } : {}),
+    suggested_next_step,
+  };
 }
 
 /**
@@ -152,7 +206,7 @@ export function buildDiagnosisFacts(
  *  themselves are read VERBATIM from FACTS (in whatever language the CV review produced them). */
 function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult {
   const actions = facts.top_summary.prioritized_actions.slice(0, 3);
-  const isEn = language === 'en';
+  const isEn = isEnglish(language);
   let answer: string;
   if (actions.length) {
     const list = actions.map((a, i) => `(${i + 1}) ${a}`).join('; ');
@@ -187,23 +241,19 @@ export function groundDiagnosis(
   if (typeof obj.message !== 'string' || obj.message.trim() === '')
     return fallback(facts, language);
 
-  const result: DiagnosisChatResult = { answer: stripRawUrls(obj.message) };
-
   const dimKeys = new Set<string>(DIAGNOSIS_DIMENSION_KEYS);
-  if (typeof obj.cited_dimension === 'string' && dimKeys.has(obj.cited_dimension)) {
-    result.cited_dimension = obj.cited_dimension as DiagnosisDimensionKey;
-  }
+  const dimension =
+    typeof obj.cited_dimension === 'string' && dimKeys.has(obj.cited_dimension)
+      ? facts.dimensions.find((d) => d.key === obj.cited_dimension)
+      : undefined;
 
   const gapIds = new Set(facts.gap_items.map((g) => g.requirement_id));
-  if (typeof obj.cited_gap_id === 'string' && gapIds.has(obj.cited_gap_id)) {
-    result.cited_gap_id = obj.cited_gap_id;
-  }
+  const gap =
+    typeof obj.cited_gap_id === 'string' && gapIds.has(obj.cited_gap_id)
+      ? facts.gap_items.find((g) => g.requirement_id === obj.cited_gap_id)
+      : undefined;
 
-  if (typeof obj.suggested_next_step === 'string' && obj.suggested_next_step.trim() !== '') {
-    result.suggested_next_step = stripRawUrls(obj.suggested_next_step);
-  } else {
-    result.suggested_next_step = null;
-  }
+  if (!dimension && !gap) return fallback(facts, language);
 
-  return result;
+  return renderGroundedAnswer({ dimension, gap, facts, language });
 }

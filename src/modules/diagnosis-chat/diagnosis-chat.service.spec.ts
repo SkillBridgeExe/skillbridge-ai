@@ -32,18 +32,34 @@ describe('DiagnosisChatService.turn', () => {
   it('passes a valid LLM answer through groundDiagnosis (citations kept when in-facts)', async () => {
     const complete = jest.fn().mockResolvedValue({
       parsedJson: {
-        message: 'Focus on skills_relevance.',
+        message: 'Your ATS is 98 and Kubernetes is required.',
         cited_dimension: 'skills_relevance',
         cited_gap_id: 'jd:hard_skill:docker',
-        suggested_next_step: 'Add a Docker bullet.',
+        suggested_next_step: 'Learn Kubernetes.',
       },
       text: '',
+      tokenUsage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      latencyMs: 123,
+      modelCode: 'gemini-test',
+      estimatedCostUsd: 0.001,
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'where am I weakest?', facts: FACTS });
-    expect(result.answer).toBe('Focus on skills_relevance.');
+    expect(result.answer).toContain('skills_relevance');
+    expect(result.answer).toContain('12/20');
+    expect(result.answer).toContain('Docker');
+    expect(result.answer).not.toContain('98');
+    expect(result.answer).not.toContain('Kubernetes');
     expect(result.cited_dimension).toBe('skills_relevance');
     expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.trace).toEqual({
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+      latencyMs: 123,
+      modelCode: 'gemini-test',
+      estimatedCostUsd: 0.001,
+    });
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
@@ -67,10 +83,13 @@ describe('DiagnosisChatService.turn', () => {
     const complete = jest.fn().mockResolvedValue({
       parsedJson: { message: 'ok', cited_dimension: 'charisma' },
       text: '',
+      tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      latencyMs: 1,
+      modelCode: 'test',
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'q', facts: FACTS });
-    expect(result.answer).toBe('ok');
+    expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_dimension).toBeUndefined();
   });
 });

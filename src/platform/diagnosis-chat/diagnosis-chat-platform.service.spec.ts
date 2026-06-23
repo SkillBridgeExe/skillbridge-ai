@@ -43,6 +43,7 @@ interface SavedMessage {
  */
 function makeService(overrides?: {
   getGapReport?: jest.Mock;
+  getReviewForMatch?: jest.Mock;
   getLatestReview?: jest.Mock;
   turn?: jest.Mock;
   conversationFindOne?: jest.Mock;
@@ -79,6 +80,7 @@ function makeService(overrides?: {
 
   const cvMatches = {
     getGapReport: overrides?.getGapReport ?? jest.fn().mockResolvedValue(GAP_REPORT),
+    getReviewForMatch: overrides?.getReviewForMatch ?? jest.fn().mockResolvedValue(REVIEW),
   };
 
   const cvs = {
@@ -152,18 +154,34 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(getLatestReview).not.toHaveBeenCalled();
   });
 
-  it('(c) getGapReport throws NotFound BUT a valid cvId with a review → CV-only facts (legit degrade)', async () => {
+  it('(c) getGapReport throws NotFound EVEN with cvId → rejects NotFound (match route is fail-closed)', async () => {
     const getGapReport = jest.fn().mockRejectedValue(new NotFoundException('CV match not found'));
     const getLatestReview = jest.fn().mockResolvedValue(REVIEW);
-    const { service, chat } = makeService({ getGapReport, getLatestReview });
+    const { service, chat, saved } = makeService({ getGapReport, getLatestReview });
     const dto: DiagnosisChatRequestDto = { question: 'q', cvId: CV_ID };
 
-    const res = await service.turn(USER_ID, MATCH_ID, dto);
-    expect(res.answer).toBeDefined();
-    expect(getLatestReview).toHaveBeenCalledWith(USER_ID, CV_ID);
-    // CV-only facts → no gap_items.
+    await expect(service.turn(USER_ID, MATCH_ID, dto)).rejects.toBeInstanceOf(NotFoundException);
+    expect(getLatestReview).not.toHaveBeenCalled();
+    expect(chat.turn).not.toHaveBeenCalled();
+    expect(saved.find((m) => m.role === 'assistant')).toBeUndefined();
+  });
+
+  it('match route ignores client cvId and uses the review for the owned match cv only', async () => {
+    const getReviewForMatch = jest.fn().mockResolvedValue(REVIEW);
+    const getLatestReview = jest.fn().mockResolvedValue({
+      ...(REVIEW as object),
+      llm_score_dimensions: { skills_relevance: 1 },
+    });
+    const { service, chat } = makeService({ getReviewForMatch, getLatestReview });
+
+    await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+
+    expect(getReviewForMatch).toHaveBeenCalledWith(USER_ID, MATCH_ID);
+    expect(getLatestReview).not.toHaveBeenCalled();
     const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
-    expect(factsArg.gap_items).toEqual([]);
+    expect(factsArg.dimensions).toEqual([
+      { key: 'skills_relevance', score20: 12, rationale: 'Some JD skills missing.' },
+    ]);
   });
 });
 

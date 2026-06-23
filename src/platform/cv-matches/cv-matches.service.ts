@@ -21,6 +21,7 @@ import {
 } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
+import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
 import {
   GapReportService,
   SkillBridgeGapReport,
@@ -244,6 +245,16 @@ export class CvMatchesService {
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
     });
+  }
+
+  async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
+    const match = await this.matches.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('CV match not found');
+    await this.findOwnedCv(userId, match.cvId);
+    if (!this.platformCvs) {
+      throw new Error('CV review dependency is not configured');
+    }
+    return this.platformCvs.getLatestReview(userId, match.cvId);
   }
 
   async getProgress(userId: string, matchId: string): Promise<ProgressDelta> {

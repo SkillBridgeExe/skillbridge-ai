@@ -40,7 +40,10 @@ export class DiagnosisChatRequestDto {
   @MaxLength(2000)
   question!: string;
 
-  /** CV-only fallback when there is no JD match attached to the conversation. */
+  /**
+   * Legacy/no-op on the match route. The platform rebuilds match facts from `:matchId` only; CV-only
+   * diagnosis uses POST /api/cvs/:cvId/diagnosis-chat.
+   */
   @IsOptional()
   @IsUUID()
   cvId?: string;

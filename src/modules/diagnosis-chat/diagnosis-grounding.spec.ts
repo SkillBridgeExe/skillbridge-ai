@@ -138,25 +138,37 @@ describe('buildDiagnosisFacts', () => {
 describe('groundDiagnosis (anti-fabrication boundary)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
-  it('passes a valid parsed answer through, keeping in-facts citations', () => {
+  it('keeps valid citations but renders the visible answer from facts, not raw LLM prose', () => {
     const result = groundDiagnosis(
       {
-        message: 'Your skills_relevance dimension is the weakest — focus there.',
+        message: 'Your ATS is 98 and you should learn Kubernetes immediately.',
         cited_dimension: 'skills_relevance',
         cited_gap_id: 'jd:hard_skill:docker',
-        suggested_next_step: 'Add a Docker bullet with a measurable outcome.',
+        suggested_next_step: 'Buy this Kubernetes course.',
       },
       facts,
     );
-    expect(result.answer).toBe('Your skills_relevance dimension is the weakest — focus there.');
+    expect(result.answer).toContain('skills_relevance');
+    expect(result.answer).toContain('12/20');
+    expect(result.answer).toContain('Docker');
+    expect(result.answer).not.toContain('98');
+    expect(result.answer).not.toContain('Kubernetes');
     expect(result.cited_dimension).toBe('skills_relevance');
     expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
-    expect(result.suggested_next_step).toBe('Add a Docker bullet with a measurable outcome.');
+    expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
+  });
+
+  it('falls back when the model does not provide any valid citation', () => {
+    const result = groundDiagnosis({ message: 'ok' }, facts);
+    expect(result.answer).toContain('Add Docker evidence');
+    expect(result.answer).not.toBe('ok');
+    expect(result.cited_dimension).toBeUndefined();
+    expect(result.cited_gap_id).toBeUndefined();
   });
 
   it('DROPS cited_dimension that is not a real dimension key', () => {
     const result = groundDiagnosis({ message: 'ok', cited_dimension: 'charisma' }, facts);
-    expect(result.answer).toBe('ok');
+    expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_dimension).toBeUndefined();
   });
 
@@ -165,6 +177,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       { message: 'ok', cited_gap_id: 'jd:hard_skill:kubernetes' },
       facts,
     );
+    expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_gap_id).toBeUndefined();
   });
 
@@ -172,6 +185,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     const result = groundDiagnosis(
       {
         message: 'Take this course at https://evil.example.com/hack now.',
+        cited_gap_id: 'jd:hard_skill:docker',
         suggested_next_step: 'See www.spam.io/deal for more.',
       },
       facts,
