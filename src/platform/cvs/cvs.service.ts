@@ -33,7 +33,12 @@ import {
   SkillsNudge,
   SkillsSection,
 } from '../../modules/cv-assistant/cv-assistant-skills';
-import { AssistantAnalyzeRequestDto, AssistantRewriteRequestDto } from './dto/cv-assistant.dto';
+import {
+  AssistantAnalyzeRequestDto,
+  AssistantRewriteRequestDto,
+  ExtractRequestDto,
+} from './dto/cv-assistant.dto';
+import { CvIntakeResult, CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
 import {
   DownloadedFile,
   GcsStorageService,
@@ -106,6 +111,10 @@ export class CvsService {
     // Companion V1a — CV Builder assistant Turn-2 rewrite engine. Provided at runtime via CvsModule;
     // the `?` only satisfies TS (it follows the optionals above) and lets unit tests omit it.
     private readonly cvAssistant?: CvAssistantRewriteService,
+    // Narrative intake (Phase 1: experience) — free-text story → structured fields. Provided at
+    // runtime via CvsModule; the `?` only satisfies TS (it trails the optionals) and lets unit
+    // tests omit it.
+    private readonly cvIntake?: CvIntakeService,
   ) {}
 
   async create(
@@ -421,7 +430,9 @@ export class CvsService {
     const language = dto.locale ?? 'en';
     // A re-ask (missing/insufficient detail) spends NO LLM and must stay free — gate quota only when a
     // rewrite will actually run, so an out-of-quota user can still get the "tell me more" follow-up.
-    const grounded = groundCvAssistantAnswers(dto.answers, language);
+    // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
+    // diverge from the rewrite's own re-ask gate.
+    const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
     if (grounded.needs_detail.length === 0 && grounded.facts.length > 0) {
       await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
     }
@@ -431,6 +442,7 @@ export class CvsService {
         answers: dto.answers,
         target: dto.target,
         language,
+        outputLang: dto.output_lang ?? language,
         kind: dto.kind ?? 'bullet',
       },
       userId,
@@ -452,6 +464,39 @@ export class CvsService {
   ): Promise<SkillsNudge[]> {
     const cv = await this.findOwnedCv(userId, cvId);
     return analyzeSkillsSection((cv.parsedJson?.skills ?? {}) as SkillsSection, language);
+  }
+
+  /**
+   * Narrative intake (Phase 1: experience): verify ownership + quota, then turn the user's free-text
+   * story into structured fields. CV_BUILDER_REWRITE quota is charged only on a non-degraded
+   * extraction (a degraded fallback delivered no value). `output_lang` defaults to `locale` (the CV
+   * language follows the UI language unless the caller states otherwise).
+   */
+  async assistantExtract(
+    userId: string,
+    cvId: string,
+    dto: ExtractRequestDto,
+  ): Promise<CvIntakeResult> {
+    await this.findOwnedCv(userId, cvId);
+    if (!this.cvIntake) throw new Error('CvIntakeService is not configured');
+    const locale = dto.locale ?? 'en';
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const result = await this.cvIntake.extract(
+      {
+        section: dto.section,
+        narrative: dto.narrative,
+        locale,
+        outputLang: dto.output_lang ?? locale,
+      },
+      userId,
+    );
+    if (!result.degraded) {
+      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+        sourceType: 'cv',
+        sourceId: cvId,
+      });
+    }
+    return result;
   }
 
   async renderPdf(userId: string, cvId: string): Promise<RenderedCvPdf> {

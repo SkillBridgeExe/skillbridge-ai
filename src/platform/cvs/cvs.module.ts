@@ -22,6 +22,7 @@ import { CvsService } from './cvs.service';
 import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
 import { TextExtractorService } from './text-extractor.service';
 import { CvAssistantRewriteService } from '../../modules/cv-assistant/cv-assistant.service';
+import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
 
 @Module({
   imports: [
@@ -55,6 +56,8 @@ import { CvAssistantRewriteService } from '../../modules/cv-assistant/cv-assista
     CvAnalysisQuotaService,
     // Companion V1a — CV Builder assistant Turn-2 rewrite engine (deps Llm/Prompts are @Global).
     CvAssistantRewriteService,
+    // Narrative intake (Phase 1: experience) — story → structured fields (deps Llm/Prompts/Tracing are @Global).
+    CvIntakeService,
   ],
   exports: [CvsRetentionService, CvsService, CvPdfRendererService],
 })

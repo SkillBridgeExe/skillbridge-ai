@@ -1,0 +1,144 @@
+{
+  "cases": [
+    {
+      "id": "smartai-ongoing-vi",
+      "narrative": "Tôi làm ở SmartAI Solutions vị trí AI Engineer từ 05/2023 tới nay, xây chatbot bằng GPT-4o, giảm 40% thời gian xử lý.",
+      "llm": {
+        "fields": {
+          "company": { "value": "SmartAI Solutions", "source_span": "ở SmartAI Solutions" },
+          "position": { "value": "AI Engineer", "source_span": "vị trí AI Engineer" },
+          "description": { "value": ["Xây chatbot bằng GPT-4o."], "source_span": "xây chatbot bằng GPT-4o" },
+          "achievements": { "value": ["Giảm 40% thời gian xử lý."], "source_span": "giảm 40% thời gian xử lý" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "company": "SmartAI Solutions",
+          "position": "AI Engineer",
+          "start": "05/2023",
+          "description": ["Xây chatbot bằng GPT-4o."],
+          "achievements": ["Giảm 40% thời gian xử lý."]
+        }
+      }
+    },
+    {
+      "id": "techcorp-closed-en",
+      "narrative": "I worked at TechCorp as a Backend Engineer from May 2023 - Dec 2024, building APIs with Node.js and serving 2 million requests.",
+      "llm": {
+        "fields": {
+          "company": { "value": "TechCorp", "source_span": "at TechCorp" },
+          "position": { "value": "Backend Engineer", "source_span": "as a Backend Engineer" },
+          "description": { "value": ["Building APIs with Node.js."], "source_span": "building APIs with Node.js" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "company": "TechCorp",
+          "position": "Backend Engineer",
+          "start": "05/2023",
+          "end": "12/2024",
+          "description": ["Building APIs with Node.js."]
+        }
+      }
+    },
+    {
+      "id": "datalab-bareyears-vi",
+      "narrative": "Mình từng làm tại DataLab với vai trò Data Analyst trong giai đoạn 2021–2023, phân tích dữ liệu và làm dashboard.",
+      "llm": {
+        "fields": {
+          "company": { "value": "DataLab", "source_span": "tại DataLab" },
+          "position": { "value": "Data Analyst", "source_span": "vai trò Data Analyst" },
+          "description": { "value": ["Phân tích dữ liệu và làm dashboard."], "source_span": "phân tích dữ liệu và làm dashboard" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "company": "DataLab",
+          "position": "Data Analyst",
+          "start": "2021",
+          "end": "2023",
+          "description": ["Phân tích dữ liệu và làm dashboard."]
+        }
+      }
+    },
+    {
+      "id": "fab-company-google-vi",
+      "narrative": "Tôi làm ở SmartAI Solutions vị trí AI Engineer từ 05/2023 tới nay, xây chatbot bằng GPT-4o.",
+      "llm": {
+        "fields": {
+          "company": { "value": "Google", "source_span": "" },
+          "position": { "value": "AI Engineer", "source_span": "vị trí AI Engineer" },
+          "description": { "value": ["Xây chatbot bằng GPT-4o."], "source_span": "xây chatbot bằng GPT-4o" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "position": "AI Engineer",
+          "start": "05/2023",
+          "description": ["Xây chatbot bằng GPT-4o."]
+        }
+      },
+      "expectFabricationDropped": true
+    },
+    {
+      "id": "fab-number-80pct-vi",
+      "narrative": "Mình làm tại NovaTech vị trí Software Engineer từ 01/2022 đến 06/2023, tối ưu hệ thống và giảm 40% chi phí.",
+      "llm": {
+        "fields": {
+          "company": { "value": "NovaTech", "source_span": "tại NovaTech" },
+          "position": { "value": "Software Engineer", "source_span": "vị trí Software Engineer" },
+          "achievements": { "value": ["Giảm 80% chi phí."], "source_span": "" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "company": "NovaTech",
+          "position": "Software Engineer",
+          "start": "01/2022",
+          "end": "06/2023"
+        }
+      },
+      "expectFabricationDropped": true
+    },
+    {
+      "id": "fab-tech-kafka-en",
+      "narrative": "I joined CloudBase as a Platform Engineer from Mar 2022 - Aug 2023, maintaining services with Docker and Redis.",
+      "llm": {
+        "fields": {
+          "company": { "value": "CloudBase", "source_span": "joined CloudBase" },
+          "position": { "value": "Platform Engineer", "source_span": "as a Platform Engineer" },
+          "description": { "value": ["Built pipelines with Kafka."], "source_span": "" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "company": "CloudBase",
+          "position": "Platform Engineer",
+          "start": "03/2022",
+          "end": "08/2023"
+        }
+      },
+      "expectFabricationDropped": true
+    },
+    {
+      "id": "fab-company-recombined-vi",
+      "narrative": "Tôi làm ở Smart Data, trong nhóm Cloud Solutions, vị trí Backend Engineer từ 02/2022 đến 05/2023, xây dựng API nội bộ.",
+      "llm": {
+        "fields": {
+          "company": { "value": "Smart Solutions", "source_span": "" },
+          "position": { "value": "Backend Engineer", "source_span": "vị trí Backend Engineer" },
+          "description": { "value": ["Xây dựng API nội bộ."], "source_span": "xây dựng API nội bộ" }
+        }
+      },
+      "expected": {
+        "fields": {
+          "position": "Backend Engineer",
+          "start": "02/2022",
+          "end": "05/2023",
+          "description": ["Xây dựng API nội bộ."]
+        }
+      },
+      "expectFabricationDropped": true
+    }
+  ]
+}

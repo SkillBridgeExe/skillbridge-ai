@@ -113,4 +113,26 @@ describe('CvAssistantRewriteService.rewrite', () => {
     expect(prompts.get).toHaveBeenCalledWith('cv_summary_rewrite_v1');
     expect(prompts.render).toHaveBeenCalledWith('cv_summary_rewrite_v1', expect.anything());
   });
+
+  it('renders the prompt in output_lang while messages stay in locale (output_lang parity)', async () => {
+    const complete = llmOk({
+      after: 'Xây tính năng bằng Node.js.',
+      used_facts: ['built', 'Node.js'],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    // UI locale = en, CV output_lang = vi → the rewritten text must be generated in vi.
+    await svc.rewrite({
+      before: 'Worked on it.',
+      answers: ANSWERS_OK,
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      outputLang: 'vi',
+    });
+    const prompts = d.prompts as unknown as { render: jest.Mock };
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_rewrite_v1',
+      expect.objectContaining({ language: 'vi' }),
+    );
+  });
 });
