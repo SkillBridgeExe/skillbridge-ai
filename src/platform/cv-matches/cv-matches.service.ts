@@ -276,6 +276,10 @@ export class CvMatchesService {
         currScore,
       );
     } catch {
+      // Prior gap-report unavailable (e.g. legacy/empty ai_results): degrade to a
+      // baseline reading rather than fabricate a diff. We intentionally do NOT surface
+      // prior.overallScore here — without the prior gaps there is no honest comparison,
+      // so the FE shows "first measurement" instead of a misleading partial delta.
       return baselineProgress(currGaps, currScore);
     }
   }
