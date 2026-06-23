@@ -44,4 +44,29 @@ describe('parseDateRange', () => {
       ongoing: false,
     });
   });
+
+  // An out-of-range month (13/2023, 00/2023) is a typo, not a date — salvage the year as a bare year
+  // instead of emitting a bogus "13/2023" with high confidence.
+  it('rejects an invalid month and salvages the year', () => {
+    expect(parseDateRange('dự án từ 13/2023')).toEqual({
+      start: '2023',
+      end: null,
+      ongoing: false,
+    });
+    expect(parseDateRange('00/2023')).toEqual({ start: '2023', end: null, ongoing: false });
+  });
+
+  it('rejects an out-of-range bare year and accepts the boundary', () => {
+    expect(parseDateRange('làm năm 2036').start).toBeNull(); // > 2035 → not a plausible career year
+    expect(parseDateRange('làm năm 1949').start).toBeNull(); // < 1950
+    expect(parseDateRange('làm năm 2035')).toEqual({ start: '2035', end: null, ongoing: false });
+  });
+
+  it('takes the first date range from a multi-entry story (one entry by design)', () => {
+    expect(parseDateRange('Job A 01/2020 - 12/2021, then Job B 01/2022 - 12/2023')).toEqual({
+      start: '01/2020',
+      end: '12/2021',
+      ongoing: false,
+    });
+  });
 });

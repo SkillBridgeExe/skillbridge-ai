@@ -36,5 +36,14 @@ describe('isGrounded', () => {
       expect(isGrounded('SmartAI Solutions', N, 'atom')).toBe(true);
       expect(isGrounded('AI Engineer', N, 'atom')).toBe(true);
     });
+    it('grounds a Vietnamese-diacritic atom only when contiguous', () => {
+      const n = 'Tôi làm ở Giải Pháp Số Toàn Cầu, vị trí Kỹ Sư Dữ Liệu.';
+      expect(isGrounded('Giải Pháp Số', n, 'atom')).toBe(true);
+      expect(isGrounded('Số Giải Pháp', n, 'atom')).toBe(false); // scrambled → not contiguous
+    });
+    it('rejects a sub-2-char atom (a 1-char or empty entity is never grounded)', () => {
+      expect(isGrounded('A', N, 'atom')).toBe(false);
+      expect(isGrounded('', N, 'atom')).toBe(false);
+    });
   });
 });

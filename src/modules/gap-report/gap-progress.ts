@@ -7,6 +7,10 @@ export interface ProgressDelta {
   gaps_closed: string[];
   gaps_worsened: string[];
   avg_severity_delta: number;
+  /** Overall match score of the previous run for the same CV+JD (null at baseline). */
+  prev_score: number | null;
+  /** Overall match score of the current run (null when unknown). */
+  curr_score: number | null;
 }
 
 const OPEN_STATUSES = new Set<GapItem['cv_status']>([
@@ -26,7 +30,12 @@ const avgSeverity = (items: GapItem[]): number =>
 
 const round3 = (value: number): number => Math.round(value * 1000) / 1000;
 
-export function diffGapProgress(prev: GapItem[], curr: GapItem[]): ProgressDelta {
+export function diffGapProgress(
+  prev: GapItem[],
+  curr: GapItem[],
+  prevScore: number | null = null,
+  currScore: number | null = null,
+): ProgressDelta {
   const prevOpen = openGaps(prev);
   const currOpen = openGaps(curr);
   const prevNames = new Set(prevOpen.map((item) => item.canonical_name));
@@ -39,10 +48,15 @@ export function diffGapProgress(prev: GapItem[], curr: GapItem[]): ProgressDelta
     gaps_closed: [...prevNames].filter((name) => !currNames.has(name)),
     gaps_worsened: [...currNames].filter((name) => !prevNames.has(name)),
     avg_severity_delta: round3(avgSeverity(currOpen) - avgSeverity(prevOpen)),
+    prev_score: prevScore,
+    curr_score: currScore,
   };
 }
 
-export function baselineProgress(curr: GapItem[] | number): ProgressDelta {
+export function baselineProgress(
+  curr: GapItem[] | number,
+  currScore: number | null = null,
+): ProgressDelta {
   return {
     baseline: true,
     prev_count: 0,
@@ -50,5 +64,7 @@ export function baselineProgress(curr: GapItem[] | number): ProgressDelta {
     gaps_closed: [],
     gaps_worsened: [],
     avg_severity_delta: 0,
+    prev_score: null,
+    curr_score: currScore,
   };
 }

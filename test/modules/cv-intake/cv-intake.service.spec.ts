@@ -118,4 +118,21 @@ describe('CvIntakeService.extract', () => {
     expect(out.degraded).toBe(true);
     expect(out.missing.length).toBe(6);
   });
+
+  it('renders the prompt in the requested output_lang and masks PII before the LLM sees it', async () => {
+    const complete = llmOk({
+      fields: { company: { value: 'SmartAI Solutions', source_span: 'ở SmartAI Solutions' } },
+    });
+    const d = makeDeps(complete);
+    const svc = new CvIntakeService(d.llm, d.prompts, d.tracing);
+    await svc.extract({
+      section: 'experience',
+      narrative: 'Tôi làm ở SmartAI Solutions, liên hệ toi@example.com.',
+      locale: 'vi',
+      outputLang: 'en', // CV-output language is independent of the UI locale
+    });
+    const renderArgs = (d.prompts as unknown as { render: jest.Mock }).render.mock.calls[0][1];
+    expect(renderArgs.output_lang).toBe('en'); // intake threads output_lang to the prompt (parity with rewrite)
+    expect(renderArgs.narrative).not.toContain('toi@example.com'); // PII never reaches the model
+  });
 });

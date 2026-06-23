@@ -10,6 +10,7 @@ import { CvMatchesModule } from './platform/cv-matches/cv-matches.module';
 import { CvsModule } from './platform/cvs/cvs.module';
 import { InterviewsModule } from './platform/interviews/interviews.module';
 import { LearningModule } from './platform/learning/learning.module';
+import { DiagnosisChatModule } from './platform/diagnosis-chat/diagnosis-chat.module';
 import { MentorsModule } from './platform/mentors/mentors.module';
 import { BusinessJobsModule } from './platform/business-jobs/business-jobs.module';
 import { UsersModule } from './platform/users/users.module';
@@ -53,6 +54,7 @@ const PLATFORM_MODULES =
         CvMatchesModule,
         InterviewsModule,
         LearningModule,
+        DiagnosisChatModule,
         MentorsModule,
         BusinessJobsModule,
       ];

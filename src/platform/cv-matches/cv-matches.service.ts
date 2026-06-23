@@ -21,6 +21,7 @@ import {
 } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
+import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
 import {
   GapReportService,
   SkillBridgeGapReport,
@@ -246,6 +247,16 @@ export class CvMatchesService {
     });
   }
 
+  async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
+    const match = await this.matches.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('CV match not found');
+    await this.findOwnedCv(userId, match.cvId);
+    if (!this.platformCvs) {
+      throw new Error('CV review dependency is not configured');
+    }
+    return this.platformCvs.getLatestReview(userId, match.cvId);
+  }
+
   async getProgress(userId: string, matchId: string): Promise<ProgressDelta> {
     const current = await this.matches.findOne({ where: { id: matchId } });
     if (!current) throw new NotFoundException('CV match not found');
@@ -253,8 +264,9 @@ export class CvMatchesService {
 
     const currReport = await this.getGapReport(userId, matchId);
     const currGaps = currReport.gap_items;
+    const currScore = this.numberOrNull(current.overallScore);
 
-    if (!current.jobDescriptionId) return baselineProgress(currGaps);
+    if (!current.jobDescriptionId) return baselineProgress(currGaps, currScore);
 
     const prior = await this.matches.findOne({
       where: {
@@ -264,13 +276,22 @@ export class CvMatchesService {
       },
       order: { createdAt: 'DESC' },
     });
-    if (!prior) return baselineProgress(currGaps);
+    if (!prior) return baselineProgress(currGaps, currScore);
 
     try {
       const prevReport = await this.getGapReport(userId, prior.id);
-      return diffGapProgress(prevReport.gap_items, currGaps);
+      return diffGapProgress(
+        prevReport.gap_items,
+        currGaps,
+        this.numberOrNull(prior.overallScore),
+        currScore,
+      );
     } catch {
-      return baselineProgress(currGaps);
+      // Prior gap-report unavailable (e.g. legacy/empty ai_results): degrade to a
+      // baseline reading rather than fabricate a diff. We intentionally do NOT surface
+      // prior.overallScore here — without the prior gaps there is no honest comparison,
+      // so the FE shows "first measurement" instead of a misleading partial delta.
+      return baselineProgress(currGaps, currScore);
     }
   }
 

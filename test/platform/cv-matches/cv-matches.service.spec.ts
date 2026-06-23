@@ -365,12 +365,14 @@ describe('CvMatchesService', () => {
       cvId: 'cv-1',
       jobDescriptionId: 'jd-1',
       createdAt: new Date('2026-06-06T00:00:00.000Z'),
+      overallScore: '80.00',
     };
     const prior = {
       id: 'match-prior',
       cvId: 'cv-1',
       jobDescriptionId: 'jd-1',
       createdAt: new Date('2026-06-05T00:00:00.000Z'),
+      overallScore: '72.00',
     };
     jest
       .spyOn(service, 'getGapReport')
@@ -387,6 +389,8 @@ describe('CvMatchesService', () => {
     expect(out.baseline).toBe(false);
     expect(out.gaps_closed).toEqual(['react']);
     expect(out.avg_severity_delta).toBe(-0.8);
+    expect(out.prev_score).toBe(72);
+    expect(out.curr_score).toBe(80);
   });
 
   /**

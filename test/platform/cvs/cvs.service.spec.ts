@@ -256,11 +256,10 @@ describe('CvsService R1 completion behavior', () => {
     const response = await service.get('u1', 'cv-1');
 
     expect(response.review).toEqual(parsedReview);
-    expect(aiResults.manager.query).toHaveBeenCalledWith(expect.stringContaining('ai_results'), [
-      'u1',
-      BillingFeatureKey.CV_REVIEW,
-      'cv-1',
-    ]);
+    const [sql, params] = aiResults.manager.query.mock.calls.at(-1) as [string, unknown[]];
+    expect(sql).toContain('ai_results');
+    expect(sql).toContain('c.deleted_at IS NULL');
+    expect(params).toEqual(['u1', BillingFeatureKey.CV_REVIEW, 'cv-1']);
   });
 
   it('persists each normalized skill only once when multiple raw skills map to the same canonical skill', async () => {

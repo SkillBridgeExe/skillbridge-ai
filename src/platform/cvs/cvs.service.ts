@@ -721,6 +721,10 @@ export class CvsService {
         SELECT ar.parsed_response
         FROM ai_results ar
         INNER JOIN ai_requests req ON req.id = ar.ai_request_id
+        INNER JOIN cvs c
+          ON c.id = (req.request_payload -> 'payload' ->> 'cv_id')::uuid
+         AND c.user_id = ar.user_id
+         AND c.deleted_at IS NULL
         WHERE ar.user_id = $1
           AND ar.result_type = $2
           AND req.request_payload -> 'payload' ->> 'cv_id' = $3

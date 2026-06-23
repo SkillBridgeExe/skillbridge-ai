@@ -18,6 +18,16 @@ describe('diffGapProgress', () => {
     expect(out.curr_count).toBe(1);
   });
 
+  it('carries the before/after match score when provided, else null', () => {
+    const withScores = diffGapProgress([g('react', 'missing', 0.8)], [], 72, 80);
+    expect(withScores.prev_score).toBe(72);
+    expect(withScores.curr_score).toBe(80);
+
+    const withoutScores = diffGapProgress([], []);
+    expect(withoutScores.prev_score).toBeNull();
+    expect(withoutScores.curr_score).toBeNull();
+  });
+
   it('returns a negative average severity delta when open-gap severity improves', () => {
     const out = diffGapProgress([g('react', 'missing', 0.8)], [g('react', 'partial', 0.4)]);
 
@@ -34,6 +44,14 @@ describe('baselineProgress', () => {
       gaps_closed: [],
       gaps_worsened: [],
       avg_severity_delta: 0,
+      prev_score: null,
+      curr_score: null,
     });
+  });
+
+  it('carries the current score with no previous score at baseline', () => {
+    const out = baselineProgress(1, 65);
+    expect(out.prev_score).toBeNull();
+    expect(out.curr_score).toBe(65);
   });
 });
