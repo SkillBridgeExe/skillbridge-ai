@@ -145,6 +145,10 @@ export class CvIntakeService {
       if (!parsed || typeof parsed.fields !== 'object' || parsed.fields === null)
         throw new Error('cv_intake_experience: bad model output');
 
+      // Ground against the RAW narrative (the model only ever saw maskPii'd text). This is
+      // intentional: a value the model echoes as a redaction token ([redacted-email]) is absent from
+      // the raw narrative → dropped to found:false rather than leaked into the CV. Prefer honest-missing
+      // over surfacing a placeholder; PII never reaches the model in the first place (line above).
       const extraction = assembleExtraction(input.narrative, { fields: parsed.fields });
 
       if (aiRequestId) {

@@ -52,4 +52,13 @@ describe('assembleExtraction', () => {
     expect(out.fields.company.found).toBe(false);
     expect(out.missing).toContain('company');
   });
+
+  // A grounded value with no source_span is real but weakly-located → low confidence (so the UI can flag it).
+  it('marks a grounded value with a blank source_span as low confidence', () => {
+    const out = assembleExtraction(N, {
+      fields: { company: { value: 'SmartAI Solutions', source_span: '' } },
+    });
+    expect(out.fields.company.found).toBe(true);
+    expect(out.fields.company.confidence).toBe('low');
+  });
 });
