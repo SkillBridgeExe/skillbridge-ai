@@ -64,3 +64,35 @@ export class DiagnosisChatRequestDto {
   @Type(() => DiagnosisChatTurnDto)
   thread?: DiagnosisChatTurnDto[];
 }
+
+/**
+ * Body for the CV-only advisor route `POST /api/cvs/:cvId/diagnosis-chat` — a scan the user checked
+ * WITHOUT comparing a JD (no match). The cvId comes from the PATH (validated there), never the body, and
+ * there is NO matchId. Everything else mirrors {@link DiagnosisChatRequestDto}: the BE rebuilds all facts
+ * server-side from the user's OWN latest CV review; the client can never inject a score/citation.
+ */
+export class DiagnosisChatCvOnlyRequestDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  question!: string;
+
+  /** Section the user is viewing → emphasis only (the BE never trusts it for facts). */
+  @IsOptional()
+  @IsIn(DIAGNOSIS_FOCUS_VALUES)
+  focus?: DiagnosisFocus;
+
+  /** "vi" | "en" (or any short language tag) — answer language. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  language?: string;
+
+  /** Optional prior turns, bounded. The BE also loads persisted history; this is the FE-provided window. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_THREAD_TURNS)
+  @ValidateNested({ each: true })
+  @Type(() => DiagnosisChatTurnDto)
+  thread?: DiagnosisChatTurnDto[];
+}

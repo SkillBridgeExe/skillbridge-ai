@@ -1,6 +1,6 @@
 import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { maskPii } from '../../common/services/pii-mask';
 import { ChatConversationEntity } from '../../database/entities/chat-conversation.entity';
@@ -14,7 +14,7 @@ import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-cha
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import { CvsService } from '../cvs/cvs.service';
-import { DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
+import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
 const MAX_HISTORY = 10;
 const DIAGNOSIS_CHAT_REQUEST_TYPE = 'diagnosis_chat';
@@ -47,14 +47,56 @@ export class DiagnosisChatPlatformService {
     private readonly tracing: TracingService,
   ) {}
 
+  /**
+   * JD-match path: `POST /api/cv-matches/:matchId/chat`. FACTS prefer the ownership-scoped gap report
+   * (with CV-only degrade when a cvId is supplied and the match is absent). Conversation keyed by
+   * (userId, matchId). Unchanged contract.
+   */
   async turn(
     userId: string,
     matchId: string,
     dto: DiagnosisChatRequestDto,
   ): Promise<DiagnosisChatTurnResponse> {
-    await this.assertQuota(userId);
-    const conversation = await this.resolveConversation(userId, matchId);
     const facts = await this.buildFacts(userId, matchId, dto.cvId);
+    const conversation = await this.resolveConversation(userId, matchId);
+    return this.runTurn(userId, conversation, facts, dto, { match_id: matchId });
+  }
+
+  /**
+   * CV-only path: `POST /api/cvs/:cvId/diagnosis-chat` — a scan with NO JD match. FACTS are built ONLY
+   * from the user's OWN latest CV review (gap_items []); ownership is enforced by getLatestReview being
+   * userId-scoped — a non-owned/missing cv yields null → a clean 404 (never another user's data).
+   * Conversation keyed by (userId, cvId) with matchId NULL, so it never collides with a JD chat for the
+   * same CV. Quota / maskPii / tracing / persistence / fallback are identical to the JD path.
+   */
+  async turnCvOnly(
+    userId: string,
+    cvId: string,
+    dto: DiagnosisChatCvOnlyRequestDto,
+  ): Promise<DiagnosisChatTurnResponse> {
+    const review = await this.cvs.getLatestReview(userId, cvId);
+    if (!review) {
+      // Non-owned cv OR a cv with no completed review → honest 404, no cross-user data, no crash.
+      throw new NotFoundException('CV diagnosis not found');
+    }
+    const facts = buildDiagnosisFacts(review, null);
+    const conversation = await this.resolveCvConversation(userId, cvId);
+    return this.runTurn(userId, conversation, facts, dto, { cv_id: cvId });
+  }
+
+  /**
+   * Shared turn body for BOTH routes: quota → tracing start → maskPii(question) ONCE → persist user row
+   * → chat.turn over the deterministic FACTS → persist assistant row → tracing complete. `subject`
+   * (match_id OR cv_id) is threaded into the tracing payload + the user-row metadata only.
+   */
+  private async runTurn(
+    userId: string,
+    conversation: ChatConversationEntity,
+    facts: DiagnosisFacts,
+    dto: DiagnosisChatRequestDto | DiagnosisChatCvOnlyRequestDto,
+    subject: { match_id: string } | { cv_id: string },
+  ): Promise<DiagnosisChatTurnResponse> {
+    await this.assertQuota(userId);
     const history = await this.loadHistory(conversation.id);
 
     const aiRequestId = await this.tracing.startAiRequest({
@@ -63,7 +105,7 @@ export class DiagnosisChatPlatformService {
       requestType: DIAGNOSIS_CHAT_REQUEST_TYPE,
       requestPayload: {
         conversation_id: conversation.id,
-        match_id: matchId,
+        ...subject,
         focus: dto.focus ?? null,
         message_length: dto.question.length,
       },
@@ -79,7 +121,7 @@ export class DiagnosisChatPlatformService {
           conversationId: conversation.id,
           role: 'user',
           content: maskedQuestion,
-          metadata: { match_id: matchId, focus: dto.focus ?? null },
+          metadata: { ...subject, focus: dto.focus ?? null },
         }),
       );
 
@@ -176,6 +218,25 @@ export class DiagnosisChatPlatformService {
     const existing = await this.conversations.findOne({ where: { userId, matchId } });
     if (existing) return existing;
     return this.conversations.save(this.conversations.create({ userId, matchId, title: null }));
+  }
+
+  /**
+   * One conversation per (user, cv) for the CV-only path. Scoped by {userId, cvId, matchId: IS NULL} so
+   * it can never read another user's thread AND never collides with a JD chat for the same CV (which is
+   * keyed by matchId, with cvId left null). Ownership of the cv is already enforced upstream by
+   * getLatestReview(userId, cvId) being userId-scoped.
+   */
+  private async resolveCvConversation(
+    userId: string,
+    cvId: string,
+  ): Promise<ChatConversationEntity> {
+    const existing = await this.conversations.findOne({
+      where: { userId, cvId, matchId: IsNull() },
+    });
+    if (existing) return existing;
+    return this.conversations.save(
+      this.conversations.create({ userId, cvId, matchId: null, title: null }),
+    );
   }
 
   private async loadHistory(conversationId: string) {

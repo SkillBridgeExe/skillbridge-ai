@@ -5,6 +5,7 @@ import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { CvMatchesModule } from '../cv-matches/cv-matches.module';
 import { CvsModule } from '../cvs/cvs.module';
+import { DiagnosisChatCvController } from './diagnosis-chat-cv.controller';
 import { DiagnosisChatController } from './diagnosis-chat.controller';
 import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service';
 
@@ -17,7 +18,7 @@ import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service'
     forwardRef(() => CvMatchesModule),
     CvsModule,
   ],
-  controllers: [DiagnosisChatController],
+  controllers: [DiagnosisChatController, DiagnosisChatCvController],
   providers: [DiagnosisChatService, DiagnosisChatPlatformService],
 })
 export class DiagnosisChatModule {}

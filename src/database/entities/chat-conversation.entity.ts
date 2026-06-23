@@ -21,6 +21,13 @@ export class ChatConversationEntity {
   @Column({ type: 'uuid', name: 'match_id', nullable: true })
   matchId!: string | null;
 
+  /**
+   * CV-only advisor subject (no JD match). A CV-only diagnosis chat is keyed by (user_id, cv_id) with
+   * match_id NULL; a JD chat for the SAME cv is still keyed by its match_id, so the two never collide.
+   */
+  @Column({ type: 'uuid', name: 'cv_id', nullable: true })
+  cvId!: string | null;
+
   @Column({ type: 'varchar', name: 'title', nullable: true })
   title!: string | null;
 
