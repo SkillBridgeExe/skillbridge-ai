@@ -54,13 +54,14 @@ export class RoadmapService {
     private readonly learningPreferences?: Repository<UserLearningPreferenceEntity>,
   ) {}
 
-
   async generate(
     userId: string,
     input: RoadmapGenerateRequestDto,
   ): Promise<RoadmapGenerateResponseDto> {
     const template = this.prompts.get(input.prompt_template_code);
-    const preferences = userId ? await this.learningPreferences?.findOne({ where: { userId } }) : null;
+    const preferences = userId
+      ? await this.learningPreferences?.findOne({ where: { userId } })
+      : null;
     const languagePref = input.language_pref ?? preferences?.languagePref ?? 'both';
 
     // ─── Step 1: build prompt with normalized gap data ──────────────────────
@@ -117,7 +118,6 @@ export class RoadmapService {
       completionTokens = llmResult.tokenUsage.completionTokens;
       estimatedCost = llmResult.estimatedCostUsd ?? 0;
       latencyMs = llmResult.latencyMs;
-
     } catch (err) {
       this.logger.warn(
         `Roadmap LLM generation failed — serving deterministic fallback: ${(err as Error).message}`,
@@ -125,10 +125,7 @@ export class RoadmapService {
       isFallback = true;
       await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
 
-      const allInputSkills = [
-        ...input.missing_skills,
-        ...(input.partial_skills ?? []),
-      ];
+      const allInputSkills = [...input.missing_skills, ...(input.partial_skills ?? [])];
 
       const totalWeeks = Math.max(4, Math.min(12, Math.ceil(allInputSkills.length * 1.5)));
       const totalHours = totalWeeks * input.hours_per_week;
@@ -161,11 +158,14 @@ export class RoadmapService {
         phases,
         steps,
         ai_summary: `Focus on ${allInputSkills.length} skill${allInputSkills.length > 1 ? 's' : ''} in ${totalHours}h.`,
-        ai_advice: `This is a deterministic learning plan generated because the AI service is currently unavailable. It focuses on your primary skill gaps: ${allInputSkills.map(s => s.skill_canonical_name).join(', ')}.`,
+        ai_advice: `This is a deterministic learning plan generated because the AI service is currently unavailable. It focuses on your primary skill gaps: ${allInputSkills.map((s) => s.skill_canonical_name).join(', ')}.`,
       };
 
       tokenUsage = 0;
-      rawResponse = JSON.stringify({ fallback: true, originalError: err instanceof Error ? err.message : String(err) });
+      rawResponse = JSON.stringify({
+        fallback: true,
+        originalError: err instanceof Error ? err.message : String(err),
+      });
     }
 
     // ─── Step 3: sanity-check skill references against the input gap ────────
@@ -246,14 +246,16 @@ export class RoadmapService {
       });
     } else {
       // Save fallback results to tracing for debug/retrieval audit transparency
-      await this.tracing.saveAiResult({
-        aiRequestId,
-        userId,
-        resultType: 'roadmap_generate',
-        rawResponse,
-        parsedResponse: parsed,
-        tokenUsage: 0,
-      }).catch(() => undefined);
+      await this.tracing
+        .saveAiResult({
+          aiRequestId,
+          userId,
+          resultType: 'roadmap_generate',
+          rawResponse,
+          parsedResponse: parsed,
+          tokenUsage: 0,
+        })
+        .catch(() => undefined);
     }
 
     return {
@@ -263,7 +265,6 @@ export class RoadmapService {
       retrieved_chunks_count: 0,
       token_usage: tokenUsage,
     };
-
   }
 
   /**

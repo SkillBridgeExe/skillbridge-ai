@@ -86,7 +86,6 @@ export class PromptsService implements OnModuleInit {
     }
   }
 
-
   /** Lookup by combined code (e.g. `cv_review_v1`). */
   get(combinedCode: string): PromptTemplate {
     const template = this.templates.get(combinedCode);

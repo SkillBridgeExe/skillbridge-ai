@@ -35,15 +35,14 @@ export class RoadmapComposerService {
       langPref: input.languagePref ?? 'both',
     });
     const resourcesBySkill = new Map(
-      matched.per_skill.map((item) => [item.skill_canonical_name, [...item.resources]] as [string, ScoredResource[]]),
+      matched.per_skill.map(
+        (item) => [item.skill_canonical_name, [...item.resources]] as [string, ScoredResource[]],
+      ),
     );
     const withResourceHours = feasibilityInputs.map((item) => ({
       ...item,
       resource_hours: primaryResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
     }));
-    const feasibilityBySkill = new Map(
-      withResourceHours.map((item) => [item.skill_canonical, item] as const),
-    );
     const plan = planFeasibility(withResourceHours, input.budget);
 
     const steps: ComposedRoadmapStep[] = [];
@@ -57,22 +56,25 @@ export class RoadmapComposerService {
       if (!hasVideo && typeof this.matcher.allResources === 'function') {
         const videoCandidate = this.matcher
           .allResources()
-          .find((r) => 
-            r.source_type === 'video' && 
-            r.validation_status === 'verified' &&
-            r.skills.some((s) => s.skill_canonical_name === item.skill_canonical)
+          .find(
+            (r) =>
+              r.source_type === 'video' &&
+              r.validation_status === 'verified' &&
+              r.skills.some((s) => s.skill_canonical_name === item.skill_canonical),
           );
         if (videoCandidate) {
-          const teachesLevel = videoCandidate.skills.find(
-            (s) => s.skill_canonical_name === item.skill_canonical
-          )?.teaches_level ?? 3;
-          
+          const teachesLevel =
+            videoCandidate.skills.find((s) => s.skill_canonical_name === item.skill_canonical)
+              ?.teaches_level ?? 3;
+
           const requestedSet = new Set(matchRequests.map((r) => r.skill_canonical_name));
-          const req = matchRequests.find((r) => r.skill_canonical_name === item.skill_canonical) || {
+          const req = matchRequests.find(
+            (r) => r.skill_canonical_name === item.skill_canonical,
+          ) || {
             skill_canonical_name: item.skill_canonical,
             required_level: 3,
           };
-          
+
           const scoredVideo = scoreResource(
             videoCandidate,
             teachesLevel,
@@ -131,7 +133,7 @@ function primaryResourceHours(resources: ScoredResource[]): number | null {
   return Number.isFinite(primaryMinutes) && primaryMinutes > 0 ? primaryMinutes / 60 : null;
 }
 
-function fallbackFor(
+function _fallbackFor(
   item: ReturnType<typeof toFeasibilityInputs>[number] | undefined,
 ): NotFeasibleItem['fallback'] {
   if (item?.interview_confirmed) return 'interview_practice';

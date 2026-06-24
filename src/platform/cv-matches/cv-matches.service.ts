@@ -297,7 +297,6 @@ export class CvMatchesService {
     const languagePref: LearningLanguagePref =
       dto.language_pref ?? preferences?.languagePref ?? 'both';
 
-
     if (plan.learn_items.length === 0) {
       return {
         budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),

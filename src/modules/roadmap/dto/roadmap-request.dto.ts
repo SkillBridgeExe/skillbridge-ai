@@ -11,7 +11,6 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-
 /**
  * One pre-computed missing/partial skill, normally produced by /internal/ai/cv-jd-match
  * (SkillDiffService output). Caller passes the same shape here to avoid re-doing
@@ -94,4 +93,3 @@ export class RoadmapGenerateRequestDto {
   @IsIn(['vi', 'en', 'both'])
   language_pref?: 'vi' | 'en' | 'both';
 }
-

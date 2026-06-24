@@ -209,7 +209,7 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 14, hours_per_week: 10 },
     });
 
-    expect(out.steps.map(s => s.skill_canonical)).toEqual(['react']);
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
     expect(out.steps[0].estimated_hours).toBe(30);
     expect(out.not_feasible_items).toEqual([]);
   });
@@ -230,7 +230,7 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 1, hours_per_week: 1 },
     });
 
-    expect(out.steps.map(s => s.skill_canonical)).toEqual(['communication', 'portfolio']);
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['communication', 'portfolio']);
     expect(out.not_feasible_items).toEqual([]);
   });
 });
