@@ -33,7 +33,7 @@ const INTAKE_FIELD_OBJECT = (valueType: Record<string, unknown>) => ({
   },
 });
 
-const INTAKE_SCHEMA: Record<string, unknown> = {
+export const INTAKE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: ['fields'],

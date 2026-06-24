@@ -15,7 +15,7 @@ import { maskPiiDeep } from '../../common/services/pii-mask';
 const SCORE_0_100 = { type: 'number', minimum: 0, maximum: 100 };
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } };
 
-const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
+export const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
