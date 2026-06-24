@@ -11,7 +11,7 @@ const MAX_HISTORY = 10; // bounded window (mirror interview MAX_ANSWER_HISTORY_T
 const DEFAULT_TOPK = 6;
 
 /** Schema-enforced output (audit F1) — defense-in-depth alongside groundResources. */
-const CHAT_SCHEMA: Record<string, unknown> = {
+export const CHAT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: ['message', 'cited_resource_ids', 'suggested_next_step'],

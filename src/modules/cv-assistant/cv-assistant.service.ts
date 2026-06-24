@@ -17,7 +17,7 @@ const PROMPT_CODE: Record<'bullet' | 'summary', string> = {
 };
 
 /** the model may output exactly these two fields — code verifies them against the allowed facts. */
-const REWRITE_SCHEMA: Record<string, unknown> = {
+export const REWRITE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: ['after', 'used_facts'],
