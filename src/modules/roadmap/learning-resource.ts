@@ -120,7 +120,7 @@ export interface LearningResourceMatchResult {
   uncovered_skills: string[];
 }
 
-const TOP_N_PER_SKILL = 3;
+const TOP_N_PER_SKILL = 10;
 
 /** Deterministic resource score. Mirrors the legacy course formula generalized to quality_score. */
 export function scoreResource(
@@ -202,7 +202,7 @@ export function matchResources(
     per_skill.push({
       skill_canonical_name: req.skill_canonical_name,
       required_level: req.required_level,
-      resources: scored.slice(0, TOP_N_PER_SKILL),
+      resources: scored,
     });
   }
 

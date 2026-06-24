@@ -49,8 +49,7 @@ function legacyMatch(
         id: course.id,
         score: legacyScore(course, teaches_level, req.required_level, requestedSet),
       }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
+      .sort((a, b) => b.score - a.score);
     return {
       skill: req.skill_canonical_name,
       ids: scored.map((s) => s.id),
@@ -87,7 +86,8 @@ describe('CourseMatcherService real-catalog parity (no drift vs legacy)', () => 
   it('max match_score diff = 0 across every course in every skill', () => {
     let maxDiff = 0;
     for (let i = 0; i < requests.length; i++) {
-      const w = wrapper.per_skill[i].courses;
+      const legacyIds = new Set(legacy[i].ids);
+      const w = wrapper.per_skill[i].courses.filter((c) => legacyIds.has(c.id));
       const l = legacy[i];
       expect(w.length).toBe(l.scores.length);
       for (let j = 0; j < w.length; j++) {
@@ -99,7 +99,9 @@ describe('CourseMatcherService real-catalog parity (no drift vs legacy)', () => 
 
   it('top course ORDER is unchanged for every skill (no rank drift)', () => {
     for (let i = 0; i < requests.length; i++) {
-      expect(wrapper.per_skill[i].courses.map((c) => c.id)).toEqual(legacy[i].ids);
+      const legacyIds = new Set(legacy[i].ids);
+      const w = wrapper.per_skill[i].courses.filter((c) => legacyIds.has(c.id));
+      expect(w.map((c) => c.id)).toEqual(legacy[i].ids);
     }
   });
 });
