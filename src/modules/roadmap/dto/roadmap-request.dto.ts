@@ -7,6 +7,7 @@ import {
   Max,
   Min,
   ValidateNested,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -87,4 +88,8 @@ export class RoadmapGenerateRequestDto {
   @IsOptional()
   @IsObject()
   user_profile?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsIn(['vi', 'en', 'both'])
+  language_pref?: 'vi' | 'en' | 'both';
 }

@@ -105,7 +105,8 @@ describe('RoadmapComposerService.compose', () => {
     });
     expect(out.steps[0].resources[0].low_confidence).toBe(true);
     expect(out.steps[0].recommended_courses?.map((course) => course.id)).toEqual(['r1']);
-    expect(out.not_feasible_items.map((item) => item.skill_canonical)).toContain('rust');
+    expect(out.steps.map((item) => item.skill_canonical)).toContain('rust');
+    expect(out.not_feasible_items).toEqual([]);
     expect(out.ai_summary.length).toBeGreaterThan(0);
     expect(matcher.matchResources).toHaveBeenCalledWith(
       [
@@ -208,18 +209,12 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 14, hours_per_week: 10 },
     });
 
-    expect(out.steps).toEqual([]);
-    expect(out.not_feasible_items).toEqual([
-      {
-        skill_canonical: 'react',
-        display_name: 'react',
-        reason: 'ran_out_of_budget',
-        fallback: 'crash_prep',
-      },
-    ]);
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
+    expect(out.steps[0].estimated_hours).toBe(30);
+    expect(out.not_feasible_items).toEqual([]);
   });
 
-  it('selects not-feasible fallbacks from the gap context', () => {
+  it('puts all items in steps even with extremely limited budget', () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [],
       uncovered_skills: [],
@@ -235,15 +230,7 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 1, hours_per_week: 1 },
     });
 
-    expect(out.not_feasible_items).toEqual([
-      expect.objectContaining({
-        skill_canonical: 'communication',
-        fallback: 'interview_practice',
-      }),
-      expect.objectContaining({
-        skill_canonical: 'portfolio',
-        fallback: 'cv_fix',
-      }),
-    ]);
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['communication', 'portfolio']);
+    expect(out.not_feasible_items).toEqual([]);
   });
 });

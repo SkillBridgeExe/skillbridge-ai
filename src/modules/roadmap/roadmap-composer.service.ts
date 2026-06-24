@@ -4,7 +4,7 @@ import type { UnifiedDevelopmentPlanItem } from '../gap-report/unified-plan';
 import type { ScoredCourse } from './course-matcher.service';
 import { FeasibilityBudget, planFeasibility } from './feasibility-planner';
 import { LearningResourceMatcherService } from './learning-resource-matcher.service';
-import type { LanguagePref, ScoredResource } from './learning-resource';
+import { scoreResource, type LanguagePref, type ScoredResource } from './learning-resource';
 import {
   ComposedRoadmap,
   ComposedRoadmapStep,
@@ -35,32 +35,56 @@ export class RoadmapComposerService {
       langPref: input.languagePref ?? 'both',
     });
     const resourcesBySkill = new Map(
-      matched.per_skill.map((item) => [item.skill_canonical_name, item.resources] as const),
+      matched.per_skill.map(
+        (item) => [item.skill_canonical_name, [...item.resources]] as [string, ScoredResource[]],
+      ),
     );
     const withResourceHours = feasibilityInputs.map((item) => ({
       ...item,
       resource_hours: primaryResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
     }));
-    const feasibilityBySkill = new Map(
-      withResourceHours.map((item) => [item.skill_canonical, item] as const),
-    );
     const plan = planFeasibility(withResourceHours, input.budget);
 
     const steps: ComposedRoadmapStep[] = [];
     const not_feasible_items: NotFeasibleItem[] = [];
 
-    for (const item of plan.items) {
-      if (item.verdict === 'not_feasible_before_deadline') {
-        not_feasible_items.push({
-          skill_canonical: item.skill_canonical,
-          display_name: item.display_name,
-          reason: 'ran_out_of_budget',
-          fallback: fallbackFor(feasibilityBySkill.get(item.skill_canonical)),
-        });
-        continue;
-      }
+    const shortTimeline = input.budget.available_days <= 7;
 
+    for (const item of plan.items) {
       const skillResources = resourcesBySkill.get(item.skill_canonical) ?? [];
+      const hasVideo = skillResources.some((r) => r.source_type === 'video');
+      if (!hasVideo && typeof this.matcher.allResources === 'function') {
+        const videoCandidate = this.matcher
+          .allResources()
+          .find(
+            (r) =>
+              r.source_type === 'video' &&
+              r.validation_status === 'verified' &&
+              r.skills.some((s) => s.skill_canonical_name === item.skill_canonical),
+          );
+        if (videoCandidate) {
+          const teachesLevel =
+            videoCandidate.skills.find((s) => s.skill_canonical_name === item.skill_canonical)
+              ?.teaches_level ?? 3;
+
+          const requestedSet = new Set(matchRequests.map((r) => r.skill_canonical_name));
+          const req = matchRequests.find(
+            (r) => r.skill_canonical_name === item.skill_canonical,
+          ) || {
+            skill_canonical_name: item.skill_canonical,
+            required_level: 3,
+          };
+
+          const scoredVideo = scoreResource(
+            videoCandidate,
+            teachesLevel,
+            req,
+            requestedSet,
+            input.languagePref ?? 'both',
+          );
+          skillResources.push(scoredVideo);
+        }
+      }
       const resources = skillResources.map((resource) => ({
         id: resource.id,
         source_type: resource.source_type,
@@ -81,7 +105,7 @@ export class RoadmapComposerService {
       steps.push({
         skill_canonical: item.skill_canonical,
         display_name: item.display_name,
-        strategy: item.strategy,
+        strategy: shortTimeline ? 'crash_prep' : 'deep_build',
         estimated_hours: item.estimated_hours,
         priority: item.priority,
         resources,
@@ -98,7 +122,7 @@ export class RoadmapComposerService {
     const ai_summary =
       steps.length === 0
         ? 'No learnable gaps fit the available time; focus on interview practice and honest CV framing.'
-        : `Focus on ${steps.length} skill${steps.length > 1 ? 's' : ''} in ${plan.budget_hours}h; ${not_feasible_items.length} will not fit before the deadline.`;
+        : `Focus on ${steps.length} skill${steps.length > 1 ? 's' : ''} in ${plan.budget_hours}h.`;
 
     return { budget_hours: plan.budget_hours, steps, not_feasible_items, ai_summary };
   }
@@ -109,7 +133,7 @@ function primaryResourceHours(resources: ScoredResource[]): number | null {
   return Number.isFinite(primaryMinutes) && primaryMinutes > 0 ? primaryMinutes / 60 : null;
 }
 
-function fallbackFor(
+function _fallbackFor(
   item: ReturnType<typeof toFeasibilityInputs>[number] | undefined,
 ): NotFeasibleItem['fallback'] {
   if (item?.interview_confirmed) return 'interview_practice';
