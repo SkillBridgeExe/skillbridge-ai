@@ -15,14 +15,20 @@ const MAX_OUTPUT_TOKENS = 600;
 
 /** Schema-enforced output (audit F1) — defense-in-depth alongside groundDiagnosis. cited_dimension is
  *  constrained to the 4 real dimension keys; cited_gap_id is a free string (post-verified against FACTS). */
+// NOTE: the OpenAI provider sends this with `strict: true`, and OpenAI structured
+// output REQUIRES `required` to list EVERY key in `properties` — optional fields are
+// expressed as nullable unions, not by omission from `required`. (A `required:['message']`
+// schema is rejected with: "400 Invalid schema ... Missing 'cited_dimension'", which
+// silently degraded every chat turn to the deterministic fallback.) `null` means
+// "no citation / no suggestion" — groundDiagnosis drops a null/invalid citation anyway.
 export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['message'],
+  required: ['message', 'cited_dimension', 'cited_gap_id', 'suggested_next_step'],
   properties: {
     message: { type: 'string' },
-    cited_dimension: { type: 'string', enum: [...DIAGNOSIS_DIMENSION_KEYS] },
-    cited_gap_id: { type: 'string' },
+    cited_dimension: { type: ['string', 'null'], enum: [...DIAGNOSIS_DIMENSION_KEYS, null] },
+    cited_gap_id: { type: ['string', 'null'] },
     suggested_next_step: { type: ['string', 'null'] },
   },
 };
