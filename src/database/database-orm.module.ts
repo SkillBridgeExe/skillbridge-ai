@@ -27,6 +27,14 @@ export class DatabaseOrmModule {
           useFactory: () => ({
             ...buildDataSourceOptions(),
             autoLoadEntities: true,
+            // Apply pending migrations on boot so a deploy actually ships its schema
+            // changes. Previously `start:prod` was `node dist/main` with no migration
+            // step, so a merged migration (e.g. chat_conversations.cv_id) never reached
+            // prod until run by hand — every diagnosis-chat call 500'd until then.
+            // `synchronize` stays false: migrations remain the source of truth. TypeORM
+            // wraps each migration in a transaction and records it, so on a multi-instance
+            // Cloud Run rollout only the first post-deploy boot has anything to run.
+            migrationsRun: true,
           }),
         }),
       ],
