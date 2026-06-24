@@ -12,7 +12,27 @@ import {
 
 const PROMPT_CODE = 'cv_intake_experience_v1';
 
-/** The model may output exactly this shape — code grounds every atom against the narrative. */
+/**
+ * The model may output exactly this shape — code grounds every atom against the narrative.
+ *
+ * The OpenAI provider sends this with `strict: true`, and OpenAI structured output REQUIRES
+ * every object's `required` to list ALL of its `properties` (optional values are nullable, not
+ * omitted). The `fields` object and each field object MUST therefore carry an exhaustive
+ * `required` — without it OpenAI rejects the call with `400 Invalid schema ... Missing 'value'`,
+ * which made `extract()` always degrade to all-fields-found:false (the narrative never parsed).
+ * Honest-missing still works: a value the narrative does not support is dropped by
+ * `assembleExtraction`'s grounding gate, so the model returning `""`/`[]` is harmless.
+ */
+const INTAKE_FIELD_OBJECT = (valueType: Record<string, unknown>) => ({
+  type: 'object',
+  additionalProperties: false,
+  required: ['value', 'source_span'],
+  properties: {
+    value: valueType,
+    source_span: { type: 'string' },
+  },
+});
+
 const INTAKE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
@@ -21,39 +41,12 @@ const INTAKE_SCHEMA: Record<string, unknown> = {
     fields: {
       type: 'object',
       additionalProperties: false,
+      required: ['company', 'position', 'description', 'achievements'],
       properties: {
-        company: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            value: { type: 'string' },
-            source_span: { type: 'string' },
-          },
-        },
-        position: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            value: { type: 'string' },
-            source_span: { type: 'string' },
-          },
-        },
-        description: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            value: { type: 'array', items: { type: 'string' } },
-            source_span: { type: 'string' },
-          },
-        },
-        achievements: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            value: { type: 'array', items: { type: 'string' } },
-            source_span: { type: 'string' },
-          },
-        },
+        company: INTAKE_FIELD_OBJECT({ type: 'string' }),
+        position: INTAKE_FIELD_OBJECT({ type: 'string' }),
+        description: INTAKE_FIELD_OBJECT({ type: 'array', items: { type: 'string' } }),
+        achievements: INTAKE_FIELD_OBJECT({ type: 'array', items: { type: 'string' } }),
       },
     },
   },
