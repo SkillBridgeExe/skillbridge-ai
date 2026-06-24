@@ -25,7 +25,8 @@ export class OpenAiQuestionAudioService {
     question: string,
   ): Promise<QuestionAudioResult> {
     const model = this.config.get<string>('llm.openai.ttsModel') ?? 'gpt-4o-mini-tts';
-    const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
+    const voice =
+      session.voice ?? this.config.get<string>('llm.openai.ttsVoice') ?? DEFAULT_INTERVIEW_VOICE;
     const speed = this.speechSpeed(session.speechSpeed);
 
     try {
@@ -64,11 +65,12 @@ export class OpenAiQuestionAudioService {
   private voiceInstructions(session: InterviewSessionEntity): string {
     const language =
       session.language === 'vi'
-        ? 'Speak natural Vietnamese with a calm professional interviewer tone.'
+        ? 'Speak natural Vietnamese with clear diacritics, a moderate pace, and a calm professional interviewer tone.'
         : 'Speak natural English with a calm professional interviewer tone.';
     return [
       language,
       'Read only the interview question. Do not add extra commentary, scoring, or advice.',
+      'Do not translate English technical terms such as React, TypeScript, API, Docker, PostgreSQL, Node.js, NestJS, or Next.js.',
       `Target role: ${session.targetRole}. Interview type: ${session.interviewType}.`,
     ].join(' ');
   }

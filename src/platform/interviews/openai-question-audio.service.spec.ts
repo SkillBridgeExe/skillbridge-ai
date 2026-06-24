@@ -38,7 +38,7 @@ describe('OpenAiQuestionAudioService', () => {
     const values: Record<string, string | undefined> = {
       'llm.openai.apiKey': 'sk-test',
       'llm.openai.ttsModel': 'gpt-4o-mini-tts',
-      'llm.openai.ttsVoice': 'alloy',
+      'llm.openai.ttsVoice': 'marin',
       ...overrides,
     };
     const config = {
@@ -80,10 +80,15 @@ describe('OpenAiQuestionAudioService', () => {
       model: 'gpt-4o-mini-tts',
       voice: 'marin',
       input: 'Tell me about your latest React project.',
-      instructions: expect.stringContaining('Speak natural Vietnamese'),
+      instructions: expect.stringContaining('Vietnamese with clear diacritics'),
       response_format: 'mp3',
       speed: 1.15,
     });
+    expect(mockSpeechCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: expect.stringContaining('Do not translate English technical terms'),
+      }),
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result).toEqual({
       data: Buffer.from([7, 8, 9]),
@@ -91,6 +96,26 @@ describe('OpenAiQuestionAudioService', () => {
     });
 
     fetchSpy.mockRestore();
+  });
+
+  it('uses the configured default voice when the session has no saved voice', async () => {
+    mockSpeechCreate.mockResolvedValue(audioResponse([1, 2, 3]));
+    const sessionWithoutVoice = {
+      ...session,
+      voice: undefined,
+    } as unknown as InterviewSessionEntity;
+
+    await serviceWithConfig({ 'llm.openai.ttsVoice': 'cedar' }).createQuestionAudio(
+      'user-1',
+      sessionWithoutVoice,
+      'Question?',
+    );
+
+    expect(mockSpeechCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voice: 'cedar',
+      }),
+    );
   });
 
   it('defaults to audio/mpeg when the SDK response has no content type', async () => {

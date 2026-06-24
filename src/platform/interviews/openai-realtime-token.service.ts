@@ -37,6 +37,8 @@ export class OpenAiRealtimeTokenService {
 
     try {
       const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
+      const transcriptionModel =
+        this.config.get<string>('llm.openai.realtimeTranscriptionModel') ?? 'gpt-4o-transcribe';
       const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
       const speed = this.speechSpeed(session.speechSpeed);
       const realtimeSession: ClientSecretCreateParams['session'] = {
@@ -47,12 +49,13 @@ export class OpenAiRealtimeTokenService {
         audio: {
           input: {
             transcription: {
-              model: 'gpt-4o-mini-transcribe',
+              model: transcriptionModel,
               language: transcriptionLanguage,
+              prompt: this.transcriptionPrompt(transcriptionLanguage),
             },
             turn_detection: {
               type: 'server_vad',
-              create_response: session.mode === 'VOICE',
+              create_response: false,
               interrupt_response: true,
             },
           },
@@ -115,6 +118,25 @@ export class OpenAiRealtimeTokenService {
     return Number.isFinite(numeric)
       ? Math.round(numeric * 100) / 100
       : DEFAULT_INTERVIEW_SPEECH_SPEED;
+  }
+
+  private transcriptionPrompt(language: 'vi' | 'en'): string {
+    const technicalTerms =
+      'React, TypeScript, JavaScript, API, frontend, backend, database, cache, transaction, Docker, Kubernetes, CI/CD, PostgreSQL, Node.js, NestJS, Next.js';
+
+    if (language === 'vi') {
+      return [
+        'Transcript must be Vietnamese with Vietnamese diacritics.',
+        'Do not output Chinese, Japanese, or Korean characters.',
+        `Preserve English technical terms exactly when spoken, including: ${technicalTerms}.`,
+      ].join(' ');
+    }
+
+    return [
+      'Transcript must be English.',
+      'Do not translate or invent non-English text.',
+      `Preserve technical terms exactly when spoken, including: ${technicalTerms}.`,
+    ].join(' ');
   }
 
   private safeErrorMetadata(error: unknown): {

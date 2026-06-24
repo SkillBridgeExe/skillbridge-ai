@@ -294,6 +294,67 @@ describe('InterviewsService', () => {
     expect(response.firstQuestion).toBe('Hay gioi thieu du an backend gan nhat cua ban.');
   });
 
+  it('uses authored seed questions as a role fallback when the DB question bank is empty', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-seed-fallback-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'turn-seed-fallback-1',
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    questionBank.find.mockResolvedValue([]);
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      entitlements as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+
+    const response = await service.start(userId, {
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    });
+
+    const createdSession = sessions.create.mock.calls[0][0] as InterviewSessionEntity;
+    const agenda = createdSession.agenda as { topics: Array<{ phase: string }> };
+    expect(agenda.topics.length).toBeGreaterThan(3);
+    expect(agenda.topics.map((topic) => topic.phase)).toEqual(
+      expect.arrayContaining(['JD_REQUIREMENT', 'SCENARIO', 'BEHAVIORAL', 'WRAP']),
+    );
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        questionBankKey: expect.stringMatching(/^backend_developer\./),
+      }),
+    );
+    expect(response.firstQuestion).toBeTruthy();
+    expect(response.totalQuestionsPlanned).toBe(10);
+  });
+
   it('continues interview creation when question bank lookup fails', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -344,11 +405,22 @@ describe('InterviewsService', () => {
     });
 
     expect(response.id).toBe('session-live-bank-fallback-1');
-    expect(turns.save).not.toHaveBeenCalled();
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-live-bank-fallback-1',
+        turnOrder: 1,
+        phase: 'SCREENING',
+        interviewerQuestion:
+          'To start, what have you been working on recently, and what drew you to this role?',
+      }),
+    );
+    expect(response.firstQuestion).toBe(
+      'To start, what have you been working on recently, and what drew you to this role?',
+    );
     expect(realtime.createClientSecret).toHaveBeenCalled();
   });
 
-  it('starts a live VOICE interview without backend-generated question turns', async () => {
+  it('starts a live VOICE interview with a server-owned first turn', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:00:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -393,18 +465,26 @@ describe('InterviewsService', () => {
     });
 
     expect(interviewAi.start).not.toHaveBeenCalled();
-    expect(turns.save).not.toHaveBeenCalled();
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-live-1',
+        turnOrder: 1,
+        phase: 'SCREENING',
+        topicPhase: 'SCREENING',
+        interviewerQuestion:
+          'To start, what have you been working on recently, and what drew you to this role?',
+      }),
+    );
     expect(realtime.createClientSecret).toHaveBeenCalledWith(
       userId,
       expect.objectContaining({ id: 'session-live-1', mode: 'VOICE' }),
-      expect.not.stringContaining('official question directive'),
+      expect.stringContaining('the app owns the official question sequence'),
     );
     const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
-    expect(instructions).toContain('Open with 1-2 short sentences only');
-    expect(instructions).toContain('Use the CV/JD context silently');
+    expect(instructions).toContain('Do not invent, reorder, skip, or close official questions');
+    expect(instructions).toContain('Read only the official question text sent by the app');
     expect(instructions).toContain('If the candidate asks for answers');
     expect(instructions).toContain('redirect back to the current interview question');
-    expect(instructions).toContain('When the app sends a closing instruction');
     expect(instructions).toContain('Candidate seniority level: junior');
     expect(instructions).toContain(
       'No explicit seniority signal was found; use a junior-friendly baseline',
@@ -413,15 +493,16 @@ describe('InterviewsService', () => {
       id: 'session-live-1',
       mode: 'VOICE',
       status: 'IN_PROGRESS',
-      totalQuestionsPlanned: 7,
+      totalQuestionsPlanned: 10,
       firstMessage: '',
-      firstQuestion: '',
-      phase: null,
+      firstQuestion:
+        'To start, what have you been working on recently, and what drew you to this role?',
+      phase: 'SCREENING',
       realtime: { enabled: true, clientSecret: 'live_secret' },
     });
   });
 
-  it('adds DB question bank anchors to live VOICE realtime instructions', async () => {
+  it('uses DB question bank metadata for live VOICE server-owned turns', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
@@ -495,8 +576,15 @@ describe('InterviewsService', () => {
     });
 
     const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
-    expect(instructions).toContain('Curated question anchors');
-    expect(instructions).toContain('Hay mo dau bang du an backend gan nhat cua ung vien.');
+    expect(instructions).toContain('the app owns the official question sequence');
+    expect(instructions).not.toContain('Curated question anchors');
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interviewerQuestion: 'Hay mo dau bang du an backend gan nhat cua ung vien.',
+        questionBankItemId: 'bank-voice-1',
+        questionBankKey: 'backend-common-screening-01',
+      }),
+    );
   });
 
   it('calibrates live interview difficulty from an explicit fresher target role without a JD', async () => {
@@ -934,6 +1022,177 @@ describe('InterviewsService', () => {
       aiRequestId: 'ai-ask-1',
     });
     expect(response.finished).toBe(false);
+  });
+
+  it('does not finish after the second answer while planned fallback topics remain', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-2',
+        score: 72,
+        recognizedConcepts: ['REST API'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'REST API ownership',
+        gapsRevealed: [],
+        note: 'Answered with a concrete API example.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-2',
+        aiMessage: 'Thanks, moving to the next area.',
+        question: 'Generated follow-up should not be used when advancing topics.',
+      })),
+    };
+    const insight = {
+      talking_point: 'project',
+      relevance: 76,
+      clarity: 'clear',
+      off_topic: false,
+      confidence_tone: 'calibrated',
+      evidence_quality: 'moderate',
+      note: 'Specific API example.',
+      has_specific_example: true,
+      star_present: { situation: true, task: true, action: true, result: false },
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => insight) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-fallback-answer-1',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      agenda: {
+        turn_budget: 10,
+        uncovered: [],
+        topics: [
+          {
+            id: 'screening-1',
+            phase: 'SCREENING',
+            skill_canonical: null,
+            display_name: 'Motivation',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'warm up',
+            seed_question: 'Tell me about recent backend work.',
+          },
+          {
+            id: 'topic-1-rest-api',
+            phase: 'JD_REQUIREMENT',
+            skill_canonical: 'rest_api',
+            display_name: 'REST API',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'REST API ownership',
+            seed_question: 'Describe a REST API you built.',
+            question_bank_item_id: 'seed:backend_developer.skill.01:en',
+            question_bank_key: 'backend_developer.skill.01',
+          },
+          {
+            id: 'topic-2-database-design',
+            phase: 'JD_REQUIREMENT',
+            skill_canonical: 'database_design',
+            display_name: 'Database Design',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'schema and tradeoffs',
+            seed_question: 'Describe how you designed a database schema.',
+            question_bank_item_id: 'seed:backend_developer.skill.04:en',
+            question_bank_key: 'backend_developer.skill.04',
+          },
+          {
+            id: 'wrap-1',
+            phase: 'WRAP',
+            skill_canonical: null,
+            display_name: 'Wrap-up',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'close',
+            seed_question: 'Anything to add?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'JD_REQUIREMENT',
+        current_topic_id: 'topic-1-rest-api',
+        drill_depth: 0,
+        current_thread: 'REST API ownership',
+        running_notes: [],
+        covered_topic_ids: ['screening-1'],
+        uncovered_topic_ids: [],
+        turns_used: 1,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-2',
+      sessionId: 'session-fallback-answer-1',
+      turnOrder: 2,
+      phase: 'JD_REQUIREMENT',
+      topicPhase: 'JD_REQUIREMENT',
+      skillCanonical: 'rest_api',
+      currentThread: 'REST API ownership',
+      modality: 'AUDIO',
+      interviewerQuestion: 'Describe a REST API you built.',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:00:02.000Z'),
+      askedAt: new Date('2026-06-12T00:00:02.000Z'),
+    };
+    turns.find.mockResolvedValue([
+      {
+        id: 'turn-1',
+        sessionId: 'session-fallback-answer-1',
+        turnOrder: 1,
+        interviewerQuestion: 'Tell me about recent backend work.',
+        userAnswerText: 'I built APIs for an internal project.',
+      },
+    ]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-3',
+      askedAt: new Date('2026-06-12T00:02:00.000Z'),
+      createdAt: new Date('2026-06-12T00:02:00.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-fallback-answer-1',
+      userAnswer: 'I designed REST endpoints, validation, auth checks, and error handling.',
+      userTranscript: 'I designed REST endpoints, validation, auth checks, and error handling.',
+      modality: 'AUDIO',
+      durationSeconds: 50,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(response.nextTurn).toMatchObject({
+      turnOrder: 3,
+      interviewerQuestion: 'Describe how you designed a database schema.',
+      questionBankItemId: 'seed:backend_developer.skill.04:en',
+      questionBankKey: 'backend_developer.skill.04',
+    });
+    expect(response.session.status).toBe('IN_PROGRESS');
+    expect(interviewAi.answer).not.toHaveBeenCalled();
   });
 
   it('limits answer history sent to the AI to the latest turns plus the current answer', async () => {
