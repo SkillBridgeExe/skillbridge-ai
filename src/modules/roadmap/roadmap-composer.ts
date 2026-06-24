@@ -3,6 +3,7 @@ import type { UnifiedDevelopmentPlanItem } from '../gap-report/unified-plan';
 import type { ScoredCourse } from './course-matcher.service';
 import type { FeasibilityGapInput, FeasibilityStrategy } from './feasibility-planner';
 import type { ScoredResource } from './learning-resource';
+import type { SkillBridgeLessonContent } from './skillbridge-lesson-content';
 
 const DEFAULT_REQUIRED_LEVEL = 3;
 const DEFAULT_CV_LEVEL = 0;
@@ -54,6 +55,8 @@ export interface ComposedRoadmapStep {
       | 'title'
       | 'url'
       | 'is_internal'
+      | 'content_template_id'
+      | 'description'
       | 'duration_minutes'
       | 'outcome_type'
       | 'proof_of_completion'
@@ -64,6 +67,7 @@ export interface ComposedRoadmapStep {
     >
   >;
   recommended_courses?: ScoredCourse[];
+  lesson_content?: SkillBridgeLessonContent;
 }
 
 export interface NotFeasibleItem {

@@ -16,6 +16,8 @@ const matcher = {
             provider: 'Coursera',
             url: 'https://u',
             is_internal: false,
+            content_template_id: 'skillbridge.react.l4.project',
+            description: 'Build a SkillBridge-owned React portfolio project.',
             language: 'vi',
             duration_minutes: 60,
             difficulty: 'INTERMEDIATE',
@@ -88,7 +90,19 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     expect(out.steps[0].skill_canonical).toBe('react');
+    expect(out.steps[0].lesson_content).toMatchObject({
+      skill_canonical: 'react',
+      license_type: 'skillbridge_original',
+      reuse_policy: 'full_reuse_allowed',
+    });
+    expect(out.steps[0].lesson_content?.sections.length).toBeGreaterThan(0);
+    expect(out.steps[0].lesson_content?.quiz.length).toBeGreaterThan(0);
+    expect(out.steps[0].lesson_content?.exercises.length).toBeGreaterThan(0);
     expect(out.steps[0].resources[0].id).toBe('r1');
+    expect(out.steps[0].resources[0]).toMatchObject({
+      content_template_id: 'skillbridge.react.l4.project',
+      description: 'Build a SkillBridge-owned React portfolio project.',
+    });
     expect(out.steps[0].resources[0].low_confidence).toBe(true);
     expect(out.steps[0].recommended_courses?.map((course) => course.id)).toEqual(['r1']);
     expect(out.not_feasible_items.map((item) => item.skill_canonical)).toContain('rust');

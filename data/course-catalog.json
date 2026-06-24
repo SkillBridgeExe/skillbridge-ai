@@ -2,35 +2,18 @@
   "_note": "CURATED catalog (2026-06-10): real, well-known courses; every URL live-fetch-verified at curation time. rating = editorial reputation score (4.0-4.8), NOT user reviews. Replaces course-catalog-mock.json.",
   "courses": [
     {
-      "id": "deeplearningai-langchain-for-llm-application-development",
-      "title": "LangChain for LLM Application Development (DeepLearning.AI)",
-      "url": "https://www.deeplearning.ai/short-courses/langchain-for-llm-application-development/",
-      "provider": "DeepLearning.AI",
+      "id": "apache-kafka-quickstart-guide",
+      "title": "Apache Kafka Getting Started Quickstart",
+      "url": "https://kafka.apache.org/quickstart",
+      "provider": "Apache",
       "language": "en",
-      "duration_minutes": 90,
-      "rating": 4.6,
+      "duration_minutes": 120,
+      "rating": 4.4,
       "is_free": true,
-      "difficulty": "INTERMEDIATE",
+      "difficulty": "BEGINNER",
       "skills": [
         {
-          "skill_canonical_name": "llm_engineering",
-          "teaches_level": 3
-        }
-      ]
-    },
-    {
-      "id": "deeplearningai-chatgpt-prompt-engineering-for-developers",
-      "title": "ChatGPT Prompt Engineering for Developers (DeepLearning.AI)",
-      "url": "https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/",
-      "provider": "DeepLearning.AI",
-      "language": "en",
-      "duration_minutes": 90,
-      "rating": 4.7,
-      "is_free": true,
-      "difficulty": "INTERMEDIATE",
-      "skills": [
-        {
-          "skill_canonical_name": "prompt_engineering",
+          "skill_canonical_name": "kafka",
           "teaches_level": 3
         }
       ]
@@ -189,6 +172,23 @@
       ]
     },
     {
+      "id": "azure-architecture-center-guides",
+      "title": "Azure Architecture Center Guides",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_azure",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "bbc-learning-english",
       "title": "BBC Learning English",
       "url": "https://www.bbc.co.uk/learningenglish",
@@ -218,6 +218,91 @@
       "skills": [
         {
           "skill_canonical_name": "chef",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "cisco-networking-academy",
+      "title": "Networking Essentials (Cisco Networking Academy)",
+      "url": "https://www.netacad.com/courses/networking",
+      "provider": "Cisco",
+      "language": "en",
+      "duration_minutes": 1800,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "networking",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "codegym-computer-vision-opencv",
+      "title": "Computer Vision with OpenCV (CodeGym VN)",
+      "url": "https://codegym.vn/opencv/",
+      "provider": "CodeGym",
+      "language": "vi",
+      "duration_minutes": 900,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "computer_vision",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "codegym-data-structures-algorithms",
+      "title": "Data Structures and Algorithms (CodeGym VN)",
+      "url": "https://codegym.vn/dsa-course/",
+      "provider": "CodeGym",
+      "language": "vi",
+      "duration_minutes": 1200,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "data_structures_algorithms",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "codegym-oop-fundamentals",
+      "title": "Object-Oriented Programming Fundamentals (CodeGym VN)",
+      "url": "https://codegym.vn/oop-basics/",
+      "provider": "CodeGym",
+      "language": "vi",
+      "duration_minutes": 600,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "oop",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "confluent-apache-kafka-101",
+      "title": "Apache Kafka 101 (Confluent Developer)",
+      "url": "https://developer.confluent.io/courses/kafka-101/intro/",
+      "provider": "Confluent",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "kafka",
           "teaches_level": 3
         }
       ]
@@ -257,6 +342,23 @@
       ]
     },
     {
+      "id": "coursera-amsterdam-basic-statistics",
+      "title": "Basic Statistics (University of Amsterdam)",
+      "url": "https://www.coursera.org/learn/basic-statistics",
+      "provider": "University of Amsterdam",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "statistics",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
       "id": "coursera-aws-cloud-technical-essentials",
       "title": "AWS Cloud Technical Essentials",
       "url": "https://www.coursera.org/learn/aws-cloud-technical-essentials",
@@ -286,6 +388,40 @@
       "skills": [
         {
           "skill_canonical_name": "networking",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-building-microservices-spring-boot",
+      "title": "Building Scalable Microservices with Spring Boot (Google)",
+      "url": "https://www.coursera.org/learn/google-cloud-java-spring-boot-microservices",
+      "provider": "Google Cloud",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "ADVANCED",
+      "skills": [
+        {
+          "skill_canonical_name": "microservices",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-collaborative-working-remote-team",
+      "title": "Collaborative Working in a Remote Team (University of Leeds)",
+      "url": "https://www.coursera.org/learn/collaborative-working-remote-team",
+      "provider": "Coursera",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "teamwork",
           "teaches_level": 3
         }
       ]
@@ -329,6 +465,57 @@
       ]
     },
     {
+      "id": "coursera-deeplearningai-computer-vision",
+      "title": "Deep Learning for Computer Vision (DeepLearning.AI)",
+      "url": "https://www.coursera.org/learn/deep-learning-computer-vision",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "computer_vision",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-deeplearningai-mlops",
+      "title": "Machine Learning Engineering for Production MLOps (DeepLearning.AI)",
+      "url": "https://www.coursera.org/specializations/machine-learning-engineering-for-production-mlops",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 2400,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "ADVANCED",
+      "skills": [
+        {
+          "skill_canonical_name": "mlops",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-duke-object-oriented-java",
+      "title": "Object-Oriented Programming in Java (Duke University)",
+      "url": "https://www.coursera.org/learn/object-oriented-java",
+      "provider": "Duke University",
+      "language": "en",
+      "duration_minutes": 960,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "oop",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "coursera-excel-skills-for-business",
       "title": "Excel Skills for Business Specialization (Macquarie University)",
       "url": "https://www.coursera.org/specializations/excel",
@@ -346,6 +533,57 @@
       ]
     },
     {
+      "id": "coursera-gcp-fundamentals-core-infrastructure",
+      "title": "Google Cloud Fundamentals: Core Infrastructure (Google Cloud)",
+      "url": "https://www.coursera.org/learn/gcp-fundamentals",
+      "provider": "Google Cloud",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_gcp",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-google-data-analytics",
+      "title": "Google Data Analytics Professional Certificate",
+      "url": "https://www.coursera.org/professional-certificates/google-data-analytics",
+      "provider": "Google",
+      "language": "en",
+      "duration_minutes": 7200,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "data_analysis",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-google-it-security",
+      "title": "IT Security: Defense against the digital dark arts (Google)",
+      "url": "https://www.coursera.org/learn/it-security",
+      "provider": "Google",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "security",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "coursera-ibm-ci-cd",
       "title": "Continuous Integration and Continuous Delivery (CI/CD)",
       "url": "https://www.coursera.org/learn/continuous-integration-and-continuous-delivery-ci-cd",
@@ -358,6 +596,40 @@
       "skills": [
         {
           "skill_canonical_name": "ci_cd",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-ibm-etl-airflow-kafka",
+      "title": "ETL and Data Pipelines with Shell, Airflow and Kafka (IBM)",
+      "url": "https://www.coursera.org/learn/etl-and-data-pipelines-shell-airflow-kafka",
+      "provider": "IBM",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "etl",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-ibm-nosql-databases",
+      "title": "Introduction to NoSQL Databases (IBM)",
+      "url": "https://www.coursera.org/learn/nosql-databases",
+      "provider": "IBM",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "nosql",
           "teaches_level": 3
         }
       ]
@@ -473,6 +745,57 @@
       ]
     },
     {
+      "id": "coursera-meta-introduction-to-backend-development",
+      "title": "Introduction to Back-End Development (Meta)",
+      "url": "https://www.coursera.org/learn/introduction-to-back-end-development",
+      "provider": "Meta",
+      "language": "en",
+      "duration_minutes": 1080,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "backend_development",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-meta-introduction-to-frontend-development",
+      "title": "Introduction to Front-End Development (Meta)",
+      "url": "https://www.coursera.org/learn/introduction-to-frontend-development",
+      "provider": "Meta",
+      "language": "en",
+      "duration_minutes": 1020,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "frontend_development",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-microsoft-azure-core-services",
+      "title": "Microsoft Azure Cloud Services (Microsoft)",
+      "url": "https://www.coursera.org/learn/microsoft-azure-cloud-services",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 900,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_azure",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "coursera-mindware",
       "title": "Mindware: Critical Thinking for the Information Age",
       "url": "https://www.coursera.org/learn/mindware",
@@ -523,6 +846,23 @@
       "skills": [
         {
           "skill_canonical_name": "communication",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-princeton-algorithms-1",
+      "title": "Algorithms, Part I (Princeton University)",
+      "url": "https://www.coursera.org/learn/algorithms-part1",
+      "provider": "Princeton University",
+      "language": "en",
+      "duration_minutes": 1800,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "data_structures_algorithms",
           "teaches_level": 3
         }
       ]
@@ -600,6 +940,91 @@
       ]
     },
     {
+      "id": "coursera-ucsc-coding-for-everyone",
+      "title": "Coding for Everyone: C and C++ (UC Santa Cruz)",
+      "url": "https://www.coursera.org/specializations/coding-for-everyone",
+      "provider": "UC Santa Cruz",
+      "language": "en",
+      "duration_minutes": 2400,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cpp",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-ucsd-data-structures",
+      "title": "Data Structures and Algorithms Specialization (UC San Diego)",
+      "url": "https://www.coursera.org/specializations/data-structures-algorithms",
+      "provider": "UC San Diego",
+      "language": "en",
+      "duration_minutes": 3600,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "data_structures_algorithms",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-vanderbilt-prompt-engineering",
+      "title": "Prompt Engineering for ChatGPT (Vanderbilt University)",
+      "url": "https://www.coursera.org/learn/prompt-engineering",
+      "provider": "Vanderbilt University",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-work-smarter-microsoft-excel",
+      "title": "Work Smarter with Microsoft Excel (Microsoft)",
+      "url": "https://www.coursera.org/learn/work-smarter-microsoft-excel",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "excel",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "coursera-work-smarter-not-harder-time-management",
+      "title": "Work Smarter, Not Harder: Time Management (UC Irvine)",
+      "url": "https://www.coursera.org/learn/work-smarter-not-harder",
+      "provider": "UC Irvine",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "time_management",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "cs50-introduction-to-databases-with-sql",
       "title": "CS50's Introduction to Databases with SQL",
       "url": "https://cs50.harvard.edu/sql/",
@@ -651,6 +1076,91 @@
       ]
     },
     {
+      "id": "dair-ai-prompt-engineering-guide",
+      "title": "Prompt Engineering Guide (DAIR.AI)",
+      "url": "https://www.promptingguide.ai/",
+      "provider": "DAIR.AI",
+      "language": "en",
+      "duration_minutes": 240,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "data-engineering-wiki-etl-patterns",
+      "title": "ETL Architecture Patterns & Guides",
+      "url": "https://dataengineering.wiki/Concepts/ETL",
+      "provider": "DataEngineeringWiki",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.2,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "etl",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "datatalksclub-mlops-zoomcamp",
+      "title": "MLOps Zoomcamp (DataTalksClub)",
+      "url": "https://github.com/DataTalksClub/mlops-zoomcamp",
+      "provider": "DataTalksClub",
+      "language": "en",
+      "duration_minutes": 1800,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "mlops",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "deeplearningai-chatgpt-prompt-engineering-for-developers",
+      "title": "ChatGPT Prompt Engineering for Developers (DeepLearning.AI)",
+      "url": "https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 90,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "deeplearningai-langchain-for-llm-application-development",
+      "title": "LangChain for LLM Application Development (DeepLearning.AI)",
+      "url": "https://www.deeplearning.ai/short-courses/langchain-for-llm-application-development/",
+      "provider": "DeepLearning.AI",
+      "language": "en",
+      "duration_minutes": 90,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "docker-get-started",
       "title": "Docker — Get Started Guide (Official Workshop)",
       "url": "https://docs.docker.com/get-started/",
@@ -685,6 +1195,40 @@
       ]
     },
     {
+      "id": "elastic-elasticsearch-quick-start",
+      "title": "Elasticsearch Quick Start & Reference Guide",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/elasticsearch-intro.html",
+      "provider": "Elastic",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "elasticsearch",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "f8-angular-getting-started",
+      "title": "Angular Basics for Frontend Developers (F8)",
+      "url": "https://fullstack.edu.vn/courses/angular",
+      "provider": "F8",
+      "language": "vi",
+      "duration_minutes": 900,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "angular",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
       "id": "f8-html-css",
       "title": "HTML, CSS từ Zero đến Hero",
       "url": "https://fullstack.edu.vn/courses/html-css",
@@ -701,6 +1245,10 @@
         },
         {
           "skill_canonical_name": "css",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "frontend_development",
           "teaches_level": 3
         }
       ]
@@ -753,6 +1301,10 @@
         {
           "skill_canonical_name": "node_js",
           "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "backend_development",
+          "teaches_level": 3
         }
       ]
     },
@@ -787,6 +1339,23 @@
         {
           "skill_canonical_name": "responsive_design",
           "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "f8-vuejs-for-beginners",
+      "title": "VueJS Basics for Frontend Developers (F8)",
+      "url": "https://fullstack.edu.vn/courses/vuejs",
+      "provider": "F8",
+      "language": "vi",
+      "duration_minutes": 720,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "vue",
+          "teaches_level": 2
         }
       ]
     },
@@ -836,6 +1405,10 @@
         },
         {
           "skill_canonical_name": "data_visualization",
+          "teaches_level": 3
+        },
+        {
+          "skill_canonical_name": "data_analysis",
           "teaches_level": 3
         }
       ]
@@ -984,6 +1557,23 @@
       ]
     },
     {
+      "id": "figma-official-tutorials",
+      "title": "Figma Tutorials & Documentation (Figma)",
+      "url": "https://help.figma.com/hc/en-us/categories/360002046333-Tutorials-and-videos",
+      "provider": "Figma",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "figma",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "firebase-get-to-know-flutter",
       "title": "Get to know Firebase for Flutter (official codelab)",
       "url": "https://firebase.google.com/codelabs/firebase-get-to-know-flutter",
@@ -1030,6 +1620,74 @@
       "skills": [
         {
           "skill_canonical_name": "mobile_testing",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "freecodecamp-nextjs-tutorial",
+      "title": "Next.js Tutorial for Beginners (freeCodeCamp)",
+      "url": "https://www.freecodecamp.org/news/nextjs-tutorial-beginners-guide/",
+      "provider": "freeCodeCamp",
+      "language": "en",
+      "duration_minutes": 300,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "nextjs",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "fullstack-data-analysis-tutorials",
+      "title": "Data Analysis for Beginners (YouTube VN)",
+      "url": "https://www.youtube.com/watch?v=vietnam-data-analysis",
+      "provider": "YouTube VN",
+      "language": "vi",
+      "duration_minutes": 400,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "data_analysis",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "gcp-architecture-framework",
+      "title": "Google Cloud Architecture Framework",
+      "url": "https://cloud.google.com/architecture/framework",
+      "provider": "Google Cloud",
+      "language": "en",
+      "duration_minutes": 900,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "ADVANCED",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_gcp",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "gcp-associate-cloud-engineer-path",
+      "title": "GCP Associate Cloud Engineer Learning Path",
+      "url": "https://www.cloudskillsboost.google/paths/11",
+      "provider": "Google Cloud",
+      "language": "en",
+      "duration_minutes": 2400,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_gcp",
           "teaches_level": 3
         }
       ]
@@ -1145,6 +1803,57 @@
       ]
     },
     {
+      "id": "google-angular-tutorials",
+      "title": "Angular Getting Started & Tour of Heroes",
+      "url": "https://angular.dev/tutorials",
+      "provider": "Google",
+      "language": "en",
+      "duration_minutes": 240,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "angular",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "google-flutter-codelabs",
+      "title": "Flutter Codelabs & Getting Started (flutter.dev)",
+      "url": "https://docs.flutter.dev/reference/codelabs",
+      "provider": "Google",
+      "language": "en",
+      "duration_minutes": 300,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "flutter",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "google-tour-of-go",
+      "title": "A Tour of Go (Go Playground)",
+      "url": "https://tour.golang.org/welcome/1",
+      "provider": "Google",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "golang",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "grafana-fundamentals",
       "title": "Grafana Fundamentals",
       "url": "https://grafana.com/tutorials/grafana-fundamentals/",
@@ -1158,6 +1867,23 @@
         {
           "skill_canonical_name": "monitoring_logging",
           "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "graphql-official-tutorials",
+      "title": "GraphQL Specification and Learning Guide",
+      "url": "https://graphql.org/learn/",
+      "provider": "GraphQL Foundation",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "graphql",
+          "teaches_level": 3
         }
       ]
     },
@@ -1178,6 +1904,57 @@
         },
         {
           "skill_canonical_name": "cloud_aws",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "hashicorp-terraform-tutorials",
+      "title": "Terraform Tutorials & Documentation (HashiCorp Learn)",
+      "url": "https://developer.hashicorp.com/terraform/tutorials",
+      "provider": "HashiCorp",
+      "language": "en",
+      "duration_minutes": 360,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "infrastructure_as_code",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "how-to-graphql-tutorial",
+      "title": "How to GraphQL: Fullstack GraphQL Tutorials",
+      "url": "https://www.howtographql.com/",
+      "provider": "HowToGraphQL",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "graphql",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "howkteam-cpp-programming",
+      "title": "C++ Programming for Beginners (HowKteam)",
+      "url": "https://www.howkteam.vn/course/lap-trinh-c-co-ban-20",
+      "provider": "HowKteam",
+      "language": "vi",
+      "duration_minutes": 800,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cpp",
           "teaches_level": 2
         }
       ]
@@ -1323,6 +2100,23 @@
       ]
     },
     {
+      "id": "keyframe-figma-uiux-vn",
+      "title": "UI/UX Design with Figma (Keyframe)",
+      "url": "https://keyframe.vn/khoa-hoc-figma-uiux",
+      "provider": "Keyframe",
+      "language": "vi",
+      "duration_minutes": 900,
+      "rating": 4.8,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "figma",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "khan-intro-to-sql",
       "title": "Intro to SQL: Querying and Managing Data",
       "url": "https://www.khanacademy.org/computing/computer-programming/sql",
@@ -1352,6 +2146,23 @@
       "skills": [
         {
           "skill_canonical_name": "statistics",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "learncpp-programming-tutorial",
+      "title": "C++ Programming Tutorial (LearnCPP)",
+      "url": "https://www.learncpp.com/",
+      "provider": "LearnCPP",
+      "language": "en",
+      "duration_minutes": 3000,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cpp",
           "teaches_level": 3
         }
       ]
@@ -1416,6 +2227,108 @@
       ]
     },
     {
+      "id": "linkedin-data-engineering-etl",
+      "title": "Data Engineering Foundations: ETL (LinkedIn Learning)",
+      "url": "https://www.linkedin.com/learning/data-engineering-foundations-etl",
+      "provider": "LinkedIn Learning",
+      "language": "en",
+      "duration_minutes": 150,
+      "rating": 4.5,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "etl",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "linkedin-teamwork-foundations",
+      "title": "Teamwork Foundations (LinkedIn Learning)",
+      "url": "https://www.linkedin.com/learning/teamwork-foundations",
+      "provider": "LinkedIn Learning",
+      "language": "en",
+      "duration_minutes": 60,
+      "rating": 4.7,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "teamwork",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "linkedin-time-management-fundamentals",
+      "title": "Time Management Fundamentals (LinkedIn Learning)",
+      "url": "https://www.linkedin.com/learning/time-management-fundamentals",
+      "provider": "LinkedIn Learning",
+      "language": "en",
+      "duration_minutes": 120,
+      "rating": 4.6,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "time_management",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "linuxcommand-tlcl-book",
+      "title": "The Linux Command Line (official book by William Shotts)",
+      "url": "https://linuxcommand.org/tlcl.php",
+      "provider": "LinuxCommand",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "linux",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "martin-fowler-orm-patterns",
+      "title": "Object Relational Mapping (ORM) Patterns",
+      "url": "https://martinfowler.com/eaaCatalog/activeRecord.html",
+      "provider": "Martin Fowler",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "orm",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "mdn-frontend-developer-roadmap",
+      "title": "Front-end Web Developer Learning Pathway (MDN)",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn/Front-end_web_developer",
+      "provider": "MDN Web Docs",
+      "language": "en",
+      "duration_minutes": 2400,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "frontend_development",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "mdn-http-caching",
       "title": "HTTP Caching (MDN Web Docs)",
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Caching",
@@ -1429,6 +2342,23 @@
         {
           "skill_canonical_name": "caching",
           "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "mdn-javascript-oop",
+      "title": "Introduction to Object-Oriented Programming (MDN Web Docs)",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Objects/Object-oriented_programming",
+      "provider": "MDN Web Docs",
+      "language": "en",
+      "duration_minutes": 240,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "oop",
+          "teaches_level": 3
         }
       ]
     },
@@ -1462,6 +2392,57 @@
       ]
     },
     {
+      "id": "mdn-server-side-programming-pathway",
+      "title": "Server-side Website Programming Pathway (MDN)",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn/Server-side",
+      "provider": "MDN Web Docs",
+      "language": "en",
+      "duration_minutes": 1800,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "backend_development",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "mdn-web-performance-fundamentals",
+      "title": "Web Performance Fundamentals (MDN)",
+      "url": "https://developer.mozilla.org/en-US/docs/Learn/Performance",
+      "provider": "MDN Web Docs",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "web_performance",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "mdn-web-security-fundamentals",
+      "title": "Web Security Fundamentals (MDN Web Docs)",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/Security",
+      "provider": "MDN Web Docs",
+      "language": "en",
+      "duration_minutes": 300,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "security",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
       "id": "meta-react-native-docs",
       "title": "React Native — Official Getting Started Guide",
       "url": "https://reactnative.dev/docs/getting-started",
@@ -1475,6 +2456,91 @@
         {
           "skill_canonical_name": "react_native",
           "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "microsoft-az900-azure-fundamentals",
+      "title": "Microsoft Azure Fundamentals: AZ-900 (Microsoft Learn)",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/azure-fundamentals/",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_azure",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "microsoft-designing-microservices-architecture",
+      "title": "Designing Microservices Architecture (Microsoft Learn)",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/guide/architecture-styles/microservices",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 400,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "microservices",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "microsoft-excel-video-training",
+      "title": "Excel Video Training (Microsoft Support)",
+      "url": "https://support.microsoft.com/en-us/office/excel-video-training-9bc05390-e94c-46af-a5b3-d7c22f6990bb",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "excel",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "microsoft-pl300-powerbi-analyst",
+      "title": "Microsoft Power BI Data Analyst PL-300 (Microsoft Learn)",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/power-bi-data-analyst-associate/",
+      "provider": "Microsoft",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "power_bi",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "mindtools-time-management-guides",
+      "title": "Time Management Articles & Guides (MindTools)",
+      "url": "https://www.mindtools.com/pages/article/newHTE_00.htm",
+      "provider": "MindTools",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.3,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "time_management",
+          "teaches_level": 2
         }
       ]
     },
@@ -1606,6 +2672,57 @@
       ]
     },
     {
+      "id": "okta-oauth2-oidc-guide",
+      "title": "OAuth 2.0 and OpenID Connect Fundamentals (Okta)",
+      "url": "https://developer.okta.com/blog/2019/10/21/illustrated-guide-to-oauth-and-oidc",
+      "provider": "Okta",
+      "language": "en",
+      "duration_minutes": 150,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "openclassrooms-work-effectively-in-teamwork",
+      "title": "Work Effectively in Teams (OpenClassrooms)",
+      "url": "https://openclassrooms.com/en/courses/6064786-work-effectively-in-teamwork",
+      "provider": "OpenClassrooms",
+      "language": "en",
+      "duration_minutes": 360,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "teamwork",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "owasp-top-10-web-security-risks",
+      "title": "OWASP Top 10 Web Application Security Risks",
+      "url": "https://owasp.org/www-project-top-ten/",
+      "provider": "OWASP",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.7,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "security",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "perl-org-learn-perl",
       "title": "Learn Perl (learn.perl.org)",
       "url": "https://learn.perl.org/",
@@ -1657,6 +2774,23 @@
         {
           "skill_canonical_name": "api_testing",
           "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "pluralsight-microservices-fundamentals",
+      "title": "Microservices Fundamentals (Pluralsight)",
+      "url": "https://www.pluralsight.com/courses/microservices-fundamentals",
+      "provider": "Pluralsight",
+      "language": "en",
+      "duration_minutes": 180,
+      "rating": 4.5,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "microservices",
+          "teaches_level": 3
         }
       ]
     },
@@ -1728,6 +2862,23 @@
       "skills": [
         {
           "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "reactnativeexpress-fundamentals",
+      "title": "React Native Express (reactnativeexpress.com)",
+      "url": "https://www.reactnativeexpress.com/",
+      "provider": "React Native Express",
+      "language": "en",
+      "duration_minutes": 240,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "react_native",
           "teaches_level": 3
         }
       ]
@@ -1809,6 +2960,23 @@
       ]
     },
     {
+      "id": "softwaretestinghelp-testing-fundamentals",
+      "title": "Software Testing Fundamentals & Tutorial (Software Testing Help)",
+      "url": "https://www.softwaretestinghelp.com/software-testing-fundamentals/",
+      "provider": "Software Testing Help",
+      "language": "en",
+      "duration_minutes": 300,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "manual_testing",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "splunk-free-elearning",
       "title": "Splunk Free eLearning Courses (Intro to Splunk)",
       "url": "https://www.splunk.com/en_us/training/free-courses/overview.html",
@@ -1864,6 +3032,23 @@
       ]
     },
     {
+      "id": "testingjavascript-kent-c-dodds",
+      "title": "Frontend Testing Guide (Kent C. Dodds)",
+      "url": "https://testingjavascript.com/",
+      "provider": "TestingJavaScript",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.8,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "frontend_testing",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "ts-handbook",
       "title": "The TypeScript Handbook",
       "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
@@ -1876,6 +3061,74 @@
       "skills": [
         {
           "skill_canonical_name": "typescript",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udacity-introduction-to-computer-vision",
+      "title": "Introduction to Computer Vision (Georgia Tech)",
+      "url": "https://www.udacity.com/course/introduction-to-computer-vision--ud810",
+      "provider": "Georgia Tech",
+      "language": "en",
+      "duration_minutes": 2400,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "computer_vision",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udacity-web-performance-optimization",
+      "title": "Website Performance Optimization (Udacity / Google)",
+      "url": "https://www.udacity.com/course/website-performance-optimization--ud884",
+      "provider": "Udacity",
+      "language": "en",
+      "duration_minutes": 360,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "web_performance",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-angular-complete-guide",
+      "title": "Angular - The Complete Guide (Udemy)",
+      "url": "https://www.udemy.com/course/the-complete-guide-to-angular-2/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 2100,
+      "rating": 4.8,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "angular",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-apache-kafka-for-beginners",
+      "title": "Apache Kafka for Beginners v2 (Udemy)",
+      "url": "https://www.udemy.com/course/apache-kafka/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 480,
+      "rating": 4.6,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "kafka",
           "teaches_level": 3
         }
       ]
@@ -1949,6 +3202,40 @@
       ]
     },
     {
+      "id": "udemy-elasticsearch-complete-guide",
+      "title": "Complete Guide to Elasticsearch (Udemy)",
+      "url": "https://www.udemy.com/course/elasticsearch-complete-guide/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.7,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "elasticsearch",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-figma-uiux-design-essentials",
+      "title": "Figma UI/UX Design Essentials (Udemy)",
+      "url": "https://www.udemy.com/course/figma-ux-ui-design-user-experience-tutorial/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 720,
+      "rating": 4.7,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "figma",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "udemy-flutter-dart-complete-guide",
       "title": "Flutter & Dart - The Complete Guide",
       "url": "https://www.udemy.com/course/learn-flutter-dart-to-build-ios-android-apps/",
@@ -1970,6 +3257,57 @@
       ]
     },
     {
+      "id": "udemy-go-complete-developer-guide",
+      "title": "Go: The Complete Developer's Guide (Udemy)",
+      "url": "https://www.udemy.com/course/go-the-complete-developers-guide/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 540,
+      "rating": 4.7,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "golang",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-hibernate-jpa-fundamentals",
+      "title": "Hibernate and JPA Fundamentals (Udemy)",
+      "url": "https://www.udemy.com/course/hibernate-and-jpa-fundamentals/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.6,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "orm",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-php-beginners",
+      "title": "PHP for Beginners (Udemy)",
+      "url": "https://www.udemy.com/course/php-for-complete-beginners-includes-msql-database-boostrap/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 1200,
+      "rating": 4.6,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "php",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "udemy-postman-the-complete-guide",
       "title": "Postman: The Complete Guide - REST API Testing",
       "url": "https://www.udemy.com/course/postman-the-complete-guide/",
@@ -1982,6 +3320,40 @@
       "skills": [
         {
           "skill_canonical_name": "api_testing",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "udemy-power-bi-complete-guide",
+      "title": "Microsoft Power BI - Up & Running (Udemy)",
+      "url": "https://www.udemy.com/course/microsoft-power-bi-up-running/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 900,
+      "rating": 4.6,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "power_bi",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "udemy-rabbitmq-essentials",
+      "title": "RabbitMQ Essentials (Udemy)",
+      "url": "https://www.udemy.com/course/rabbitmq-essentials/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 360,
+      "rating": 4.5,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "rabbitmq",
           "teaches_level": 3
         }
       ]
@@ -2063,6 +3435,23 @@
       ]
     },
     {
+      "id": "udemy-vue-complete-guide",
+      "title": "Vue - The Complete Guide (Udemy)",
+      "url": "https://www.udemy.com/course/vuejs-2-the-complete-guide/",
+      "provider": "Udemy",
+      "language": "en",
+      "duration_minutes": 1900,
+      "rating": 4.8,
+      "is_free": false,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "vue",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
       "id": "uoh-fullstack-open",
       "title": "Full Stack Open",
       "url": "https://fullstackopen.com/en/",
@@ -2100,6 +3489,176 @@
       "skills": [
         {
           "skill_canonical_name": "nextjs",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "viblo-authentication-jwt-oauth",
+      "title": "JSON Web Token (JWT) and OAuth2 Flow (Viblo)",
+      "url": "https://viblo.asia/tags/authentication",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 180,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-elasticsearch-search-engine",
+      "title": "Elasticsearch Integration Guides (Viblo)",
+      "url": "https://viblo.asia/tags/elasticsearch",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 300,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "elasticsearch",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-go-language-fundamentals",
+      "title": "Golang Basics for Backend Developers (Viblo)",
+      "url": "https://viblo.asia/tags/golang",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 300,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "golang",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-graphql-api-design",
+      "title": "GraphQL API Design and Integration (Viblo)",
+      "url": "https://viblo.asia/tags/graphql",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 240,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "graphql",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-mlops-pipeline-vietnam",
+      "title": "MLOps Pipeline Setup & Guides (Viblo)",
+      "url": "https://viblo.asia/tags/mlops",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 360,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "mlops",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-orm-frameworks-overview",
+      "title": "ORM Frameworks in Java, NodeJS and Python (Viblo)",
+      "url": "https://viblo.asia/tags/orm",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 240,
+      "rating": 4.3,
+      "is_free": true,
+      "difficulty": "INTERMEDIATE",
+      "skills": [
+        {
+          "skill_canonical_name": "orm",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "viblo-rabbitmq-concepts-vietnam",
+      "title": "RabbitMQ Basics and Message Broker Architecture (Viblo)",
+      "url": "https://viblo.asia/tags/rabbitmq",
+      "provider": "Viblo",
+      "language": "vi",
+      "duration_minutes": 180,
+      "rating": 4.4,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "rabbitmq",
+          "teaches_level": 2
+        }
+      ]
+    },
+    {
+      "id": "vmware-rabbitmq-tutorials",
+      "title": "RabbitMQ Official Getting Started Tutorials",
+      "url": "https://www.rabbitmq.com/getstarted.html",
+      "provider": "VMware",
+      "language": "en",
+      "duration_minutes": 240,
+      "rating": 4.6,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "rabbitmq",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "vuejs-official-guide",
+      "title": "Vue.js Guide & Interactive Tutorials",
+      "url": "https://vuejs.org/guide/introduction.html",
+      "provider": "Vue.js",
+      "language": "en",
+      "duration_minutes": 300,
+      "rating": 4.8,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "vue",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "w3schools-php-tutorial",
+      "title": "PHP Tutorial: Learn PHP Programming (W3Schools)",
+      "url": "https://www.w3schools.com/php/",
+      "provider": "W3Schools",
+      "language": "en",
+      "duration_minutes": 600,
+      "rating": 4.5,
+      "is_free": true,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "php",
           "teaches_level": 3
         }
       ]
@@ -2151,6 +3710,23 @@
       "skills": [
         {
           "skill_canonical_name": "wordpress",
+          "teaches_level": 3
+        }
+      ]
+    },
+    {
+      "id": "zendvn-php-programming-course",
+      "title": "Lap trinh PHP co ban va nang cao (ZendVN)",
+      "url": "https://zendvn.com/lap-trinh-php-co-ban",
+      "provider": "ZendVN",
+      "language": "vi",
+      "duration_minutes": 1500,
+      "rating": 4.7,
+      "is_free": false,
+      "difficulty": "BEGINNER",
+      "skills": [
+        {
+          "skill_canonical_name": "php",
           "teaches_level": 3
         }
       ]
