@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { RoadmapController } from './roadmap.controller';
 import { RoadmapService } from './roadmap.service';
 import { CourseMatcherService } from './course-matcher.service';
@@ -8,7 +10,8 @@ import { LearningResourceRetriever } from './learning-resource-retriever.service
 import { RagModule } from '../rag/rag.module';
 
 @Module({
-  imports: [RagModule],
+  imports: [RagModule, TypeOrmModule.forFeature([UserLearningPreferenceEntity])],
+
   controllers: [RoadmapController],
   providers: [
     RoadmapService,

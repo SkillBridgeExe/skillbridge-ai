@@ -1,4 +1,7 @@
-import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
@@ -46,18 +49,25 @@ export class RoadmapService {
     private readonly prompts: PromptsService,
     private readonly tracing: TracingService,
     private readonly courseMatcher: CourseMatcherService,
+    @Optional()
+    @InjectRepository(UserLearningPreferenceEntity)
+    private readonly learningPreferences?: Repository<UserLearningPreferenceEntity>,
   ) {}
+
 
   async generate(
     userId: string,
     input: RoadmapGenerateRequestDto,
   ): Promise<RoadmapGenerateResponseDto> {
     const template = this.prompts.get(input.prompt_template_code);
+    const preferences = userId ? await this.learningPreferences?.findOne({ where: { userId } }) : null;
+    const languagePref = input.language_pref ?? preferences?.languagePref ?? 'both';
 
     // ─── Step 1: build prompt with normalized gap data ──────────────────────
     const userPrompt = this.prompts.render(input.prompt_template_code, {
       target_role: input.target_role,
       hours_per_week: input.hours_per_week,
+      language_pref: languagePref,
       missing_skills_json: JSON.stringify(input.missing_skills),
       partial_skills_json: JSON.stringify(input.partial_skills ?? []),
       user_profile: JSON.stringify(input.user_profile ?? {}),
@@ -72,12 +82,22 @@ export class RoadmapService {
       requestPayload: {
         target_role: input.target_role,
         hours_per_week: input.hours_per_week,
+        language_pref: languagePref,
         missing_count: input.missing_skills.length,
         partial_count: (input.partial_skills ?? []).length,
       },
     });
 
     const startedAt = Date.now();
+    let structure: LlmRoadmapStructure;
+    let tokenUsage = 0;
+    let rawResponse: unknown = '';
+    let isFallback = false;
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let estimatedCost = 0;
+    let latencyMs = 0;
+
     try {
       // ─── Step 2: LLM generates structure (NO courses) ───────────────────────
       const llmResult = await this.llm.complete(
@@ -90,95 +110,160 @@ export class RoadmapService {
         { jsonMode: true, temperature: 0.3, maxOutputTokens: 3500 },
       );
 
-      const structure = this.parseLlmStructure(llmResult.parsedJson);
+      structure = this.parseLlmStructure(llmResult.parsedJson);
+      tokenUsage = llmResult.tokenUsage.totalTokens;
+      rawResponse = llmResult.rawResponse;
+      promptTokens = llmResult.tokenUsage.promptTokens;
+      completionTokens = llmResult.tokenUsage.completionTokens;
+      estimatedCost = llmResult.estimatedCostUsd ?? 0;
+      latencyMs = llmResult.latencyMs;
 
-      // ─── Step 3: sanity-check skill references against the input gap ────────
-      const allInputSkills = new Set([
-        ...input.missing_skills.map((s) => s.skill_canonical_name),
-        ...(input.partial_skills ?? []).map((s) => s.skill_canonical_name),
-      ]);
-
-      const uncoveredSkillsByLlm: Set<string> = new Set();
-      for (const step of structure.steps) {
-        for (const sk of step.skill_canonical_names ?? []) {
-          if (!allInputSkills.has(sk)) uncoveredSkillsByLlm.add(sk);
-        }
-      }
-      if (uncoveredSkillsByLlm.size > 0) {
-        this.logger.warn(
-          `Roadmap LLM referenced skills not in the input gap: ${[...uncoveredSkillsByLlm].join(', ')}. ` +
-            `These will still be matched against catalog but are signal of prompt drift.`,
-        );
-      }
-
-      // ─── Step 4: CourseMatcher fills real courses per step ──────────────────
-      const allRequests = this.buildMatchRequests(
-        structure,
-        input.missing_skills,
-        input.partial_skills,
+    } catch (err) {
+      this.logger.warn(
+        `Roadmap LLM generation failed — serving deterministic fallback: ${(err as Error).message}`,
       );
-      const matcherResult = this.courseMatcher.matchCourses(allRequests);
+      isFallback = true;
+      await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
 
-      // Index by skill for quick lookup
-      const coursesBySkill = new Map<string, (typeof matcherResult.per_skill)[number]['courses']>();
-      for (const entry of matcherResult.per_skill) {
-        coursesBySkill.set(entry.skill_canonical_name, entry.courses);
-      }
+      const allInputSkills = [
+        ...input.missing_skills,
+        ...(input.partial_skills ?? []),
+      ];
 
-      const steps: RoadmapStep[] = structure.steps.map((s) => {
-        // Aggregate courses across all skills this step addresses, dedupe by course id, take top 3.
-        const aggregated = (s.skill_canonical_names ?? [])
-          .flatMap((sk) => coursesBySkill.get(sk) ?? [])
-          .filter((c, idx, arr) => arr.findIndex((cc) => cc.id === c.id) === idx)
-          .sort((a, b) => b.match_score - a.match_score)
-          .slice(0, 3);
-        return {
-          ...s,
-          recommended_courses: aggregated,
-        };
-      });
+      const totalWeeks = Math.max(4, Math.min(12, Math.ceil(allInputSkills.length * 1.5)));
+      const totalHours = totalWeeks * input.hours_per_week;
 
-      const parsed: RoadmapParsedResponse = {
-        title: structure.title,
-        total_weeks: structure.total_weeks,
-        phases: structure.phases,
+      const phases: RoadmapPhase[] = [
+        {
+          phase_name: 'Phase 1: Core Gaps',
+          order: 1,
+          weeks: totalWeeks,
+          rationale: 'Deterministic fallback learning path addressing identified skill gaps.',
+        },
+      ];
+
+      const steps: Omit<RoadmapStep, 'recommended_courses'>[] = allInputSkills.map((s, index) => ({
+        title: `Learn ${s.skill_canonical_name}`,
+        description: `Master the concepts and practical application of ${s.skill_canonical_name} required for the ${input.target_role} role.`,
+        step_order: index + 1,
+        phase_order: 1,
+        estimated_days: Math.round((totalWeeks * 7) / Math.max(1, allInputSkills.length)),
+        skill_canonical_names: [s.skill_canonical_name],
+        learning_objectives: [
+          `Understand fundamental concepts of ${s.skill_canonical_name}`,
+          `Apply ${s.skill_canonical_name} in practical scenarios`,
+        ],
+      }));
+
+      structure = {
+        title: `Learning Roadmap: ${input.target_role}`,
+        total_weeks: totalWeeks,
+        phases,
         steps,
-        ai_summary: structure.ai_summary,
-        ai_advice: structure.ai_advice,
-        uncovered_skills: [...uncoveredSkillsByLlm],
-        skills_without_courses: matcherResult.uncovered_skills,
+        ai_summary: `Focus on ${allInputSkills.length} skill${allInputSkills.length > 1 ? 's' : ''} in ${totalHours}h.`,
+        ai_advice: `This is a deterministic learning plan generated because the AI service is currently unavailable. It focuses on your primary skill gaps: ${allInputSkills.map(s => s.skill_canonical_name).join(', ')}.`,
       };
 
+      tokenUsage = 0;
+      rawResponse = JSON.stringify({ fallback: true, originalError: err instanceof Error ? err.message : String(err) });
+    }
+
+    // ─── Step 3: sanity-check skill references against the input gap ────────
+    const allInputSkills = new Set([
+      ...input.missing_skills.map((s) => s.skill_canonical_name),
+      ...(input.partial_skills ?? []).map((s) => s.skill_canonical_name),
+    ]);
+
+    const uncoveredSkillsByLlm: Set<string> = new Set();
+    for (const step of structure.steps) {
+      for (const sk of step.skill_canonical_names ?? []) {
+        if (!allInputSkills.has(sk)) uncoveredSkillsByLlm.add(sk);
+      }
+    }
+    if (uncoveredSkillsByLlm.size > 0 && !isFallback) {
+      this.logger.warn(
+        `Roadmap LLM referenced skills not in the input gap: ${[...uncoveredSkillsByLlm].join(', ')}. ` +
+          `These will still be matched against catalog but are signal of prompt drift.`,
+      );
+    }
+
+    // ─── Step 4: CourseMatcher fills real courses per step ──────────────────
+    const allRequests = this.buildMatchRequests(
+      structure,
+      input.missing_skills,
+      input.partial_skills,
+    );
+    const matcherResult = this.courseMatcher.matchCourses(allRequests, languagePref);
+
+    // Index by skill for quick lookup
+    const coursesBySkill = new Map<string, (typeof matcherResult.per_skill)[number]['courses']>();
+    for (const entry of matcherResult.per_skill) {
+      coursesBySkill.set(entry.skill_canonical_name, entry.courses);
+    }
+
+    const steps: RoadmapStep[] = structure.steps.map((s) => {
+      // Aggregate courses across all skills this step addresses, dedupe by course id, take top 3.
+      const aggregated = (s.skill_canonical_names ?? [])
+        .flatMap((sk) => coursesBySkill.get(sk) ?? [])
+        .filter((c, idx, arr) => arr.findIndex((cc) => cc.id === c.id) === idx)
+        .sort((a, b) => b.match_score - a.match_score)
+        .slice(0, 3);
+      return {
+        ...s,
+        recommended_courses: aggregated,
+      };
+    });
+
+    const parsed: RoadmapParsedResponse = {
+      title: structure.title,
+      total_weeks: structure.total_weeks,
+      phases: structure.phases,
+      steps,
+      ai_summary: structure.ai_summary,
+      ai_advice: structure.ai_advice,
+      uncovered_skills: [...uncoveredSkillsByLlm],
+      skills_without_courses: matcherResult.uncovered_skills,
+    };
+
+    if (!isFallback) {
       // Persist the result BEFORE marking SUCCESS (audit invariant: SUCCESS ⇒ has result).
       await this.tracing.saveAiResult({
         aiRequestId,
         userId,
         resultType: 'roadmap_generate',
-        rawResponse: llmResult.rawResponse,
+        rawResponse,
         parsedResponse: parsed,
-        tokenUsage: llmResult.tokenUsage.totalTokens,
+        tokenUsage,
       });
 
       await this.tracing.completeAiRequest(aiRequestId, {
-        promptTokens: llmResult.tokenUsage.promptTokens,
-        completionTokens: llmResult.tokenUsage.completionTokens,
-        totalTokens: llmResult.tokenUsage.totalTokens,
-        estimatedCost: llmResult.estimatedCostUsd,
-        latencyMs: llmResult.latencyMs,
+        promptTokens,
+        completionTokens,
+        totalTokens: tokenUsage,
+        estimatedCost,
+        latencyMs,
         status: 'SUCCESS',
       });
-
-      return {
-        ai_request_id: aiRequestId,
-        parsed_response: parsed,
-        retrieval_log_id: null,
-        retrieved_chunks_count: 0,
-        token_usage: llmResult.tokenUsage.totalTokens,
-      };
-    } catch (err) {
-      await this.tracing.markFailed(aiRequestId, startedAt, err);
-      throw err;
+    } else {
+      // Save fallback results to tracing for debug/retrieval audit transparency
+      await this.tracing.saveAiResult({
+        aiRequestId,
+        userId,
+        resultType: 'roadmap_generate',
+        rawResponse,
+        parsedResponse: parsed,
+        tokenUsage: 0,
+      }).catch(() => undefined);
     }
+
+    return {
+      ai_request_id: aiRequestId,
+      parsed_response: parsed,
+      retrieval_log_id: null,
+      retrieved_chunks_count: 0,
+      token_usage: tokenUsage,
+    };
+
   }
 
   /**

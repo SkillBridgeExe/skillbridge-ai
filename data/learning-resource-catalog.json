@@ -1520,6 +1520,3582 @@
       "difficulty": "BEGINNER",
       "freshness_score": 100,
       "last_verified_at": "2026-06-21"
+    },
+    {
+      "id": "youtube-course-html-qz0aGYrrlhU",
+      "title": "HTML Tutorial for Beginners: HTML Crash Course",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=qz0aGYrrlhU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 70,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "html",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Start your web development career with HTML/CSS! This beginner-friendly tutorial covers the essentials. Want to master ..."
+    },
+    {
+      "id": "youtube-course-css-OXGznpKZ_sA",
+      "title": "CSS Tutorial – Full Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=OXGznpKZ_sA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 669,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "css",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this in-depth course, you will learn about all the key features of CSS. This is the most comprehensive CSS course we've ..."
+    },
+    {
+      "id": "youtube-course-javascript-W6NZfCO5SIk",
+      "title": "JavaScript Course for Beginners – Your First Step to Web Development",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=W6NZfCO5SIk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 49,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "javascript",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn JavaScript basics with this quick, beginner-friendly course! ⚡ Perfect for new coders ready to build real skills and start ..."
+    },
+    {
+      "id": "youtube-course-typescript-d56mG7DezGs",
+      "title": "TypeScript Tutorial for Beginners",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=d56mG7DezGs",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 65,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "typescript",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Write better, more scalable JavaScript with TypeScript! This beginner-friendly tutorial gets you started fast. Ready for a deep ..."
+    },
+    {
+      "id": "youtube-course-react-SqcY0GlETPk",
+      "title": "React Tutorial for Beginners",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=SqcY0GlETPk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 81,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Master React 18 with TypeScript! ⚛️ Build amazing front-end apps with this beginner-friendly tutorial. Want the ultimate React ..."
+    },
+    {
+      "id": "youtube-course-nextjs-xnOwOBYaA3w",
+      "title": "Learn NextJS in 7 Minutes",
+      "provider": "YouTube - PedroTech",
+      "url": "https://www.youtube.com/watch?v=xnOwOBYaA3w",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 8,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "nextjs",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "If you know react, but don't know what NextJS is, this is the video for you. NextJS offers a variety of benefits to using plain and pure ..."
+    },
+    {
+      "id": "youtube-course-responsive_design-x4u1yp3Msao",
+      "title": "A practical guide to responsive web design",
+      "provider": "YouTube - Kevin Powell",
+      "url": "https://www.youtube.com/watch?v=x4u1yp3Msao",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 24,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "responsive_design",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "I have a FREE COURSE on conquering responsive layouts https://courses.kevinpowell.co/conquering-responsive-layouts ..."
+    },
+    {
+      "id": "youtube-course-accessibility_a11y-e2nkq3h1P68",
+      "title": "Learn Accessibility - Full a11y Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=e2nkq3h1P68",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 94,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "accessibility_a11y",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to write accessible HTML by solving coding challenges. Click here to get to the challenges: ..."
+    },
+    {
+      "id": "youtube-course-web_performance-qPto6cNPdzU",
+      "title": "Web Performance Ultimate Crash Course",
+      "provider": "YouTube - Frontend Master",
+      "url": "https://www.youtube.com/watch?v=qPto6cNPdzU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 65,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "web_performance",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "AI Course Starting Saturday https://allahabadi.dev/ai/ My Products: https://linkooo.in Code Splitting ..."
+    },
+    {
+      "id": "youtube-course-frontend_testing-JBSUgDxICg8",
+      "title": "Testing In React Tutorial - Jest and React Testing Library",
+      "provider": "YouTube - PedroTech",
+      "url": "https://www.youtube.com/watch?v=JBSUgDxICg8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 22,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "frontend_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this video I will be going over testing in react by using Jest and React Testing Library. Join our Discord: ..."
+    },
+    {
+      "id": "youtube-course-node_js-TlB_eWDSMt4",
+      "title": "Node.js Tutorial for Beginners: Learn Node in 1 Hour",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=TlB_eWDSMt4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 79,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "node_js",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn Node.js basics in 1 hour! ⚡ This beginner-friendly tutorial gets you coding fast. ❤️ Join this channel to get access to ..."
+    },
+    {
+      "id": "youtube-course-dotnet-YbRe4iIVYJk",
+      "title": "ASP.NET Core Full Course For Beginners (.NET 10)",
+      "provider": "YouTube - Julio Casal",
+      "url": "https://www.youtube.com/watch?v=YbRe4iIVYJk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 208,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "dotnet",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Get the source code: ..."
+    },
+    {
+      "id": "youtube-course-python-K5KVEU3aaeQ",
+      "title": "Python Full Course for Beginners",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=K5KVEU3aaeQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 123,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "python",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Master Python from scratch No fluff—just clear, practical coding skills to kickstart your journey! Want to dive deeper? - Check ..."
+    },
+    {
+      "id": "youtube-course-java-xTtL8E4LzTQ",
+      "title": "Java Full Course for free ☕",
+      "provider": "YouTube - Bro Code",
+      "url": "https://www.youtube.com/watch?v=xTtL8E4LzTQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 720,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "java",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "java #javatutorial #javacourse Java tutorial for beginners full course 2025 *My original Java 12 Hour course* ..."
+    },
+    {
+      "id": "youtube-course-rest_api-qbLc5a9jdXo",
+      "title": "REST API Crash Course - Introduction + Full Python API Tutorial",
+      "provider": "YouTube - Caleb Curry",
+      "url": "https://www.youtube.com/watch?v=qbLc5a9jdXo",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 52,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "rest_api",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Mentorship to six figure software engineer - https://calcur.tech/mentorship ⚙️ Backend Engineering Mind Map ..."
+    },
+    {
+      "id": "youtube-course-graphql-5199E50O7SI",
+      "title": "GraphQL Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=5199E50O7SI",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 89,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "graphql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to use GraphQL in this tutorial for beginners. Throughout this course, you'll learn the core principle of this popular ..."
+    },
+    {
+      "id": "youtube-course-sql-7S_tz1z_5bA",
+      "title": "SQL Course for Beginners [Full Course]",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=7S_tz1z_5bA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 191,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "sql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Master SQL – an essential skill for AI, machine learning, data analysis, and more! This beginner-friendly course teaches you ..."
+    },
+    {
+      "id": "youtube-course-nosql-xh4gy1lbL2k",
+      "title": "NoSQL Database Tutorial – Full Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=xh4gy1lbL2k",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 175,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "nosql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this NoSQL course, Ania Kubow will be demystifying what NoSQL is, clarify the difference between SQL and NoSQL, as well as ..."
+    },
+    {
+      "id": "youtube-course-database_design-ztHopE5Wnpc",
+      "title": "Database Design Course - Learn how to design and plan a database for beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=ztHopE5Wnpc",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 488,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "database_design",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This database design course will help you understand database concepts and give you a deeper grasp of database design."
+    },
+    {
+      "id": "youtube-course-authentication_authorization-OgdpS9qsveA",
+      "title": "Spring Security Full Tutorial | Authentication, Authorization, Roles &amp; hasRole vs hasAuthority",
+      "provider": "YouTube - Learn code with Satish",
+      "url": "https://www.youtube.com/watch?v=OgdpS9qsveA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 67,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "authentication_authorization",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Master Spring Security from Scratch – Authentication, Authorization, Roles & Custom Security Implementation In this complete ..."
+    },
+    {
+      "id": "youtube-course-caching-BCJaWW8HjIk",
+      "title": "BCK-16. Caching Strategies",
+      "provider": "YouTube - 벤꿀 | VanGGUL",
+      "url": "https://www.youtube.com/watch?v=BCJaWW8HjIk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 7,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "caching",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Caching Mastery: Supercharge Your App Performance & Cut Costs Key Concept: Caching is like keeping frequently used items ..."
+    },
+    {
+      "id": "youtube-course-git-S7XpTAnSDL4",
+      "title": "Git &amp; GitHub Tutorial | Visualized Git Course for Beginner &amp; Professional Developers in 2024",
+      "provider": "YouTube - JavaScript Mastery",
+      "url": "https://www.youtube.com/watch?v=S7XpTAnSDL4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 73,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "git",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this visualized Git Tutorial, you'll learn everything from the basics of Git to advanced tips no one else talks about. We'll dive into ..."
+    },
+    {
+      "id": "youtube-course-docker-3c-iBn73dDE",
+      "title": "Docker Tutorial for Beginners [FULL COURSE in 3 Hours]",
+      "provider": "YouTube - TechWorld with Nana",
+      "url": "https://www.youtube.com/watch?v=3c-iBn73dDE",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 167,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "docker",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Grab your free DevOps Roadmap: https://bit.ly/3GE9mzp Full Docker Tutorial | Complete Docker Course | Hands-on course with a ..."
+    },
+    {
+      "id": "youtube-course-ci_cd-h9K1NnqwUvE",
+      "title": "CI/CD Full Course | CI/CD Tutorial | Continuous Integration And Continuous Delivery | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=h9K1NnqwUvE",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 88,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "ci_cd",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Professional Certificate Program in Cloud Computing and DevOps (India Only) ..."
+    },
+    {
+      "id": "youtube-course-linux-FL7K2A2KH7g",
+      "title": "Linux SHELL SCRIPTING in ONE VIDEO For Beginners 2025 [ENGLISH] | MPrashant",
+      "provider": "YouTube - MPrashant Academy",
+      "url": "https://www.youtube.com/watch?v=FL7K2A2KH7g",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 136,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "linux",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "linux Shell Linux Shell Scripting in ONE VIDEO Linux Shell Scripting Course in one shot Linux Shell Scripting for DevOps Bash ..."
+    },
+    {
+      "id": "youtube-course-cloud_aws-k1RI5locZE4",
+      "title": "AWS Tutorial For Beginners | AWS Full Course - Learn AWS In 10 Hours | AWS Training | Edureka",
+      "provider": "YouTube - edureka!",
+      "url": "https://www.youtube.com/watch?v=k1RI5locZE4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 569,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_aws",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Edureka AWS Certification Training (Use Code \"YOUTUBE20\") - https://www.edureka.co/aws-certification-training This ..."
+    },
+    {
+      "id": "youtube-course-system_design-F2FmTdLtb_4",
+      "title": "System Design Concepts Course and Interview Prep",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=F2FmTdLtb_4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 54,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "system_design",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This complete system design tutorial covers scalability, reliability, data handling, and high-level architecture with clear ..."
+    },
+    {
+      "id": "youtube-course-api_testing-VywxIQ2ZXw4",
+      "title": "Postman Beginner&#39;s Course - API Testing",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=VywxIQ2ZXw4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 130,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "api_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Postman has over 10 million users worldwide. This course will introduce you to Postman and is suited for beginners. You will ..."
+    },
+    {
+      "id": "youtube-course-agile_scrum-s3y95I79D_Q",
+      "title": "The Scrum Guide: FULL COURSE",
+      "provider": "YouTube - David McLachlan",
+      "url": "https://www.youtube.com/watch?v=s3y95I79D_Q",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 49,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "agile_scrum",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This video is the full Scrum Guide, explained in detail as a full course, just for you. Become an expert in Scrum! ✓✓ Get my ..."
+    },
+    {
+      "id": "youtube-course-excel-Vl0H-qTclOg",
+      "title": "Microsoft Excel Tutorial for Beginners - Full Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=Vl0H-qTclOg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 147,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "excel",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Lean how to use Microsoft Excel from the beginning by creating 6 real-world projects. Most of the content applies to Google ..."
+    },
+    {
+      "id": "youtube-course-pandas-EXIgjIBu4EU",
+      "title": "Learn Pandas in 30 Minutes - Python Pandas Tutorial",
+      "provider": "YouTube - Tech With Tim",
+      "url": "https://www.youtube.com/watch?v=EXIgjIBu4EU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 31,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "pandas",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Visit https://postmarkapp.com/lp/tech-with-tim and use coupon code TECHWITHTIM to get 20% off any plan for three months."
+    },
+    {
+      "id": "youtube-course-numpy-QUT1VHiLmmI",
+      "title": "Python NumPy Tutorial for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=QUT1VHiLmmI",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 59,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "numpy",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the basics of the NumPy library in this tutorial for beginners. It provides background information on how NumPy works and ..."
+    },
+    {
+      "id": "youtube-course-data_visualization-MiiANxRHSv4",
+      "title": "Data Visualization Tutorial For Beginners | Big Data Analytics Tutorial | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=MiiANxRHSv4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 28,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "data_visualization",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "\"️  IBM - Data Analyst ..."
+    },
+    {
+      "id": "youtube-course-tableau-j8FSP8XuFyk",
+      "title": "Learn Tableau in Under 2 hours | Dashboards, Relationships, Visualizations + Mini Project",
+      "provider": "YouTube - Alex The Analyst",
+      "url": "https://www.youtube.com/watch?v=j8FSP8XuFyk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 91,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "tableau",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Take my Full Tableau Course Here: https://www.analystbuilder.com/courses/tableau-for-data-visualization Download Tableau: ..."
+    },
+    {
+      "id": "youtube-course-power_bi-e6QD8lP-m6E",
+      "title": "Power BI Full Course Tutorial (8+ Hours)",
+      "provider": "YouTube - Learn Skills Daily",
+      "url": "https://www.youtube.com/watch?v=e6QD8lP-m6E",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 500,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "power_bi",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Power BI Full Course Tutorial (8+ Hours) Get Ad-Free Training by becoming a member today!"
+    },
+    {
+      "id": "youtube-course-statistics-J_VOiNwARUA",
+      "title": "Statistics Formulas -1",
+      "provider": "YouTube - Bright Maths",
+      "url": "https://www.youtube.com/watch?v=J_VOiNwARUA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "statistics",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Math Shorts."
+    },
+    {
+      "id": "youtube-course-etl-org6wN7QcIw",
+      "title": "ETL Pipeline Full Course 2026 | Complete ETL Pipeline Tutorial | ETL Process Explained | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=org6wN7QcIw",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 568,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "etl",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Business Analyst Masters Program (Discount Code - YTBE15) ..."
+    },
+    {
+      "id": "youtube-course-machine_learning-i_LwzRVP7bg",
+      "title": "Machine Learning for Everybody – Full Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=i_LwzRVP7bg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 234,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "machine_learning",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn Machine Learning in a way that is accessible to absolute beginners. You will learn the basics of Machine Learning and how ..."
+    },
+    {
+      "id": "youtube-course-problem_solving-UFc-RPbq8kg",
+      "title": "Problem-Solving for Developers - A Beginner&#39;s Guide",
+      "provider": "YouTube - Fireship",
+      "url": "https://www.youtube.com/watch?v=UFc-RPbq8kg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 11,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "problem_solving",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "How to approach problem-solving as a developer . Seven steps and strategies to solve software development challenges faster."
+    },
+    {
+      "id": "youtube-course-teamwork-33ZtkPxkizM",
+      "title": "Teamwork and Collaboration | Student Success Series | Tutor.com",
+      "provider": "YouTube - Tutor.com",
+      "url": "https://www.youtube.com/watch?v=33ZtkPxkizM",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 43,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "teamwork",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Working effectively with others is integral to success in school and the workplace. Collaborative team projects provide many ..."
+    },
+    {
+      "id": "youtube-course-time_management-iDbdXTMnOmE",
+      "title": "How to manage your time more effectively (according to machines) - Brian Christian",
+      "provider": "YouTube - TED-Ed",
+      "url": "https://www.youtube.com/watch?v=iDbdXTMnOmE",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 6,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "time_management",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Download a free audiobook and support TED-Ed's nonprofit mission: http://adbl.co/2lFSkUw Check out Brian Christian and Tom ..."
+    },
+    {
+      "id": "youtube-course-critical_thinking-dItUGF8GdTw",
+      "title": "5 tips to improve your critical thinking - Samantha Agoos",
+      "provider": "YouTube - TED-Ed",
+      "url": "https://www.youtube.com/watch?v=dItUGF8GdTw",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 5,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "critical_thinking",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "View full lesson: http://ed.ted.com/lessons/5-tips-to-improve-your-critical-thinking-samantha-agoos Every day, a sea of decisions ..."
+    },
+    {
+      "id": "youtube-course-swift-8Xg7E9shq0U",
+      "title": "Swift Programming Tutorial – Full Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=8Xg7E9shq0U",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 426,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "swift",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the Swift programming language in this full tutorial for beginners. In this video, we will go through every modern aspect of ..."
+    },
+    {
+      "id": "youtube-course-kotlin-F9UC9DY-vIU",
+      "title": "Kotlin Course - Tutorial for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=F9UC9DY-vIU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 159,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "kotlin",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the Kotlin programming language in this introduction to Kotlin. Kotlin is a general purpose, open source, statically typed ..."
+    },
+    {
+      "id": "youtube-course-flutter-VPvVD8t02U8",
+      "title": "Flutter Course for Beginners – 37-hour Cross Platform App Development Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=VPvVD8t02U8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 60,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "flutter",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to use Flutter in this complete course for beginners. Flutter is an open-source UI software development kit used to ..."
+    },
+    {
+      "id": "youtube-course-react_native-XCifkDC0yXA",
+      "title": "React Native Crash Course 2026 - Build a Complete Mobile App",
+      "provider": "YouTube - Traversy Media",
+      "url": "https://www.youtube.com/watch?v=XCifkDC0yXA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 99,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react_native",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to build native mobile apps from scratch with React Native and Expo. Create your account at ..."
+    },
+    {
+      "id": "youtube-course-firebase-9kRgVxULbag",
+      "title": "Firebase - Ultimate Beginner&#39;s Guide",
+      "provider": "YouTube - Fireship",
+      "url": "https://www.youtube.com/watch?v=9kRgVxULbag",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 22,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "firebase",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "UPDATE. See the latest basics video here: https://youtu.be/q5J5ho7YUhA Master the basics of Firebase in 20 minutes. In this ..."
+    },
+    {
+      "id": "youtube-course-mobile_testing-C2CAw1-Vyu0",
+      "title": "Mobile pen-testing training series - Introduction",
+      "provider": "YouTube - RedShift Cyber Security",
+      "url": "https://www.youtube.com/watch?v=C2CAw1-Vyu0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 2,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "mobile_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Want to improve your hacking skills? Interested in pen-testing mobile applications? We have created a FREE open-source mobile ..."
+    },
+    {
+      "id": "youtube-course-bug_tracking_jira-QlJaTGg_P0M",
+      "title": "Jira Tutorial For Beginners 2026 | Jira Training | Jira Project Management | Jira | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=QlJaTGg_P0M",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 75,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "bug_tracking_jira",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "PMP® Certification Training Course: ..."
+    },
+    {
+      "id": "youtube-course-kubernetes-X48VuDVv0do",
+      "title": "Kubernetes Tutorial for Beginners [FULL COURSE in 4 Hours]",
+      "provider": "YouTube - TechWorld with Nana",
+      "url": "https://www.youtube.com/watch?v=X48VuDVv0do",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 217,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "kubernetes",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Grab your free DevOps Roadmap: https://bit.ly/3RUQ7UK Become a DevOps Engineer - full educational program: ..."
+    },
+    {
+      "id": "youtube-course-infrastructure_as_code-EtEb40LE5zQ",
+      "title": "Infrastructure as Code - Crash Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=EtEb40LE5zQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 70,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "infrastructure_as_code",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "What is Infrastructure as Code? Learn in this course and get hands-on practice by implementing three IaC projects. ✏️ Beau ..."
+    },
+    {
+      "id": "youtube-course-monitoring_logging-h4Sl21AKiDg",
+      "title": "How Prometheus Monitoring works | Prometheus Architecture explained",
+      "provider": "YouTube - TechWorld with Nana",
+      "url": "https://www.youtube.com/watch?v=h4Sl21AKiDg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 22,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "monitoring_logging",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Part of the DevOps Bootcamp More infos here: https://bit.ly/41Wc1cM Fully understand how Prometheus Monitoring works ..."
+    },
+    {
+      "id": "youtube-course-networking-PhjHXeMNpp8",
+      "title": "Computer Networking Tutorial - Bits and Bytes of the Networking [12 HOURS]",
+      "provider": "YouTube - Bogdan Stashchuk",
+      "url": "https://www.youtube.com/watch?v=PhjHXeMNpp8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 697,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "networking",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "World of Computer Networking. Learn everything about Computer Networks: Ethernet, IP, TCP, UDP, NAT, DHCP, private and ..."
+    },
+    {
+      "id": "youtube-course-manual_testing-QJqNYhiHysM",
+      "title": "QA Manual Testing Full Course for Beginners Part-1",
+      "provider": "YouTube - SDET- QA",
+      "url": "https://www.youtube.com/watch?v=QJqNYhiHysM",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 282,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "manual_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Manual Testing Notes and Tutorials : ---------------------------------------- https://bit.ly/428Phr2 Manual Testing Materials ..."
+    },
+    {
+      "id": "youtube-course-test_automation-HmQv8Z4om4I",
+      "title": "Test Automation Engineer - The Full Course (2025) | Testing Course For Beginners | Edureka",
+      "provider": "YouTube - edureka!",
+      "url": "https://www.youtube.com/watch?v=HmQv8Z4om4I",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 598,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "test_automation",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Edureka Automation Testing Engineer Masters Course: ..."
+    },
+    {
+      "id": "youtube-course-database_testing-1dDxUYuegJk",
+      "title": "DATABASE TESTING | EVERYTHING YOU SHOULD KNOW ABOUT",
+      "provider": "YouTube - Viplove QA - SDET",
+      "url": "https://www.youtube.com/watch?v=1dDxUYuegJk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "database_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Database Testing Summary Database testing ensures data accuracy, integrity, and performance by validating the backend of an ..."
+    },
+    {
+      "id": "youtube-course-pytorch_tensorflow-z-ZR_8BZ1wQ",
+      "title": "Pytorch vs Tensorflow vs Keras | Deep Learning Tutorial 6 (Tensorflow Tutorial, Keras &amp; Python)",
+      "provider": "YouTube - codebasics",
+      "url": "https://www.youtube.com/watch?v=z-ZR_8BZ1wQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 3,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "pytorch_tensorflow",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "We will go over what is the difference between pytorch, tensorflow and keras in this video. Pytorch and Tensorflow are two most ..."
+    },
+    {
+      "id": "youtube-course-data_preprocessing-pYVScuY-GPk",
+      "title": "What is feature engineering | Feature Engineering Tutorial Python # 1",
+      "provider": "YouTube - codebasics",
+      "url": "https://www.youtube.com/watch?v=pYVScuY-GPk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 6,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "data_preprocessing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Feature engineering is an important area in the field of machine learning and data analysis. It helps in data cleaning process ..."
+    },
+    {
+      "id": "youtube-course-angular-3qBXWUpoPHo",
+      "title": "Angular for Beginners Course [Full Front End Tutorial with TypeScript]",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=3qBXWUpoPHo",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1054,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "angular",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn Angular in this complete course for beginners. First you will learn the basics of Typescript and then you will learn about ..."
+    },
+    {
+      "id": "youtube-course-vue-Kt2E8nblvXU",
+      "title": "Learn Vue.js – Tutorial for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=Kt2E8nblvXU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 99,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "vue",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn Vue as you build real projects, dive into its core features, and create dynamic, reusable, and reactive apps with ease."
+    },
+    {
+      "id": "youtube-course-svelte-8DQailPy3q8",
+      "title": "Svelte 5 Basics - Complete Svelte 5 Course for Beginners",
+      "provider": "YouTube - Syntax",
+      "url": "https://www.youtube.com/watch?v=8DQailPy3q8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 110,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "svelte",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "The final code: https://github.com/stolinski/svelte-5-course 00:00 Course Introduction 01:23 About Svelte 02:45 Svelte ..."
+    },
+    {
+      "id": "youtube-course-redux-NqzdVN2tyvQ",
+      "title": "React Redux Full Course for Beginners | Redux Toolkit Complete Tutorial",
+      "provider": "YouTube - Dave Gray",
+      "url": "https://www.youtube.com/watch?v=NqzdVN2tyvQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 240,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "redux",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Web Dev Roadmap for Beginners (Free!): https://bit.ly/DaveGrayWebDevRoadmap This React Redux Full Course for Beginners is ..."
+    },
+    {
+      "id": "youtube-course-vuex-LfWpPRId5N0",
+      "title": "Pinia Simplified",
+      "provider": "YouTube - LearnVue",
+      "url": "https://www.youtube.com/watch?v=LfWpPRId5N0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 5,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "vuex",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "With Pinia being the new recommended data store solution for Vue, here are some of the essentials you need to know about it!"
+    },
+    {
+      "id": "youtube-course-php-OK_JCtrrv-c",
+      "title": "PHP Programming Language Tutorial - Full Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=OK_JCtrrv-c",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 277,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "php",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the PHP programming language in this full course / tutorial. The course is designed for new programmers, and will ..."
+    },
+    {
+      "id": "youtube-course-laravel-MOLZOXqaomM",
+      "title": "Learn Laravel from Scratch [FULL BOOTCAMP COURSE]",
+      "provider": "YouTube - Laravel",
+      "url": "https://www.youtube.com/watch?v=MOLZOXqaomM",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 124,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "laravel",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Welcome to the official Getting Started with Laravel course. In this bootcamp, we will learn how to build your first full-stack ..."
+    },
+    {
+      "id": "youtube-course-ruby-t_ispmWmdjY",
+      "title": "Ruby Programming Language - Full Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=t_ispmWmdjY",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 243,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "ruby",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the Ruby programming language in this full course / tutorial. The course is designed for new programmers, and will ..."
+    },
+    {
+      "id": "youtube-course-golang-un6ZyFkqFKo",
+      "title": "Go Programming – Golang Course with Bonus Projects",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=un6ZyFkqFKo",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 573,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "golang",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the Go programming language in this full course for beginners. You'll practice writing performant, idiomatic Go with these ..."
+    },
+    {
+      "id": "youtube-course-rust-BpPEoZW5IiY",
+      "title": "Learn Rust Programming - Complete Course 🦀",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=BpPEoZW5IiY",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 840,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "rust",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this comprehensive Rust course for beginners, you will learn about the core concepts of the language and underlying ..."
+    },
+    {
+      "id": "youtube-course-cpp-vLnPwxZdW4Y",
+      "title": "C++ Tutorial for Beginners - Full Course",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=vLnPwxZdW4Y",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 242,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cpp",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This course will give you a full introduction into all of the core concepts in C++. ❤️ Support for this channel comes from our ..."
+    },
+    {
+      "id": "youtube-course-c_lang-xND0t1pr3KY",
+      "title": "C Programming Full Course for free ⚙️",
+      "provider": "YouTube - Bro Code",
+      "url": "https://www.youtube.com/watch?v=xND0t1pr3KY",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 414,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "c_lang",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "coding #programming #cprogramming (00:00:00) introduction to C programming ⚙ (00:00:41) VSCode download (00:01:52) new ..."
+    },
+    {
+      "id": "youtube-course-django-rHux0gMZ3Eg",
+      "title": "Django Tutorial for Beginners – Build Powerful Backends",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=rHux0gMZ3Eg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 63,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "django",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn Django and start building amazing back-ends! This beginner-friendly course guides you through Django's essentials, ..."
+    },
+    {
+      "id": "youtube-course-flask-oQ5UfJqW5Jo",
+      "title": "Full Flask Course For Python - From Basics To Deployment",
+      "provider": "YouTube - NeuralNine",
+      "url": "https://www.youtube.com/watch?v=oQ5UfJqW5Jo",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 223,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "flask",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This is a full Flask course for Python. It goes from the very basics like templates and POST requests, to more advanced stuff like ..."
+    },
+    {
+      "id": "youtube-course-fastapi-tLKKmouUams",
+      "title": "FastAPI Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=tLKKmouUams",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 65,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "fastapi",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This video is a full FastAPI crash course. In the course, you will learn everything you need to know to start building APIs using ..."
+    },
+    {
+      "id": "youtube-course-websocket-pnj3Jbho5Ck",
+      "title": "How Web Sockets work | System Design Interview Basics",
+      "provider": "YouTube - ByteMonk",
+      "url": "https://www.youtube.com/watch?v=pnj3Jbho5Ck",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 6,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "websocket",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this video I explain basics of Web Sockets, and compare it with Polling and HTTP Long Polling, which you must know for system ..."
+    },
+    {
+      "id": "youtube-course-grpc-gnchfOojMk4",
+      "title": "What is RPC? gRPC Introduction.",
+      "provider": "YouTube - ByteByteGo",
+      "url": "https://www.youtube.com/watch?v=gnchfOojMk4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 7,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "grpc",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "To get better at system design, subscribe to our weekly newsletter: https://bit.ly/3tfAlYD Checkout our bestselling System Design ..."
+    },
+    {
+      "id": "youtube-course-microservices-tuJqH3AV0e8",
+      "title": "Microservices Full Course - Learn Microservices in 4 Hours | Microservices Tutorial | Edureka",
+      "provider": "YouTube - edureka!",
+      "url": "https://www.youtube.com/watch?v=tuJqH3AV0e8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 220,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "microservices",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Microservices Architecture Training (Use Code \"YOUTUBE20\"): https://www.edureka.co/microservices-architecture-training ..."
+    },
+    {
+      "id": "youtube-course-oop-pTB0EiLXUC8",
+      "title": "Object-Oriented Programming, Simplified",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=pTB0EiLXUC8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 8,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "oop",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "4 pillars of object-oriented programming: encapsulation, abstraction, inheritance and polymorphism. ❤️ Join this channel to get ..."
+    },
+    {
+      "id": "youtube-course-data_structures_algorithms-8hly31xKli0",
+      "title": "Algorithms and Data Structures Tutorial - Full Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=8hly31xKli0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 323,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "data_structures_algorithms",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this course you will learn about algorithms and data structures, two of the fundamental topics in computer science. There are ..."
+    },
+    {
+      "id": "youtube-course-backend_development-OeEHJgzqS1k",
+      "title": "The Complete Backend Developer Roadmap",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=OeEHJgzqS1k",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 9,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "backend_development",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Go from zero to a backend developer in 12 months. This step-by-step roadmap covers the essential skills and latest technologies ..."
+    },
+    {
+      "id": "youtube-course-frontend_development-ZUXKG3JFszc",
+      "title": "Become a Front-End Developer in 100 Days !",
+      "provider": "YouTube - Shweta",
+      "url": "https://www.youtube.com/watch?v=ZUXKG3JFszc",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "frontend_development",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Become a Front-End Developer in 100 Days ! #frontenddeveloper #html #css #javascript #webdeveloper #backenddeveloper ..."
+    },
+    {
+      "id": "youtube-course-deep_learning-VyWAvY2CF9c",
+      "title": "Deep Learning Crash Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=VyWAvY2CF9c",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 86,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "deep_learning",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the fundamental concepts and terminology of Deep Learning, a sub-branch of Machine Learning. This course is designed ..."
+    },
+    {
+      "id": "youtube-course-nlp-CMrHM8a3hqw",
+      "title": "Natural Language Processing In 5 Minutes | What Is NLP And How Does It Work? | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=CMrHM8a3hqw",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 6,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "nlp",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "\"️️  Professional Certificate in AI and Machine Learning ..."
+    },
+    {
+      "id": "youtube-course-computer_vision-oXlwWbU8l2o",
+      "title": "OpenCV Course - Full Tutorial with Python",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=oXlwWbU8l2o",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 222,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "computer_vision",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn everything you need to know about OpenCV in this full course for beginners. You will learn the very basics (reading images ..."
+    },
+    {
+      "id": "youtube-course-llm_engineering-X8F9JfCUWrs",
+      "title": "LLM Full Course For Data Engineers (From SCRATCH)",
+      "provider": "YouTube - Ansh Lamba",
+      "url": "https://www.youtube.com/watch?v=X8F9JfCUWrs",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 181,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "llm_engineering",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "How LLM works | LLM from scratch | Gen AI | Data Engineering What You'll Learn? This is a complete beginner-friendly LLM ..."
+    },
+    {
+      "id": "youtube-course-prompt_engineering-2BpCk4d2Cc0",
+      "title": "Prompt Engineering Full Course ",
+      "provider": "YouTube - Tech With Tim",
+      "url": "https://www.youtube.com/watch?v=2BpCk4d2Cc0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 38,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "prompt_engineering",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Try Flow Pro free for 14 days + get an extra month free with my code TECHWITHTIM! Start here: ..."
+    },
+    {
+      "id": "youtube-course-data_analysis-1PAy6d16ADQ",
+      "title": "IBM Data Analyst Complete Course | Data Analyst Tutorial For Beginners,",
+      "provider": "YouTube - My Lesson",
+      "url": "https://www.youtube.com/watch?v=1PAy6d16ADQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 919,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "data_analysis",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Build job-ready skills by learning from the best Get started in the in-demand field of data analytics with a Professional Certificate ..."
+    },
+    {
+      "id": "youtube-course-spark-7ooZ4S7Ay6Y",
+      "title": "Advanced Apache Spark Training - Sameer Farooqui (Databricks)",
+      "provider": "YouTube - Spark Summit",
+      "url": "https://www.youtube.com/watch?v=7ooZ4S7Ay6Y",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 359,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "spark",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Live Big Data Training from Spark Summit 2015 in New York City. \"Today I'll cover Spark core in depth and get you prepared to ..."
+    },
+    {
+      "id": "youtube-course-elasticsearch-a4HBKEda_F8",
+      "title": "Elasticsearch Course for Beginners",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=a4HBKEda_F8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 300,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "elasticsearch",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn about Elasticsearch with this comprehensive course designed for beginners, featuring both theoretical concepts and ..."
+    },
+    {
+      "id": "youtube-course-web_scraping-hHQlcnubuFI",
+      "title": "Learn Web Scraping in 5 Minutes (NO PRIOR KNOWLEDGE)",
+      "provider": "YouTube - CodeHead",
+      "url": "https://www.youtube.com/watch?v=hHQlcnubuFI",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 5,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "web_scraping",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Get Rid of IP Blocking for just $1 with DataImpulse: ..."
+    },
+    {
+      "id": "youtube-course-kafka-QkdkLdMBuL0",
+      "title": "Kafka Tutorial for Beginners | Everything you need to get started",
+      "provider": "YouTube - TechWorld with Nana",
+      "url": "https://www.youtube.com/watch?v=QkdkLdMBuL0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 19,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "kafka",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Step by Step DevOps Roadmap PDF: https://bit.ly/4jv2qDH Apache Kafka Tutorial | Everything you need to know: What is Kafka, ..."
+    },
+    {
+      "id": "youtube-course-rabbitmq-7rkeORD4jSw",
+      "title": "What is RabbitMQ?",
+      "provider": "YouTube - IBM Technology",
+      "url": "https://www.youtube.com/watch?v=7rkeORD4jSw",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 11,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "rabbitmq",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn more about Message Brokers → http://ibm.biz/message-brokers-guide Check out IBM Messages for RabbitMQ ..."
+    },
+    {
+      "id": "youtube-course-mlops--dJPoLm_gtE",
+      "title": "MLOps Course – Build Machine Learning Production Grade Projects",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=-dJPoLm_gtE",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 182,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "mlops",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "MLOps, short for Machine Learning Operations, refers to the practice of applying DevOps principles to machine learning."
+    },
+    {
+      "id": "youtube-course-hadoop-aReuLtY0YMI",
+      "title": "Hadoop In 5 Minutes | What Is Hadoop? | Introduction To Hadoop | Hadoop Explained |Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=aReuLtY0YMI",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 7,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "hadoop",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "IBM - Data Analyst ..."
+    },
+    {
+      "id": "youtube-course-android_native-X6I5gcYMlZU",
+      "title": "Android Developer Roadmap #trendingshorts #coderslife #trendingnow",
+      "provider": "YouTube - AlgoTutor",
+      "url": "https://www.youtube.com/watch?v=X6I5gcYMlZU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "android_native",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "YouTube video course for Android (Native)."
+    },
+    {
+      "id": "youtube-course-ios_native-PLgBArQhy6o",
+      "title": "The very basics of iOS app development 🙌",
+      "provider": "YouTube - Julian Michael Technologies",
+      "url": "https://www.youtube.com/watch?v=PLgBArQhy6o",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "ios_native",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "YouTube video course for iOS (Native)."
+    },
+    {
+      "id": "youtube-course-cloud_azure-3Arj5zlUPG4",
+      "title": "What Is Azure? | Microsoft Azure Tutorial For Beginners | Microsoft Azure Training | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=3Arj5zlUPG4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 11,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_azure",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "\"️   Cloud Architect Masters Program ..."
+    },
+    {
+      "id": "youtube-course-cloud_gcp-JX56WlESFaU",
+      "title": "Google Cloud Platform in 10 mins | GCP for beginners | Google Cloud Platform (GCP) tutorials",
+      "provider": "YouTube - IT-Made-Easy",
+      "url": "https://www.youtube.com/watch?v=JX56WlESFaU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 9,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cloud_gcp",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "One of the leading Cloud services, learn GCP in 10 mins What is the Google Cloud Platform (GCP)? Google Cloud Platform ..."
+    },
+    {
+      "id": "youtube-course-security-rjT3vmeRy58",
+      "title": "Cybersecurity Roadmap 2023 ! #cybersecurity",
+      "provider": "YouTube - Shweta",
+      "url": "https://www.youtube.com/watch?v=rjT3vmeRy58",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "security",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Cybersecurity Roadmap 2023 ! #cybersecurity #hacking #security #technology #hacker #infosec #ethicalhacking #cybercrime ..."
+    },
+    {
+      "id": "youtube-course-figma-jQ1sfKIl50E",
+      "title": "Figma Tutorial for Beginners (13-min crash course!)",
+      "provider": "YouTube - Flux Academy",
+      "url": "https://www.youtube.com/watch?v=jQ1sfKIl50E",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 14,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "figma",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "FREE TRAINING: 3 Steps to Build a Thriving Web Design Career https://bit.ly/3Tiua2G If you're a beginner, this tutorial might be ..."
+    },
+    {
+      "id": "youtube-course-ui_ux_design-c9Wg6Cb_YlU",
+      "title": "UI / UX Design Tutorial – Wireframe, Mockup &amp; Design in Figma",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=c9Wg6Cb_YlU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 87,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "ui_ux_design",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn the process of UI / UX design. In this tutorial you will learn how a professional designer builds a full website design from ..."
+    },
+    {
+      "id": "youtube-course-unity-XtQMytORBmM",
+      "title": "The Unity Tutorial For Complete Beginners",
+      "provider": "YouTube - Game Maker's Toolkit",
+      "url": "https://www.youtube.com/watch?v=XtQMytORBmM",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 47,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "unity",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Get bonus content by supporting Game Maker's Toolkit - https://gamemakerstoolkit.com/support/ Unity is an amazingly powerful ..."
+    },
+    {
+      "id": "youtube-course-blockchain-M576WGiDBdQ",
+      "title": "Solidity, Blockchain, and Smart Contract Course – Beginner to Expert Python Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=M576WGiDBdQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 983,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "blockchain",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This course will give you a full introduction into all of the core concepts in blockchain, smart contracts, solidity, NFTs/ERC721s, ..."
+    },
+    {
+      "id": "youtube-course-solidity-AYpftDFiIgk",
+      "title": "Solidity Tutorial for Beginners - Full Course in 4 Hours (2023)",
+      "provider": "YouTube - Naz Dumanskyy",
+      "url": "https://www.youtube.com/watch?v=AYpftDFiIgk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 236,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "solidity",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "GET THE FREE COURSE https://www.nazaweb.com/free-smart-contract-course ‍   CODE EXERCISES & SOLUTIONS ..."
+    },
+    {
+      "id": "youtube-course-orm-KthQ0UmBmxE",
+      "title": "What is ORM?  | Object Relational Mapping",
+      "provider": "YouTube - Java Guides",
+      "url": "https://www.youtube.com/watch?v=KthQ0UmBmxE",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 4,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "orm",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this video, let's understand what is ORM (Object-Relational Mapping). Object-relational mapping (ORM) is a programming ..."
+    },
+    {
+      "id": "youtube-course-scala-I7-hxTbpscU",
+      "title": "Scala in 100 Seconds",
+      "provider": "YouTube - Fireship",
+      "url": "https://www.youtube.com/watch?v=I7-hxTbpscU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 4,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "scala",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Try Brilliant free for 30 days https://brilliant.org/fireship You'll also get 20% off an annual premium subscription Learn the basics of ..."
+    },
+    {
+      "id": "youtube-course-perl-WEghIXs8F6c",
+      "title": "Perl Tutorial",
+      "provider": "YouTube - Derek Banas",
+      "url": "https://www.youtube.com/watch?v=WEghIXs8F6c",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 68,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "perl",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Code & Transcript Here : http://goo.gl/DUZHJO Best Book on Perl : http://amzn.to/1URCrYb MY UDEMY COURSES ARE 87.5% ..."
+    },
+    {
+      "id": "youtube-course-snowflake-mP3QbYURT9k",
+      "title": "Learn Snowflake in 2 Hours| High Paying Skills | Step by Step For Beginners",
+      "provider": "YouTube - Data Engineer Academy",
+      "url": "https://www.youtube.com/watch?v=mP3QbYURT9k",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 230,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "snowflake",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Land A High Paying Data Role ⬇️ https://dataengineerinterviews.com/optin-yt-org?el=snowflake2&htrafficsource=ytorganic If ..."
+    },
+    {
+      "id": "youtube-course-redis-jgpVdJB2sKQ",
+      "title": "Redis Crash Course",
+      "provider": "YouTube - Web Dev Simplified",
+      "url": "https://www.youtube.com/watch?v=jgpVdJB2sKQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 28,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "redis",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Become a web developer* with my *FREE Web Development Roadmap* - _260+ videos, 120+ projects, 60+ articles_ ..."
+    },
+    {
+      "id": "youtube-course-junit-mock",
+      "title": "JUnit Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "junit",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master JUnit.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-jquery-mock",
+      "title": "jQuery Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "jquery",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master jQuery.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-bootstrap-Jyvffr3aCp0",
+      "title": "Bootstrap 5 Crash Course",
+      "provider": "YouTube - Web Dev Simplified",
+      "url": "https://www.youtube.com/watch?v=Jyvffr3aCp0",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 72,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "bootstrap",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Become a web developer* with my *FREE Web Development Roadmap* - _260+ videos, 120+ projects, 60+ articles_ ..."
+    },
+    {
+      "id": "youtube-course-wordpress-zd5_MN-6kqs",
+      "title": "WordPress Tutorial for Beginners 2026 - Step by Step",
+      "provider": "YouTube - Metics Media",
+      "url": "https://www.youtube.com/watch?v=zd5_MN-6kqs",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 32,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "wordpress",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In this WordPress tutorial for beginners, I'll guide you through the best way to create a WordPress website from complete scratch ..."
+    },
+    {
+      "id": "youtube-course-splunk-3CiRs6WaWaU",
+      "title": "Splunk Tutorial for Beginners (Cyber Security Tools)",
+      "provider": "YouTube - Jon Good",
+      "url": "https://www.youtube.com/watch?v=3CiRs6WaWaU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 13,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "splunk",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Want to learn the basics of Splunk (or Splunk Enterprise)? Start your career today! ➡️ https://www.StartCyberCareer.com/ There ..."
+    },
+    {
+      "id": "youtube-course-puppet-mock",
+      "title": "Puppet Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "puppet",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Puppet.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-chef-SHptCWeDjD4",
+      "title": "FREE Online Chef School - Lesson 1",
+      "provider": "YouTube - Scubeskitchen",
+      "url": "https://www.youtube.com/watch?v=SHptCWeDjD4",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 2,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "chef",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Chef Scubes begins Lesson 1 of his free online chef school. How to properly sharper your knives."
+    },
+    {
+      "id": "youtube-course-tomcat-mock",
+      "title": "Apache Tomcat Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "tomcat",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Apache Tomcat.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-maven-mock",
+      "title": "Apache Maven Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "maven",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Apache Maven.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-sql_server-mock",
+      "title": "Microsoft SQL Server Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "sql_server",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Microsoft SQL Server.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-openshift-vwDezts_aFg",
+      "title": "OpenShift in 1 hour with Demo | Most Popular Kubernetes Platform used by Organizations",
+      "provider": "YouTube - Abhishek.Veeramalla",
+      "url": "https://www.youtube.com/watch?v=vwDezts_aFg",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 63,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "openshift",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Join our 24*7 Doubts clearing group (Discord Server) www.youtube.com/abhishekveeramalla/join Udemy Course (End to End ..."
+    },
+    {
+      "id": "youtube-course-postgresql-mock",
+      "title": "PostgreSQL Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "postgresql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master PostgreSQL.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-mysql-mock",
+      "title": "MySQL Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "mysql",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master MySQL.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-mongodb-mock",
+      "title": "MongoDB Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "mongodb",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master MongoDB.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-powershell-mock",
+      "title": "PowerShell Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "powershell",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master PowerShell.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-data_science-mock",
+      "title": "Data Science Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "data_science",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Data Science.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-data_mining-mock",
+      "title": "Data Mining Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "data_mining",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Data Mining.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-business_intelligence-mock",
+      "title": "Business Intelligence Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "business_intelligence",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Business Intelligence.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-data_warehouse-mock",
+      "title": "Data Warehouse Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "data_warehouse",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Data Warehouse.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-internet_of_things-mock",
+      "title": "Internet of Things Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "internet_of_things",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Internet of Things.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-embedded_systems-xCwcjKGZhlA",
+      "title": "Top 5 Embedded Systems Courses with Certification | Best courses for Embedded @electronicsgeek",
+      "provider": "YouTube - electronics geek",
+      "url": "https://www.youtube.com/watch?v=xCwcjKGZhlA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 4,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "embedded_systems",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "In today's video, we're going to share with you the top five free embedded courses that will help you enhance your skills and take ..."
+    },
+    {
+      "id": "youtube-course-uml-6XrL5jXmTwM",
+      "title": "UML class diagrams",
+      "provider": "YouTube - Lucid Software",
+      "url": "https://www.youtube.com/watch?v=6XrL5jXmTwM",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 13,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "uml",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to master UML class diagrams to visualize your systems more effectively. This tutorial covers basic characteristics, ..."
+    },
+    {
+      "id": "youtube-course-augmented_reality-cukbTw-pUs8",
+      "title": "How to create an AR Product Clone using AI #ai #arstudio",
+      "provider": "YouTube - Harsh Gautam",
+      "url": "https://www.youtube.com/watch?v=cukbTw-pUs8",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 1,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "augmented_reality",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Learn how to create an AR (Augmented Reality) product clone using AI tools. This tutorial walks you through generating 3D ..."
+    },
+    {
+      "id": "youtube-course-virtual_reality-04AMaTsXFJU",
+      "title": "What Is AR And VR | Virtual Reality And Augmented Reality Explained | AR VR Tutorial | Simplilearn",
+      "provider": "YouTube - Simplilearn",
+      "url": "https://www.youtube.com/watch?v=04AMaTsXFJU",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 11,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "virtual_reality",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This video by simplilearn is based on what is AR and VR. This tutorial will help you understand the fundamentals of AR and VR ..."
+    },
+    {
+      "id": "youtube-course-robotics-mock",
+      "title": "Robotics Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "robotics",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Robotics.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-penetration_testing-mock",
+      "title": "Penetration Testing Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "penetration_testing",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Penetration Testing.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-computer_forensics-mock",
+      "title": "Computer Forensics Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "computer_forensics",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Computer Forensics.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-wireshark-mock",
+      "title": "Wireshark Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "wireshark",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Wireshark.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-metasploit-xuYZNJCvHgQ",
+      "title": "The Ultimate Metasploit Tutorial!",
+      "provider": "YouTube - Hacker Joe",
+      "url": "https://www.youtube.com/watch?v=xuYZNJCvHgQ",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 29,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "metasploit",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Want to go beyond basics? JOIN THE BROTHERHOOD & CLAIM YOUR FREE COURSE ..."
+    },
+    {
+      "id": "youtube-course-kali_linux-mock",
+      "title": "Kali Linux Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "kali_linux",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Kali Linux.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-objective_c-mock",
+      "title": "Objective-C Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "objective_c",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Objective-C.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-matlab-mock",
+      "title": "MATLAB Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "matlab",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master MATLAB.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-cobol-RdMAEdGvtLA",
+      "title": "COBOL Course - Programming with VSCode",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=RdMAEdGvtLA",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 78,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "cobol",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "This introductory COBOL course helps a novice learn the Structure of COBOL programs, Data types & Variable Handling, Intrinsic ..."
+    },
+    {
+      "id": "youtube-course-groovy-mock",
+      "title": "Groovy Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "groovy",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Groovy.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-erlang-mock",
+      "title": "Erlang Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "erlang",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Erlang.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-haskell-TklkNLihQ_A",
+      "title": "Haskell Programming Full Course 2024",
+      "provider": "YouTube - BekBrace",
+      "url": "https://www.youtube.com/watch?v=TklkNLihQ_A",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 160,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "haskell",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 85,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Hey friends, and welcome to yet another course. This time, we have Haskell in the house! I am going to walk with you a bit in the ..."
+    },
+    {
+      "id": "youtube-course-db2-mock",
+      "title": "IBM Db2 Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "db2",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master IBM Db2.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-teradata-mock",
+      "title": "Teradata Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "teradata",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Teradata.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-drupal-mock",
+      "title": "Drupal Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "drupal",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Drupal.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-joomla-mock",
+      "title": "Joomla Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "joomla",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Joomla.",
+      "is_free": true
+    },
+    {
+      "id": "youtube-course-vagrant-mock",
+      "title": "Vagrant Complete Course & Tutorial",
+      "provider": "YouTube - freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=zojy0VN5MTk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 120,
+      "skills": [
+        {
+          "skill_canonical_name": "vagrant",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 80,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "description": "Comprehensive video tutorial course to master Vagrant.",
+      "is_free": true
     }
   ]
 }

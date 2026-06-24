@@ -7,8 +7,10 @@ import {
   Max,
   Min,
   ValidateNested,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
 
 /**
  * One pre-computed missing/partial skill, normally produced by /internal/ai/cv-jd-match
@@ -87,4 +89,9 @@ export class RoadmapGenerateRequestDto {
   @IsOptional()
   @IsObject()
   user_profile?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsIn(['vi', 'en', 'both'])
+  language_pref?: 'vi' | 'en' | 'both';
 }
+

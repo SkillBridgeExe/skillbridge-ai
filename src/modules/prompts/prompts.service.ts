@@ -19,6 +19,28 @@ export interface PromptTemplate {
  *
  * Filename convention: `<code>_v<version>.md` (e.g. `cv_review_v1.md`).
  */
+const REQUIRED_TEMPLATES = [
+  'cv_parse_v1',
+  'cv_review_v1',
+  'cv_rewrite_v1',
+  'cv_jd_match_v1',
+  'cv_jd_match_v2',
+  'answer_insight_v1',
+  'interview_coaching_v1',
+  'interview_plan_v1',
+  'interview_scoring_v1',
+  'interview_technical_v1',
+  'interview_screening_v1',
+  'interview_ask_v1',
+  'interview_assess_v1',
+  'interview_answer_v1',
+  'learning_chat_v1',
+  'resource_curation_v1',
+  'roadmap_v1',
+  'roadmap_v2',
+  'trends_insight_v1',
+];
+
 @Injectable()
 export class PromptsService implements OnModuleInit {
   private readonly logger = new Logger(PromptsService.name);
@@ -47,9 +69,23 @@ export class PromptsService implements OnModuleInit {
       }
       this.logger.log(`Loaded ${this.templates.size} prompt templates.`);
     } catch (err) {
-      this.logger.warn(`Failed to load prompts/: ${(err as Error).message}`);
+      this.logger.error(`Failed to load prompts/: ${(err as Error).message}`);
+      throw err;
+    }
+
+    const missing: string[] = [];
+    for (const required of REQUIRED_TEMPLATES) {
+      if (!this.templates.has(required)) {
+        missing.push(required);
+      }
+    }
+    if (missing.length > 0) {
+      const errorMsg = `Required prompt templates are missing from prompts/ folder: ${missing.join(', ')}`;
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
   }
+
 
   /** Lookup by combined code (e.g. `cv_review_v1`). */
   get(combinedCode: string): PromptTemplate {
