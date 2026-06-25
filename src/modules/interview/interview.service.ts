@@ -15,7 +15,7 @@ import { maskPiiDeep } from '../../common/services/pii-mask';
 const SCORE_0_100 = { type: 'number', minimum: 0, maximum: 100 };
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } };
 
-const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
+export const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
@@ -67,7 +67,17 @@ const INTERVIEW_SCORING_RESPONSE_SCHEMA: Record<string, unknown> = {
             structured_answers: SCORE_0_100,
           },
         },
-        body_language: { type: ['object', 'null'] },
+        body_language: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          required: ['eye_contact', 'posture', 'gestures', 'facial_expressions'],
+          properties: {
+            eye_contact: SCORE_0_100,
+            posture: SCORE_0_100,
+            gestures: SCORE_0_100,
+            facial_expressions: SCORE_0_100,
+          },
+        },
         recommendations: { type: 'string' },
         suggested_modules: STRING_ARRAY,
       },
