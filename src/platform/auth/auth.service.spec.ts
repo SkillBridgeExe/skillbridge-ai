@@ -67,11 +67,15 @@ describe('AuthService', () => {
           JWT_REFRESH_TTL: 604800,
           FRONTEND_BASE_URL: 'http://localhost:8080',
           EMAIL_VERIFY_TOKEN_TTL_SECONDS: 86400,
+          PASSWORD_RESET_TOKEN_TTL_SECONDS: 1800,
         };
         return values[key];
       }),
     } as unknown as ConfigService;
-    const email = { sendVerifyEmail: jest.fn().mockResolvedValue(undefined) };
+    const email = {
+      sendVerifyEmail: jest.fn().mockResolvedValue(undefined),
+      sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+    };
     const usersService = { getCurrentUserAggregate: jest.fn() };
 
     const service = new AuthService(
@@ -150,6 +154,88 @@ describe('AuthService', () => {
     expect(users.save).toHaveBeenCalledWith(expect.objectContaining({ isEmailVerified: true }));
     expect(verifications.save).toHaveBeenCalledWith(
       expect.objectContaining({ usedAt: expect.any(Date) }),
+    );
+  });
+
+  it('accepts forgot-password requests without revealing whether an account exists', async () => {
+    const { service, users, accounts, email } = setup();
+    users.findOne.mockResolvedValue(null);
+
+    await expect(service.forgotPassword('missing@example.com')).resolves.toEqual({
+      accepted: true,
+    });
+    expect(accounts.findOne).not.toHaveBeenCalled();
+    expect(email.sendPasswordResetEmail).not.toHaveBeenCalled();
+  });
+
+  it('sends a reset link only for an active credentials account', async () => {
+    const { service, users, accounts, verifications, email } = setup();
+    users.findOne.mockResolvedValue({ ...baseUser, isActive: true });
+    accounts.findOne.mockResolvedValue({
+      id: 'account-1',
+      userId: baseUser.id,
+      provider: 'CREDENTIALS',
+      providerAccountId: baseUser.emailNormalized,
+      passwordHash: 'old-hash',
+    });
+
+    await expect(service.forgotPassword(baseUser.email)).resolves.toEqual({ accepted: true });
+
+    expect(verifications.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: baseUser.id,
+        purpose: 'PASSWORD_RESET',
+        usedAt: expect.anything(),
+      }),
+      { usedAt: expect.any(Date) },
+    );
+    expect(verifications.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: baseUser.id,
+        purpose: 'PASSWORD_RESET',
+        usedAt: null,
+      }),
+    );
+    expect(email.sendPasswordResetEmail).toHaveBeenCalledWith(
+      baseUser.email,
+      expect.stringContaining('/reset-password?token='),
+    );
+  });
+
+  it('resets the credentials password, consumes the token, and revokes existing sessions', async () => {
+    const { service, users, accounts, sessions, verifications } = setup();
+    verifications.findOne.mockResolvedValue({
+      id: 'verification-1',
+      userId: baseUser.id,
+      purpose: 'PASSWORD_RESET',
+      valueHash: 'hash',
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+      attemptCount: 0,
+      createdAt: new Date(),
+    });
+    users.findOne.mockResolvedValue({ ...baseUser, isActive: true });
+    accounts.findOne.mockResolvedValue({
+      id: 'account-1',
+      userId: baseUser.id,
+      provider: 'CREDENTIALS',
+      providerAccountId: baseUser.emailNormalized,
+      passwordHash: 'old-hash',
+    });
+
+    await expect(service.resetPassword('plain-reset-token', 'NewStrongPass123')).resolves.toEqual({
+      reset: true,
+    });
+
+    expect(accounts.save).toHaveBeenCalledWith(
+      expect.objectContaining({ passwordHash: expect.any(String) }),
+    );
+    expect(verifications.save).toHaveBeenCalledWith(
+      expect.objectContaining({ usedAt: expect.any(Date) }),
+    );
+    expect(sessions.update).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: baseUser.id, revokedAt: expect.anything() }),
+      { revokedAt: expect.any(Date) },
     );
   });
 

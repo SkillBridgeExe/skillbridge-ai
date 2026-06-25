@@ -29,6 +29,7 @@ export const configValidationSchema = Joi.object({
     otherwise: Joi.string().min(1).required(),
   }),
   EMAIL_VERIFY_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(86400),
+  PASSWORD_RESET_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(1800),
 
   // LLM
   LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('openai'),

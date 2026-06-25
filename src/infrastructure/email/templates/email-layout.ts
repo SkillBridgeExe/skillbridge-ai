@@ -1,6 +1,8 @@
 import { emailTheme } from './email-theme';
 import { EmailTemplateContent } from './email-template.types';
 
+export const SKILLBRIDGE_SUPPORT_EMAIL = 'edtech.skillbridge@gmail.com';
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -61,10 +63,9 @@ export function renderEmailLayout(content: EmailTemplateContent): string {
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
           <tr>
             <td align="center">
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; border-collapse: collapse;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 600px; border-collapse: separate; border-spacing: 0;">
                 <tr>
-                  <td style="padding: 0;">
-                    <div style="background: linear-gradient(135deg, ${emailTheme.colors.heroStart} 0%, ${emailTheme.colors.heroEnd} 100%); border-radius: 28px 28px 0 0; padding: 32px 32px 76px; text-align: center;">
+                  <td align="center" bgcolor="${emailTheme.colors.heroStart}" style="background: linear-gradient(135deg, ${emailTheme.colors.heroStart} 0%, ${emailTheme.colors.heroEnd} 100%); border-radius: 28px 28px 0 0; padding: 32px;">
                       <p style="margin: 0 0 12px; color: ${emailTheme.colors.textInverse}; font-size: 28px; font-weight: 800; letter-spacing: -0.02em;">
                         SkillBridge
                       </p>
@@ -72,24 +73,28 @@ export function renderEmailLayout(content: EmailTemplateContent): string {
                       <h1 style="margin: 0; color: #ffffff; font-size: 30px; line-height: 1.2; font-weight: 800;">
                         ${escapeHtml(content.title)}
                       </h1>
-                    </div>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding: 0 20px 20px;">
-                    <div style="margin-top: -44px; background-color: ${emailTheme.colors.cardBackground}; border: 1px solid ${emailTheme.colors.cardBorder}; border-radius: ${emailTheme.radius.card}; padding: 32px; box-shadow: ${emailTheme.shadow};">
+                  <td bgcolor="${emailTheme.colors.cardBackground}" style="background-color: ${emailTheme.colors.cardBackground}; border: 1px solid ${emailTheme.colors.cardBorder}; border-top: 0; border-radius: 0 0 ${emailTheme.radius.card} ${emailTheme.radius.card}; padding: 32px;">
                       <p style="margin: 0 0 28px; color: ${emailTheme.colors.textSecondary}; font-size: 15px; line-height: 1.8;">
                         ${escapeHtml(content.description)}
                       </p>
-                      <div style="text-align: center;">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td align="center">
                         ${cta}
-                      </div>
+                          </td>
+                        </tr>
+                      </table>
                       ${fallback}
                       ${note}
-                    </div>
-                    <p style="margin: 18px 0 0; color: ${emailTheme.colors.footerText}; font-size: 12px; line-height: 1.6; text-align: center;">
-                      SkillBridge helps you move from profile setup to career-ready action.
-                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 18px 12px 0; color: ${emailTheme.colors.footerText}; font-size: 12px; line-height: 1.6;">
+                    SkillBridge helps you move from profile setup to career-ready action.<br />
+                    Support: <a href="mailto:${SKILLBRIDGE_SUPPORT_EMAIL}" style="color: ${emailTheme.colors.link}; text-decoration: none;">${SKILLBRIDGE_SUPPORT_EMAIL}</a>
                   </td>
                 </tr>
               </table>
