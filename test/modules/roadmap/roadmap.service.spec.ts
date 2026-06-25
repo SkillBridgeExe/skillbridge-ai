@@ -117,8 +117,8 @@ describe('RoadmapService.generate', () => {
         }),
       }),
     );
-    const persisted = tracing.saveAiResult.mock.calls[0][0].parsedResponse.steps[0]
-      .recommended_courses;
+    const persisted =
+      tracing.saveAiResult.mock.calls[0][0].parsedResponse.steps[0].recommended_courses;
     expect(persisted).toHaveLength(30);
   });
 });
