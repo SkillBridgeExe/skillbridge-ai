@@ -58,10 +58,12 @@ export class CompanyProfileService {
   ) {}
 
   async getMyCompany(userId: string) {
-    const profile = await this.profiles.findOne({ where: { userId } });
-    if (!profile) return null;
-    const company = await this.requireCompany(profile.companyId);
-    return { profile, company };
+    const aggregate = await this.getOwnedEntities(userId);
+    if (!aggregate) return null;
+    return {
+      profile: aggregate.profile,
+      company: toOwnedCompanyDto(aggregate.company),
+    };
   }
 
   async updateMyCompany(userId: string, input: UpdateCompanyInput) {
@@ -148,12 +150,12 @@ export class CompanyProfileService {
 
       company = await companies.save(company);
       profile = await profiles.save(profile);
-      return { profile, company };
+      return { profile, company: toOwnedCompanyDto(company) };
     });
   }
 
   async sendWorkEmailVerification(userId: string): Promise<{ accepted: true }> {
-    const aggregate = await this.getMyCompany(userId);
+    const aggregate = await this.getOwnedEntities(userId);
     if (!aggregate) throw this.profileNotFound();
     const { profile, company } = aggregate;
     if (!profile.workEmailNormalized || !profile.workEmailDomain || !company.website) {
@@ -195,21 +197,23 @@ export class CompanyProfileService {
     return { accepted: true };
   }
 
-  async verifyWorkEmail(userId: string, token: string): Promise<{ verified: true }> {
+  async verifyWorkEmail(token: string): Promise<{ verified: true }> {
     return this.dataSource.transaction(async (manager) => {
       const profiles = manager.getRepository(BusinessProfileEntity);
       const verifications = manager.getRepository(VerificationEntity);
-      const profile = await profiles.findOne({
-        where: { userId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!profile?.workEmailNormalized) throw this.profileNotFound();
       const verification = await verifications.findOne({
-        where: { userId, purpose: 'BUSINESS_EMAIL_VERIFY', valueHash: hash(token) },
+        where: { purpose: 'BUSINESS_EMAIL_VERIFY', valueHash: hash(token) },
         lock: { mode: 'pessimistic_write' },
       });
+      const profile = verification
+        ? await profiles.findOne({
+            where: { userId: verification.userId },
+            lock: { mode: 'pessimistic_write' },
+          })
+        : null;
       if (
         !verification ||
+        !profile?.workEmailNormalized ||
         verification.usedAt ||
         verification.expiresAt.getTime() < Date.now() ||
         verification.targetValueHash !== hash(profile.workEmailNormalized)
@@ -229,7 +233,7 @@ export class CompanyProfileService {
   }
 
   async submitMyCompany(userId: string) {
-    const aggregate = await this.getMyCompany(userId);
+    const aggregate = await this.getOwnedEntities(userId);
     if (!aggregate) throw this.profileNotFound();
     const { profile, company } = aggregate;
     if (profile.status === 'SUSPENDED') {
@@ -260,7 +264,7 @@ export class CompanyProfileService {
   }
 
   async uploadMedia(userId: string, kind: 'logo' | 'cover', file: Express.Multer.File) {
-    const aggregate = await this.getMyCompany(userId);
+    const aggregate = await this.getOwnedEntities(userId);
     if (!aggregate) throw this.profileNotFound();
     if (!file || !['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)) {
       throw new BadRequestException({
@@ -280,7 +284,18 @@ export class CompanyProfileService {
     else aggregate.company.coverObjectKey = key;
     await this.companies.save(aggregate.company);
     if (oldKey && oldKey !== key) await this.storage.delete(oldKey).catch(() => undefined);
-    return { kind, url: `/api/companies/${aggregate.company.slug}/${kind}` };
+    return { kind, url: `/api/business/company/${kind}` };
+  }
+
+  async downloadMyMedia(userId: string, kind: 'logo' | 'cover'): Promise<DownloadedFile> {
+    const aggregate = await this.getOwnedEntities(userId);
+    if (!aggregate) throw this.profileNotFound();
+    return this.downloadMediaEntity(aggregate.company, kind);
+  }
+
+  async downloadAdminMedia(profileId: string, kind: 'logo' | 'cover'): Promise<DownloadedFile> {
+    const aggregate = await this.getAdminEntities(profileId);
+    return this.downloadMediaEntity(aggregate.company, kind);
   }
 
   async downloadPublicMedia(slug: string, kind: 'logo' | 'cover'): Promise<DownloadedFile> {
@@ -302,9 +317,11 @@ export class CompanyProfileService {
   }
 
   async getAdmin(profileId: string) {
-    const profile = await this.profiles.findOne({ where: { id: profileId } });
-    if (!profile) throw this.profileNotFound();
-    return { profile, company: await this.requireCompany(profile.companyId) };
+    const aggregate = await this.getAdminEntities(profileId);
+    return {
+      profile: aggregate.profile,
+      company: toAdminCompanyDto(aggregate.company, profileId),
+    };
   }
 
   async getPublicCompany(slug: string) {
@@ -339,6 +356,31 @@ export class CompanyProfileService {
     });
     if (!profile) throw new NotFoundException('Company not found');
     return company;
+  }
+
+  private async getOwnedEntities(
+    userId: string,
+  ): Promise<{ profile: BusinessProfileEntity; company: CompanyEntity } | null> {
+    const profile = await this.profiles.findOne({ where: { userId } });
+    if (!profile) return null;
+    return { profile, company: await this.requireCompany(profile.companyId) };
+  }
+
+  private async getAdminEntities(
+    profileId: string,
+  ): Promise<{ profile: BusinessProfileEntity; company: CompanyEntity }> {
+    const profile = await this.profiles.findOne({ where: { id: profileId } });
+    if (!profile) throw this.profileNotFound();
+    return { profile, company: await this.requireCompany(profile.companyId) };
+  }
+
+  private downloadMediaEntity(
+    company: CompanyEntity,
+    kind: 'logo' | 'cover',
+  ): Promise<DownloadedFile> {
+    const key = kind === 'logo' ? company.logoObjectKey : company.coverObjectKey;
+    if (!key) throw new NotFoundException('Company media not found');
+    return this.storage.download(key);
   }
 
   private async requireCompany(
@@ -422,4 +464,22 @@ function emailDomain(value: string): string {
 
 function hash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function toOwnedCompanyDto(company: CompanyEntity) {
+  const { logoObjectKey, coverObjectKey, ...publicFields } = company;
+  return {
+    ...publicFields,
+    logoUrl: logoObjectKey ? '/api/business/company/logo' : null,
+    coverUrl: coverObjectKey ? '/api/business/company/cover' : null,
+  };
+}
+
+function toAdminCompanyDto(company: CompanyEntity, profileId: string) {
+  const { logoObjectKey, coverObjectKey, ...publicFields } = company;
+  return {
+    ...publicFields,
+    logoUrl: logoObjectKey ? `/api/admin/business-profiles/${profileId}/logo` : null,
+    coverUrl: coverObjectKey ? `/api/admin/business-profiles/${profileId}/cover` : null,
+  };
 }

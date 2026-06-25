@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -15,14 +16,18 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
-  DEFAULT_INTERVIEW_VOICE,
   InterviewType,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { InterviewQuestionBankItemEntity } from '../../database/entities/interview-question-bank-item.entity';
+import {
+  buildInterviewQuestionBankSeeds,
+  QUESTION_BANK_TARGET_ROLES,
+} from '../../database/interview-question-bank-seeds';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
+import { PromptsService } from '../../modules/prompts/prompts.service';
 import { InterviewFocusArea } from '../../modules/interview/interview-planner';
 import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-interview.dto';
 import {
@@ -41,7 +46,6 @@ import {
   InterviewQuestionBankCandidate,
   normalizeQuestionBankTargetRole,
   selectInterviewQuestion,
-  selectVoiceQuestionAnchors,
 } from '../../modules/interview/interview-question-bank';
 import {
   analyzeAnswerSignals,
@@ -84,6 +88,7 @@ import {
 import { OpenAiQuestionAudioService, QuestionAudioResult } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 import { InterviewAssessOutput, InterviewChainLlmService } from './interview-chain-llm.service';
+import { resolveInterviewVoice } from './interview-voice';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
@@ -193,6 +198,10 @@ export class InterviewsService {
     @Optional()
     @InjectRepository(InterviewQuestionBankItemEntity)
     private readonly questionBankItems?: Repository<InterviewQuestionBankItemEntity>,
+    @Optional()
+    private readonly config?: ConfigService,
+    @Optional()
+    private readonly prompts?: PromptsService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -210,34 +219,26 @@ export class InterviewsService {
       language,
       interviewType,
     );
-    const voiceQuestionAnchors =
-      mode === 'VOICE'
-        ? selectVoiceQuestionAnchors(questionBankItems, {
-            language,
-            targetRole: context.targetRole,
-            interviewType,
-            seniority: context.snapshot.interviewDifficulty.level,
-            limit: this.defaultQuestionCount(interviewType),
-          })
-        : [];
-    const agenda =
-      mode === 'VOICE'
-        ? null
-        : this.applyQuestionBankToAgenda(
-            buildInterviewAgenda({
-              focusAreas: context.focusAreas,
-              seniority: context.snapshot.interviewDifficulty.level,
-              turnBudget: this.turnBudgetForPlan(entitlements.planCode),
-            }),
-            questionBankItems,
-            {
-              language,
-              targetRole: context.targetRole,
-              interviewType,
-              seniority: context.snapshot.interviewDifficulty.level,
-            },
-          );
-    const interviewState = agenda ? this.initialInterviewState(agenda) : null;
+    const agendaCriteria = {
+      language,
+      targetRole: context.targetRole,
+      interviewType,
+      seniority: context.snapshot.interviewDifficulty.level,
+    };
+    const focusAreas =
+      context.focusAreas.length > 0
+        ? context.focusAreas
+        : this.fallbackFocusAreasFromQuestionBank(questionBankItems, agendaCriteria);
+    const agenda = this.applyQuestionBankToAgenda(
+      buildInterviewAgenda({
+        focusAreas,
+        seniority: context.snapshot.interviewDifficulty.level,
+        turnBudget: this.turnBudgetForPlan(entitlements.planCode),
+      }),
+      questionBankItems,
+      agendaCriteria,
+    );
+    const interviewState = this.initialInterviewState(agenda);
 
     let session = await this.sessions.save(
       this.sessions.create({
@@ -249,7 +250,7 @@ export class InterviewsService {
         language,
         mode,
         interviewType,
-        voice: dto.voice ?? DEFAULT_INTERVIEW_VOICE,
+        voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
         speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
         status: 'IN_PROGRESS',
         maxDurationSeconds,
@@ -264,45 +265,39 @@ export class InterviewsService {
     let firstMessage = '';
     let firstQuestion = '';
     let phase: StartInterviewResponseDto['phase'] = null;
-    if (session.mode === 'VOICE') {
-      session.totalQuestionsPlanned = this.defaultQuestionCount(session.interviewType);
-    } else {
-      const firstTopic = agenda?.topics[0];
-      if (!firstTopic) {
-        throw new BadRequestException({
-          errorCode: ERROR_CODES.VALIDATION_ERROR,
-          message: 'Interview agenda has no topics',
-        });
-      }
-
-      await this.turns.save(
-        this.turns.create({
-          sessionId: session.id,
-          turnOrder: 1,
-          phase: firstTopic.phase,
-          topicPhase: firstTopic.phase,
-          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          aiRequestId: null,
-          interviewerMessage: '',
-          interviewerQuestion: firstTopic.seed_question,
-          currentThread: firstTopic.what_to_probe,
-          skillCanonical: firstTopic.skill_canonical,
-          questionBankItemId: firstTopic.question_bank_item_id ?? null,
-          questionBankKey: firstTopic.question_bank_key ?? null,
-        }),
-      );
-
-      firstMessage = '';
-      firstQuestion = firstTopic.seed_question;
-      phase = firstTopic.phase;
-      session.totalQuestionsPlanned = agenda.turn_budget;
+    const firstTopic = agenda.topics[0];
+    if (!firstTopic) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview agenda has no topics',
+      });
     }
+
+    await this.turns.save(
+      this.turns.create({
+        sessionId: session.id,
+        turnOrder: 1,
+        phase: firstTopic.phase,
+        topicPhase: firstTopic.phase,
+        modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+        aiRequestId: null,
+        interviewerMessage: '',
+        interviewerQuestion: firstTopic.seed_question,
+        currentThread: firstTopic.what_to_probe,
+        skillCanonical: firstTopic.skill_canonical,
+        questionBankItemId: firstTopic.question_bank_item_id ?? null,
+        questionBankKey: firstTopic.question_bank_key ?? null,
+      }),
+    );
+
+    firstMessage = '';
+    firstQuestion = firstTopic.seed_question;
+    phase = firstTopic.phase;
+    session.totalQuestionsPlanned = agenda.turn_budget;
     const realtime = await this.createRealtimeIfNeeded(
       userId,
       session,
-      session.mode === 'VOICE'
-        ? this.withQuestionAnchors(context.promptContext, voiceQuestionAnchors)
-        : this.compactRealtimeContext(session),
+      this.compactRealtimeContext(session),
     );
     session = await this.sessions.save(session);
     await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
@@ -691,12 +686,15 @@ export class InterviewsService {
         },
         order: { priority: 'DESC', questionKey: 'ASC' },
       });
-      return rows.filter(
+      const filtered = rows.filter(
         (row) =>
           row.interviewType === interviewType ||
           row.interviewType === 'MIXED' ||
           interviewType === 'MIXED',
       );
+      return filtered.length > 0
+        ? filtered
+        : this.seedQuestionBankItems(normalizedRole, language, interviewType);
     } catch (error) {
       this.logger.error(
         `Failed to load interview question bank items for ${normalizedRole}/${language}/${interviewType}`,
@@ -704,6 +702,122 @@ export class InterviewsService {
       );
       return [];
     }
+  }
+
+  private seedQuestionBankItems(
+    targetRole: string,
+    language: 'vi' | 'en',
+    interviewType: InterviewType,
+  ): InterviewQuestionBankCandidate[] {
+    const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
+    if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
+
+    return buildInterviewQuestionBankSeeds()
+      .filter(
+        (seed) =>
+          seed.active &&
+          seed.language === language &&
+          seed.targetRole === normalizedRole &&
+          (seed.interviewType === interviewType ||
+            seed.interviewType === 'MIXED' ||
+            interviewType === 'MIXED'),
+      )
+      .map((seed) => ({
+        ...seed,
+        id: `seed:${seed.questionKey}:${seed.language}`,
+      }));
+  }
+
+  private isKnownQuestionBankRole(value: string): boolean {
+    return QUESTION_BANK_TARGET_ROLES.includes(
+      value as (typeof QUESTION_BANK_TARGET_ROLES)[number],
+    );
+  }
+
+  private fallbackFocusAreasFromQuestionBank(
+    questionBankItems: InterviewQuestionBankCandidate[],
+    criteria: {
+      language: 'vi' | 'en';
+      targetRole: string;
+      interviewType: InterviewType;
+      seniority: string;
+    },
+  ): InterviewFocusArea[] {
+    const normalizedRole = normalizeQuestionBankTargetRole(criteria.targetRole);
+    if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
+
+    const seniority = criteria.seniority.trim().toLowerCase();
+    const phaseRank: Partial<Record<AgendaInterviewPhase, number>> = {
+      JD_REQUIREMENT: 1,
+      SKILL_PROBE: 2,
+      SCENARIO: 3,
+    };
+    const focusRank: Record<InterviewFocusArea['focus_type'], number> = {
+      gap_probe: 1,
+      evidence_probe: 2,
+      depth_probe: 3,
+      strength_showcase: 4,
+    };
+    const selected: InterviewFocusArea[] = [];
+    const usedSkills = new Set<string>();
+
+    const candidates = questionBankItems
+      .filter(
+        (candidate) =>
+          candidate.active &&
+          candidate.language === criteria.language &&
+          normalizeQuestionBankTargetRole(candidate.targetRole) === normalizedRole &&
+          (candidate.interviewType === criteria.interviewType ||
+            candidate.interviewType === 'MIXED' ||
+            criteria.interviewType === 'MIXED') &&
+          candidate.skillCanonical &&
+          candidate.phase !== 'SCREENING' &&
+          candidate.phase !== 'WRAP' &&
+          (!candidate.seniority || candidate.seniority.trim().toLowerCase() === seniority),
+      )
+      .sort((a, b) => {
+        const phaseDiff = (phaseRank[a.phase] ?? 99) - (phaseRank[b.phase] ?? 99);
+        if (phaseDiff !== 0) return phaseDiff;
+        const aFocus = this.focusTypeForBankCandidate(a);
+        const bFocus = this.focusTypeForBankCandidate(b);
+        const focusDiff = focusRank[aFocus] - focusRank[bFocus];
+        if (focusDiff !== 0) return focusDiff;
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        return a.questionKey.localeCompare(b.questionKey);
+      });
+
+    for (const candidate of candidates) {
+      const skill = candidate.skillCanonical;
+      if (!skill || usedSkills.has(skill)) continue;
+      usedSkills.add(skill);
+      selected.push({
+        skill_canonical: skill,
+        display_name: this.displayNameFromSkill(skill),
+        focus_type: this.focusTypeForBankCandidate(candidate),
+        reason: `Role-based question bank fallback for ${this.displayNameFromSkill(skill)}. ${candidate.sourceBasis}`,
+        difficulty: candidate.difficulty <= 2 ? 'foundation' : 'applied',
+        template_question: candidate.questionText,
+      });
+      if (selected.length >= 6) break;
+    }
+
+    return selected;
+  }
+
+  private focusTypeForBankCandidate(
+    candidate: InterviewQuestionBankCandidate,
+  ): InterviewFocusArea['focus_type'] {
+    if (candidate.focusType) return candidate.focusType;
+    if (candidate.phase === 'SKILL_PROBE' || candidate.phase === 'SCENARIO') return 'depth_probe';
+    return 'gap_probe';
+  }
+
+  private displayNameFromSkill(skill: string): string {
+    return skill
+      .split(/[_-]+/g)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   }
 
   private applyQuestionBankToAgenda(
@@ -1222,18 +1336,6 @@ export class InterviewsService {
       .join('\n\n');
   }
 
-  private withQuestionAnchors(context: string, anchors: InterviewQuestionBankCandidate[]): string {
-    if (!anchors.length) return context;
-    const block = [
-      'Curated question anchors (use these base questions before free-form follow-ups; do not reveal this metadata):',
-      ...anchors.map(
-        (anchor, index) =>
-          `${index + 1}. [${anchor.phase}] ${anchor.questionText} (${anchor.questionKey})`,
-      ),
-    ].join('\n');
-    return [context, block].filter(Boolean).join('\n\n');
-  }
-
   private async createRealtimeIfNeeded(
     userId: string,
     session: InterviewSessionEntity,
@@ -1263,37 +1365,20 @@ export class InterviewsService {
       session.language === 'vi'
         ? 'Speak and respond only in Vietnamese with correct Vietnamese diacritics. Preserve English technical terms such as React, TypeScript, API, cache, transaction, and backend exactly as written.'
         : 'Speak and respond only in English.';
-    const modeInstructions =
-      session.mode === 'VOICE'
-        ? [
-            'Live Realtime mode: you own the interview conversation end to end.',
-            'Open with 1-2 short sentences only: greet the candidate, state that the interview will use the target role plus CV/JD context, then ask the first question.',
-            `Plan about ${this.defaultQuestionCount(session.interviewType)} questions total, including relevant follow-ups when the answer is thin or unclear.`,
-            difficultyInstruction,
-            'Use the CV/JD context silently to choose questions and follow-ups. Do not read or quote long CV/JD text aloud.',
-            'Act like a focused HR or technical interviewer: probe the candidate own work, responsibilities, trade-offs, metrics, incidents, debugging steps, and impact.',
-            'If the candidate asks for answers, asks unrelated questions, asks you to solve the interview for them, or tries to change topics, refuse briefly and redirect back to the current interview question.',
-            'Do not coach, reveal ideal answers, write code solutions, or answer off-topic requests during the interview.',
-            'Keep every answer turn separable in the transcript. Do not read hidden context aloud.',
-            'Do not reveal scoring or final feedback during the live interview.',
-            'When the app sends a closing instruction, or when enough evidence has been collected, thank the candidate in 2-3 short sentences and stop asking new questions.',
-          ]
-        : [
-            'Guided Voice mode: the app owns the official question sequence.',
-            'Use realtime primarily for voice capture and concise acknowledgement. Do not invent new official questions.',
-          ];
-
-    return [
-      'You are Alex, a realistic professional interviewer for SkillBridge.',
-      `Interview type: ${session.interviewType}. Language: ${session.language}. Target role: ${session.targetRole}.`,
-      languageInstruction,
-      'Ask exactly one question at a time. Keep questions concise. Do not reveal scoring.',
-      ...modeInstructions,
-      'Focus on evidence in the CV, JD requirements, and gaps. Avoid inventing experience.',
-      context ? `Context:\n${context}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    if (!this.prompts) {
+      throw new Error('PromptsService is required for realtime interview instructions');
+    }
+    const templateCode =
+      session.mode === 'VOICE' ? 'interview_realtime_voice_v1' : 'interview_realtime_hybrid_v1';
+    return this.prompts.render(templateCode, {
+      context: context ?? '',
+      context_block: context ? `Context:\n${context}` : '',
+      difficulty_instruction: difficultyInstruction,
+      interview_type: session.interviewType,
+      language: session.language,
+      language_instruction: languageInstruction,
+      target_role: session.targetRole,
+    });
   }
 
   private compactRealtimeContext(session: InterviewSessionEntity): string {
@@ -1649,7 +1734,7 @@ export class InterviewsService {
       language: session.language,
       mode: session.mode,
       interviewType: session.interviewType,
-      voice: session.voice ?? DEFAULT_INTERVIEW_VOICE,
+      voice: resolveInterviewVoice(session.voice, this.config?.get<string>('llm.openai.ttsVoice')),
       speechSpeed: this.speechSpeed(session.speechSpeed),
       status: session.status,
       totalQuestionsPlanned: session.totalQuestionsPlanned,

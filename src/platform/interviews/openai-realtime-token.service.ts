@@ -3,19 +3,23 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import OpenAI from 'openai';
 import type { ClientSecretCreateParams } from 'openai/resources/realtime/client-secrets';
+import { PromptsService } from '../../modules/prompts/prompts.service';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
-  DEFAULT_INTERVIEW_VOICE,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
 import { RealtimeClientSecretDto } from './dto/interview.dto';
+import { resolveInterviewVoice } from './interview-voice';
 
 @Injectable()
 export class OpenAiRealtimeTokenService {
   private readonly logger = new Logger(OpenAiRealtimeTokenService.name);
   private client: OpenAI | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prompts: PromptsService,
+  ) {}
 
   async createClientSecret(
     userId: string,
@@ -37,7 +41,12 @@ export class OpenAiRealtimeTokenService {
 
     try {
       const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
-      const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
+      const transcriptionModel =
+        this.config.get<string>('llm.openai.realtimeTranscriptionModel') ?? 'gpt-4o-transcribe';
+      const voice = resolveInterviewVoice(
+        session.voice,
+        this.config.get<string>('llm.openai.ttsVoice'),
+      );
       const speed = this.speechSpeed(session.speechSpeed);
       const realtimeSession: ClientSecretCreateParams['session'] = {
         type: 'realtime',
@@ -47,12 +56,13 @@ export class OpenAiRealtimeTokenService {
         audio: {
           input: {
             transcription: {
-              model: 'gpt-4o-mini-transcribe',
+              model: transcriptionModel,
               language: transcriptionLanguage,
+              prompt: this.transcriptionPrompt(transcriptionLanguage),
             },
             turn_detection: {
               type: 'server_vad',
-              create_response: session.mode === 'VOICE',
+              create_response: false,
               interrupt_response: true,
             },
           },
@@ -115,6 +125,10 @@ export class OpenAiRealtimeTokenService {
     return Number.isFinite(numeric)
       ? Math.round(numeric * 100) / 100
       : DEFAULT_INTERVIEW_SPEECH_SPEED;
+  }
+
+  private transcriptionPrompt(language: 'vi' | 'en'): string {
+    return this.prompts.render(`interview_transcription_${language}_v1`, {});
   }
 
   private safeErrorMetadata(error: unknown): {

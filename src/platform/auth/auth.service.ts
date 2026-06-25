@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,6 +24,7 @@ import { RegisterDto } from './dto/register.dto';
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly google: OAuth2Client;
 
   constructor(
@@ -113,6 +114,64 @@ export class AuthService {
       await this.email.sendVerifyEmail(user.email, this.buildVerifyUrl(token));
     }
     return { accepted: true };
+  }
+
+  async forgotPassword(email: string): Promise<{ accepted: true }> {
+    const emailNormalized = email.trim().toLowerCase();
+    const user = await this.users.findOne({ where: { emailNormalized } });
+    if (!user?.isActive) return { accepted: true };
+
+    const account = await this.accounts.findOne({
+      where: { userId: user.id, provider: 'CREDENTIALS' },
+    });
+    if (!account?.passwordHash) return { accepted: true };
+
+    const token = await this.createPasswordResetToken(user.id);
+    try {
+      await this.email.sendPasswordResetEmail(user.email, this.buildPasswordResetUrl(token));
+    } catch (error) {
+      this.logger.warn({
+        event: 'password_reset_email_failed',
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
+    return { accepted: true };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ reset: true }> {
+    const verification = await this.verifications.findOne({
+      where: { purpose: 'PASSWORD_RESET', valueHash: this.hash(token) },
+    });
+    if (!verification || verification.usedAt || verification.expiresAt.getTime() < Date.now()) {
+      if (verification) {
+        verification.attemptCount += 1;
+        await this.verifications.save(verification);
+      }
+      throw new UnauthorizedException({
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+        message: 'Password reset token invalid or expired',
+      });
+    }
+
+    const [user, account] = await Promise.all([
+      this.users.findOne({ where: { id: verification.userId } }),
+      this.accounts.findOne({
+        where: { userId: verification.userId, provider: 'CREDENTIALS' },
+      }),
+    ]);
+    if (!user?.isActive || !account?.passwordHash) {
+      throw new UnauthorizedException({
+        errorCode: ERROR_CODES.UNAUTHORIZED,
+        message: 'Password reset token invalid or expired',
+      });
+    }
+
+    account.passwordHash = await bcrypt.hash(newPassword, 10);
+    verification.usedAt = new Date();
+    await this.accounts.save(account);
+    await this.verifications.save(verification);
+    await this.sessions.update({ userId: user.id, revokedAt: IsNull() }, { revokedAt: new Date() });
+    return { reset: true };
   }
 
   async login(email: string, password: string) {
@@ -268,9 +327,34 @@ export class AuthService {
     return token;
   }
 
+  private async createPasswordResetToken(userId: string): Promise<string> {
+    await this.verifications.update(
+      { userId, purpose: 'PASSWORD_RESET', usedAt: IsNull() },
+      { usedAt: new Date() },
+    );
+    const ttlSeconds = this.config.get<number>('PASSWORD_RESET_TOKEN_TTL_SECONDS') ?? 1800;
+    const token = randomBytes(32).toString('hex');
+    await this.verifications.save(
+      this.verifications.create({
+        userId,
+        purpose: 'PASSWORD_RESET',
+        valueHash: this.hash(token),
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+        usedAt: null,
+        attemptCount: 0,
+      }),
+    );
+    return token;
+  }
+
   private buildVerifyUrl(token: string): string {
     const baseUrl = this.config.get<string>('FRONTEND_BASE_URL') ?? 'http://localhost:8080';
     return `${baseUrl.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
+  }
+
+  private buildPasswordResetUrl(token: string): string {
+    const baseUrl = this.config.get<string>('FRONTEND_BASE_URL') ?? 'http://localhost:8080';
+    return `${baseUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
   }
 
   private invalidCredentials(): UnauthorizedException {

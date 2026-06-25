@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser, JwtUser } from './decorators/current-user.decorator';
 import { GoogleLoginDto, LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/password-reset.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResendVerificationEmailDto, VerifyEmailDto } from './dto/verify-email.dto';
 
@@ -36,6 +37,18 @@ export class AuthController {
   @Post('resend-verification-email')
   resendVerificationEmail(@Body() dto: ResendVerificationEmailDto) {
     return this.auth.resendVerificationEmail(dto.email);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.newPassword);
   }
 
   @Public()

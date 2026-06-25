@@ -36,6 +36,8 @@ export default () => ({
       // gpt-5.4-mini = benchmark winner (94% within-band, lowest MAE) — see model-routing memo.
       modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
       realtimeModel: process.env.OPENAI_REALTIME_MODEL ?? 'gpt-realtime-2',
+      realtimeTranscriptionModel:
+        process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL ?? 'gpt-4o-transcribe',
       ttsModel: process.env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts',
       ttsVoice: process.env.OPENAI_TTS_VOICE ?? 'marin',
       // 3-large @1024 dims (Matryoshka) — chosen for bilingual VI/EN short-phrase recall.

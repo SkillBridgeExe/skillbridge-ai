@@ -4,6 +4,7 @@ import { InterviewSessionEntity } from '../../database/entities/interview-sessio
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 const mockClientSecretsCreate = jest.fn();
+const mockPromptRender = jest.fn();
 
 jest.mock('openai', () => ({
   __esModule: true,
@@ -32,6 +33,13 @@ describe('OpenAiRealtimeTokenService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete (globalThis as { fetch?: unknown }).fetch;
+    mockPromptRender.mockImplementation((code: string) => {
+      const terms =
+        'React, TypeScript, JavaScript, API, frontend, backend, database, cache, transaction, Docker, Kubernetes, CI/CD, PostgreSQL, Node.js, NestJS, Next.js';
+      return code === 'interview_transcription_vi_v1'
+        ? `Transcript must be Vietnamese with Vietnamese diacritics. Do not output Chinese, Japanese, or Korean characters. Preserve English technical terms exactly when spoken, including: ${terms}.`
+        : `Transcript must be English. Do not translate or invent non-English text. Preserve technical terms exactly when spoken, including: ${terms}.`;
+    });
   });
 
   function serviceWithConfig(overrides: Record<string, string | undefined> = {}) {
@@ -43,10 +51,10 @@ describe('OpenAiRealtimeTokenService', () => {
     const config = {
       get: jest.fn((key: string) => values[key]),
     } as unknown as ConfigService;
-    return new OpenAiRealtimeTokenService(config);
+    return new OpenAiRealtimeTokenService(config, { render: mockPromptRender } as never);
   }
 
-  it('creates a realtime client secret using the current OpenAI SDK response shape', async () => {
+  it('creates a realtime client secret using transcription without automatic responses', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -76,12 +84,13 @@ describe('OpenAiRealtimeTokenService', () => {
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
                 language: 'vi',
+                prompt: expect.stringContaining('Vietnamese with Vietnamese diacritics'),
               }),
               turn_detection: expect.objectContaining({
                 type: 'server_vad',
-                create_response: true,
+                create_response: false,
                 interrupt_response: true,
               }),
             }),
@@ -108,7 +117,11 @@ describe('OpenAiRealtimeTokenService', () => {
       };
     };
     expect(request.session).not.toHaveProperty('speed');
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session.audio?.input?.transcription?.prompt).toContain(
+      'Do not output Chinese, Japanese, or Korean characters',
+    );
+    expect(request.session.audio?.input?.transcription?.prompt).toContain('TypeScript');
+    expect(mockPromptRender).toHaveBeenCalledWith('interview_transcription_vi_v1', {});
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
@@ -119,7 +132,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(session.realtimeSessionId).toBe('sess_realtime_1');
   });
 
-  it('omits transcription prompt guidance for English interview sessions', async () => {
+  it('adds English transcription prompt guidance for English interview sessions', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -140,6 +153,7 @@ describe('OpenAiRealtimeTokenService', () => {
             input: expect.objectContaining({
               transcription: expect.objectContaining({
                 language: 'en',
+                prompt: expect.stringContaining('Transcript must be English'),
               }),
             }),
           }),
@@ -150,7 +164,67 @@ describe('OpenAiRealtimeTokenService', () => {
     const request = mockClientSecretsCreate.mock.calls[0][0] as {
       session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
     };
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session.audio?.input?.transcription?.prompt).toContain('PostgreSQL');
+    expect(mockPromptRender).toHaveBeenCalledWith('interview_transcription_en_v1', {});
+  });
+
+  it('uses the configured realtime transcription model override', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_test_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_override' },
+    });
+
+    await serviceWithConfig({
+      'llm.openai.realtimeTranscriptionModel': 'gpt-4o-mini-transcribe',
+    }).createClientSecret(userId, session, 'Interview instructions');
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              transcription: expect.objectContaining({
+                model: 'gpt-4o-mini-transcribe',
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('uses the configured default voice when the session has no saved voice', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_test_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_voice' },
+    });
+    const sessionWithoutVoice = {
+      ...session,
+      voice: undefined,
+      realtimeSessionId: null,
+    } as unknown as InterviewSessionEntity;
+
+    await serviceWithConfig({ 'llm.openai.ttsVoice': 'cedar' }).createClientSecret(
+      userId,
+      sessionWithoutVoice,
+      'Interview instructions',
+    );
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            output: expect.objectContaining({
+              voice: 'cedar',
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('keeps guided hybrid voice capture from auto-responding', async () => {

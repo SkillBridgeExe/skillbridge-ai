@@ -59,9 +59,9 @@ describe('StartPlatformInterviewDto voice settings', () => {
     targetRole: 'frontend_developer',
   };
 
-  it('uses default interview voice settings when omitted', async () => {
+  it('leaves voice unset for server config resolution and defaults speech speed', async () => {
     await expect(transform(baseBody)).resolves.toMatchObject({
-      voice: 'marin',
+      voice: undefined,
       speechSpeed: 1.15,
     });
   });

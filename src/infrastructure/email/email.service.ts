@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { renderPasswordResetEmailTemplate } from './templates/password-reset-email.template';
 import { renderVerificationEmailTemplate } from './templates/verification-email.template';
 
 @Injectable()
@@ -24,19 +25,24 @@ export class EmailService {
 
   async sendVerifyEmail(to: string, verifyUrl: string): Promise<void> {
     const template = renderVerificationEmailTemplate({ verifyUrl });
+    await this.sendTemplate(to, template, 'Failed to send verification email');
+  }
 
-    const { error } = await this.resend.emails.send({
-      from: this.fromEmail,
-      to,
-      subject: template.subject,
-      html: template.html,
-      text: template.text,
-    });
+  async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+    const template = renderPasswordResetEmailTemplate({ resetUrl });
+    await this.sendTemplate(to, template, 'Failed to send password reset email');
+  }
 
+  private async sendTemplate(
+    to: string,
+    template: { subject: string; html: string; text: string },
+    failureMessage: string,
+  ): Promise<void> {
+    const { error } = await this.resend.emails.send({ from: this.fromEmail, to, ...template });
     if (error) {
       throw new ServiceUnavailableException({
         errorCode: 'EMAIL_SEND_FAILED',
-        message: 'Failed to send verification email',
+        message: failureMessage,
       });
     }
   }

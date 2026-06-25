@@ -186,12 +186,6 @@ export class BusinessCompanyController {
   @Post('work-email/send-verification') sendVerification(@CurrentUser() user: JwtUser) {
     return this.companies.sendWorkEmailVerification(user.userId);
   }
-  @Post('work-email/verify') verify(
-    @CurrentUser() user: JwtUser,
-    @Body() body: VerifyWorkEmailDto,
-  ) {
-    return this.companies.verifyWorkEmail(user.userId, body.token);
-  }
   @Post('submit') submit(@CurrentUser() user: JwtUser) {
     return this.companies.submitMyCompany(user.userId);
   }
@@ -202,12 +196,32 @@ export class BusinessCompanyController {
   logo(@CurrentUser() user: JwtUser, @UploadedFile() file: Express.Multer.File) {
     return this.companies.uploadMedia(user.userId, 'logo', file);
   }
+  @Get('logo')
+  logoFile(@CurrentUser() user: JwtUser, @Res() res: Response) {
+    return stream(res, this.companies.downloadMyMedia(user.userId, 'logo'));
+  }
   @Post('cover')
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: companyMediaSchema() })
   @UseInterceptors(companyMediaInterceptor())
   cover(@CurrentUser() user: JwtUser, @UploadedFile() file: Express.Multer.File) {
     return this.companies.uploadMedia(user.userId, 'cover', file);
+  }
+  @Get('cover')
+  coverFile(@CurrentUser() user: JwtUser, @Res() res: Response) {
+    return stream(res, this.companies.downloadMyMedia(user.userId, 'cover'));
+  }
+}
+
+@ApiTags('Business Company')
+@Public()
+@Controller('api/business/company/work-email')
+export class BusinessWorkEmailVerificationController {
+  constructor(private readonly companies: CompanyProfileService) {}
+
+  @Post('verify')
+  verify(@Body() body: VerifyWorkEmailDto) {
+    return this.companies.verifyWorkEmail(body.token);
   }
 }
 
@@ -336,6 +350,14 @@ export class AdminBusinessJobsController {
   }
   @Get('business-profiles/:profileId') profile(@Param('profileId') id: string) {
     return this.companies.getAdmin(id);
+  }
+  @Get('business-profiles/:profileId/logo')
+  profileLogo(@Param('profileId') id: string, @Res() res: Response) {
+    return stream(res, this.companies.downloadAdminMedia(id, 'logo'));
+  }
+  @Get('business-profiles/:profileId/cover')
+  profileCover(@Param('profileId') id: string, @Res() res: Response) {
+    return stream(res, this.companies.downloadAdminMedia(id, 'cover'));
   }
   @Patch('business-profiles/:profileId/status') updateProfile(
     @CurrentUser() user: JwtUser,

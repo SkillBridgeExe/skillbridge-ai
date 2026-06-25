@@ -15,6 +15,7 @@ import { CreateMentorSlotDto, MentorSlotDto } from './dto/mentor-availability.dt
 
 export const MENTOR_AVAILABILITY_CLOCK = Symbol('MENTOR_AVAILABILITY_CLOCK');
 const MINIMUM_LEAD_TIME_MS = 24 * 60 * 60 * 1000;
+const MAXIMUM_RANGE_MS = 60 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class MentorAvailabilityService {
@@ -127,7 +128,13 @@ export class MentorAvailabilityService {
   private parseRange(fromInput: string, toInput: string): { from: Date; to: Date } {
     const from = new Date(fromInput);
     const to = new Date(toInput);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw this.validationError('from and to must be valid dates');
+    }
     if (to.getTime() <= from.getTime()) throw this.validationError('to must be after from');
+    if (to.getTime() - from.getTime() > MAXIMUM_RANGE_MS) {
+      throw this.validationError('Mentor slot range cannot exceed 60 days');
+    }
     return { from, to };
   }
 

@@ -1,4 +1,4 @@
-import { renderEmailLayout } from './email-layout';
+import { renderEmailLayout, SKILLBRIDGE_SUPPORT_EMAIL } from './email-layout';
 import { RenderedEmailTemplate } from './email-template.types';
 
 interface VerificationEmailTemplateInput {
@@ -25,6 +25,6 @@ export function renderVerificationEmailTemplate(
     }),
     text:
       'Welcome to SkillBridge. Please verify your email address to activate your account by visiting this link: ' +
-      verifyUrl,
+      `${verifyUrl}\n\nIf you need help, contact ${SKILLBRIDGE_SUPPORT_EMAIL}.`,
   };
 }

@@ -12,7 +12,10 @@ describe('renderVerificationEmailTemplate', () => {
     expect(result.html).toContain('Activate your account');
     expect(result.html).toContain(verifyUrl);
     expect(result.html).toContain('If the button does not work');
+    expect(result.html).toContain('edtech.skillbridge@gmail.com');
+    expect(result.html).not.toContain('margin-top: -');
     expect(result.text).toContain('Welcome to SkillBridge.');
+    expect(result.text).toContain('edtech.skillbridge@gmail.com');
     expect(result.text).toContain(verifyUrl);
   });
 });

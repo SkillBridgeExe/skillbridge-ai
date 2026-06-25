@@ -77,7 +77,7 @@ export class StartPlatformInterviewDto {
   @ApiPropertyOptional({ enum: INTERVIEW_VOICES, default: DEFAULT_INTERVIEW_VOICE })
   @IsOptional()
   @IsIn(INTERVIEW_VOICES)
-  voice?: InterviewVoice = DEFAULT_INTERVIEW_VOICE;
+  voice?: InterviewVoice;
 
   @ApiPropertyOptional({
     default: DEFAULT_INTERVIEW_SPEECH_SPEED,

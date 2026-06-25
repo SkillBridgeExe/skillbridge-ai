@@ -77,6 +77,8 @@ describe('CompanyProfileService', () => {
 
     expect(result.profile.status).toBe('DRAFT');
     expect(result.profile.submittedAt).toBeNull();
+    expect(result.company).not.toHaveProperty('logoObjectKey');
+    expect(result.company).not.toHaveProperty('coverObjectKey');
     expect(profiles.save).toHaveBeenCalled();
   });
 
@@ -159,9 +161,80 @@ describe('CompanyProfileService', () => {
       dataSource as never,
     );
 
-    await service.verifyWorkEmail('business-1', 'token');
+    await service.verifyWorkEmail('token');
 
     expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns owner media URLs without exposing private storage keys', async () => {
+    const profiles = repo<BusinessProfileEntity>();
+    const companies = repo<CompanyEntity>();
+    profiles.findOne.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'business-1',
+      companyId: 'company-1',
+      status: 'DRAFT',
+    } as BusinessProfileEntity);
+    companies.findOne.mockResolvedValue({
+      id: 'company-1',
+      slug: 'acme',
+      name: 'Acme',
+      logoObjectKey: 'companies/company-1/logo/logo.png',
+      coverObjectKey: 'companies/company-1/cover/cover.png',
+      benefits: [],
+    } as unknown as CompanyEntity);
+    const service = new CompanyProfileService(
+      profiles,
+      companies,
+      repo<VerificationEntity>(),
+      { sendVerifyEmail: jest.fn() } as never,
+      { get: jest.fn() } as never,
+      { download: jest.fn() } as never,
+      {} as never,
+    );
+
+    const result = await service.getMyCompany('business-1');
+
+    expect(result?.company).not.toHaveProperty('logoObjectKey');
+    expect(result?.company).not.toHaveProperty('coverObjectKey');
+    expect(result?.company).toEqual(
+      expect.objectContaining({
+        logoUrl: '/api/business/company/logo',
+        coverUrl: '/api/business/company/cover',
+      }),
+    );
+  });
+
+  it('downloads company media for the owning business before public verification', async () => {
+    const profiles = repo<BusinessProfileEntity>();
+    const companies = repo<CompanyEntity>();
+    const storage = {
+      download: jest.fn().mockResolvedValue({ body: {}, contentType: 'image/png' }),
+    };
+    profiles.findOne.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'business-1',
+      companyId: 'company-1',
+      status: 'DRAFT',
+    } as BusinessProfileEntity);
+    companies.findOne.mockResolvedValue({
+      id: 'company-1',
+      logoObjectKey: 'companies/company-1/logo/logo.png',
+      benefits: [],
+    } as unknown as CompanyEntity);
+    const service = new CompanyProfileService(
+      profiles,
+      companies,
+      repo<VerificationEntity>(),
+      { sendVerifyEmail: jest.fn() } as never,
+      { get: jest.fn() } as never,
+      storage as never,
+      {} as never,
+    );
+
+    await service.downloadMyMedia('business-1', 'logo');
+
+    expect(storage.download).toHaveBeenCalledWith('companies/company-1/logo/logo.png');
   });
 
   it('invalidates old work-email tokens and creates the new token atomically', async () => {

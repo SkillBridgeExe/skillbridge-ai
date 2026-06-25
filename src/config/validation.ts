@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { INTERVIEW_VOICES } from '../database/entities/interview-session.entity';
 
 /**
  * Joi schema for environment variable validation.
@@ -29,6 +30,7 @@ export const configValidationSchema = Joi.object({
     otherwise: Joi.string().min(1).required(),
   }),
   EMAIL_VERIFY_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(86400),
+  PASSWORD_RESET_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(1800),
 
   // LLM
   LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('openai'),
@@ -38,8 +40,11 @@ export const configValidationSchema = Joi.object({
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-5.4-mini'),
   OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2'),
+  OPENAI_REALTIME_TRANSCRIPTION_MODEL: Joi.string().default('gpt-4o-transcribe'),
   OPENAI_TTS_MODEL: Joi.string().default('gpt-4o-mini-tts'),
-  OPENAI_TTS_VOICE: Joi.string().default('marin'),
+  OPENAI_TTS_VOICE: Joi.string()
+    .valid(...INTERVIEW_VOICES)
+    .default('marin'),
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),
 
   // Database
