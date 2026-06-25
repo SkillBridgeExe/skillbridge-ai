@@ -59,21 +59,25 @@ function arrayValue(value: unknown): string[] | undefined {
 
 export class UpdateCompanyDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(255) companyName?: string;
-  @IsOptional() @IsUrl({ require_tld: false }) website?: string;
-  @IsOptional() @IsEmail() workEmail?: string;
-  @IsOptional() @IsString() @MaxLength(255) contactName?: string;
-  @IsOptional() @IsString() @MaxLength(32) contactPhone?: string;
-  @IsOptional() @IsUrl({ require_tld: false }) linkedinUrl?: string;
-  @IsOptional() @IsString() @MaxLength(64) industryCode?: string;
-  @IsOptional() @IsIn(COMPANY_TYPES) companyType?: CompanyType;
-  @IsOptional() @IsIn(COMPANY_SIZES) companySize?: CompanySize;
-  @IsOptional() @IsInt() @Min(1800) @Max(new Date().getUTCFullYear()) foundedYear?: number;
+  @IsOptional() @IsUrl({ require_tld: false }) website?: string | null;
+  @IsOptional() @IsEmail() workEmail?: string | null;
+  @IsOptional() @IsString() @MaxLength(255) contactName?: string | null;
+  @IsOptional() @IsString() @MaxLength(32) contactPhone?: string | null;
+  @IsOptional() @IsUrl({ require_tld: false }) linkedinUrl?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) industryCode?: string | null;
+  @IsOptional() @IsIn(COMPANY_TYPES) companyType?: CompanyType | null;
+  @IsOptional() @IsIn(COMPANY_SIZES) companySize?: CompanySize | null;
+  @IsOptional()
+  @IsInt()
+  @Min(1800)
+  @Max(new Date().getUTCFullYear())
+  foundedYear?: number | null;
   @IsOptional() @IsString() @Length(2, 2) countryCode?: string;
-  @IsOptional() @IsString() @MaxLength(64) headquartersCityCode?: string;
-  @IsOptional() @IsString() @MaxLength(1000) headquartersAddress?: string;
-  @IsOptional() @IsString() @MaxLength(500) shortDescription?: string;
-  @IsOptional() @IsString() @MaxLength(10_000) description?: string;
-  @IsOptional() @IsString() @MaxLength(10_000) cultureDescription?: string;
+  @IsOptional() @IsString() @MaxLength(64) headquartersCityCode?: string | null;
+  @IsOptional() @IsString() @MaxLength(1000) headquartersAddress?: string | null;
+  @IsOptional() @IsString() @MaxLength(500) shortDescription?: string | null;
+  @IsOptional() @IsString() @MaxLength(10_000) description?: string | null;
+  @IsOptional() @IsString() @MaxLength(10_000) cultureDescription?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(30) @IsString({ each: true }) benefits?: string[];
 }
 
@@ -112,29 +116,29 @@ export class CreateJobDraftDto {
 export class UpdateJobDraftDto {
   @IsInt() @Min(1) expectedRevision!: number;
   @IsOptional() @IsString() @MinLength(2) @MaxLength(255) title?: string;
-  @IsOptional() @IsIn(BUSINESS_JOB_ROLE_CODES) roleCode?: string;
-  @IsOptional() @IsIn(EMPLOYMENT_TYPES) employmentType?: string;
-  @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string;
-  @IsOptional() @IsNumber() @Min(0) @Max(99) minYearsExperience?: number;
-  @IsOptional() @IsNumber() @Min(0) @Max(99) maxYearsExperience?: number;
-  @IsOptional() @IsIn(WORK_MODES) workMode?: 'ONSITE' | 'HYBRID' | 'REMOTE';
+  @IsOptional() @IsIn(BUSINESS_JOB_ROLE_CODES) roleCode?: string | null;
+  @IsOptional() @IsIn(EMPLOYMENT_TYPES) employmentType?: string | null;
+  @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string | null;
+  @IsOptional() @IsNumber() @Min(0) @Max(99) minYearsExperience?: number | null;
+  @IsOptional() @IsNumber() @Min(0) @Max(99) maxYearsExperience?: number | null;
+  @IsOptional() @IsIn(WORK_MODES) workMode?: 'ONSITE' | 'HYBRID' | 'REMOTE' | null;
   @IsOptional() @IsInt() @Min(1) @Max(1000) openingsCount?: number;
-  @IsOptional() @IsNumber() @Min(0) salaryMin?: number;
-  @IsOptional() @IsNumber() @Min(0) salaryMax?: number;
+  @IsOptional() @IsNumber() @Min(0) salaryMin?: number | null;
+  @IsOptional() @IsNumber() @Min(0) salaryMax?: number | null;
   @IsOptional() @IsString() @MaxLength(8) currency?: string;
-  @IsOptional() @IsIn(['MONTH', 'YEAR']) salaryPeriod?: 'MONTH' | 'YEAR';
+  @IsOptional() @IsIn(['MONTH', 'YEAR']) salaryPeriod?: 'MONTH' | 'YEAR' | null;
   @IsOptional() @IsBoolean() salaryVisible?: boolean;
   @IsOptional() @IsBoolean() salaryNegotiable?: boolean;
-  @IsOptional() @IsString() @MaxLength(32) educationLevel?: string;
-  @IsOptional() @IsString() @MaxLength(16) languageCode?: string;
-  @IsOptional() @IsDateString() applicationDeadline?: string;
-  @IsOptional() @IsString() @MaxLength(10_000) summary?: string;
+  @IsOptional() @IsString() @MaxLength(32) educationLevel?: string | null;
+  @IsOptional() @IsString() @MaxLength(16) languageCode?: string | null;
+  @IsOptional() @IsDateString() applicationDeadline?: string | null;
+  @IsOptional() @IsString() @MaxLength(10_000) summary?: string | null;
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) responsibilities?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) requirements?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) niceToHave?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(100) @IsString({ each: true }) benefits?: string[];
   @IsOptional() @IsArray() @ArrayMaxSize(30) @IsString({ each: true }) interviewProcess?: string[];
-  @IsOptional() @IsString() @MaxLength(2000) workingTime?: string;
+  @IsOptional() @IsString() @MaxLength(2000) workingTime?: string | null;
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(20)
