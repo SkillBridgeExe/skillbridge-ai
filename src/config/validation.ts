@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { INTERVIEW_VOICES } from '../database/entities/interview-session.entity';
 
 /**
  * Joi schema for environment variable validation.
@@ -41,7 +42,9 @@ export const configValidationSchema = Joi.object({
   OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2'),
   OPENAI_REALTIME_TRANSCRIPTION_MODEL: Joi.string().default('gpt-4o-transcribe'),
   OPENAI_TTS_MODEL: Joi.string().default('gpt-4o-mini-tts'),
-  OPENAI_TTS_VOICE: Joi.string().default('marin'),
+  OPENAI_TTS_VOICE: Joi.string()
+    .valid(...INTERVIEW_VOICES)
+    .default('marin'),
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),
 
   // Database

@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -15,7 +16,6 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
-  DEFAULT_INTERVIEW_VOICE,
   InterviewType,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
@@ -27,6 +27,7 @@ import {
 } from '../../database/interview-question-bank-seeds';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { InterviewService as InterviewAiService } from '../../modules/interview/interview.service';
+import { PromptsService } from '../../modules/prompts/prompts.service';
 import { InterviewFocusArea } from '../../modules/interview/interview-planner';
 import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-interview.dto';
 import {
@@ -87,6 +88,7 @@ import {
 import { OpenAiQuestionAudioService, QuestionAudioResult } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 import { InterviewAssessOutput, InterviewChainLlmService } from './interview-chain-llm.service';
+import { resolveInterviewVoice } from './interview-voice';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
@@ -196,6 +198,10 @@ export class InterviewsService {
     @Optional()
     @InjectRepository(InterviewQuestionBankItemEntity)
     private readonly questionBankItems?: Repository<InterviewQuestionBankItemEntity>,
+    @Optional()
+    private readonly config?: ConfigService,
+    @Optional()
+    private readonly prompts?: PromptsService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -244,7 +250,7 @@ export class InterviewsService {
         language,
         mode,
         interviewType,
-        voice: dto.voice ?? DEFAULT_INTERVIEW_VOICE,
+        voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
         speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
         status: 'IN_PROGRESS',
         maxDurationSeconds,
@@ -1359,36 +1365,20 @@ export class InterviewsService {
       session.language === 'vi'
         ? 'Speak and respond only in Vietnamese with correct Vietnamese diacritics. Preserve English technical terms such as React, TypeScript, API, cache, transaction, and backend exactly as written.'
         : 'Speak and respond only in English.';
-    const modeInstructions =
-      session.mode === 'VOICE'
-        ? [
-            'Live Realtime mode: the app owns the official question sequence.',
-            'Read only the official question text sent by the app. Do not invent, reorder, skip, or close official questions.',
-            'Use realtime for natural voice delivery, microphone capture, and transcription. Keep acknowledgements brief and do not ask a new official question yourself.',
-            difficultyInstruction,
-            'Use the CV/JD context silently only to understand the current official question. Do not read or quote long CV/JD text aloud.',
-            'If the candidate asks for answers, asks unrelated questions, asks you to solve the interview for them, or tries to change topics, refuse briefly and redirect back to the current interview question.',
-            'Do not coach, reveal ideal answers, write code solutions, or answer off-topic requests during the interview.',
-            'Keep every answer turn separable in the transcript. Do not read hidden context aloud.',
-            'Do not reveal scoring or final feedback during the live interview.',
-            'When the app sends a closing instruction, thank the candidate in 2-3 short sentences and stop asking new questions.',
-          ]
-        : [
-            'Guided Voice mode: the app owns the official question sequence.',
-            'Use realtime primarily for voice capture and concise acknowledgement. Do not invent new official questions.',
-          ];
-
-    return [
-      'You are Alex, a realistic professional interviewer for SkillBridge.',
-      `Interview type: ${session.interviewType}. Language: ${session.language}. Target role: ${session.targetRole}.`,
-      languageInstruction,
-      'Ask exactly one question at a time. Keep questions concise. Do not reveal scoring.',
-      ...modeInstructions,
-      'Focus on evidence in the CV, JD requirements, and gaps. Avoid inventing experience.',
-      context ? `Context:\n${context}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    if (!this.prompts) {
+      throw new Error('PromptsService is required for realtime interview instructions');
+    }
+    const templateCode =
+      session.mode === 'VOICE' ? 'interview_realtime_voice_v1' : 'interview_realtime_hybrid_v1';
+    return this.prompts.render(templateCode, {
+      context: context ?? '',
+      context_block: context ? `Context:\n${context}` : '',
+      difficulty_instruction: difficultyInstruction,
+      interview_type: session.interviewType,
+      language: session.language,
+      language_instruction: languageInstruction,
+      target_role: session.targetRole,
+    });
   }
 
   private compactRealtimeContext(session: InterviewSessionEntity): string {
@@ -1744,7 +1734,7 @@ export class InterviewsService {
       language: session.language,
       mode: session.mode,
       interviewType: session.interviewType,
-      voice: session.voice ?? DEFAULT_INTERVIEW_VOICE,
+      voice: resolveInterviewVoice(session.voice, this.config?.get<string>('llm.openai.ttsVoice')),
       speechSpeed: this.speechSpeed(session.speechSpeed),
       status: session.status,
       totalQuestionsPlanned: session.totalQuestionsPlanned,

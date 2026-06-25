@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
@@ -49,6 +50,10 @@ describe('AuthService', () => {
     updatedAt: null,
     deletedAt: null,
   };
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   function setup() {
     const users = createRepositoryMock<UserEntity>();
@@ -200,6 +205,29 @@ describe('AuthService', () => {
       baseUser.email,
       expect.stringContaining('/reset-password?token='),
     );
+  });
+
+  it('keeps forgot-password responses uniform when email delivery fails', async () => {
+    const { service, users, accounts, email } = setup();
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    users.findOne.mockResolvedValue({ ...baseUser, isActive: true });
+    accounts.findOne.mockResolvedValue({
+      id: 'account-1',
+      userId: baseUser.id,
+      provider: 'CREDENTIALS',
+      providerAccountId: baseUser.emailNormalized,
+      passwordHash: 'old-hash',
+    });
+    email.sendPasswordResetEmail.mockRejectedValue(new Error('provider unavailable'));
+
+    await expect(service.forgotPassword(baseUser.email)).resolves.toEqual({ accepted: true });
+
+    expect(warn).toHaveBeenCalledWith({
+      event: 'password_reset_email_failed',
+      errorName: 'Error',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(baseUser.email);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('/reset-password?token=');
   });
 
   it('resets the credentials password, consumes the token, and revokes existing sessions', async () => {

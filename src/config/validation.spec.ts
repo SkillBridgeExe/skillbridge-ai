@@ -108,3 +108,24 @@ describe('configValidationSchema — interview chain model overrides', () => {
     expect(value.INTERVIEW_COACHING_MODEL).toBe('gpt-4o-mini');
   });
 });
+
+describe('configValidationSchema - OPENAI_TTS_VOICE', () => {
+  it('accepts a supported interview voice', () => {
+    const { error, value } = configValidationSchema.validate(
+      { ...base, OPENAI_TTS_VOICE: 'cedar' },
+      { allowUnknown: true },
+    );
+
+    expect(error).toBeUndefined();
+    expect(value.OPENAI_TTS_VOICE).toBe('cedar');
+  });
+
+  it('rejects an unsupported interview voice', () => {
+    const { error } = configValidationSchema.validate(
+      { ...base, OPENAI_TTS_VOICE: 'unsupported-voice' },
+      { allowUnknown: true },
+    );
+
+    expect(error).toBeDefined();
+  });
+});

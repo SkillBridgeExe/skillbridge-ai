@@ -19,6 +19,27 @@ function repo<T extends { id?: string }>() {
   };
 }
 
+function attachRealtimePrompts(service: InterviewsService) {
+  const prompts = {
+    render: jest.fn((code: string, vars: Record<string, unknown>) =>
+      [
+        code,
+        'You are Alex, a realistic professional interviewer for SkillBridge.',
+        vars.language_instruction,
+        vars.difficulty_instruction,
+        code === 'interview_realtime_voice_v1'
+          ? 'Live Realtime mode: the app owns the official question sequence. Read only the official question text sent by the app. Do not invent, reorder, skip, or close official questions. If the candidate asks for answers, refuse briefly and redirect back to the current interview question.'
+          : 'Guided Voice mode: the app owns the official question sequence.',
+        vars.context_block,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    ),
+  };
+  Object.assign(service, { prompts });
+  return prompts;
+}
+
 describe('InterviewsService', () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const cvId = '22222222-2222-4222-8222-222222222222';
@@ -27,6 +48,62 @@ describe('InterviewsService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('renders live voice instructions through PromptsService', () => {
+    const prompts = {
+      render: jest.fn().mockReturnValue('rendered realtime voice instructions'),
+    };
+    const service = new InterviewsService(
+      repo<InterviewSessionEntity>() as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { get: jest.fn() } as never,
+      prompts as never,
+    );
+    const session = {
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      targetRole: 'frontend_developer',
+      contextSnapshot: {
+        interviewDifficulty: {
+          level: 'junior',
+          source: 'target role',
+          note: 'Use a junior-friendly baseline.',
+        },
+      },
+    } as unknown as InterviewSessionEntity;
+
+    const result = (
+      service as unknown as {
+        realtimeInstructions: (value: InterviewSessionEntity, context?: string) => string;
+      }
+    ).realtimeInstructions(session, 'Compact interview context');
+
+    expect(result).toBe('rendered realtime voice instructions');
+    expect(prompts.render).toHaveBeenCalledWith(
+      'interview_realtime_voice_v1',
+      expect.objectContaining({
+        context: 'Compact interview context',
+        interview_type: 'TECHNICAL',
+        language: 'vi',
+        language_instruction: expect.stringContaining('Vietnamese'),
+        target_role: 'frontend_developer',
+        difficulty_instruction: expect.stringContaining('junior'),
+      }),
+    );
   });
 
   it('limits the default history page to 10 sessions', async () => {
@@ -130,7 +207,15 @@ describe('InterviewsService', () => {
       realtime as never,
       undefined,
       cvMatches as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        get: jest.fn((key: string) => (key === 'llm.openai.ttsVoice' ? 'cedar' : undefined)),
+      } as never,
     );
+    attachRealtimePrompts(service);
 
     const response = await service.start(userId, {
       cvId,
@@ -265,6 +350,7 @@ describe('InterviewsService', () => {
       undefined,
       questionBank as never,
     );
+    attachRealtimePrompts(service);
 
     const response = await service.start(userId, {
       targetRole: 'backend_developer',
@@ -332,6 +418,7 @@ describe('InterviewsService', () => {
       undefined,
       questionBank as never,
     );
+    attachRealtimePrompts(service);
 
     const response = await service.start(userId, {
       targetRole: 'backend_developer',
@@ -397,6 +484,7 @@ describe('InterviewsService', () => {
       questionBank as never,
     );
 
+    attachRealtimePrompts(service);
     const response = await service.start(userId, {
       targetRole: 'backend_developer',
       language: 'vi',
@@ -455,7 +543,17 @@ describe('InterviewsService', () => {
       interviewAi as never,
       entitlements as never,
       realtime as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        get: jest.fn((key: string) => (key === 'llm.openai.ttsVoice' ? 'cedar' : undefined)),
+      } as never,
     );
+    attachRealtimePrompts(service);
 
     const response = await service.start(userId, {
       targetRole: 'backend_developer',
@@ -465,6 +563,11 @@ describe('InterviewsService', () => {
     });
 
     expect(interviewAi.start).not.toHaveBeenCalled();
+    expect(sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voice: 'cedar',
+      }),
+    );
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-live-1',
@@ -567,6 +670,7 @@ describe('InterviewsService', () => {
       undefined,
       questionBank as never,
     );
+    attachRealtimePrompts(service);
 
     await service.start(userId, {
       targetRole: 'backend_developer',
@@ -620,6 +724,7 @@ describe('InterviewsService', () => {
       } as never,
       realtime as never,
     );
+    attachRealtimePrompts(service);
 
     await service.start(userId, {
       targetRole: 'Fresher Backend Developer',
@@ -659,6 +764,7 @@ describe('InterviewsService', () => {
       { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
       realtime as never,
     );
+    attachRealtimePrompts(service);
     sessions.findOne.mockResolvedValue({
       id: 'session-1',
       userId,

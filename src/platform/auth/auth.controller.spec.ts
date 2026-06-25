@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 describe('AuthController', () => {
   it('maps forgot and reset password requests to the auth service', async () => {
+    const resetToken = 'a'.repeat(64);
     const auth = {
       forgotPassword: jest.fn().mockResolvedValue({ accepted: true }),
       resetPassword: jest.fn().mockResolvedValue({ reset: true }),
@@ -14,8 +15,11 @@ describe('AuthController', () => {
       accepted: true,
     });
     await expect(
-      controller.resetPassword({ token: 'a'.repeat(64), newPassword: 'NewStrongPass123' }),
+      controller.resetPassword({ token: resetToken, newPassword: 'NewStrongPass123' }),
     ).resolves.toEqual({ reset: true });
+
+    expect(auth.forgotPassword).toHaveBeenCalledWith('user@example.com');
+    expect(auth.resetPassword).toHaveBeenCalledWith(resetToken, 'NewStrongPass123');
   });
 
   it('refreshes the access token, rotates the refresh cookie, and returns the user', async () => {

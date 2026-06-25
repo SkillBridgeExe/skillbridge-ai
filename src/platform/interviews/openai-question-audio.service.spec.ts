@@ -5,6 +5,7 @@ import { InterviewSessionEntity } from '../../database/entities/interview-sessio
 import { OpenAiQuestionAudioService } from './openai-question-audio.service';
 
 const mockSpeechCreate = jest.fn();
+const mockPromptRender = jest.fn();
 
 jest.mock('openai', () => ({
   __esModule: true,
@@ -28,6 +29,14 @@ describe('OpenAiQuestionAudioService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPromptRender.mockImplementation((_code: string, vars: Record<string, unknown>) =>
+      [
+        vars.language_instruction,
+        'Read only the interview question.',
+        'Do not translate English technical terms.',
+        `Target role: ${String(vars.target_role)}.`,
+      ].join(' '),
+    );
   });
 
   afterEach(() => {
@@ -44,7 +53,7 @@ describe('OpenAiQuestionAudioService', () => {
     const config = {
       get: jest.fn((key: string) => values[key]),
     } as unknown as ConfigService;
-    return new OpenAiQuestionAudioService(config);
+    return new OpenAiQuestionAudioService(config, { render: mockPromptRender } as never);
   }
 
   function audioResponse(bytes = [1, 2, 3], contentType: string | null = 'audio/mpeg') {
@@ -89,6 +98,11 @@ describe('OpenAiQuestionAudioService', () => {
         instructions: expect.stringContaining('Do not translate English technical terms'),
       }),
     );
+    expect(mockPromptRender).toHaveBeenCalledWith('interview_tts_v1', {
+      interview_type: 'TECHNICAL',
+      language_instruction: expect.stringContaining('Vietnamese with clear diacritics'),
+      target_role: 'frontend_developer',
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result).toEqual({
       data: Buffer.from([7, 8, 9]),

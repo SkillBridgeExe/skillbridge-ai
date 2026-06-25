@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,6 +24,7 @@ import { RegisterDto } from './dto/register.dto';
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly google: OAuth2Client;
 
   constructor(
@@ -126,7 +127,14 @@ export class AuthService {
     if (!account?.passwordHash) return { accepted: true };
 
     const token = await this.createPasswordResetToken(user.id);
-    await this.email.sendPasswordResetEmail(user.email, this.buildPasswordResetUrl(token));
+    try {
+      await this.email.sendPasswordResetEmail(user.email, this.buildPasswordResetUrl(token));
+    } catch (error) {
+      this.logger.warn({
+        event: 'password_reset_email_failed',
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+    }
     return { accepted: true };
   }
 

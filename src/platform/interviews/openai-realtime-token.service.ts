@@ -3,19 +3,23 @@ import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import OpenAI from 'openai';
 import type { ClientSecretCreateParams } from 'openai/resources/realtime/client-secrets';
+import { PromptsService } from '../../modules/prompts/prompts.service';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
-  DEFAULT_INTERVIEW_VOICE,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
 import { RealtimeClientSecretDto } from './dto/interview.dto';
+import { resolveInterviewVoice } from './interview-voice';
 
 @Injectable()
 export class OpenAiRealtimeTokenService {
   private readonly logger = new Logger(OpenAiRealtimeTokenService.name);
   private client: OpenAI | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prompts: PromptsService,
+  ) {}
 
   async createClientSecret(
     userId: string,
@@ -39,7 +43,10 @@ export class OpenAiRealtimeTokenService {
       const transcriptionLanguage = session.language === 'vi' ? 'vi' : 'en';
       const transcriptionModel =
         this.config.get<string>('llm.openai.realtimeTranscriptionModel') ?? 'gpt-4o-transcribe';
-      const voice = session.voice ?? DEFAULT_INTERVIEW_VOICE;
+      const voice = resolveInterviewVoice(
+        session.voice,
+        this.config.get<string>('llm.openai.ttsVoice'),
+      );
       const speed = this.speechSpeed(session.speechSpeed);
       const realtimeSession: ClientSecretCreateParams['session'] = {
         type: 'realtime',
@@ -121,22 +128,7 @@ export class OpenAiRealtimeTokenService {
   }
 
   private transcriptionPrompt(language: 'vi' | 'en'): string {
-    const technicalTerms =
-      'React, TypeScript, JavaScript, API, frontend, backend, database, cache, transaction, Docker, Kubernetes, CI/CD, PostgreSQL, Node.js, NestJS, Next.js';
-
-    if (language === 'vi') {
-      return [
-        'Transcript must be Vietnamese with Vietnamese diacritics.',
-        'Do not output Chinese, Japanese, or Korean characters.',
-        `Preserve English technical terms exactly when spoken, including: ${technicalTerms}.`,
-      ].join(' ');
-    }
-
-    return [
-      'Transcript must be English.',
-      'Do not translate or invent non-English text.',
-      `Preserve technical terms exactly when spoken, including: ${technicalTerms}.`,
-    ].join(' ');
+    return this.prompts.render(`interview_transcription_${language}_v1`, {});
   }
 
   private safeErrorMetadata(error: unknown): {

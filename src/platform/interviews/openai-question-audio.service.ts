@@ -1,11 +1,12 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { PromptsService } from '../../modules/prompts/prompts.service';
 import {
   DEFAULT_INTERVIEW_SPEECH_SPEED,
-  DEFAULT_INTERVIEW_VOICE,
   InterviewSessionEntity,
 } from '../../database/entities/interview-session.entity';
+import { resolveInterviewVoice } from './interview-voice';
 
 export interface QuestionAudioResult {
   data: Buffer;
@@ -17,7 +18,10 @@ export class OpenAiQuestionAudioService {
   private readonly logger = new Logger(OpenAiQuestionAudioService.name);
   private client: OpenAI | null = null;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prompts: PromptsService,
+  ) {}
 
   async createQuestionAudio(
     _userId: string,
@@ -25,8 +29,10 @@ export class OpenAiQuestionAudioService {
     question: string,
   ): Promise<QuestionAudioResult> {
     const model = this.config.get<string>('llm.openai.ttsModel') ?? 'gpt-4o-mini-tts';
-    const voice =
-      session.voice ?? this.config.get<string>('llm.openai.ttsVoice') ?? DEFAULT_INTERVIEW_VOICE;
+    const voice = resolveInterviewVoice(
+      session.voice,
+      this.config.get<string>('llm.openai.ttsVoice'),
+    );
     const speed = this.speechSpeed(session.speechSpeed);
 
     try {
@@ -63,16 +69,15 @@ export class OpenAiQuestionAudioService {
   }
 
   private voiceInstructions(session: InterviewSessionEntity): string {
-    const language =
+    const languageInstruction =
       session.language === 'vi'
         ? 'Speak natural Vietnamese with clear diacritics, a moderate pace, and a calm professional interviewer tone.'
         : 'Speak natural English with a calm professional interviewer tone.';
-    return [
-      language,
-      'Read only the interview question. Do not add extra commentary, scoring, or advice.',
-      'Do not translate English technical terms such as React, TypeScript, API, Docker, PostgreSQL, Node.js, NestJS, or Next.js.',
-      `Target role: ${session.targetRole}. Interview type: ${session.interviewType}.`,
-    ].join(' ');
+    return this.prompts.render('interview_tts_v1', {
+      interview_type: session.interviewType,
+      language_instruction: languageInstruction,
+      target_role: session.targetRole,
+    });
   }
 
   private speechSpeed(value: string | number | null | undefined): number {
