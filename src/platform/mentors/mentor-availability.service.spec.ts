@@ -140,6 +140,34 @@ describe('MentorAvailabilityService', () => {
     ]);
   });
 
+  it('rejects availability ranges longer than 60 days', async () => {
+    const { service, profiles } = setup();
+    profiles.findOne.mockResolvedValue(profile);
+
+    await expect(
+      service.listPublicSlots(
+        'mentor-one',
+        '2026-06-01T00:00:00.000Z',
+        '2026-08-01T00:00:00.001Z',
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'Mentor slot range cannot exceed 60 days',
+      }),
+    });
+  });
+
+  it('rejects invalid availability dates before querying slots', async () => {
+    const { service, profiles, slots } = setup();
+    profiles.findOne.mockResolvedValue(profile);
+
+    await expect(
+      service.listPublicSlots('mentor-one', 'invalid', '2026-06-10T00:00:00.000Z'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(slots.find).not.toHaveBeenCalled();
+  });
+
   it('deletes only an owned open slot', async () => {
     const { service, profiles, slots } = setup();
     profiles.findOne.mockResolvedValue(profile);
