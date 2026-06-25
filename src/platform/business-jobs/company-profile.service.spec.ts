@@ -208,7 +208,9 @@ describe('CompanyProfileService', () => {
   it('downloads company media for the owning business before public verification', async () => {
     const profiles = repo<BusinessProfileEntity>();
     const companies = repo<CompanyEntity>();
-    const storage = { download: jest.fn().mockResolvedValue({ body: {}, contentType: 'image/png' }) };
+    const storage = {
+      download: jest.fn().mockResolvedValue({ body: {}, contentType: 'image/png' }),
+    };
     profiles.findOne.mockResolvedValue({
       id: 'profile-1',
       userId: 'business-1',

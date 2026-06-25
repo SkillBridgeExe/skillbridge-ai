@@ -145,11 +145,7 @@ describe('MentorAvailabilityService', () => {
     profiles.findOne.mockResolvedValue(profile);
 
     await expect(
-      service.listPublicSlots(
-        'mentor-one',
-        '2026-06-01T00:00:00.000Z',
-        '2026-08-01T00:00:00.001Z',
-      ),
+      service.listPublicSlots('mentor-one', '2026-06-01T00:00:00.000Z', '2026-08-01T00:00:00.001Z'),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         errorCode: 'VALIDATION_ERROR',
