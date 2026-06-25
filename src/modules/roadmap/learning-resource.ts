@@ -120,7 +120,7 @@ export interface LearningResourceMatchResult {
   uncovered_skills: string[];
 }
 
-const TOP_N_PER_SKILL = 3;
+const TOP_N_PER_SKILL = 10;
 
 /** Deterministic resource score. Mirrors the legacy course formula generalized to quality_score. */
 export function scoreResource(
