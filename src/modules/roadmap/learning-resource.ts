@@ -202,7 +202,7 @@ export function matchResources(
     per_skill.push({
       skill_canonical_name: req.skill_canonical_name,
       required_level: req.required_level,
-      resources: scored,
+      resources: scored.slice(0, TOP_N_PER_SKILL),
     });
   }
 

@@ -138,6 +138,54 @@ describe('RoadmapComposerService.compose', () => {
     );
   });
 
+  it('does not let recommended course payload grow past 30 courses per step', () => {
+    matcher.matchResources.mockReturnValueOnce({
+      per_skill: [
+        {
+          skill_canonical_name: 'react',
+          required_level: 4,
+          resources: Array.from({ length: 35 }, (_, index) => ({
+            id: `react-${index + 1}`,
+            source_type: 'course',
+            title: `React ${index + 1}`,
+            provider: 'Coursera',
+            url: 'https://u',
+            is_internal: false,
+            language: 'vi',
+            duration_minutes: 60,
+            difficulty: 'INTERMEDIATE',
+            is_free: true,
+            skills: [{ skill_canonical_name: 'react', teaches_level: 4 }],
+            outcome_type: 'understand',
+            proof_of_completion: 'cert',
+            match_score: 100 - index,
+            match_breakdown: {
+              quality_pts: 28,
+              language_pts: 20,
+              free_pts: 15,
+              level_fit_pts: 20,
+              multi_skill_pts: 7,
+            },
+            quality_score: 92,
+            freshness_score: 100,
+            low_confidence: false,
+          })),
+        },
+      ],
+      uncovered_skills: [],
+    });
+
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react')],
+      budget: { available_days: 30, hours_per_week: 7 },
+    });
+
+    expect(out.steps[0].recommended_courses).toHaveLength(30);
+    expect(out.steps[0].recommended_courses?.at(-1)?.id).toBe('react-30');
+  });
+
   it('uses the primary matched resource duration as feasibility floor before selecting steps', () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [

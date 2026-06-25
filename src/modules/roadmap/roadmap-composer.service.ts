@@ -14,6 +14,8 @@ import {
 import { getSkillBridgeLessonContent } from './skillbridge-lesson-content';
 
 const LEARN_SOURCE_TYPES = ['course', 'official_doc', 'video', 'exercise', 'mini_project'] as const;
+const MAX_RESOURCES_PER_STEP = 30;
+const MAX_RECOMMENDED_COURSES_PER_STEP = 30;
 
 @Injectable()
 export class RoadmapComposerService {
@@ -85,7 +87,8 @@ export class RoadmapComposerService {
           skillResources.push(scoredVideo);
         }
       }
-      const resources = skillResources.map((resource) => ({
+      const boundedSkillResources = skillResources.slice(0, MAX_RESOURCES_PER_STEP);
+      const resources = boundedSkillResources.map((resource) => ({
         id: resource.id,
         source_type: resource.source_type,
         title: resource.title,
@@ -109,12 +112,13 @@ export class RoadmapComposerService {
         estimated_hours: item.estimated_hours,
         priority: item.priority,
         resources,
-        recommended_courses: skillResources
+        recommended_courses: boundedSkillResources
           .filter((resource) => resource.source_type === 'course')
+          .slice(0, MAX_RECOMMENDED_COURSES_PER_STEP)
           .map(toRecommendedCourse),
         lesson_content: getSkillBridgeLessonContent(
           item.skill_canonical,
-          skillResources.map((resource) => resource.id),
+          boundedSkillResources.map((resource) => resource.id),
         ),
       });
     }

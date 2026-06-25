@@ -180,6 +180,32 @@ describe('matchResources', () => {
     const out = matchResources(catalog, reqs, { sourceTypes: ['course'] });
     expect(out.per_skill[0].resources.map((r) => r.id)).toEqual(['course']);
   });
+
+  it('caps each skill to the top 10 scored resources', () => {
+    const catalog = Array.from({ length: 12 }, (_, index) =>
+      res({
+        id: `react-${index + 1}`,
+        quality_score: 100 - index,
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+    );
+
+    const out = matchResources(catalog, reqs);
+
+    expect(out.per_skill[0].resources).toHaveLength(10);
+    expect(out.per_skill[0].resources.map((r) => r.id)).toEqual([
+      'react-1',
+      'react-2',
+      'react-3',
+      'react-4',
+      'react-5',
+      'react-6',
+      'react-7',
+      'react-8',
+      'react-9',
+      'react-10',
+    ]);
+  });
 });
 
 describe('matchResources — language preference (langPref)', () => {

@@ -9,9 +9,12 @@ import { LearningResourceMatcherService } from '../../../src/modules/roadmap/lea
 
 /**
  * SHOULD-2 regression: prove the refactored CourseMatcherService (now a wrapper over the unified
- * LearningResource matcher) produces BYTE-IDENTICAL scores + ordering to the legacy formula across the
- * ENTIRE real `data/course-catalog.json`. Re-implements the pre-refactor scoring exactly as the oracle.
+ * LearningResource matcher) produces BYTE-IDENTICAL scores + ordering to the legacy formula for the
+ * capped top results from the real `data/course-catalog.json`. Re-implements the pre-refactor scoring
+ * exactly as the oracle.
  */
+
+const TOP_N_PER_SKILL = 10;
 
 // --- Legacy oracle: the exact formula from the pre-refactor CourseMatcherService.scoreCourse ---
 function legacyScore(
@@ -83,13 +86,13 @@ describe('CourseMatcherService real-catalog parity (no drift vs legacy)', () => 
     );
   });
 
-  it('max match_score diff = 0 across every course in every skill', () => {
+  it('max match_score diff = 0 across each returned top course in every skill', () => {
     let maxDiff = 0;
     for (let i = 0; i < requests.length; i++) {
       const legacyIds = new Set(legacy[i].ids);
       const w = wrapper.per_skill[i].courses.filter((c) => legacyIds.has(c.id));
       const l = legacy[i];
-      expect(w.length).toBe(l.scores.length);
+      expect(w.length).toBe(Math.min(TOP_N_PER_SKILL, l.scores.length));
       for (let j = 0; j < w.length; j++) {
         maxDiff = Math.max(maxDiff, Math.abs(w[j].match_score - l.scores[j]));
       }
@@ -101,7 +104,7 @@ describe('CourseMatcherService real-catalog parity (no drift vs legacy)', () => 
     for (let i = 0; i < requests.length; i++) {
       const legacyIds = new Set(legacy[i].ids);
       const w = wrapper.per_skill[i].courses.filter((c) => legacyIds.has(c.id));
-      expect(w.map((c) => c.id)).toEqual(legacy[i].ids);
+      expect(w.map((c) => c.id)).toEqual(legacy[i].ids.slice(0, TOP_N_PER_SKILL));
     }
   });
 });

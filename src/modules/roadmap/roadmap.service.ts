@@ -24,6 +24,8 @@ interface LlmRoadmapStructure {
   ai_advice: string;
 }
 
+const MAX_RECOMMENDED_COURSES_PER_STEP = 30;
+
 /**
  * Refactored roadmap generation:
  *
@@ -205,7 +207,8 @@ export class RoadmapService {
       const aggregated = (s.skill_canonical_names ?? [])
         .flatMap((sk) => coursesBySkill.get(sk) ?? [])
         .filter((c, idx, arr) => arr.findIndex((cc) => cc.id === c.id) === idx)
-        .sort((a, b) => b.match_score - a.match_score);
+        .sort((a, b) => b.match_score - a.match_score)
+        .slice(0, MAX_RECOMMENDED_COURSES_PER_STEP);
       return {
         ...s,
         recommended_courses: aggregated,
