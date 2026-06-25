@@ -4,7 +4,6 @@ import { InterviewSessionEntity } from '../../database/entities/interview-sessio
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 const mockClientSecretsCreate = jest.fn();
-const mockPromptRender = jest.fn();
 
 jest.mock('openai', () => ({
   __esModule: true,
@@ -33,13 +32,6 @@ describe('OpenAiRealtimeTokenService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete (globalThis as { fetch?: unknown }).fetch;
-    mockPromptRender.mockImplementation((code: string) => {
-      const terms =
-        'React, TypeScript, JavaScript, API, frontend, backend, database, cache, transaction, Docker, Kubernetes, CI/CD, PostgreSQL, Node.js, NestJS, Next.js';
-      return code === 'interview_transcription_vi_v1'
-        ? `Transcript must be Vietnamese with Vietnamese diacritics. Do not output Chinese, Japanese, or Korean characters. Preserve English technical terms exactly when spoken, including: ${terms}.`
-        : `Transcript must be English. Do not translate or invent non-English text. Preserve technical terms exactly when spoken, including: ${terms}.`;
-    });
   });
 
   function serviceWithConfig(overrides: Record<string, string | undefined> = {}) {
@@ -51,10 +43,10 @@ describe('OpenAiRealtimeTokenService', () => {
     const config = {
       get: jest.fn((key: string) => values[key]),
     } as unknown as ConfigService;
-    return new OpenAiRealtimeTokenService(config, { render: mockPromptRender } as never);
+    return new OpenAiRealtimeTokenService(config);
   }
 
-  it('creates a realtime client secret using transcription without automatic responses', async () => {
+  it('creates a realtime client secret using the safe transcription fallback', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -84,9 +76,8 @@ describe('OpenAiRealtimeTokenService', () => {
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
-                model: 'gpt-4o-transcribe',
+                model: 'gpt-4o-mini-transcribe',
                 language: 'vi',
-                prompt: expect.stringContaining('Vietnamese with Vietnamese diacritics'),
               }),
               turn_detection: expect.objectContaining({
                 type: 'server_vad',
@@ -117,11 +108,7 @@ describe('OpenAiRealtimeTokenService', () => {
       };
     };
     expect(request.session).not.toHaveProperty('speed');
-    expect(request.session.audio?.input?.transcription?.prompt).toContain(
-      'Do not output Chinese, Japanese, or Korean characters',
-    );
-    expect(request.session.audio?.input?.transcription?.prompt).toContain('TypeScript');
-    expect(mockPromptRender).toHaveBeenCalledWith('interview_transcription_vi_v1', {});
+    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
@@ -132,7 +119,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(session.realtimeSessionId).toBe('sess_realtime_1');
   });
 
-  it('adds English transcription prompt guidance for English interview sessions', async () => {
+  it('sets the transcription language without sending prompt guidance', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -153,7 +140,6 @@ describe('OpenAiRealtimeTokenService', () => {
             input: expect.objectContaining({
               transcription: expect.objectContaining({
                 language: 'en',
-                prompt: expect.stringContaining('Transcript must be English'),
               }),
             }),
           }),
@@ -164,8 +150,7 @@ describe('OpenAiRealtimeTokenService', () => {
     const request = mockClientSecretsCreate.mock.calls[0][0] as {
       session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
     };
-    expect(request.session.audio?.input?.transcription?.prompt).toContain('PostgreSQL');
-    expect(mockPromptRender).toHaveBeenCalledWith('interview_transcription_en_v1', {});
+    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
   });
 
   it('uses the configured realtime transcription model override', async () => {
@@ -187,6 +172,34 @@ describe('OpenAiRealtimeTokenService', () => {
               transcription: expect.objectContaining({
                 model: 'gpt-4o-mini-transcribe',
               }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('falls back when the configured realtime transcription model is unsupported', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_test_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_fallback' },
+    });
+
+    await serviceWithConfig({
+      'llm.openai.realtimeTranscriptionModel': 'unsupported-transcription-model',
+    }).createClientSecret(userId, session, 'Interview instructions');
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              transcription: {
+                model: 'gpt-4o-mini-transcribe',
+                language: 'vi',
+              },
             }),
           }),
         }),
@@ -279,9 +292,11 @@ describe('OpenAiRealtimeTokenService', () => {
 
   it('logs only safe OpenAI metadata when client-secret creation fails', async () => {
     mockClientSecretsCreate.mockRejectedValue({
-      message: 'Invalid session payload containing sensitive request details',
+      message:
+        'Invalid value for session.audio.input.transcription.model using sk-must-not-be-logged, ek_must-not-be-logged, and Bearer secret-token',
       status: 400,
-      code: 'invalid_request_error',
+      code: 'invalid_value',
+      param: 'session.audio.input.transcription.model',
       request_id: 'req_realtime_123',
       apiKey: 'sk-must-not-be-logged',
     });
@@ -295,14 +310,23 @@ describe('OpenAiRealtimeTokenService', () => {
 
     const result = await service.createClientSecret(userId, session, 'Interview instructions');
 
-    expect(warn).toHaveBeenCalledWith({
+    expect(warn).toHaveBeenCalledTimes(1);
+    const logLine = warn.mock.calls[0][0];
+    expect(typeof logLine).toBe('string');
+    expect(logLine).not.toContain('\n');
+    const metadata = JSON.parse(logLine as string);
+    expect(metadata).toEqual({
       event: 'openai_realtime_token_failed',
       status: 400,
-      code: 'invalid_request_error',
+      code: 'invalid_value',
+      param: 'session.audio.input.transcription.model',
       requestId: 'req_realtime_123',
+      message:
+        'Invalid value for session.audio.input.transcription.model using [REDACTED], [REDACTED], and Bearer [REDACTED]',
     });
-    expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive request details');
     expect(JSON.stringify(warn.mock.calls)).not.toContain('sk-must-not-be-logged');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('ek_must-not-be-logged');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-token');
     expect(result).toMatchObject({
       enabled: false,
       clientSecret: null,
