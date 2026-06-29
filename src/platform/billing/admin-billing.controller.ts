@@ -13,6 +13,7 @@ import {
   ReplaceAdminPlanFeaturesDto,
   UpdateAdminBillingPlanDto,
   UpdateAdminMentorBookingRefundDto,
+  UpdateAdminPlanFeatureDto,
 } from './dto/admin-billing.dto';
 
 @ApiTags('Admin Billing')
@@ -27,6 +28,12 @@ export class AdminBillingController {
   @ApiOperation({ summary: 'Admin list billing plans, optionally including inactive plans' })
   listPlans(@Query() query: AdminListPlansQueryDto) {
     return this.billing.listPlans(query);
+  }
+
+  @Get('features')
+  @ApiOperation({ summary: 'Admin list supported billing feature keys and recommended limits' })
+  listFeatures() {
+    return this.billing.listFeatureCatalog();
   }
 
   @Post('plans')
@@ -45,6 +52,16 @@ export class AdminBillingController {
   @ApiOperation({ summary: 'Admin replace feature limits for a billing plan' })
   replacePlanFeatures(@Param('code') code: string, @Body() dto: ReplaceAdminPlanFeaturesDto) {
     return this.billing.replacePlanFeatures(code, dto);
+  }
+
+  @Patch('plans/:code/features/:featureKey')
+  @ApiOperation({ summary: 'Admin upsert one feature limit for a billing plan' })
+  updatePlanFeature(
+    @Param('code') code: string,
+    @Param('featureKey') featureKey: string,
+    @Body() dto: UpdateAdminPlanFeatureDto,
+  ) {
+    return this.billing.updatePlanFeature(code, featureKey, dto);
   }
 
   @Get('orders')

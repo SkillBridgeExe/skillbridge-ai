@@ -168,6 +168,16 @@ export class ReplaceAdminPlanFeaturesDto {
   features!: AdminBillingPlanFeatureInputDto[];
 }
 
+export class UpdateAdminPlanFeatureDto {
+  @IsInt()
+  @Min(-1)
+  limitValue!: number;
+
+  @IsOptional()
+  @IsIn(BILLING_FEATURE_PERIODS)
+  period?: BillingFeaturePeriod;
+}
+
 export class AdminListPlansQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')
