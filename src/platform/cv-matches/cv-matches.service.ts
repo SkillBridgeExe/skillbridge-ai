@@ -232,19 +232,8 @@ export class CvMatchesService {
     matchId: string,
     lang: 'vi' | 'en' = 'vi',
   ): Promise<SkillBridgeGapReport> {
-    const match = await this.matches.findOne({ where: { id: matchId } });
-    if (!match) throw new NotFoundException('CV match not found');
-    await this.findOwnedCv(userId, match.cvId);
-    const parsed = await this.resolveParsedResponse(match);
-    if (!parsed) throw new NotFoundException('CV match not found');
-    if (!this.gapReport || !this.platformCvs) {
-      throw new Error('Gap report dependencies are not configured');
-    }
-    return this.gapReport.build({
-      match: parsed,
-      review: await this.platformCvs.getLatestReview(userId, match.cvId),
-      lang,
-    });
+    const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
+    return this.buildGapReportFromParsed(userId, match, parsed, lang);
   }
 
   async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
@@ -304,7 +293,9 @@ export class CvMatchesService {
     matchId: string,
     dto: RoadmapFromMatchDto,
   ): Promise<ComposedRoadmap> {
-    const report = await this.getGapReport(userId, matchId);
+    const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.ROADMAP_GENERATE);
+    const report = await this.buildGapReportFromParsed(userId, match, parsed);
     const plan = buildUnifiedPlan({
       matchId,
       sessionId: null,
@@ -320,7 +311,7 @@ export class CvMatchesService {
       dto.language_pref ?? preferences?.languagePref ?? 'both';
 
     if (plan.learn_items.length === 0) {
-      return {
+      const response = {
         budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
         steps: [],
         not_feasible_items: [],
@@ -328,18 +319,28 @@ export class CvMatchesService {
           'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
         no_learning_gaps: true,
       };
+      await this.entitlements.recordUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
+        sourceType: 'cv_match',
+        sourceId: matchId,
+      });
+      return response;
     }
 
     if (!this.roadmapComposer) {
       throw new Error('Roadmap composer dependency is not configured');
     }
 
-    return this.roadmapComposer.compose({
+    const response = await this.roadmapComposer.compose({
       learnItems: plan.learn_items,
       gapItems: report.gap_items,
       budget,
       languagePref,
     });
+    await this.entitlements.recordUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
+      sourceType: 'cv_match',
+      sourceId: matchId,
+    });
+    return response;
   }
 
   /**
@@ -412,6 +413,34 @@ export class CvMatchesService {
   ): Promise<InterviewFocusArea[]> {
     const report = await this.getGapReport(userId, matchId, lang);
     return buildInterviewPlanFromGapItems(report.gap_items, lang);
+  }
+
+  private async loadOwnedMatchParsedResponse(
+    userId: string,
+    matchId: string,
+  ): Promise<{ match: CvMatchEntity; parsed: CvJdMatchParsedResponse }> {
+    const match = await this.matches.findOne({ where: { id: matchId } });
+    if (!match) throw new NotFoundException('CV match not found');
+    await this.findOwnedCv(userId, match.cvId);
+    const parsed = await this.resolveParsedResponse(match);
+    if (!parsed) throw new NotFoundException('CV match not found');
+    return { match, parsed };
+  }
+
+  private async buildGapReportFromParsed(
+    userId: string,
+    match: CvMatchEntity,
+    parsed: CvJdMatchParsedResponse,
+    lang: 'vi' | 'en' = 'vi',
+  ): Promise<SkillBridgeGapReport> {
+    if (!this.gapReport || !this.platformCvs) {
+      throw new Error('Gap report dependencies are not configured');
+    }
+    return this.gapReport.build({
+      match: parsed,
+      review: await this.platformCvs.getLatestReview(userId, match.cvId),
+      lang,
+    });
   }
 
   private async findOwnedCv(userId: string, cvId: string): Promise<CvEntity> {
