@@ -5,10 +5,7 @@ import {
   BillingFeatureKey,
   BillingFeaturePeriod,
 } from '../../../common/constants/billing.constants';
-import {
-  AdminBillingPlanFeatureInputDto,
-  UpdateAdminPlanFeatureDto,
-} from './admin-billing.dto';
+import { AdminBillingPlanFeatureInputDto, UpdateAdminPlanFeatureDto } from './admin-billing.dto';
 
 describe('AdminBillingPlanFeatureInputDto', () => {
   it('accepts daily feature periods', async () => {

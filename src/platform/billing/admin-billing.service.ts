@@ -119,11 +119,7 @@ export class AdminBillingService {
     return (await this.mapPlansWithFeatures([plan]))[0];
   }
 
-  async updatePlanFeature(
-    code: string,
-    featureKeyInput: string,
-    dto: UpdateAdminPlanFeatureDto,
-  ) {
+  async updatePlanFeature(code: string, featureKeyInput: string, dto: UpdateAdminPlanFeatureDto) {
     const normalizedCode = normalizePlanCode(code);
     const featureKey = normalizeFeatureKey(featureKeyInput);
     const plan = await this.requirePlan(normalizedCode);

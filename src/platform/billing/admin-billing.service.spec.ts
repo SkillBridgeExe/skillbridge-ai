@@ -51,21 +51,21 @@ describe('AdminBillingService', () => {
     const dataSource = {
       transaction: jest.fn((callback) => callback(manager)),
     } as unknown as DataSource & { transaction: jest.Mock };
-    const service = new (AdminBillingService as any)(
+    const service = new AdminBillingService(
       plans as unknown as Repository<BillingPlanEntity>,
       features as unknown as Repository<PlanFeatureEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
       subscriptions as unknown as Repository<UserSubscriptionEntity>,
       mentorBookings as unknown as Repository<MentorBookingEntity>,
       dataSource,
-    ) as AdminBillingService;
+    );
     return { service, plans, features, orders, subscriptions, mentorBookings, dataSource };
   }
 
   it('lists feature catalog metadata for FE quota forms', () => {
     const { service } = setup();
 
-    const result = (service as any).listFeatureCatalog();
+    const result = service.listFeatureCatalog();
 
     expect(result).toEqual(
       expect.arrayContaining([
@@ -218,7 +218,7 @@ describe('AdminBillingService', () => {
       },
     ]);
 
-    const result = await (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+    const result = await service.updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
       limitValue: 20,
       period: BillingFeaturePeriod.MONTHLY,
     });
@@ -256,7 +256,7 @@ describe('AdminBillingService', () => {
     });
 
     await expect(
-      (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+      service.updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
         limitValue: 20,
         period: BillingFeaturePeriod.DAILY,
       }),
@@ -285,7 +285,7 @@ describe('AdminBillingService', () => {
       },
     ]);
 
-    await (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+    await service.updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
       limitValue: 20,
     });
 
@@ -311,7 +311,7 @@ describe('AdminBillingService', () => {
       },
     ]);
 
-    await (service as any).updatePlanFeature('PRO', BillingFeatureKey.ROADMAP_GENERATE, {
+    await service.updatePlanFeature('PRO', BillingFeatureKey.ROADMAP_GENERATE, {
       limitValue: 10,
     });
 
