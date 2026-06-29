@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
-import { DEFAULT_BILLING_FEATURE_PERIOD } from '../../common/constants/billing.constants';
+import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
+import {
+  BILLING_FEATURE_CATALOG,
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+  DEFAULT_BILLING_FEATURE_PERIOD,
+} from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
@@ -16,7 +21,14 @@ import {
   ReplaceAdminPlanFeaturesDto,
   UpdateAdminBillingPlanDto,
   UpdateAdminMentorBookingRefundDto,
+  UpdateAdminPlanFeatureDto,
 } from './dto/admin-billing.dto';
+
+type NormalizedPlanFeatureInput = {
+  featureKey: BillingFeatureKey;
+  limitValue: number;
+  period: BillingFeaturePeriod;
+};
 
 @Injectable()
 export class AdminBillingService {
@@ -28,6 +40,7 @@ export class AdminBillingService {
     private readonly subscriptions: Repository<UserSubscriptionEntity>,
     @InjectRepository(MentorBookingEntity)
     private readonly mentorBookings: Repository<MentorBookingEntity>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async listPlans(query: AdminListPlansQueryDto = {}) {
@@ -59,9 +72,19 @@ export class AdminBillingService {
     );
 
     if (dto.features) {
-      await this.savePlanFeatures(code, { features: dto.features });
+      await this.savePlanFeatures(code, normalizePlanFeatureInputs(dto.features));
     }
     return (await this.mapPlansWithFeatures([plan]))[0];
+  }
+
+  listFeatureCatalog() {
+    return BILLING_FEATURE_CATALOG.map((feature) => ({
+      featureKey: feature.featureKey,
+      label: feature.label,
+      description: feature.description,
+      allowedPeriods: [...feature.allowedPeriods],
+      recommendedLimits: { ...feature.recommendedLimits },
+    }));
   }
 
   async updatePlan(code: string, dto: UpdateAdminBillingPlanDto) {
@@ -83,8 +106,45 @@ export class AdminBillingService {
   async replacePlanFeatures(code: string, dto: ReplaceAdminPlanFeaturesDto) {
     const normalizedCode = normalizePlanCode(code);
     await this.requirePlan(normalizedCode);
-    await this.savePlanFeatures(normalizedCode, dto);
+    assertNoDuplicateFeatureKeys(dto.features);
+    const normalizedFeatures = normalizePlanFeatureInputs(dto.features);
+    await this.dataSource.transaction(async (manager) => {
+      await this.savePlanFeatures(
+        normalizedCode,
+        normalizedFeatures,
+        manager.getRepository(PlanFeatureEntity),
+      );
+    });
     const plan = await this.requirePlan(normalizedCode);
+    return (await this.mapPlansWithFeatures([plan]))[0];
+  }
+
+  async updatePlanFeature(
+    code: string,
+    featureKeyInput: string,
+    dto: UpdateAdminPlanFeatureDto,
+  ) {
+    const normalizedCode = normalizePlanCode(code);
+    const featureKey = normalizeFeatureKey(featureKeyInput);
+    const plan = await this.requirePlan(normalizedCode);
+    const existing = await this.features.findOne({
+      where: { planCode: normalizedCode, featureKey },
+    });
+    const period = resolveFeaturePeriod(featureKey, dto.period, existing?.period);
+    const row = existing
+      ? {
+          ...existing,
+          limitValue: dto.limitValue,
+          period,
+        }
+      : this.features.create({
+          planCode: normalizedCode,
+          featureKey,
+          limitValue: dto.limitValue,
+          period,
+        });
+
+    await this.features.save(row);
     return (await this.mapPlansWithFeatures([plan]))[0];
   }
 
@@ -221,19 +281,22 @@ export class AdminBillingService {
     };
   }
 
-  private async savePlanFeatures(code: string, dto: ReplaceAdminPlanFeaturesDto): Promise<void> {
-    assertNoDuplicateFeatureKeys(dto.features);
-    await this.features.delete({ planCode: code });
-    const rows = dto.features.map((feature) =>
-      this.features.create({
+  private async savePlanFeatures(
+    code: string,
+    planFeatures: NormalizedPlanFeatureInput[],
+    features: Repository<PlanFeatureEntity> = this.features,
+  ): Promise<void> {
+    await features.delete({ planCode: code });
+    const rows = planFeatures.map((feature) =>
+      features.create({
         planCode: code,
         featureKey: feature.featureKey,
         limitValue: feature.limitValue,
-        period: feature.period ?? DEFAULT_BILLING_FEATURE_PERIOD,
+        period: feature.period,
       }),
     );
     if (rows.length > 0) {
-      await this.features.save(rows);
+      await features.save(rows);
     }
   }
 
@@ -297,4 +360,63 @@ function assertNoDuplicateFeatureKeys(features: Array<{ featureKey: string }>): 
     }
     seen.add(feature.featureKey);
   }
+}
+
+function normalizeFeatureKey(featureKey: string): BillingFeatureKey {
+  const normalized = featureKey.trim() as BillingFeatureKey;
+  getCatalogFeature(normalized);
+  return normalized;
+}
+
+function normalizePlanFeatureInputs(
+  features: Array<{ featureKey: string; limitValue: number; period?: BillingFeaturePeriod }>,
+): NormalizedPlanFeatureInput[] {
+  return features.map((feature) => {
+    const featureKey = normalizeFeatureKey(feature.featureKey);
+    return {
+      featureKey,
+      limitValue: feature.limitValue,
+      period: resolveFeaturePeriod(featureKey, feature.period),
+    };
+  });
+}
+
+function resolveFeaturePeriod(
+  featureKey: BillingFeatureKey,
+  requestedPeriod?: BillingFeaturePeriod,
+  existingPeriod?: BillingFeaturePeriod,
+): BillingFeaturePeriod {
+  if (requestedPeriod !== undefined) {
+    assertFeaturePeriodAllowed(featureKey, requestedPeriod);
+    return requestedPeriod;
+  }
+  if (existingPeriod && isFeaturePeriodAllowed(featureKey, existingPeriod)) {
+    return existingPeriod;
+  }
+  assertFeaturePeriodAllowed(featureKey, DEFAULT_BILLING_FEATURE_PERIOD);
+  return DEFAULT_BILLING_FEATURE_PERIOD;
+}
+
+function assertFeaturePeriodAllowed(
+  featureKey: BillingFeatureKey,
+  period: BillingFeaturePeriod,
+): void {
+  if (!isFeaturePeriodAllowed(featureKey, period)) {
+    throw new BadRequestException(`Unsupported period ${period} for featureKey: ${featureKey}`);
+  }
+}
+
+function isFeaturePeriodAllowed(
+  featureKey: BillingFeatureKey,
+  period: BillingFeaturePeriod,
+): boolean {
+  return getCatalogFeature(featureKey).allowedPeriods.includes(period);
+}
+
+function getCatalogFeature(featureKey: BillingFeatureKey) {
+  const feature = BILLING_FEATURE_CATALOG.find((item) => item.featureKey === featureKey);
+  if (!feature) {
+    throw new BadRequestException(`Unsupported featureKey: ${featureKey}`);
+  }
+  return feature;
 }

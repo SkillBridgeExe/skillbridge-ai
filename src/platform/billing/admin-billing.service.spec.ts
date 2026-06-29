@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { BillingFeatureKey, BillingFeaturePeriod } from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
@@ -38,15 +38,58 @@ describe('AdminBillingService', () => {
     const orders = createRepositoryMock<PaymentOrderEntity>();
     const subscriptions = createRepositoryMock<UserSubscriptionEntity>();
     const mentorBookings = createRepositoryMock<MentorBookingEntity>();
-    const service = new AdminBillingService(
+    const manager = {
+      getRepository: jest.fn((entity) => {
+        if (entity === BillingPlanEntity) return plans;
+        if (entity === PlanFeatureEntity) return features;
+        if (entity === PaymentOrderEntity) return orders;
+        if (entity === UserSubscriptionEntity) return subscriptions;
+        if (entity === MentorBookingEntity) return mentorBookings;
+        throw new Error(`Unexpected repository: ${String(entity)}`);
+      }),
+    };
+    const dataSource = {
+      transaction: jest.fn((callback) => callback(manager)),
+    } as unknown as DataSource & { transaction: jest.Mock };
+    const service = new (AdminBillingService as any)(
       plans as unknown as Repository<BillingPlanEntity>,
       features as unknown as Repository<PlanFeatureEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
       subscriptions as unknown as Repository<UserSubscriptionEntity>,
       mentorBookings as unknown as Repository<MentorBookingEntity>,
-    );
-    return { service, plans, features, orders, subscriptions, mentorBookings };
+      dataSource,
+    ) as AdminBillingService;
+    return { service, plans, features, orders, subscriptions, mentorBookings, dataSource };
   }
+
+  it('lists feature catalog metadata for FE quota forms', () => {
+    const { service } = setup();
+
+    const result = (service as any).listFeatureCatalog();
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          featureKey: BillingFeatureKey.CV_REVIEW,
+          label: 'CV diagnosis',
+          allowedPeriods: [BillingFeaturePeriod.MONTHLY],
+          recommendedLimits: expect.objectContaining({
+            FREE: 3,
+            PRO: 30,
+            PREMIUM: 100,
+          }),
+        }),
+        expect.objectContaining({
+          featureKey: BillingFeatureKey.ROADMAP_GENERATE,
+          recommendedLimits: expect.objectContaining({
+            FREE: 1,
+            PRO: 10,
+            PREMIUM: 30,
+          }),
+        }),
+      ]),
+    );
+  });
 
   it('creates a plan and its feature limits', async () => {
     const { service, plans, features } = setup();
@@ -97,6 +140,189 @@ describe('AdminBillingService', () => {
         ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('replaces plan features inside a transaction', async () => {
+    const { service, plans, features, dataSource } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.find.mockResolvedValue([
+      {
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 30,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+    ]);
+
+    await service.replacePlanFeatures('PRO', {
+      features: [{ featureKey: BillingFeatureKey.CV_REVIEW, limitValue: 30 }],
+    });
+
+    expect(dataSource.transaction).toHaveBeenCalled();
+    expect(features.delete).toHaveBeenCalledWith({ planCode: 'PRO' });
+    expect(features.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 30,
+      }),
+    ]);
+  });
+
+  it('rejects unsupported catalog periods before replacing plan features', async () => {
+    const { service, plans, features, dataSource } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.find.mockResolvedValue([]);
+
+    await expect(
+      service.replacePlanFeatures('PRO', {
+        features: [
+          {
+            featureKey: BillingFeatureKey.CV_REVIEW,
+            limitValue: 5,
+            period: BillingFeaturePeriod.DAILY,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    expect(features.delete).not.toHaveBeenCalled();
+    expect(features.save).not.toHaveBeenCalled();
+  });
+
+  it('updates one existing feature limit without replacing other plan features', async () => {
+    const { service, plans, features } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.findOne.mockResolvedValue({
+      id: 'feature-1',
+      planCode: 'PRO',
+      featureKey: BillingFeatureKey.CV_REVIEW,
+      limitValue: 30,
+      period: BillingFeaturePeriod.MONTHLY,
+    });
+    features.find.mockResolvedValue([
+      {
+        id: 'feature-1',
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 20,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+      {
+        id: 'feature-2',
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_JD_MATCH,
+        limitValue: 30,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+    ]);
+
+    const result = await (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+      limitValue: 20,
+      period: BillingFeaturePeriod.MONTHLY,
+    });
+
+    expect(features.delete).not.toHaveBeenCalled();
+    expect(features.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'feature-1',
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 20,
+        period: BillingFeaturePeriod.MONTHLY,
+      }),
+    );
+    expect(result.features).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          featureKey: BillingFeatureKey.CV_JD_MATCH,
+          limitValue: 30,
+        }),
+      ]),
+    );
+  });
+
+  it('rejects unsupported catalog periods when updating one feature', async () => {
+    const { service, plans, features } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.find.mockResolvedValue([]);
+    features.findOne.mockResolvedValue({
+      id: 'feature-1',
+      planCode: 'PRO',
+      featureKey: BillingFeatureKey.CV_REVIEW,
+      limitValue: 30,
+      period: BillingFeaturePeriod.MONTHLY,
+    });
+
+    await expect(
+      (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+        limitValue: 20,
+        period: BillingFeaturePeriod.DAILY,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(features.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing allowed period when updating one feature without period', async () => {
+    const { service, plans, features } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.findOne.mockResolvedValue({
+      id: 'feature-1',
+      planCode: 'PRO',
+      featureKey: BillingFeatureKey.CV_REVIEW,
+      limitValue: 30,
+      period: BillingFeaturePeriod.MONTHLY,
+    });
+    features.find.mockResolvedValue([
+      {
+        id: 'feature-1',
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 20,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+    ]);
+
+    await (service as any).updatePlanFeature('PRO', BillingFeatureKey.CV_REVIEW, {
+      limitValue: 20,
+    });
+
+    expect(features.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 20,
+        period: BillingFeaturePeriod.MONTHLY,
+      }),
+    );
+  });
+
+  it('creates one missing feature limit for an existing plan', async () => {
+    const { service, plans, features } = setup();
+    plans.findOne.mockResolvedValue({ code: 'PRO' });
+    features.findOne.mockResolvedValue(null);
+    features.find.mockResolvedValue([
+      {
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.ROADMAP_GENERATE,
+        limitValue: 10,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
+    ]);
+
+    await (service as any).updatePlanFeature('PRO', BillingFeatureKey.ROADMAP_GENERATE, {
+      limitValue: 10,
+    });
+
+    expect(features.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        planCode: 'PRO',
+        featureKey: BillingFeatureKey.ROADMAP_GENERATE,
+        limitValue: 10,
+        period: BillingFeaturePeriod.MONTHLY,
+      }),
+    );
   });
 
   it('updates plan price without changing its code', async () => {

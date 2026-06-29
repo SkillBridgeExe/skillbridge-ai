@@ -98,6 +98,16 @@ describe('BillingService reconcileOrder', () => {
         currency: 'VND',
         metadata: null,
       },
+      {
+        code: 'MENTOR_60',
+        name: 'Mentor 60 minutes',
+        description: 'One mentor session package',
+        category: 'MENTOR_PACKAGE',
+        interval: 'ONE_TIME',
+        priceVnd: 500000,
+        currency: 'VND',
+        metadata: null,
+      },
     ]);
     features.find.mockResolvedValue([
       {

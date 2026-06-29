@@ -35,7 +35,10 @@ export class BillingService {
 
   async listPlans(): Promise<BillingPlanDto[]> {
     const [plans, features] = await Promise.all([
-      this.plans.find({ where: { isActive: true }, order: { sortOrder: 'ASC', priceVnd: 'ASC' } }),
+      this.plans.find({
+        where: { isActive: true, category: 'SUBSCRIPTION' },
+        order: { sortOrder: 'ASC', priceVnd: 'ASC' },
+      }),
       this.features.find(),
     ]);
     const featuresByPlan = new Map<string, PlanFeatureEntity[]>();
@@ -45,7 +48,7 @@ export class BillingService {
       featuresByPlan.set(feature.planCode, current);
     }
     return plans
-      .filter((plan) => !isInternalPlan(plan))
+      .filter((plan) => plan.category === 'SUBSCRIPTION' && !isInternalPlan(plan))
       .map((plan) => ({
         code: plan.code,
         name: plan.name,
