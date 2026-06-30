@@ -14,7 +14,7 @@
     "frontend_developer": {
       "display_name_vi": "Lập trình viên Frontend",
       "display_name_en": "Frontend Developer",
-      "description": "Builds user-facing web applications using HTML, CSS, JavaScript, and modern frameworks like React.",
+      "description": "Builds user-facing web applications using HTML, CSS, JavaScript/TypeScript and React. Weights vòng-batch market-validated on 13 full-read VN JDs (confidence HIGH): a11y + frontend_testing are rare in VN (~15%) → demoted; git is near-universal (77%) → up-weighted.",
       "skills": [
         {
           "skill_canonical_name": "html",
@@ -38,7 +38,7 @@
           "skill_canonical_name": "typescript",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.12
         },
         {
           "skill_canonical_name": "react",
@@ -56,44 +56,44 @@
           "skill_canonical_name": "git",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.07
+          "weight": 0.09
         },
         {
           "skill_canonical_name": "web_performance",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "accessibility_a11y",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.02
+        },
+        {
+          "skill_canonical_name": "frontend_testing",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "nextjs",
           "required_level": 2,
           "importance": "PREFERRED",
           "weight": 0.05
         },
         {
-          "skill_canonical_name": "frontend_testing",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.07
-        },
-        {
-          "skill_canonical_name": "nextjs",
-          "required_level": 2,
-          "importance": "NICE_TO_HAVE",
-          "weight": 0.04
-        },
-        {
           "skill_canonical_name": "communication",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.02
+          "weight": 0.03
         }
       ]
     },
     "backend_developer": {
       "display_name_vi": "Lập trình viên Backend",
       "display_name_en": "Backend Developer",
-      "description": "Builds server-side APIs, business logic, and data persistence layers. Language flexible (Node.js / .NET / Java).",
+      "description": "Builds server-side APIs, business logic, and data persistence layers. Language flexible (Java/Spring · Node.js · .NET · PHP/Laravel · Python · Go). Weights vòng-batch market-validated on 26 full-read VN JDs (confidence HIGH): language is the most universal+discriminating signal (100%) → top weight; database_design (27%)/api_testing (19%)/linux (12%, assumed-not-listed) → demoted.",
       "skills": [
         {
           "skill_canonical_name": "node_js",
@@ -106,32 +106,38 @@
             "python"
           ],
           "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.13
+          "importance": "REQUIRED",
+          "weight": 0.2
         },
         {
           "skill_canonical_name": "sql",
           "required_level": 4,
           "importance": "REQUIRED",
-          "weight": 0.15
+          "weight": 0.16
         },
         {
           "skill_canonical_name": "rest_api",
           "required_level": 4,
           "importance": "REQUIRED",
-          "weight": 0.13
+          "weight": 0.15
         },
         {
-          "skill_canonical_name": "database_design",
+          "skill_canonical_name": "git",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.09
         },
         {
           "skill_canonical_name": "authentication_authorization",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "nosql",
@@ -143,31 +149,25 @@
           "skill_canonical_name": "caching",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.05
         },
         {
-          "skill_canonical_name": "docker",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.06
-        },
-        {
-          "skill_canonical_name": "git",
+          "skill_canonical_name": "database_design",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.08
+          "importance": "PREFERRED",
+          "weight": 0.05
         },
         {
           "skill_canonical_name": "api_testing",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "linux",
           "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.05
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "communication",
@@ -180,19 +180,19 @@
     "fullstack_developer": {
       "display_name_vi": "Lập trình viên Fullstack",
       "display_name_en": "Fullstack Developer",
-      "description": "Builds end-to-end web applications, comfortable on both frontend and backend stacks.",
+      "description": "Builds end-to-end web applications, comfortable on both frontend and backend stacks. Weights vòng-batch market-validated on 14 full-read VN JDs (confidence HIGH): the fullstack core is rest_api + sql + a BE language + a FE framework (all ~0.13); html/css are assumed-not-distinguishing → low; system_design is a real mid-level signal → up-weighted.",
       "skills": [
         {
           "skill_canonical_name": "html",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.05
+          "importance": "PREFERRED",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "css",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.05
+          "importance": "PREFERRED",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "javascript",
@@ -204,7 +204,7 @@
           "skill_canonical_name": "typescript",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.07
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "react",
@@ -215,7 +215,7 @@
           ],
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "node_js",
@@ -228,14 +228,14 @@
             "python"
           ],
           "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.1
+          "importance": "REQUIRED",
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "sql",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.12
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "rest_api",
@@ -246,19 +246,19 @@
         {
           "skill_canonical_name": "database_design",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.08
+          "importance": "PREFERRED",
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "authentication_authorization",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.07
+          "importance": "PREFERRED",
+          "weight": 0.05
         },
         {
-          "skill_canonical_name": "git",
-          "required_level": 3,
-          "importance": "REQUIRED",
+          "skill_canonical_name": "system_design",
+          "required_level": 2,
+          "importance": "PREFERRED",
           "weight": 0.05
         },
         {
@@ -268,10 +268,10 @@
           "weight": 0.04
         },
         {
-          "skill_canonical_name": "system_design",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.02
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "communication",
