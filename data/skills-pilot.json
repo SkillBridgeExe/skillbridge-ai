@@ -255,8 +255,6 @@
       "aliases": [
         "tsql",
         "Ngôn ngữ SQL",
-        "oracle",
-        "oracle db",
         "pl/sql",
         "cơ sở dữ liệu",
         "co so du lieu",
@@ -2069,6 +2067,183 @@
         }
       ],
       "note": "Validating designs via usability testing / user testing. Med prevalence in VN UI/UX JDs (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "oracle",
+      "display_name": "Oracle Database",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "oracle",
+        "oracle db",
+        "oracle database",
+        "oracle rac",
+        "rac",
+        "rman",
+        "data guard",
+        "goldengate",
+        "ocp",
+        "oca"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Oracle DBMS — the dominant engine in VN DBA JDs (vòng-3: banking/telecom/securities standardize on Oracle; RMAN/RAC/Data Guard/GoldenGate, OCP cert everywhere). Split out of the generic sql canonical (which previously aliased 'oracle'). CUSTOM."
+    },
+    {
+      "canonical_name": "backup_recovery",
+      "display_name": "Backup & Recovery",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "backup and recovery",
+        "backup & recovery",
+        "backup recovery",
+        "disaster recovery",
+        "dr",
+        "rpo rto",
+        "sao lưu phục hồi",
+        "sao luu phuc hoi",
+        "sao lưu và khôi phục"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        },
+        {
+          "role": "network_sysadmin",
+          "level": "core"
+        }
+      ],
+      "note": "Backup/restore and disaster recovery (RMAN, RPO/RTO, DR testing, SAN backup). HIGH prevalence in VN DBA JDs (vòng-3 ~80%) and med-high in sysadmin (backup+DR). CUSTOM."
+    },
+    {
+      "canonical_name": "replication",
+      "display_name": "Database Replication",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "data replication",
+        "db replication",
+        "mirroring",
+        "database mirroring",
+        "log shipping",
+        "nhân bản dữ liệu",
+        "nhan ban du lieu"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database replication/mirroring (Data Guard, GoldenGate, log shipping). HIGH prevalence in VN DBA JDs (vòng-3). CUSTOM."
+    },
+    {
+      "canonical_name": "high_availability",
+      "display_name": "High Availability / Clustering",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "ha",
+        "clustering",
+        "database cluster",
+        "alwayson",
+        "always on",
+        "failover cluster",
+        "sql cluster",
+        "tính sẵn sàng cao",
+        "tinh san sang cao"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "High-availability / clustering for databases (RAC, Data Guard, AlwaysOn, failover cluster). HIGH prevalence in VN DBA JDs (vòng-3). CUSTOM. Distinct from generic infra HA."
+    },
+    {
+      "canonical_name": "query_tuning",
+      "display_name": "Query / Performance Tuning",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "performance tuning",
+        "query optimization",
+        "sql tuning",
+        "execution plan",
+        "indexing",
+        "partitioning",
+        "tối ưu truy vấn",
+        "toi uu truy van",
+        "tối ưu hiệu năng"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database query/performance tuning (execution plans, indexing, partitioning). HIGH prevalence in VN DBA JDs (vòng-3); distinct from database_design (schema modeling). CUSTOM."
+    },
+    {
+      "canonical_name": "database_security",
+      "display_name": "Database Security",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "db security",
+        "data encryption",
+        "tde",
+        "transparent data encryption",
+        "database access control",
+        "bảo mật cơ sở dữ liệu",
+        "bao mat co so du lieu"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database-level security (encryption TDE/TLS, access control, PCI DSS / SBV compliance). Med-high prevalence in VN DBA JDs (vòng-3). Distinct from the generic security canonical. CUSTOM."
+    },
+    {
+      "canonical_name": "virtualization",
+      "display_name": "Virtualization",
+      "category": "infrastructure",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "vmware",
+        "vmware vsphere",
+        "vsphere",
+        "esxi",
+        "hyper-v",
+        "hyper v",
+        "powercli",
+        "proxmox",
+        "ảo hóa",
+        "ao hoa"
+      ],
+      "role_relevance": [
+        {
+          "role": "network_sysadmin",
+          "level": "core"
+        }
+      ],
+      "note": "Server virtualization (VMware/vSphere/ESXi, Hyper-V, Proxmox). HIGHEST-prevalence sysadmin skill after networking/OS in VN JDs (vòng-3 ~80%, 4/4 JD) — was missing from the rubric. Distinct from containerization (Docker/K8s = DevOps). CUSTOM."
     },
     {
       "canonical_name": "spark",
