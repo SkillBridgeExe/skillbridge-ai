@@ -70,15 +70,16 @@ function build(opts: { owned?: boolean; result?: CvIntakeResult } = {}) {
     any,
     any,
     any,
+    any, // 2-11
+    any, // 12 roleInference
     any,
-    any,
-    any, // 2-13
-    entitlements as never, // 14
-    undefined, // 15 interviewPlan
-    undefined, // 16 githubEvidence
-    undefined, // 17 tailorVerifier
-    undefined, // 18 cvAssistant
-    cvIntake as never, // 19 cvIntake
+    any, // 13-14
+    entitlements as never, // 15
+    undefined, // 16 interviewPlan
+    undefined, // 17 githubEvidence
+    undefined, // 18 tailorVerifier
+    undefined, // 19 cvAssistant
+    cvIntake as never, // 20 cvIntake
   );
   return { service, cvsRepo, entitlements, cvIntake };
 }
