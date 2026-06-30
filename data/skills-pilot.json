@@ -379,7 +379,9 @@
         "continuous delivery",
         "ci/cd pipelines",
         "ci/cd pipeline",
-        "cicd"
+        "cicd",
+        "argocd",
+        "gitops"
       ]
     },
     {
@@ -522,7 +524,9 @@
         "seaborn",
         "trực quan hóa dữ liệu",
         "trực quan hóa",
-        "truc quan hoa"
+        "truc quan hoa",
+        "looker",
+        "looker studio"
       ]
     },
     {
@@ -898,7 +902,9 @@
         "tự động hóa kiểm thử",
         "tu dong hoa kiem thu",
         "writing automated test scripts",
-        "selenium webdriver"
+        "selenium webdriver",
+        "katalon",
+        "katalon studio"
       ]
     },
     {
@@ -2971,7 +2977,9 @@
       "source_external_id": "3ec2e4d6-7000-4905-bf1a-c5b1679416de",
       "aliases": [
         "data warehouse",
-        "data warehousing"
+        "data warehousing",
+        "bigquery",
+        "google bigquery"
       ]
     },
     {
@@ -2994,7 +3002,19 @@
       "aliases": [
         "embedded systems",
         "embedded software",
-        "embedded programming"
+        "embedded programming",
+        "rtos",
+        "freertos",
+        "microcontroller",
+        "mcu",
+        "stm32",
+        "esp32",
+        "arm cortex",
+        "firmware",
+        "vi điều khiển",
+        "vi dieu khien",
+        "lập trình nhúng",
+        "lap trinh nhung"
       ]
     },
     {
