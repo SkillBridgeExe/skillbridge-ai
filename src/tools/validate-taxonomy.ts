@@ -29,17 +29,6 @@ interface SkillEntry {
 
 const ALLOWED_SOURCES = new Set(['ESCO', 'ONET', 'CUSTOM']);
 const BANNED_SOURCES = new Set(['SFIA', 'LIGHTCAST', 'LINKEDIN']);
-const VALID_ROLES = new Set([
-  'frontend_developer',
-  'backend_developer',
-  'fullstack_developer',
-  'mobile_developer',
-  'data_analyst',
-  'devops_engineer',
-  'qa_tester',
-  'ai_ml_engineer',
-]);
-
 /** Exact replica of SkillTaxonomyService.normalizeKey. */
 const nk = (s: string): string =>
   s
@@ -56,6 +45,9 @@ function main(): void {
   const { role_rubrics } = JSON.parse(
     fs.readFileSync(path.join(root, 'data', 'role-rubrics-pilot.json'), 'utf-8'),
   ) as { role_rubrics: Record<string, { skills: Array<{ skill_canonical_name: string }> }> };
+
+  // Valid role codes = the rubric keys themselves (single source of truth — auto-tracks new roles).
+  const VALID_ROLES = new Set(Object.keys(role_rubrics));
 
   const errors: string[] = [];
   const warnings: string[] = [];

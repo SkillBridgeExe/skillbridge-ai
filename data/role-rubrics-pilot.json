@@ -14,7 +14,7 @@
     "frontend_developer": {
       "display_name_vi": "Lập trình viên Frontend",
       "display_name_en": "Frontend Developer",
-      "description": "Builds user-facing web applications using HTML, CSS, JavaScript, and modern frameworks like React.",
+      "description": "Builds user-facing web applications using HTML, CSS, JavaScript/TypeScript and React. Weights vòng-batch market-validated on 13 full-read VN JDs (confidence HIGH): a11y + frontend_testing are rare in VN (~15%) → demoted; git is near-universal (77%) → up-weighted.",
       "skills": [
         {
           "skill_canonical_name": "html",
@@ -38,7 +38,7 @@
           "skill_canonical_name": "typescript",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.12
         },
         {
           "skill_canonical_name": "react",
@@ -56,44 +56,44 @@
           "skill_canonical_name": "git",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.07
+          "weight": 0.09
         },
         {
           "skill_canonical_name": "web_performance",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "accessibility_a11y",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.02
+        },
+        {
+          "skill_canonical_name": "frontend_testing",
+          "required_level": 2,
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.03
+        },
+        {
+          "skill_canonical_name": "nextjs",
           "required_level": 2,
           "importance": "PREFERRED",
           "weight": 0.05
         },
         {
-          "skill_canonical_name": "frontend_testing",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.07
-        },
-        {
-          "skill_canonical_name": "nextjs",
-          "required_level": 2,
-          "importance": "NICE_TO_HAVE",
-          "weight": 0.04
-        },
-        {
           "skill_canonical_name": "communication",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.02
+          "weight": 0.03
         }
       ]
     },
     "backend_developer": {
       "display_name_vi": "Lập trình viên Backend",
       "display_name_en": "Backend Developer",
-      "description": "Builds server-side APIs, business logic, and data persistence layers. Language flexible (Node.js / .NET / Java).",
+      "description": "Builds server-side APIs, business logic, and data persistence layers. Language flexible (Java/Spring · Node.js · .NET · PHP/Laravel · Python · Go). Weights vòng-batch market-validated on 26 full-read VN JDs (confidence HIGH): language is the most universal+discriminating signal (100%) → top weight; database_design (27%)/api_testing (19%)/linux (12%, assumed-not-listed) → demoted.",
       "skills": [
         {
           "skill_canonical_name": "node_js",
@@ -106,32 +106,38 @@
             "python"
           ],
           "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.13
+          "importance": "REQUIRED",
+          "weight": 0.2
         },
         {
           "skill_canonical_name": "sql",
           "required_level": 4,
           "importance": "REQUIRED",
-          "weight": 0.15
+          "weight": 0.16
         },
         {
           "skill_canonical_name": "rest_api",
           "required_level": 4,
           "importance": "REQUIRED",
-          "weight": 0.13
+          "weight": 0.15
         },
         {
-          "skill_canonical_name": "database_design",
+          "skill_canonical_name": "git",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.09
         },
         {
           "skill_canonical_name": "authentication_authorization",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.08
+        },
+        {
+          "skill_canonical_name": "docker",
+          "required_level": 2,
+          "importance": "PREFERRED",
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "nosql",
@@ -143,31 +149,25 @@
           "skill_canonical_name": "caching",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.05
         },
         {
-          "skill_canonical_name": "docker",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.06
-        },
-        {
-          "skill_canonical_name": "git",
+          "skill_canonical_name": "database_design",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.08
+          "importance": "PREFERRED",
+          "weight": 0.05
         },
         {
           "skill_canonical_name": "api_testing",
           "required_level": 2,
           "importance": "PREFERRED",
-          "weight": 0.06
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "linux",
           "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.05
+          "importance": "NICE_TO_HAVE",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "communication",
@@ -180,19 +180,19 @@
     "fullstack_developer": {
       "display_name_vi": "Lập trình viên Fullstack",
       "display_name_en": "Fullstack Developer",
-      "description": "Builds end-to-end web applications, comfortable on both frontend and backend stacks.",
+      "description": "Builds end-to-end web applications, comfortable on both frontend and backend stacks. Weights vòng-batch market-validated on 14 full-read VN JDs (confidence HIGH): the fullstack core is rest_api + sql + a BE language + a FE framework (all ~0.13); html/css are assumed-not-distinguishing → low; system_design is a real mid-level signal → up-weighted.",
       "skills": [
         {
           "skill_canonical_name": "html",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.05
+          "importance": "PREFERRED",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "css",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.05
+          "importance": "PREFERRED",
+          "weight": 0.03
         },
         {
           "skill_canonical_name": "javascript",
@@ -204,7 +204,7 @@
           "skill_canonical_name": "typescript",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.07
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "react",
@@ -215,7 +215,7 @@
           ],
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.1
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "node_js",
@@ -228,14 +228,14 @@
             "python"
           ],
           "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.1
+          "importance": "REQUIRED",
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "sql",
           "required_level": 3,
           "importance": "REQUIRED",
-          "weight": 0.12
+          "weight": 0.13
         },
         {
           "skill_canonical_name": "rest_api",
@@ -246,19 +246,19 @@
         {
           "skill_canonical_name": "database_design",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.08
+          "importance": "PREFERRED",
+          "weight": 0.06
         },
         {
           "skill_canonical_name": "authentication_authorization",
           "required_level": 3,
-          "importance": "REQUIRED",
-          "weight": 0.07
+          "importance": "PREFERRED",
+          "weight": 0.05
         },
         {
-          "skill_canonical_name": "git",
-          "required_level": 3,
-          "importance": "REQUIRED",
+          "skill_canonical_name": "system_design",
+          "required_level": 2,
+          "importance": "PREFERRED",
           "weight": 0.05
         },
         {
@@ -268,10 +268,10 @@
           "weight": 0.04
         },
         {
-          "skill_canonical_name": "system_design",
-          "required_level": 2,
-          "importance": "PREFERRED",
-          "weight": 0.02
+          "skill_canonical_name": "git",
+          "required_level": 3,
+          "importance": "REQUIRED",
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "communication",
@@ -308,7 +308,7 @@
           "skill_canonical_name": "pandas",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.1
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "data_visualization",
@@ -323,16 +323,16 @@
           "weight": 0.1
         },
         {
-          "skill_canonical_name": "tableau",
-          "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.07
-        },
-        {
           "skill_canonical_name": "power_bi",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.07
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "tableau",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "communication",
@@ -771,6 +771,169 @@
           "importance": "NICE_TO_HAVE",
           "weight": 0.02
         }
+      ]
+    },
+    "data_engineer": {
+      "display_name_vi": "Kỹ sư Dữ liệu",
+      "display_name_en": "Data Engineer",
+      "description": "Builds and operates data pipelines and warehouses — ETL, batch/stream processing (Spark, Kafka), and storage — so analysts and ML teams get clean, queryable data. Distinct from Data Analyst (insights/BI).",
+      "skills": [
+        { "skill_canonical_name": "sql", "required_level": 4, "importance": "REQUIRED", "weight": 0.15 },
+        { "skill_canonical_name": "python", "required_level": 4, "importance": "REQUIRED", "weight": 0.13 },
+        { "skill_canonical_name": "etl", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "data_warehouse", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "spark", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
+        { "skill_canonical_name": "kafka", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "hadoop", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "nosql", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "data_preprocessing", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "docker", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 }
+      ]
+    },
+    "security_engineer": {
+      "display_name_vi": "Kỹ sư An toàn thông tin",
+      "display_name_en": "Security Engineer",
+      "description": "Protects systems and networks — defensive security operations: SIEM monitoring, incident response, vulnerability assessment, endpoint (EDR) and compliance (ISO 27001) — on a networking/Linux foundation. Reflects VN market where defensive/SOC roles dominate offensive/pentest (vòng-2 ~80/20). Distinct from a dedicated Penetration Tester.",
+      "skills": [
+        { "skill_canonical_name": "security", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "siem", "required_level": 3, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "incident_response", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "networking", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "linux", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "vulnerability_assessment", "required_level": 3, "importance": "REQUIRED", "weight": 0.08 },
+        { "skill_canonical_name": "edr", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "penetration_testing", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "iso_27001", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "python", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.04 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.04 }
+      ]
+    },
+    "embedded_iot_engineer": {
+      "display_name_vi": "Kỹ sư Nhúng / IoT",
+      "display_name_en": "Embedded / IoT Engineer",
+      "description": "Programs microcontrollers and IoT devices close to the hardware — C/C++, RTOS/firmware on MCUs (STM32/ARM/ESP32), communication protocols (I2C/SPI/UART/CAN) and sensor/network integration — where memory and timing constraints matter. RTOS/microcontroller/firmware fold into embedded_systems (vòng-batch: highest-prevalence terms; robotics dropped — absent from VN embedded JDs which skew automotive/IoT/consumer).",
+      "skills": [
+        { "skill_canonical_name": "c_lang", "any_of": ["c_lang", "cpp"], "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "embedded_systems", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "internet_of_things", "required_level": 3, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "cpp", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
+        { "skill_canonical_name": "linux", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
+        { "skill_canonical_name": "python", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "networking", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.06 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 }
+      ]
+    },
+    "database_administrator": {
+      "display_name_vi": "Quản trị Cơ sở dữ liệu",
+      "display_name_en": "Database Administrator (DBA)",
+      "description": "Operates production databases — backup/recovery, replication, high availability, query tuning, security and monitoring — predominantly on Oracle/SQL Server in VN enterprise (banking/telecom). A production-ops role, distinct from Data Engineer (ETL/Spark/warehouse) and Backend Dev (ORM/app layer). Reflects vòng-3 VN market validation.",
+      "skills": [
+        { "skill_canonical_name": "sql", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "backup_recovery", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "oracle", "any_of": ["oracle", "sql_server", "mysql", "postgresql"], "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "query_tuning", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "high_availability", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "replication", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "database_design", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "linux", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "database_security", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "monitoring_logging", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "nosql", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 },
+        { "skill_canonical_name": "problem_solving", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+      ]
+    },
+    "ui_ux_designer": {
+      "display_name_vi": "Nhà thiết kế UI/UX",
+      "display_name_en": "UI/UX Designer",
+      "description": "Designs user interfaces and experiences — user research, wireframes, interactive prototypes and design systems in Figma — validated by usability testing. A design role, NOT a coding role: HTML/CSS are a 'nice-to-have advantage' in VN JDs (vòng-2), not core. Distinct from Frontend Developer (who implements) and Graphic Designer (visual/brand only).",
+      "skills": [
+        { "skill_canonical_name": "ui_ux_design", "required_level": 4, "importance": "REQUIRED", "weight": 0.2 },
+        { "skill_canonical_name": "figma", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "user_research", "required_level": 3, "importance": "REQUIRED", "weight": 0.13 },
+        { "skill_canonical_name": "wireframing", "required_level": 3, "importance": "REQUIRED", "weight": 0.11 },
+        { "skill_canonical_name": "prototyping", "required_level": 3, "importance": "REQUIRED", "weight": 0.11 },
+        { "skill_canonical_name": "design_system", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "responsive_design", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "usability_testing", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "communication", "required_level": 4, "importance": "REQUIRED", "weight": 0.04 },
+        { "skill_canonical_name": "accessibility_a11y", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 }
+      ]
+    },
+    "game_developer": {
+      "display_name_vi": "Lập trình viên Game",
+      "display_name_en": "Game Developer",
+      "description": "Builds games and interactive experiences — Unity/C# dominates the VN market (mobile/hyper-casual), with Unreal/C++ as the smaller AA/3D branch. Strong OOP, data structures & algorithms and optimization for real-time performance. (vòng-batch: C# is the Unity language — the dotnet canonical aliases 'c#'; plain C dropped as it is not a game language in VN.)",
+      "skills": [
+        { "skill_canonical_name": "unity", "required_level": 4, "importance": "REQUIRED", "weight": 0.27 },
+        { "skill_canonical_name": "dotnet", "any_of": ["dotnet", "cpp"], "required_level": 3, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "oop", "required_level": 3, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "data_structures_algorithms", "required_level": 3, "importance": "PREFERRED", "weight": 0.12 },
+        { "skill_canonical_name": "cpp", "required_level": 2, "importance": "PREFERRED", "weight": 0.1 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "git", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.04 }
+      ]
+    },
+    "it_support_helpdesk": {
+      "display_name_vi": "Nhân viên IT Helpdesk / Hỗ trợ",
+      "display_name_en": "IT Support / Helpdesk",
+      "description": "First line of IT support — resolves user hardware/software issues, troubleshoots incidents, manages tickets and basic networking/Windows admin. The common cold-start role for VN IT students.",
+      "skills": [
+        { "skill_canonical_name": "it_support", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "it_troubleshooting", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "hardware", "required_level": 3, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "ticketing", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "networking", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
+        { "skill_canonical_name": "windows_admin", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "active_directory", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "communication", "required_level": 4, "importance": "REQUIRED", "weight": 0.08 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.06 },
+        { "skill_canonical_name": "time_management", "required_level": 3, "importance": "PREFERRED", "weight": 0.02 },
+        { "skill_canonical_name": "english_proficiency", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.02 }
+      ]
+    },
+    "network_sysadmin": {
+      "display_name_vi": "Quản trị Mạng / Hệ thống",
+      "display_name_en": "Network / System Administrator",
+      "description": "Operates servers and networks — Linux & Windows administration, server virtualization (VMware/Hyper-V), Active Directory, network config, backup/DR, monitoring and hardening — keeping on-prem infrastructure available and secure. Distinct from DevOps (CI/CD, containers, IaC, cloud-native); vòng-3 VN market shows virtualization is the top missed skill.",
+      "skills": [
+        { "skill_canonical_name": "networking", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "linux", "required_level": 4, "importance": "REQUIRED", "weight": 0.13 },
+        { "skill_canonical_name": "virtualization", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "windows_admin", "required_level": 3, "importance": "REQUIRED", "weight": 0.11 },
+        { "skill_canonical_name": "active_directory", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "security", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "it_troubleshooting", "required_level": 3, "importance": "REQUIRED", "weight": 0.07 },
+        { "skill_canonical_name": "monitoring_logging", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "backup_recovery", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "powershell", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.02 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
+      ]
+    },
+    "business_analyst": {
+      "display_name_vi": "Chuyên viên Phân tích Nghiệp vụ",
+      "display_name_en": "Business Analyst",
+      "description": "Bridges business and IT — elicits and documents requirements (BRD/SRS/URD/FRD, use cases, user stories), models processes (BPMN/UML) and often wireframes them, working closely with stakeholders. VN BA leans documentation + process, NOT data (SQL is mostly basic/validation except in banking/fintech). Distinct from PM/PO (delivery/backlog ownership), Data Analyst (deep SQL/stats/dashboards) and dev (implementation). vòng-batch market-validated on 15 full-read VN JDs (confidence HIGH).",
+      "skills": [
+        { "skill_canonical_name": "requirements_analysis", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "documentation", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "business_analysis", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "sql", "required_level": 2, "importance": "PREFERRED", "weight": 0.09 },
+        { "skill_canonical_name": "stakeholder_mgmt", "required_level": 4, "importance": "REQUIRED", "weight": 0.08 },
+        { "skill_canonical_name": "bpmn", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "uml", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "wireframing", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "communication", "required_level": 4, "importance": "REQUIRED", "weight": 0.05 },
+        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "agile_scrum", "required_level": 2, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "data_analysis", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 }
       ]
     }
   }

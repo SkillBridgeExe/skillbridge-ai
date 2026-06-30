@@ -1,0 +1,165 @@
+{
+  "_note": "GOLD set for Story→CV role inference (USER lane, hand-labeled 2026-06-30). 30 short student stories (VN + EN) over the FULL-IT role set B (17 roles). expected_role MUST be a role_code in role-rubrics-pilot.json OR null (=should abstain: too weak / ambiguous → needs_user_input). Clear cases lean on each role's DISCRIMINATING skills (e.g. backend uses nosql/caching/linux to separate from fullstack; netadmin uses AD/windows to separate from devops). Run: npm run eval:role-infer (prints per-case detail + threshold sweep).",
+  "cases": [
+    {
+      "id": "fe-1",
+      "story": "Mình làm web bằng React, viết JavaScript và TypeScript, dựng giao diện responsive design với CSS, có quan tâm accessibility.",
+      "expected_role": "frontend_developer"
+    },
+    {
+      "id": "fe-2",
+      "story": "I build web UIs with React and Next.js, write TypeScript, and care a lot about responsive design and accessibility.",
+      "expected_role": "frontend_developer"
+    },
+    {
+      "id": "be-1",
+      "story": "Viết REST API bằng Node.js, thiết kế database và viết query SQL, dùng thêm NoSQL, làm API testing, deploy bằng Docker trên Linux.",
+      "expected_role": "backend_developer"
+    },
+    {
+      "id": "be-2",
+      "story": "Java backend developer: build REST APIs, SQL and NoSQL databases, authentication and authorization, caching, ship with Docker.",
+      "expected_role": "backend_developer"
+    },
+    {
+      "id": "fs-1",
+      "story": "Làm fullstack: phía frontend React + JavaScript + CSS, phía backend Node.js viết REST API và SQL, deploy bằng Docker.",
+      "expected_role": "fullstack_developer"
+    },
+    {
+      "id": "da-1",
+      "story": "Phân tích dữ liệu với SQL, Excel, Python và pandas, làm statistics và dựng dashboard data visualization bằng Power BI và Tableau.",
+      "expected_role": "data_analyst"
+    },
+    {
+      "id": "de-1",
+      "story": "I build data pipelines: ETL with Spark, ingest events through Kafka, load into a data warehouse, Python and SQL, all containerized in Docker.",
+      "expected_role": "data_engineer"
+    },
+    {
+      "id": "mob-1",
+      "story": "Làm app mobile bằng Flutter và Swift, gọi REST API, dùng Firebase và viết mobile testing.",
+      "expected_role": "mobile_developer"
+    },
+    {
+      "id": "mob-2",
+      "story": "Android developer working in Kotlin, integrating REST APIs, using Firebase and writing mobile testing.",
+      "expected_role": "mobile_developer"
+    },
+    {
+      "id": "devops-1",
+      "story": "Dựng CI/CD, container hoá bằng Docker và Kubernetes, hạ tầng bằng Terraform (infrastructure as code), deploy lên AWS, monitoring and logging.",
+      "expected_role": "devops_engineer"
+    },
+    {
+      "id": "devops-2",
+      "story": "DevOps engineer: Kubernetes and Docker, CI/CD pipelines, AWS cloud, infrastructure as code, on Linux.",
+      "expected_role": "devops_engineer"
+    },
+    {
+      "id": "qa-1",
+      "story": "Manual testing and test automation, API testing, tracking bugs in Jira, writing detailed test cases.",
+      "expected_role": "qa_tester"
+    },
+    {
+      "id": "qa-2",
+      "story": "Kiểm thử thủ công và tự động hóa kiểm thử bằng Katalon và Selenium, test API, database testing, quản lý bug bằng Jira.",
+      "expected_role": "qa_tester"
+    },
+    {
+      "id": "aiml-1",
+      "story": "Build and train machine learning models with PyTorch and TensorFlow in Python, strong statistics and data preprocessing.",
+      "expected_role": "ai_ml_engineer"
+    },
+    {
+      "id": "aiapp-1",
+      "story": "I build LLM applications: RAG pipelines, prompt engineering, and integrate models via REST APIs in Python.",
+      "expected_role": "ai_app_engineer"
+    },
+    {
+      "id": "sec-1",
+      "story": "Làm an toàn thông tin trong SOC: giám sát SIEM, xử lý sự cố bảo mật (incident response), đánh giá lỗ hổng, quản lý endpoint EDR, bảo mật mạng máy tính trên Linux.",
+      "expected_role": "security_engineer"
+    },
+    {
+      "id": "sec-2",
+      "story": "Cybersecurity engineer: SOC monitoring with QRadar SIEM, incident response, vulnerability assessment, endpoint security, network security and Linux hardening, some Python scripting.",
+      "expected_role": "security_engineer"
+    },
+    {
+      "id": "emb-1",
+      "story": "Embedded developer: lập trình nhúng C và C++ trên vi điều khiển STM32, dùng FreeRTOS và viết firmware, IoT sensors, làm trên Linux với chút Python.",
+      "expected_role": "embedded_iot_engineer"
+    },
+    {
+      "id": "dba-1",
+      "story": "Quản trị cơ sở dữ liệu Oracle: backup and recovery với RMAN, replication bằng Data Guard, high availability RAC, tối ưu truy vấn và query tuning, bảo mật cơ sở dữ liệu, vận hành trên Linux.",
+      "expected_role": "database_administrator"
+    },
+    {
+      "id": "uiux-1",
+      "story": "UI/UX designer: nghiên cứu người dùng, làm wireframe và prototype trong Figma, dựng design system, ui/ux design cho giao diện responsive design.",
+      "expected_role": "ui_ux_designer"
+    },
+    {
+      "id": "game-1",
+      "story": "Làm game bằng Unity và C#, lập trình OOP, dùng data structures and algorithms, quản lý code bằng Git.",
+      "expected_role": "game_developer"
+    },
+    {
+      "id": "helpdesk-1",
+      "story": "Mình hay sửa máy tính và phần cứng cho người dùng, xử lý sự cố, làm helpdesk hỗ trợ kỹ thuật, quản lý ticket, quản trị Windows và mạng máy tính.",
+      "expected_role": "it_support_helpdesk"
+    },
+    {
+      "id": "helpdesk-2",
+      "story": "IT helpdesk: fixing hardware, incident handling, managing tickets in a service desk, basic active directory and networking.",
+      "expected_role": "it_support_helpdesk"
+    },
+    {
+      "id": "netadmin-1",
+      "story": "Quản trị hệ thống và mạng: cấu hình mạng máy tính, ảo hóa VMware và Hyper-V, quản trị Windows Server và active directory, vận hành Linux, backup và disaster recovery, monitoring and logging, bảo mật.",
+      "expected_role": "network_sysadmin"
+    },
+    {
+      "id": "netadmin-2",
+      "story": "System administrator: Linux and Windows Server administration, VMware vSphere virtualization, active directory, networking, backup and recovery, monitoring and logging, security hardening.",
+      "expected_role": "network_sysadmin"
+    },
+    {
+      "id": "amb-fe-fs-1",
+      "story": "React, JavaScript và CSS cho giao diện, và mình cũng viết REST API với Node.js nữa.",
+      "expected_role": null
+    },
+    {
+      "id": "amb-fs-be-1",
+      "story": "Mình làm web, phần giao diện dùng React, phần server dùng Node.js.",
+      "expected_role": null
+    },
+    {
+      "id": "weak-1",
+      "story": "Mình thích máy tính và muốn theo ngành IT.",
+      "expected_role": null
+    },
+    {
+      "id": "weak-2",
+      "story": "I'm a final-year student passionate about technology and eager to learn and grow.",
+      "expected_role": null
+    },
+    {
+      "id": "weak-3",
+      "story": "Mình mới bắt đầu học HTML.",
+      "expected_role": null
+    },
+    {
+      "id": "ba-1",
+      "story": "Mình làm phân tích nghiệp vụ: thu thập và phân tích yêu cầu, viết tài liệu BRD và user stories, mô hình hóa quy trình bằng BPMN và UML, viết query SQL để kiểm tra dữ liệu, làm việc với các bên liên quan trong dự án Scrum.",
+      "expected_role": "business_analyst"
+    },
+    {
+      "id": "ba-2",
+      "story": "Business analyst: I elicit and document requirements (BRD/SRS, user stories), write functional specs, draw wireframes in Axure, do business process modeling with BPMN, run stakeholder workshops in an Agile team.",
+      "expected_role": "business_analyst"
+    }
+  ]
+}

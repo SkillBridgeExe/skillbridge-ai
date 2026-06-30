@@ -255,8 +255,6 @@
       "aliases": [
         "tsql",
         "Ngôn ngữ SQL",
-        "oracle",
-        "oracle db",
         "pl/sql",
         "cơ sở dữ liệu",
         "co so du lieu",
@@ -381,7 +379,9 @@
         "continuous delivery",
         "ci/cd pipelines",
         "ci/cd pipeline",
-        "cicd"
+        "cicd",
+        "argocd",
+        "gitops"
       ]
     },
     {
@@ -524,7 +524,9 @@
         "seaborn",
         "trực quan hóa dữ liệu",
         "trực quan hóa",
-        "truc quan hoa"
+        "truc quan hoa",
+        "looker",
+        "looker studio"
       ]
     },
     {
@@ -900,7 +902,9 @@
         "tự động hóa kiểm thử",
         "tu dong hoa kiem thu",
         "writing automated test scripts",
-        "selenium webdriver"
+        "selenium webdriver",
+        "katalon",
+        "katalon studio"
       ]
     },
     {
@@ -1713,6 +1717,547 @@
       "note": "General data-analysis competency (broader than the narrower statistics / data_visualization canonicals). Covers eval row 'Phân tích dữ liệu'. Attributed to verified ESCO skill 'perform data analysis' (URI tail confirmed via ESCO API). Aliases deliberately avoid 'phân tích dữ liệu lớn' which already belongs to etl (first-writer-wins)."
     },
     {
+      "canonical_name": "requirements_analysis",
+      "display_name": "Requirements Analysis",
+      "category": "business_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "requirement analysis",
+        "phân tích yêu cầu",
+        "phan tich yeu cau",
+        "elicitation",
+        "requirements elicitation",
+        "requirements gathering",
+        "user stories",
+        "user story",
+        "use case",
+        "brd",
+        "srs"
+      ],
+      "role_relevance": [
+        {
+          "role": "business_analyst",
+          "level": "core"
+        }
+      ],
+      "note": "Eliciting, documenting and analysing business/functional requirements (BRD/SRS, user stories, use cases). Core BA competency. CUSTOM — no single ESCO concept; distinct from the broader business_analysis. v1 pending vòng-2 VN-JD validation."
+    },
+    {
+      "canonical_name": "business_analysis",
+      "display_name": "Business Analysis",
+      "category": "business_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "business analyst",
+        "phân tích nghiệp vụ",
+        "phan tich nghiep vu",
+        "nghiệp vụ",
+        "nghiep vu",
+        "gap analysis",
+        "as-is to-be",
+        "business process analysis"
+      ],
+      "role_relevance": [
+        {
+          "role": "business_analyst",
+          "level": "core"
+        }
+      ],
+      "note": "Analysing business problems/processes and bridging business and IT (as-is/to-be, gap analysis). Core BA competency, broader than the narrower requirements_analysis. CUSTOM — no single ESCO concept. v1 pending vòng-2 VN-JD validation."
+    },
+    {
+      "canonical_name": "documentation",
+      "display_name": "Technical Documentation",
+      "category": "business_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "technical documentation",
+        "viết tài liệu",
+        "viet tai lieu",
+        "tài liệu kỹ thuật",
+        "tai lieu ky thuat",
+        "specification writing",
+        "spec writing",
+        "functional spec",
+        "functional specification",
+        "frd",
+        "urd",
+        "document requirements",
+        "documenting requirements"
+      ],
+      "role_relevance": [
+        {
+          "role": "business_analyst",
+          "level": "core"
+        }
+      ],
+      "note": "Producing clear written specs/docs (functional specs, Confluence pages). Core BA output; also relevant to dev roles. CUSTOM. v1 pending vòng-2 VN-JD validation. 'confluence' aliased here (no standalone tool canonical exists)."
+    },
+    {
+      "canonical_name": "bpmn",
+      "display_name": "BPMN / Process Modeling",
+      "category": "business_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "business process modeling",
+        "business process model and notation",
+        "process modeling",
+        "process model",
+        "mô hình hóa quy trình",
+        "mo hinh hoa quy trinh",
+        "workflow modeling"
+      ],
+      "role_relevance": [
+        {
+          "role": "business_analyst",
+          "level": "core"
+        }
+      ],
+      "note": "Modelling business processes (BPMN notation, swimlanes, workflows). Distinct from the existing uml canonical (which stays separate). CUSTOM. v1 pending vòng-2 VN-JD validation."
+    },
+    {
+      "canonical_name": "stakeholder_mgmt",
+      "display_name": "Stakeholder Management",
+      "category": "business_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "stakeholder management",
+        "quản lý các bên liên quan",
+        "quan ly cac ben lien quan",
+        "làm việc với khách hàng",
+        "lam viec voi khach hang",
+        "client communication",
+        "requirements workshop"
+      ],
+      "role_relevance": [
+        {
+          "role": "business_analyst",
+          "level": "core"
+        }
+      ],
+      "note": "Managing and communicating with business stakeholders/clients (workshops, sign-off). Core BA competency, distinct from the generic communication canonical. CUSTOM. v1 pending vòng-2 VN-JD validation."
+    },
+    {
+      "canonical_name": "siem",
+      "display_name": "SIEM (Security Monitoring)",
+      "category": "security_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "security information and event management",
+        "qradar",
+        "ibm qradar",
+        "wazuh",
+        "microsoft sentinel",
+        "azure sentinel",
+        "elk siem",
+        "log analysis security",
+        "soc monitoring"
+      ],
+      "role_relevance": [
+        {
+          "role": "security_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Security monitoring via SIEM platforms (Splunk/QRadar/Wazuh/Sentinel) — the dominant defensive/SOC skill in VN security JDs (vòng-2: ~78% SOC postings). 'splunk' NOT aliased (own canonical exists); references it in spirit only. CUSTOM — no single ESCO concept."
+    },
+    {
+      "canonical_name": "incident_response",
+      "display_name": "Incident Response",
+      "category": "security_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "security incident response",
+        "soc",
+        "soc analyst",
+        "blue team",
+        "threat detection",
+        "mitre att&ck",
+        "xử lý sự cố bảo mật",
+        "xu ly su co bao mat"
+      ],
+      "role_relevance": [
+        {
+          "role": "security_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Detecting, triaging and responding to security incidents (SOC/blue-team ops, MITRE ATT&CK). High-prevalence defensive skill in VN (vòng-2). Distinct from the generic problem_solving and from it_troubleshooting. CUSTOM."
+    },
+    {
+      "canonical_name": "vulnerability_assessment",
+      "display_name": "Vulnerability Assessment",
+      "category": "security_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "vulnerability management",
+        "vulnerability scanning",
+        "nessus",
+        "vapt",
+        "security assessment",
+        "đánh giá lỗ hổng",
+        "danh gia lo hong",
+        "rà quét lỗ hổng",
+        "ra quet lo hong"
+      ],
+      "role_relevance": [
+        {
+          "role": "security_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Identifying and triaging vulnerabilities (scanning, VAPT, Nessus). Broader and more common in VN mid-level SE JDs than full penetration_testing (vòng-2 finding: penetration_testing was over-weighted). CUSTOM."
+    },
+    {
+      "canonical_name": "edr",
+      "display_name": "EDR / Endpoint Security",
+      "category": "security_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "endpoint detection and response",
+        "xdr",
+        "ndr",
+        "endpoint security",
+        "anti-malware",
+        "antivirus management",
+        "crowdstrike"
+      ],
+      "role_relevance": [
+        {
+          "role": "security_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Endpoint detection & response / endpoint protection (EDR/XDR/anti-malware). Med-high prevalence in VN SOC/SecOps JDs (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "iso_27001",
+      "display_name": "ISO 27001 / Security Compliance",
+      "category": "security_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "iso27001",
+        "iso 27001",
+        "isms",
+        "security compliance",
+        "information security management",
+        "tuân thủ bảo mật",
+        "tuan thu bao mat"
+      ],
+      "role_relevance": [
+        {
+          "role": "security_engineer",
+          "level": "core"
+        }
+      ],
+      "note": "Information-security compliance frameworks (ISO 27001 / ISMS). Med prevalence in VN, strong in banking/finance/enterprise (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "user_research",
+      "display_name": "User Research",
+      "category": "design_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "ux research",
+        "user interviews",
+        "user surveys",
+        "nghiên cứu người dùng",
+        "nghien cuu nguoi dung",
+        "phỏng vấn người dùng",
+        "phong van nguoi dung",
+        "user persona",
+        "persona"
+      ],
+      "role_relevance": [
+        {
+          "role": "ui_ux_designer",
+          "level": "core"
+        }
+      ],
+      "note": "Researching user needs via interviews/surveys/personas — near-universal in VN UI/UX JDs (vòng-2: HIGH ≥60%). The key discriminator of UI/UX designer vs graphic designer and vs frontend developer. CUSTOM."
+    },
+    {
+      "canonical_name": "wireframing",
+      "display_name": "Wireframing",
+      "category": "design_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "wireframe",
+        "wireframes",
+        "low-fidelity design",
+        "lo-fi",
+        "user flow",
+        "user flows",
+        "khung sườn giao diện"
+      ],
+      "role_relevance": [
+        {
+          "role": "ui_ux_designer",
+          "level": "core"
+        }
+      ],
+      "note": "Producing wireframes / user flows (low-fidelity layout). HIGH prevalence in VN UI/UX JDs (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "prototyping",
+      "display_name": "Prototyping",
+      "category": "design_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "prototype",
+        "prototypes",
+        "interactive prototype",
+        "high-fidelity prototype",
+        "hi-fi prototype",
+        "mockup",
+        "tạo mẫu",
+        "tao mau"
+      ],
+      "role_relevance": [
+        {
+          "role": "ui_ux_designer",
+          "level": "core"
+        }
+      ],
+      "note": "Building interactive/high-fidelity prototypes (usually in Figma). HIGH prevalence in VN UI/UX JDs (vòng-2). CUSTOM. 'mockup' aliased here (no standalone canonical)."
+    },
+    {
+      "canonical_name": "design_system",
+      "display_name": "Design System",
+      "category": "design_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "design systems",
+        "component library",
+        "figma components",
+        "design tokens",
+        "style guide",
+        "hệ thống thiết kế",
+        "he thong thiet ke"
+      ],
+      "role_relevance": [
+        {
+          "role": "ui_ux_designer",
+          "level": "core"
+        }
+      ],
+      "note": "Building/maintaining scalable design systems (components, tokens, style guides). Med-high prevalence in VN UI/UX JDs (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "usability_testing",
+      "display_name": "Usability Testing",
+      "category": "design_skill",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "usability test",
+        "a/b testing design",
+        "user testing",
+        "kiểm tra khả năng sử dụng",
+        "kiem tra kha nang su dung",
+        "đánh giá khả năng dùng",
+        "heuristic evaluation"
+      ],
+      "role_relevance": [
+        {
+          "role": "ui_ux_designer",
+          "level": "core"
+        }
+      ],
+      "note": "Validating designs via usability testing / user testing. Med prevalence in VN UI/UX JDs (vòng-2). CUSTOM."
+    },
+    {
+      "canonical_name": "oracle",
+      "display_name": "Oracle Database",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "oracle",
+        "oracle db",
+        "oracle database",
+        "oracle rac",
+        "rac",
+        "rman",
+        "data guard",
+        "goldengate",
+        "ocp",
+        "oca"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Oracle DBMS — the dominant engine in VN DBA JDs (vòng-3: banking/telecom/securities standardize on Oracle; RMAN/RAC/Data Guard/GoldenGate, OCP cert everywhere). Split out of the generic sql canonical (which previously aliased 'oracle'). CUSTOM."
+    },
+    {
+      "canonical_name": "backup_recovery",
+      "display_name": "Backup & Recovery",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "backup and recovery",
+        "backup & recovery",
+        "backup recovery",
+        "disaster recovery",
+        "dr",
+        "rpo rto",
+        "sao lưu phục hồi",
+        "sao luu phuc hoi",
+        "sao lưu và khôi phục"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        },
+        {
+          "role": "network_sysadmin",
+          "level": "core"
+        }
+      ],
+      "note": "Backup/restore and disaster recovery (RMAN, RPO/RTO, DR testing, SAN backup). HIGH prevalence in VN DBA JDs (vòng-3 ~80%) and med-high in sysadmin (backup+DR). CUSTOM."
+    },
+    {
+      "canonical_name": "replication",
+      "display_name": "Database Replication",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "data replication",
+        "db replication",
+        "mirroring",
+        "database mirroring",
+        "log shipping",
+        "nhân bản dữ liệu",
+        "nhan ban du lieu"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database replication/mirroring (Data Guard, GoldenGate, log shipping). HIGH prevalence in VN DBA JDs (vòng-3). CUSTOM."
+    },
+    {
+      "canonical_name": "high_availability",
+      "display_name": "High Availability / Clustering",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "ha",
+        "clustering",
+        "database cluster",
+        "alwayson",
+        "always on",
+        "failover cluster",
+        "sql cluster",
+        "tính sẵn sàng cao",
+        "tinh san sang cao"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "High-availability / clustering for databases (RAC, Data Guard, AlwaysOn, failover cluster). HIGH prevalence in VN DBA JDs (vòng-3). CUSTOM. Distinct from generic infra HA."
+    },
+    {
+      "canonical_name": "query_tuning",
+      "display_name": "Query / Performance Tuning",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "performance tuning",
+        "query optimization",
+        "sql tuning",
+        "execution plan",
+        "indexing",
+        "partitioning",
+        "tối ưu truy vấn",
+        "toi uu truy van",
+        "tối ưu hiệu năng"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database query/performance tuning (execution plans, indexing, partitioning). HIGH prevalence in VN DBA JDs (vòng-3); distinct from database_design (schema modeling). CUSTOM."
+    },
+    {
+      "canonical_name": "database_security",
+      "display_name": "Database Security",
+      "category": "database",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "db security",
+        "data encryption",
+        "tde",
+        "transparent data encryption",
+        "database access control",
+        "bảo mật cơ sở dữ liệu",
+        "bao mat co so du lieu"
+      ],
+      "role_relevance": [
+        {
+          "role": "database_administrator",
+          "level": "core"
+        }
+      ],
+      "note": "Database-level security (encryption TDE/TLS, access control, PCI DSS / SBV compliance). Med-high prevalence in VN DBA JDs (vòng-3). Distinct from the generic security canonical. CUSTOM."
+    },
+    {
+      "canonical_name": "virtualization",
+      "display_name": "Virtualization",
+      "category": "infrastructure",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "vmware",
+        "vmware vsphere",
+        "vsphere",
+        "esxi",
+        "hyper-v",
+        "hyper v",
+        "powercli",
+        "proxmox",
+        "ảo hóa",
+        "ao hoa"
+      ],
+      "role_relevance": [
+        {
+          "role": "network_sysadmin",
+          "level": "core"
+        }
+      ],
+      "note": "Server virtualization (VMware/vSphere/ESXi, Hyper-V, Proxmox). HIGHEST-prevalence sysadmin skill after networking/OS in VN JDs (vòng-3 ~80%, 4/4 JD) — was missing from the rubric. Distinct from containerization (Docker/K8s = DevOps). CUSTOM."
+    },
+    {
       "canonical_name": "spark",
       "display_name": "Apache Spark",
       "category": "data_tool",
@@ -2438,7 +2983,9 @@
       "source_external_id": "3ec2e4d6-7000-4905-bf1a-c5b1679416de",
       "aliases": [
         "data warehouse",
-        "data warehousing"
+        "data warehousing",
+        "bigquery",
+        "google bigquery"
       ]
     },
     {
@@ -2461,7 +3008,19 @@
       "aliases": [
         "embedded systems",
         "embedded software",
-        "embedded programming"
+        "embedded programming",
+        "rtos",
+        "freertos",
+        "microcontroller",
+        "mcu",
+        "stm32",
+        "esp32",
+        "arm cortex",
+        "firmware",
+        "vi điều khiển",
+        "vi dieu khien",
+        "lập trình nhúng",
+        "lap trinh nhung"
       ]
     },
     {
@@ -2675,6 +3234,129 @@
       "aliases": [
         "vagrant"
       ]
+    },
+    {
+      "canonical_name": "hardware",
+      "display_name": "Hardware & PC Repair",
+      "category": "support",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "pc repair",
+        "computer repair",
+        "phần cứng",
+        "phan cung",
+        "lắp ráp máy tính",
+        "lap rap may tinh",
+        "sửa máy tính",
+        "sua may tinh",
+        "sửa máy",
+        "sua may",
+        "hardware troubleshooting",
+        "cài đặt phần mềm",
+        "cai dat phan mem"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B: IT Helpdesk / Sysadmin). VN aliases cover the flagship 'sửa máy → IT Helpdesk' cold-start example. No clean ESCO/O*NET concept (honest null)."
+    },
+    {
+      "canonical_name": "it_troubleshooting",
+      "display_name": "IT Troubleshooting",
+      "category": "support",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "xử lý sự cố",
+        "xu ly su co",
+        "khắc phục sự cố",
+        "khac phuc su co",
+        "sửa lỗi",
+        "sua loi",
+        "incident handling",
+        "fault finding",
+        "system troubleshooting",
+        "network troubleshooting",
+        "technical troubleshooting"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B). Canonical is 'it_troubleshooting' (NOT bare 'troubleshooting', which is owned by problem_solving's alias) — keeps existing match behavior unchanged. Distinct from problem_solving (soft skill): this is technical fault diagnosis."
+    },
+    {
+      "canonical_name": "it_support",
+      "display_name": "IT Support / Helpdesk",
+      "category": "support",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "helpdesk",
+        "help desk",
+        "it helpdesk",
+        "technical support",
+        "tech support",
+        "desktop support",
+        "end user support",
+        "user support",
+        "hỗ trợ kỹ thuật",
+        "ho tro ky thuat",
+        "hỗ trợ người dùng",
+        "ho tro nguoi dung",
+        "hỗ trợ it",
+        "ho tro it"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B). The IT Helpdesk discipline. No clean ESCO/O*NET concept (honest null)."
+    },
+    {
+      "canonical_name": "ticketing",
+      "display_name": "Ticketing / Service Desk",
+      "category": "support",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "ticketing system",
+        "service desk",
+        "itil",
+        "jira service desk",
+        "freshdesk",
+        "zendesk",
+        "servicenow",
+        "ticket management",
+        "quản lý ticket",
+        "quan ly ticket"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B). Service-desk / ITIL ticket handling. Bare 'jira' intentionally NOT aliased (owned by bug_tracking_jira). No clean ESCO/O*NET concept (honest null)."
+    },
+    {
+      "canonical_name": "windows_admin",
+      "display_name": "Windows Administration",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "windows server",
+        "windows administration",
+        "windows admin",
+        "windows server administration",
+        "win server",
+        "quản trị windows",
+        "quan tri windows"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B: network/sysadmin). No clean ESCO/O*NET concept (honest null)."
+    },
+    {
+      "canonical_name": "active_directory",
+      "display_name": "Active Directory",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "group policy",
+        "ldap",
+        "domain controller",
+        "ad domain",
+        "azure ad",
+        "entra id",
+        "quản trị active directory",
+        "quan tri active directory"
+      ],
+      "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B). Bare 'ad' intentionally NOT aliased (too generic, collision risk). No clean ESCO/O*NET concept (honest null)."
     }
   ]
 }
