@@ -929,4 +929,99 @@ describe('CvsService R1 completion behavior', () => {
       service.createBuilderDraft('u1', { sourceCvId: 'someone-else' }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  describe('inferCareerTargetFromStory', () => {
+    it('throws NotFound when the cv is not owned', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.inferCareerTargetFromStory('user-1', 'missing-cv', {
+          story: 'React, Node.js, SQL.',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('maps the engine result to the response DTO (happy path, language vi)', async () => {
+      const { service, cvsRepo, roleInference } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv-1', userId: 'user-1' });
+      roleInference.inferFromStory.mockReturnValue({
+        role_code: 'database_administrator',
+        display_name: 'Quản trị Cơ sở dữ liệu',
+        confidence: 0.57,
+        matched_skills: ['oracle', 'backup_recovery'],
+        candidates: [
+          {
+            role_code: 'database_administrator',
+            display_name: 'Quản trị Cơ sở dữ liệu',
+            score: 0.57,
+            matched: ['oracle'],
+          },
+        ],
+        needs_user_input: false,
+        reason: 'ok',
+      });
+
+      const res = await service.inferCareerTargetFromStory('user-1', 'cv-1', {
+        story: 'Quản trị CSDL Oracle, backup recovery RMAN.',
+        language: 'vi',
+      });
+
+      expect(roleInference.inferFromStory).toHaveBeenCalledWith(
+        'Quản trị CSDL Oracle, backup recovery RMAN.',
+        'vi',
+      );
+      expect(res.role_code).toBe('database_administrator');
+      expect(res.display_name).toBe('Quản trị Cơ sở dữ liệu');
+      expect(res.needs_user_input).toBe(false);
+      // candidates must DROP the engine-internal `matched` array
+      expect(res.candidates[0]).toEqual({
+        role_code: 'database_administrator',
+        display_name: 'Quản trị Cơ sở dữ liệu',
+        score: 0.57,
+      });
+      expect((res.candidates[0] as unknown as Record<string, unknown>).matched).toBeUndefined();
+    });
+
+    it('defaults language to vi when omitted', async () => {
+      const { service, cvsRepo, roleInference } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv-1', userId: 'user-1' });
+      roleInference.inferFromStory.mockReturnValue({
+        role_code: null,
+        display_name: null,
+        confidence: 0,
+        matched_skills: [],
+        candidates: [],
+        needs_user_input: true,
+        reason: 'too_weak',
+      });
+
+      await service.inferCareerTargetFromStory('user-1', 'cv-1', { story: 'short' });
+
+      expect(roleInference.inferFromStory).toHaveBeenCalledWith('short', 'vi');
+    });
+
+    it('passes through abstain (needs_user_input, null role) without fabricating', async () => {
+      const { service, cvsRepo, roleInference } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv-1', userId: 'user-1' });
+      roleInference.inferFromStory.mockReturnValue({
+        role_code: null,
+        display_name: null,
+        confidence: 0.2,
+        matched_skills: [],
+        candidates: [],
+        needs_user_input: true,
+        reason: 'too_weak',
+      });
+
+      const res = await service.inferCareerTargetFromStory('user-1', 'cv-1', {
+        story: 'Mình thích máy tính.',
+      });
+
+      expect(res.role_code).toBeNull();
+      expect(res.display_name).toBeNull();
+      expect(res.needs_user_input).toBe(true);
+      expect(res.reason).toBe('too_weak');
+    });
+  });
 });

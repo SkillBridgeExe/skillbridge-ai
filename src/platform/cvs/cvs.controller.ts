@@ -38,6 +38,10 @@ import {
   AssistantRewriteRequestDto,
   ExtractRequestDto,
 } from './dto/cv-assistant.dto';
+import {
+  CareerTargetStoryRequestDto,
+  CareerTargetStoryResponseDto,
+} from './dto/career-target-story.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
@@ -266,6 +270,21 @@ export class CvsController {
     @Body() dto: AssistantAnalyzeRequestDto,
   ) {
     return this.cvs.assistantAnalyze(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story')
+  @ApiOperation({
+    summary: 'Story→CV — infer a career target from a free narrative (deterministic, no quota)',
+    description:
+      'Checks ownership, then runs deterministic weighted role inference over the story. Abstains honestly (needs_user_input) when too weak/ambiguous — never fabricates a role.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  inferCareerTargetFromStory(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: CareerTargetStoryRequestDto,
+  ): Promise<CareerTargetStoryResponseDto> {
+    return this.cvs.inferCareerTargetFromStory(user.userId, id, dto);
   }
 
   @Post(':id/builder/assistant/rewrite')
