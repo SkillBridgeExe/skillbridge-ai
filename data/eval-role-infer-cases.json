@@ -158,7 +158,7 @@
     },
     {
       "id": "ba-2",
-      "story": "Business analyst: I elicit and document requirements (BRD, user stories), do business process modeling with BPMN, run stakeholder workshops, and write SQL for data checks in an Agile team.",
+      "story": "Business analyst: I elicit and document requirements (BRD/SRS, user stories), write functional specs, draw wireframes in Axure, do business process modeling with BPMN, run stakeholder workshops in an Agile team.",
       "expected_role": "business_analyst"
     }
   ]
