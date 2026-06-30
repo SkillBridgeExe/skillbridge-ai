@@ -63,7 +63,7 @@
     },
     {
       "id": "qa-2",
-      "story": "Kiểm thử thủ công và test automation, test API, database testing, quản lý bug bằng Jira.",
+      "story": "Kiểm thử thủ công và tự động hóa kiểm thử bằng Katalon và Selenium, test API, database testing, quản lý bug bằng Jira.",
       "expected_role": "qa_tester"
     },
     {
@@ -88,7 +88,7 @@
     },
     {
       "id": "emb-1",
-      "story": "Embedded systems developer: C and C++ on microcontrollers, IoT sensors, working on Linux with some Python.",
+      "story": "Embedded developer: lập trình nhúng C và C++ trên vi điều khiển STM32, dùng FreeRTOS và viết firmware, IoT sensors, làm trên Linux với chút Python.",
       "expected_role": "embedded_iot_engineer"
     },
     {
