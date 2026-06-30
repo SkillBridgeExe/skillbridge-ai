@@ -66,6 +66,9 @@ data/jobs-seed.json
 # Local embedding-vector cache (eval-semantic re-runs = $0; megabytes of floats, never commit)
 data/.cache/
 
+# Superpowers skill scratchpad (SDD progress, per-task review notes) — local-only session output
+.superpowers/
+
 *.dbml
 
 # Raw O*NET / ESCO datasets (large, CC-BY but re-downloadable) — vendor locally, NEVER commit.
