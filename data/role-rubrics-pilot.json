@@ -308,7 +308,7 @@
           "skill_canonical_name": "pandas",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.1
+          "weight": 0.07
         },
         {
           "skill_canonical_name": "data_visualization",
@@ -323,16 +323,16 @@
           "weight": 0.1
         },
         {
-          "skill_canonical_name": "tableau",
-          "required_level": 3,
-          "importance": "PREFERRED",
-          "weight": 0.07
-        },
-        {
           "skill_canonical_name": "power_bi",
           "required_level": 3,
           "importance": "PREFERRED",
-          "weight": 0.07
+          "weight": 0.1
+        },
+        {
+          "skill_canonical_name": "tableau",
+          "required_level": 3,
+          "importance": "PREFERRED",
+          "weight": 0.04
         },
         {
           "skill_canonical_name": "communication",
@@ -920,19 +920,20 @@
     "business_analyst": {
       "display_name_vi": "Chuyên viên Phân tích Nghiệp vụ",
       "display_name_en": "Business Analyst",
-      "description": "Bridges business and IT — elicits and documents requirements (BRD/SRS, user stories), models processes (BPMN/UML), and works with stakeholders. Distinct from PM/PO (delivery ownership) and dev roles (implementation). v1 rubric pending vòng-2 VN-JD validation.",
+      "description": "Bridges business and IT — elicits and documents requirements (BRD/SRS/URD/FRD, use cases, user stories), models processes (BPMN/UML) and often wireframes them, working closely with stakeholders. VN BA leans documentation + process, NOT data (SQL is mostly basic/validation except in banking/fintech). Distinct from PM/PO (delivery/backlog ownership), Data Analyst (deep SQL/stats/dashboards) and dev (implementation). vòng-batch market-validated on 15 full-read VN JDs (confidence HIGH).",
       "skills": [
         { "skill_canonical_name": "requirements_analysis", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
-        { "skill_canonical_name": "business_analysis", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
-        { "skill_canonical_name": "sql", "required_level": 3, "importance": "PREFERRED", "weight": 0.12 },
-        { "skill_canonical_name": "documentation", "required_level": 4, "importance": "REQUIRED", "weight": 0.1 },
-        { "skill_canonical_name": "uml", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "bpmn", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "agile_scrum", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "stakeholder_mgmt", "required_level": 4, "importance": "REQUIRED", "weight": 0.06 },
-        { "skill_canonical_name": "data_analysis", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "documentation", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "business_analysis", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
+        { "skill_canonical_name": "sql", "required_level": 2, "importance": "PREFERRED", "weight": 0.09 },
+        { "skill_canonical_name": "stakeholder_mgmt", "required_level": 4, "importance": "REQUIRED", "weight": 0.08 },
+        { "skill_canonical_name": "bpmn", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "uml", "required_level": 3, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "wireframing", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
         { "skill_canonical_name": "communication", "required_level": 4, "importance": "REQUIRED", "weight": 0.05 },
-        { "skill_canonical_name": "critical_thinking", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 }
+        { "skill_canonical_name": "english_proficiency", "required_level": 3, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "agile_scrum", "required_level": 2, "importance": "PREFERRED", "weight": 0.04 },
+        { "skill_canonical_name": "data_analysis", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 }
       ]
     }
   }
