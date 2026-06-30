@@ -832,19 +832,21 @@
     "database_administrator": {
       "display_name_vi": "Quản trị Cơ sở dữ liệu",
       "display_name_en": "Database Administrator (DBA)",
-      "description": "Designs, tunes and operates relational and NoSQL databases — schema design, performance, backup/restore, monitoring and availability — on a Linux foundation.",
+      "description": "Operates production databases — backup/recovery, replication, high availability, query tuning, security and monitoring — predominantly on Oracle/SQL Server in VN enterprise (banking/telecom). A production-ops role, distinct from Data Engineer (ETL/Spark/warehouse) and Backend Dev (ORM/app layer). Reflects vòng-3 VN market validation.",
       "skills": [
-        { "skill_canonical_name": "sql", "required_level": 4, "importance": "REQUIRED", "weight": 0.2 },
-        { "skill_canonical_name": "database_design", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "postgresql", "any_of": ["postgresql", "mysql", "sql_server", "db2"], "required_level": 3, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "nosql", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "linux", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
-        { "skill_canonical_name": "monitoring_logging", "required_level": 2, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "redis", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
-        { "skill_canonical_name": "orm", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.05 },
-        { "skill_canonical_name": "problem_solving", "required_level": 3, "importance": "REQUIRED", "weight": 0.07 },
-        { "skill_canonical_name": "git", "required_level": 2, "importance": "PREFERRED", "weight": 0.04 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.04 }
+        { "skill_canonical_name": "sql", "required_level": 4, "importance": "REQUIRED", "weight": 0.16 },
+        { "skill_canonical_name": "backup_recovery", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "oracle", "any_of": ["oracle", "sql_server", "mysql", "postgresql"], "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "query_tuning", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
+        { "skill_canonical_name": "high_availability", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "replication", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "database_design", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "linux", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "database_security", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "monitoring_logging", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "nosql", "required_level": 2, "importance": "NICE_TO_HAVE", "weight": 0.04 },
+        { "skill_canonical_name": "problem_solving", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
       ]
     },
     "ui_ux_designer": {
@@ -901,18 +903,20 @@
     "network_sysadmin": {
       "display_name_vi": "Quản trị Mạng / Hệ thống",
       "display_name_en": "Network / System Administrator",
-      "description": "Operates servers and networks — Linux & Windows administration, Active Directory, network configuration, monitoring and hardening — keeping infrastructure available and secure. Distinct from DevOps (CI/CD, containers, IaC).",
+      "description": "Operates servers and networks — Linux & Windows administration, server virtualization (VMware/Hyper-V), Active Directory, network config, backup/DR, monitoring and hardening — keeping on-prem infrastructure available and secure. Distinct from DevOps (CI/CD, containers, IaC, cloud-native); vòng-3 VN market shows virtualization is the top missed skill.",
       "skills": [
-        { "skill_canonical_name": "networking", "required_level": 4, "importance": "REQUIRED", "weight": 0.2 },
-        { "skill_canonical_name": "linux", "required_level": 4, "importance": "REQUIRED", "weight": 0.14 },
-        { "skill_canonical_name": "windows_admin", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
-        { "skill_canonical_name": "active_directory", "required_level": 3, "importance": "REQUIRED", "weight": 0.1 },
-        { "skill_canonical_name": "monitoring_logging", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
-        { "skill_canonical_name": "security", "required_level": 3, "importance": "PREFERRED", "weight": 0.1 },
-        { "skill_canonical_name": "powershell", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
-        { "skill_canonical_name": "it_troubleshooting", "required_level": 3, "importance": "REQUIRED", "weight": 0.08 },
-        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.05 },
-        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.03 }
+        { "skill_canonical_name": "networking", "required_level": 4, "importance": "REQUIRED", "weight": 0.18 },
+        { "skill_canonical_name": "linux", "required_level": 4, "importance": "REQUIRED", "weight": 0.13 },
+        { "skill_canonical_name": "virtualization", "required_level": 3, "importance": "REQUIRED", "weight": 0.12 },
+        { "skill_canonical_name": "windows_admin", "required_level": 3, "importance": "REQUIRED", "weight": 0.11 },
+        { "skill_canonical_name": "active_directory", "required_level": 3, "importance": "REQUIRED", "weight": 0.09 },
+        { "skill_canonical_name": "security", "required_level": 3, "importance": "PREFERRED", "weight": 0.08 },
+        { "skill_canonical_name": "it_troubleshooting", "required_level": 3, "importance": "REQUIRED", "weight": 0.07 },
+        { "skill_canonical_name": "monitoring_logging", "required_level": 3, "importance": "PREFERRED", "weight": 0.07 },
+        { "skill_canonical_name": "backup_recovery", "required_level": 2, "importance": "PREFERRED", "weight": 0.06 },
+        { "skill_canonical_name": "powershell", "required_level": 2, "importance": "PREFERRED", "weight": 0.05 },
+        { "skill_canonical_name": "problem_solving", "required_level": 4, "importance": "REQUIRED", "weight": 0.02 },
+        { "skill_canonical_name": "communication", "required_level": 3, "importance": "REQUIRED", "weight": 0.02 }
       ]
     },
     "business_analyst": {
