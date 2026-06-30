@@ -45,6 +45,11 @@ import {
 } from '../../infrastructure/storage/gcs-storage.service';
 import { SectionEvaluatorService } from '../../modules/cv-builder/section-evaluator.service';
 import { CvRewriteService } from '../../modules/cv-builder/cv-rewrite.service';
+import { RoleInferenceService } from '../../modules/cv-builder/role-inference.service';
+import {
+  CareerTargetStoryRequestDto,
+  CareerTargetStoryResponseDto,
+} from './dto/career-target-story.dto';
 import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
 import { TailorVerifierService } from '../tailor-verifier/tailor-verifier.service';
 import {
@@ -97,6 +102,7 @@ export class CvsService {
     private readonly aiResults: Repository<AiResultEntity>,
     private readonly evaluator: SectionEvaluatorService,
     private readonly rewriter: CvRewriteService,
+    private readonly roleInference: RoleInferenceService,
     private readonly pdfRenderer: CvPdfRendererService,
     private readonly analysisQuota: CvAnalysisQuotaService,
     private readonly entitlements: EntitlementsService,
@@ -414,6 +420,33 @@ export class CvsService {
       current_value: dto.current_value,
       locale: dto.locale ?? 'en',
     });
+  }
+
+  /**
+   * Story→CV slice 1 — infer a career target from a free narrative. Deterministic (no LLM, no quota).
+   * Ownership-checked: the story is scoped to the user's own draft. Abstains honestly (200 +
+   * needs_user_input) when the signal is too weak/ambiguous — never fabricates a role.
+   */
+  async inferCareerTargetFromStory(
+    userId: string,
+    cvId: string,
+    dto: CareerTargetStoryRequestDto,
+  ): Promise<CareerTargetStoryResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    const r = this.roleInference.inferFromStory(dto.story, dto.language ?? 'vi');
+    return {
+      role_code: r.role_code,
+      display_name: r.display_name,
+      confidence: r.confidence,
+      matched_skills: r.matched_skills,
+      candidates: r.candidates.map((c) => ({
+        role_code: c.role_code,
+        display_name: c.display_name,
+        score: c.score,
+      })),
+      needs_user_input: r.needs_user_input,
+      reason: r.reason,
+    };
   }
 
   /**

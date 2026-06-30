@@ -106,6 +106,9 @@ describe('CvsService R1 completion behavior', () => {
     const rewriter = {
       rewrite: jest.fn().mockResolvedValue({ suggestion: 'Improved text' }),
     };
+    const roleInference = {
+      inferFromStory: jest.fn(),
+    };
     const pdfRenderer = {
       extractSkillbridgeFingerprint: jest.fn().mockResolvedValue(null),
       renderHarvardPdf: jest.fn().mockResolvedValue({
@@ -147,6 +150,7 @@ describe('CvsService R1 completion behavior', () => {
       aiResults as never,
       evaluator as never,
       rewriter as never,
+      roleInference as never,
       pdfRenderer as never,
       analysisQuota as never,
       entitlements as never,
@@ -167,6 +171,7 @@ describe('CvsService R1 completion behavior', () => {
       aiResults,
       evaluator,
       rewriter,
+      roleInference,
       pdfRenderer,
       analysisQuota,
       entitlements,
