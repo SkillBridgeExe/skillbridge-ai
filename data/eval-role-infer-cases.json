@@ -1,0 +1,40 @@
+{
+  "_note": "SEED gold set (Claude-authored, ~7 cases) — proves the eval pipe runs on the REAL taxonomy + 9-role rubric. NOT the gate yet. USER lane: replace/expand to 20-30 hand-labeled stories (clear per role + ambiguous fullstack/null + weak/null). expected_role MUST be one of the 9 role_codes or null (=abstain). See plan Task 3.",
+  "cases": [
+    {
+      "id": "fe-1",
+      "story": "Mình làm web bằng React, dựng UI responsive với CSS và JavaScript",
+      "expected_role": "frontend_developer"
+    },
+    {
+      "id": "be-1",
+      "story": "Viết REST API bằng Node.js, thiết kế DB và viết query SQL, deploy bằng Docker",
+      "expected_role": "backend_developer"
+    },
+    {
+      "id": "da-1",
+      "story": "Phân tích dữ liệu với SQL, Excel, Python và pandas, dựng dashboard",
+      "expected_role": "data_analyst"
+    },
+    {
+      "id": "mob-1",
+      "story": "Làm app mobile bằng Swift và Flutter, gọi REST API",
+      "expected_role": "mobile_developer"
+    },
+    {
+      "id": "devops-1",
+      "story": "Dựng CI/CD, container hoá bằng Docker và Kubernetes, deploy lên AWS",
+      "expected_role": "devops_engineer"
+    },
+    {
+      "id": "qa-1",
+      "story": "Manual testing and test automation, tracking bugs in Jira",
+      "expected_role": "qa_tester"
+    },
+    {
+      "id": "weak-1",
+      "story": "Mình thích máy tính và muốn theo ngành IT",
+      "expected_role": null
+    }
+  ]
+}
