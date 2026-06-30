@@ -93,7 +93,7 @@
     },
     {
       "id": "dba-1",
-      "story": "Quản trị cơ sở dữ liệu: thiết kế database, tối ưu SQL, vận hành PostgreSQL và MySQL, dùng NoSQL, trên Linux.",
+      "story": "Quản trị cơ sở dữ liệu Oracle: backup and recovery với RMAN, replication bằng Data Guard, high availability RAC, tối ưu truy vấn và query tuning, bảo mật cơ sở dữ liệu, vận hành trên Linux.",
       "expected_role": "database_administrator"
     },
     {
@@ -118,12 +118,12 @@
     },
     {
       "id": "netadmin-1",
-      "story": "Quản trị hệ thống và mạng: cấu hình mạng máy tính, quản trị Windows Server và active directory, vận hành Linux, monitoring and logging, bảo mật.",
+      "story": "Quản trị hệ thống và mạng: cấu hình mạng máy tính, ảo hóa VMware và Hyper-V, quản trị Windows Server và active directory, vận hành Linux, backup và disaster recovery, monitoring and logging, bảo mật.",
       "expected_role": "network_sysadmin"
     },
     {
       "id": "netadmin-2",
-      "story": "System administrator: Linux and Windows Server administration, active directory, networking, PowerShell scripting, monitoring and logging, security hardening.",
+      "story": "System administrator: Linux and Windows Server administration, VMware vSphere virtualization, active directory, networking, backup and recovery, monitoring and logging, security hardening.",
       "expected_role": "network_sysadmin"
     },
     {
