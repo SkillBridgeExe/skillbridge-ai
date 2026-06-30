@@ -91,3 +91,55 @@ export function inferRoleFromSkills(
     reason,
   };
 }
+
+/**
+ * Pull canonical skill names out of free prose by sliding a 1..N-gram window over the words and
+ * asking `resolve` (taxonomy alias lookup) for each candidate. Longest gram wins at each position so
+ * "React JS" maps once to `react`, not twice. Splits on whitespace AND list/sentence punctuation so
+ * "CSS," and "Node.js." tokenize cleanly (the resolver's normalizeKey drops internal dots anyway).
+ */
+export function extractSkillMentions(
+  text: string,
+  resolve: (raw: string) => string | null,
+  maxGram = 3,
+): string[] {
+  const tokens = text.split(/[\s,;.!?()[\]/]+/).filter(Boolean);
+  const found = new Set<string>();
+  for (let i = 0; i < tokens.length; i++) {
+    for (let n = Math.min(maxGram, tokens.length - i); n >= 1; n--) {
+      const canon = resolve(tokens.slice(i, i + n).join(' '));
+      if (canon) {
+        found.add(canon);
+        break; // longest gram first → avoid double-counting the same span
+      }
+    }
+  }
+  return [...found];
+}
+
+/** Adapt the curated RoleRubric shape (skills[] with weight/any_of) to a scoring RoleProfile. */
+export function rubricsToProfiles(
+  rubrics: Array<{
+    role_code: string;
+    skills: Array<{ skill_canonical_name: string; weight: number; any_of?: string[] }>;
+  }>,
+): RoleProfile[] {
+  return rubrics.map((r) => ({
+    role_code: r.role_code,
+    requirements: r.skills.map((s) => ({
+      skill_canonical_name: s.skill_canonical_name,
+      weight: s.weight,
+      any_of: s.any_of,
+    })),
+  }));
+}
+
+/** End-to-end: free story → skill mentions → weighted role inference. */
+export function inferRoleFromStory(
+  text: string,
+  resolve: (raw: string) => string | null,
+  roles: RoleProfile[],
+  opts?: { minConfidence?: number; minMatched?: number; ambiguityMargin?: number },
+): RoleInferenceResult {
+  return inferRoleFromSkills(extractSkillMentions(text, resolve), roles, opts);
+}

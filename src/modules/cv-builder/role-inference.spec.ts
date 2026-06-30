@@ -1,4 +1,10 @@
-import { inferRoleFromSkills, RoleProfile } from './role-inference';
+import {
+  extractSkillMentions,
+  inferRoleFromSkills,
+  inferRoleFromStory,
+  rubricsToProfiles,
+  RoleProfile,
+} from './role-inference';
 
 const ROLES: RoleProfile[] = [
   {
@@ -63,5 +69,60 @@ describe('inferRoleFromSkills', () => {
 
   it('returns no_roles cleanly on empty rubric set', () => {
     expect(inferRoleFromSkills(['react'], []).reason).toBe('no_roles');
+  });
+});
+
+const resolve = (raw: string): string | null => {
+  const m: Record<string, string> = {
+    react: 'react',
+    reactjs: 'react',
+    'react js': 'react',
+    css: 'css',
+    javascript: 'javascript',
+    'java script': 'javascript',
+    nodejs: 'nodejs',
+    'node js': 'nodejs',
+  };
+  return m[raw.toLowerCase().trim()] ?? null;
+};
+
+describe('extractSkillMentions', () => {
+  it('scans 1..N-grams, longest match wins, dedupes canonical', () => {
+    expect(extractSkillMentions('Làm web bằng React JS và CSS', resolve).sort()).toEqual([
+      'css',
+      'react',
+    ]);
+  });
+
+  it('strips list/sentence punctuation so "CSS," and "Node.js" still resolve', () => {
+    expect(extractSkillMentions('React JS, CSS, Node.js.', resolve).sort()).toEqual([
+      'css',
+      'nodejs',
+      'react',
+    ]);
+  });
+
+  it('returns [] when nothing resolves', () => {
+    expect(extractSkillMentions('hôm nay trời đẹp', resolve)).toEqual([]);
+  });
+});
+
+describe('rubricsToProfiles + inferRoleFromStory', () => {
+  it('maps RoleRubric shape (skills[].weight/any_of) → RoleProfile and infers end-to-end', () => {
+    const profiles = rubricsToProfiles([
+      {
+        role_code: 'frontend_developer',
+        skills: [
+          { skill_canonical_name: 'react', weight: 0.5 },
+          { skill_canonical_name: 'css', weight: 0.3 },
+          { skill_canonical_name: 'javascript', weight: 0.2 },
+        ],
+      },
+    ]);
+    const r = inferRoleFromStory('Làm web bằng React JS, CSS, JavaScript', resolve, profiles, {
+      minMatched: 2,
+    });
+    expect(r.role_code).toBe('frontend_developer');
+    expect(r.confidence).toBeCloseTo(1.0);
   });
 });
