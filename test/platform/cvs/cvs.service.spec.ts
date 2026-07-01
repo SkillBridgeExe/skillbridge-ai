@@ -1112,6 +1112,28 @@ describe('CvsService R1 completion behavior', () => {
       expect(res.roadmap_pointer.route).toContain('roadmap');
     });
 
+    it('is honest (readiness 0, not 40) when role_code has no rubric — was a vacuous coverage=1 fallback', async () => {
+      const { service, cvsRepo, skillDiff } = build();
+      cvsRepo.findOne.mockResolvedValue(docCv);
+      skillDiff.diff.mockReturnValue({
+        matched_skills: [],
+        partial_skills: [],
+        missing_skills: [],
+        requirements_source: 'none',
+        overall_score: 0,
+        required_coverage: 1, // vacuous "nothing required ⇒ all covered" fallback from SkillDiffService
+        scoring_breakdown: { raw_weighted_score: 0 },
+      });
+      const res = await service.computeStoryReadiness('u1', 'cv1', {
+        role_code: 'no_such_role',
+      });
+      expect(res.readiness).toBe(0);
+      expect(res.band).toBe('starting');
+      expect(res.role_has_rubric).toBe(false);
+      expect(res.gap_items.length).toBe(0);
+      expect(res.required_coverage).toBe(0); // NOT the vacuous 1 from diff
+    });
+
     it('feeds structured doc skills into diff (deterministic, no LLM)', async () => {
       const { service, cvsRepo, skillDiff } = build();
       cvsRepo.findOne.mockResolvedValue(docCv);

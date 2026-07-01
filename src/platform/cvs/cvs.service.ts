@@ -477,11 +477,22 @@ export class CvsService {
       target_band: dto.band ?? 'fresher',
     });
 
+    // A role with no rubric at all is a vacuous case: SkillDiffService.diff falls back to
+    // required_coverage=1 ("nothing required ⇒ all covered"), which would otherwise feed
+    // computeReadiness into reporting a dishonest non-zero readiness for a role the system has
+    // ZERO data on. Detect that case BEFORE computing readiness so the response can be an honest
+    // empty state instead.
+    const role_has_rubric =
+      diff.matched_skills.length + diff.missing_skills.length + diff.partial_skills.length > 0;
+
     // Readiness from the UNCAPPED raw weighted score (NOT overall_score — that already embeds
     // coverage via min(raw, 45+55·coverage), which would double-count coverage in the
     // missing-required regime). Fall back to overall_score alone only if raw is somehow absent.
     const rawScore = diff.scoring_breakdown?.raw_weighted_score ?? diff.overall_score;
-    const { readiness, band } = computeReadiness(rawScore, diff.required_coverage);
+    const { readiness, band } = role_has_rubric
+      ? computeReadiness(rawScore, diff.required_coverage)
+      : { readiness: 0, band: 'starting' as const };
+    const required_coverage = role_has_rubric ? diff.required_coverage : 0;
 
     // Full canonical GapItems via buildGapItems, mirroring the DiffResult → CvJdMatchParsedResponse
     // adapter in cv-jd-match.service.ts (same field names; requirements_source renamed to
@@ -504,14 +515,11 @@ export class CvsService {
     };
     const gap_items = buildGapItems({ match }); // severity-sorted, fixability, requirement_id
 
-    const role_has_rubric =
-      diff.matched_skills.length + diff.missing_skills.length + diff.partial_skills.length > 0;
-
     return {
       readiness,
       band,
       overall_score: diff.overall_score,
-      required_coverage: diff.required_coverage,
+      required_coverage,
       matched_count: diff.matched_skills.length,
       missing_count: diff.missing_skills.length,
       gap_items,
