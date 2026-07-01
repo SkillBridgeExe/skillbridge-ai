@@ -46,10 +46,12 @@ import {
 import { SectionEvaluatorService } from '../../modules/cv-builder/section-evaluator.service';
 import { CvRewriteService } from '../../modules/cv-builder/cv-rewrite.service';
 import { RoleInferenceService } from '../../modules/cv-builder/role-inference.service';
+import { mergeStoryItems } from '../../modules/cv-builder/story-merge';
 import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
 import { TailorVerifierService } from '../tailor-verifier/tailor-verifier.service';
 import {
@@ -447,6 +449,17 @@ export class CvsService {
       needs_user_input: r.needs_user_input,
       reason: r.reason,
     };
+  }
+
+  /** Story→CV slice 3 — stateless merge preview. Ownership-checked; NO persist (caller PUTs the result),
+   *  NO quota, NO LLM. Deterministic dedup; never overwrites or duplicates existing entries. */
+  async applyStoryPreview(
+    userId: string,
+    cvId: string,
+    dto: StoryApplyRequestDto,
+  ): Promise<StoryApplyResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    return mergeStoryItems(dto.doc, dto.selected);
   }
 
   /**

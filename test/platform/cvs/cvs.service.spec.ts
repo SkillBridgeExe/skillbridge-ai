@@ -1024,4 +1024,59 @@ describe('CvsService R1 completion behavior', () => {
       expect(res.reason).toBe('too_weak');
     });
   });
+
+  describe('applyStoryPreview', () => {
+    it('throws NotFound when cv not owned', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.applyStoryPreview('u1', 'missing', {
+          doc: { projects: [], certifications: [] } as never,
+          selected: {},
+        }),
+      ).rejects.toThrow();
+    });
+
+    it('merges selected projects into the owned doc and reports applied', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      const doc = {
+        language: 'vi',
+        contact: {},
+        summary: '',
+        education: [],
+        experience: [],
+        projects: [],
+        skills: { technical: [], soft: [], languages: [], tools: [] },
+        certifications: [],
+        activities: [],
+      };
+      const res = await service.applyStoryPreview('u1', 'cv1', {
+        doc: doc as never,
+        selected: {
+          projects: [{ name: 'Shop', role: null, tech: ['react'], bullets: [], link: null }],
+        },
+      });
+      expect(res.applied.projects).toBe(1);
+      expect(res.doc.projects.length).toBe(1);
+    });
+
+    it('is a no-op (applied 0) when selected is empty', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      const doc = {
+        language: 'vi',
+        contact: {},
+        summary: '',
+        education: [],
+        experience: [],
+        projects: [],
+        skills: { technical: [], soft: [], languages: [], tools: [] },
+        certifications: [],
+        activities: [],
+      };
+      const res = await service.applyStoryPreview('u1', 'cv1', { doc: doc as never, selected: {} });
+      expect(res.applied).toEqual({ projects: 0, certifications: 0 });
+    });
+  });
 });
