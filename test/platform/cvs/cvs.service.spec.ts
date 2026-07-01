@@ -111,6 +111,7 @@ describe('CvsService R1 completion behavior', () => {
     };
     const storyExtraction = {
       extract: jest.fn(),
+      extractProject: jest.fn(),
     };
     const pdfRenderer = {
       extractSkillbridgeFingerprint: jest.fn().mockResolvedValue(null),
@@ -1277,6 +1278,66 @@ describe('CvsService R1 completion behavior', () => {
       });
       await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'x project' });
       expect(storyExtraction.extract).toHaveBeenCalledWith('x project', 'vi', 'u1');
+    });
+  });
+
+  describe('intakeProjectFromStory', () => {
+    it('throws NotFound when cv not owned', async () => {
+      const { service, cvsRepo, entitlements, storyExtraction } = build();
+      cvsRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.intakeProjectFromStory('u1', 'missing', { story: 'React project' }),
+      ).rejects.toThrow();
+      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+      expect(storyExtraction.extractProject).not.toHaveBeenCalled();
+    });
+
+    it('charges CV_BUILDER_REWRITE when a project is grounded (not degraded)', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extractProject.mockResolvedValue({
+        project: { name: 'Shop' },
+        degraded: false,
+        multipleDetected: false,
+      });
+      await service.intakeProjectFromStory('u1', 'cv1', { story: 'Shop project React' });
+      expect(entitlements.recordUsage).toHaveBeenCalled();
+    });
+
+    it('does NOT charge when project is null (nothing grounded)', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extractProject.mockResolvedValue({
+        project: null,
+        degraded: false,
+        multipleDetected: false,
+      });
+      await service.intakeProjectFromStory('u1', 'cv1', { story: 'vague' });
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
+
+    it('does NOT charge when degraded', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extractProject.mockResolvedValue({
+        project: null,
+        degraded: true,
+        multipleDetected: false,
+      });
+      await service.intakeProjectFromStory('u1', 'cv1', { story: 'x' });
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
+
+    it('defaults language to vi', async () => {
+      const { service, cvsRepo, storyExtraction } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extractProject.mockResolvedValue({
+        project: null,
+        degraded: false,
+        multipleDetected: false,
+      });
+      await service.intakeProjectFromStory('u1', 'cv1', { story: 'x project' });
+      expect(storyExtraction.extractProject).toHaveBeenCalledWith('x project', 'vi', 'u1');
     });
   });
 });
