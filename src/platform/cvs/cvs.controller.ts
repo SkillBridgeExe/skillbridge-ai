@@ -42,6 +42,7 @@ import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryReadinessRequestDto, StoryReadinessResponseDto } from './dto/story-readiness.dto';
 import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
@@ -287,6 +288,21 @@ export class CvsController {
     @Body() dto: CareerTargetStoryRequestDto,
   ): Promise<CareerTargetStoryResponseDto> {
     return this.cvs.inferCareerTargetFromStory(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story/readiness')
+  @ApiOperation({
+    summary: 'Story→CV — gap + readiness vs a target role (deterministic, rubric-only, no quota)',
+    description:
+      "Checks ownership, reads the CV doc's structured skills, diffs them against the role rubric, and returns a readiness score (0-100 + band) + the missing/partial gap + a pointer to the roadmap flow. No LLM, no fabrication.",
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  computeStoryReadiness(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: StoryReadinessRequestDto,
+  ): Promise<StoryReadinessResponseDto> {
+    return this.cvs.computeStoryReadiness(user.userId, id, dto);
   }
 
   @Post(':id/builder/story/apply-preview')

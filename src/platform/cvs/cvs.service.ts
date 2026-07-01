@@ -52,6 +52,11 @@ import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryReadinessRequestDto, StoryReadinessResponseDto } from './dto/story-readiness.dto';
+import { SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
+import { buildGapItems } from '../../modules/gap-engine/gap-item';
+import { computeReadiness, cvSkillsFromDoc } from '../../modules/cv-builder/readiness';
 import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
@@ -111,6 +116,9 @@ export class CvsService {
     private readonly pdfRenderer: CvPdfRendererService,
     private readonly analysisQuota: CvAnalysisQuotaService,
     private readonly entitlements: EntitlementsService,
+    // Story→CV slice 4 — rubric-only gap + readiness (reuses the existing eval-gated matching
+    // engine; no new scoring logic). Provided at runtime via CvJdMatchModule import on CvsModule.
+    private readonly skillDiff: SkillDiffService,
     private readonly interviewPlan?: InterviewPlanService,
     private readonly githubEvidence?: GithubEvidenceService,
     // PR4.5 — verifies a tailor action server-side (reloads match + gap report). The `?` is forced
@@ -488,6 +496,86 @@ export class CvsService {
       });
     }
     return result;
+  }
+
+  /**
+   * Story→CV slice 4 — close the loop: rubric-only gap (full canonical GapItems) + readiness from the
+   * doc's structured skills. Deterministic (no LLM, no quota, no persist). Honest: a role with no rubric
+   * → readiness 0, empty gap. Readiness uses the UNCAPPED raw weighted score to avoid double-counting
+   * coverage (overall_score already embeds coverage via the cap).
+   */
+  async computeStoryReadiness(
+    userId: string,
+    cvId: string,
+    dto: StoryReadinessRequestDto,
+  ): Promise<StoryReadinessResponseDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    const doc = cv.parsedJson ?? emptyCanonicalCv(cv.language ?? 'en');
+    const cvSkills = cvSkillsFromDoc(doc);
+    const diff = this.skillDiff.diff({
+      cv_skills_raw: cvSkills,
+      target_role: dto.role_code,
+      target_band: dto.band ?? 'fresher',
+    });
+
+    // A role with no rubric at all is a vacuous case: SkillDiffService.diff falls back to
+    // required_coverage=1 ("nothing required ⇒ all covered"), which would otherwise feed
+    // computeReadiness into reporting a dishonest non-zero readiness for a role the system has
+    // ZERO data on. Detect that case BEFORE computing readiness so the response can be an honest
+    // empty state instead.
+    // ponytail: gate on skill-count — airtight for all 18 curated rubrics (each has ≥5 REQUIRED skills, so a
+    // rubric always implies requiredTotal>0). A future rubric with ZERO REQUIRED skills would slip past this and
+    // surface vacuous readiness 40 / coverage 1.0; harden to diff.scoring_breakdown.required_total > 0 if that ever ships.
+    const role_has_rubric =
+      diff.matched_skills.length + diff.missing_skills.length + diff.partial_skills.length > 0;
+
+    // Readiness from the UNCAPPED raw weighted score (NOT overall_score — that already embeds
+    // coverage via min(raw, 45+55·coverage), which would double-count coverage in the
+    // missing-required regime). Fall back to overall_score alone only if raw is somehow absent.
+    const rawScore = diff.scoring_breakdown?.raw_weighted_score ?? diff.overall_score;
+    const { readiness, band } = role_has_rubric
+      ? computeReadiness(rawScore, diff.required_coverage)
+      : { readiness: 0, band: 'starting' as const };
+    const required_coverage = role_has_rubric ? diff.required_coverage : 0;
+
+    // Full canonical GapItems via buildGapItems, mirroring the DiffResult → CvJdMatchParsedResponse
+    // adapter in cv-jd-match.service.ts (same field names; requirements_source renamed to
+    // source_of_requirements). No cast needed — every DiffResult field buildGapItems reads exists
+    // on CvJdMatchParsedResponse with an identical type.
+    const match: CvJdMatchParsedResponse = {
+      overall_score: diff.overall_score,
+      match_ratio: diff.match_ratio,
+      matched_skills: diff.matched_skills,
+      partial_skills: diff.partial_skills,
+      missing_skills: diff.missing_skills,
+      bonus_skills: diff.bonus_skills,
+      required_coverage: diff.required_coverage,
+      unnormalized_cv_skills: diff.unnormalized_cv_skills,
+      unnormalized_jd_requirements: diff.unnormalized_jd_requirements,
+      scoring_breakdown: diff.scoring_breakdown,
+      source_of_requirements: diff.requirements_source,
+      target_role: dto.role_code ?? null,
+      rubric_band: diff.rubric_band,
+    };
+    const gap_items = buildGapItems({ match }); // severity-sorted, fixability, requirement_id
+
+    return {
+      readiness,
+      band,
+      overall_score: diff.overall_score,
+      required_coverage,
+      matched_count: diff.matched_skills.length,
+      missing_count: diff.missing_skills.length,
+      gap_items,
+      roadmap_pointer: {
+        route: 'POST /api/cv-matches/:matchId/roadmap',
+        payload: {
+          hint: 'create a match for this role, then compose a roadmap from the gap',
+          role_code: dto.role_code,
+        },
+      },
+      role_has_rubric,
+    };
   }
 
   /**

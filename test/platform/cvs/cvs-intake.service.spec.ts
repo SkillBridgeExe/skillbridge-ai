@@ -74,8 +74,9 @@ function build(opts: { owned?: boolean; result?: CvIntakeResult } = {}) {
     any, // 12 roleInference
     any, // 13 storyExtraction
     any,
-    any, // 14-15
-    entitlements as never, // 16
+    any, // 14 analysisQuota
+    entitlements as never, // 15 entitlements
+    any, // 16 skillDiff
     undefined, // 17 interviewPlan
     undefined, // 18 githubEvidence
     undefined, // 19 tailorVerifier
