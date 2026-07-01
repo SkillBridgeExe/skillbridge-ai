@@ -1,0 +1,15 @@
+{
+  "_note": "Curated issuer patterns for deterministic certification extraction from free-text stories. issuer_regex matches the issuer/family; name_capture (optional) pulls the specific cert. VN market: TOEIC/IELTS included. v1 — extend as needed.",
+  "patterns": [
+    { "id": "aws", "issuer": "Amazon Web Services", "issuer_regex": "aws\\s+certified|amazon\\s+web\\s+services\\s+certified" },
+    { "id": "azure", "issuer": "Microsoft", "issuer_regex": "microsoft\\s+certified|azure\\s+(fundamentals|administrator|developer|solutions)|az-\\d{3}" },
+    { "id": "gcp", "issuer": "Google Cloud", "issuer_regex": "google\\s+cloud\\s+certified|associate\\s+cloud\\s+engineer|professional\\s+(cloud|data)\\s+engineer" },
+    { "id": "oracle", "issuer": "Oracle", "issuer_regex": "oracle\\s+certified|oca|ocp\\b" },
+    { "id": "comptia", "issuer": "CompTIA", "issuer_regex": "comptia|security\\+|network\\+|a\\+\\b" },
+    { "id": "cisco", "issuer": "Cisco", "issuer_regex": "ccna|ccnp|cisco\\s+certified" },
+    { "id": "pmp", "issuer": "PMI", "issuer_regex": "pmp\\b|project\\s+management\\s+professional" },
+    { "id": "scrum", "issuer": "Scrum Alliance", "issuer_regex": "scrum\\s+master|csm\\b|psm\\b|professional\\s+scrum" },
+    { "id": "toeic", "issuer": "ETS", "issuer_regex": "toeic" },
+    { "id": "ielts", "issuer": "British Council", "issuer_regex": "ielts" }
+  ]
+}

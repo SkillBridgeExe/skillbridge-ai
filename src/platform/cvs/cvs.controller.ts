@@ -43,6 +43,8 @@ import {
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
 import { StoryReadinessRequestDto, StoryReadinessResponseDto } from './dto/story-readiness.dto';
+import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
+import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
@@ -301,6 +303,37 @@ export class CvsController {
     @Body() dto: StoryReadinessRequestDto,
   ): Promise<StoryReadinessResponseDto> {
     return this.cvs.computeStoryReadiness(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story/apply-preview')
+  @ApiOperation({
+    summary: 'Story→CV — merge chosen projects/certs into the doc (stateless preview, no persist)',
+    description:
+      'Checks ownership, then deterministically merges the chosen story items into the supplied document (dedup by name, anti-empty) and returns the merged doc + a dedup report. Does NOT persist — the FE saves via PUT :id/builder.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  applyStoryPreview(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: StoryApplyRequestDto,
+  ): Promise<StoryApplyResponseDto> {
+    return this.cvs.applyStoryPreview(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story/extract')
+  @ApiOperation({
+    summary:
+      'Story→CV — extract projects + certifications from a free narrative (deterministic + anti-fab)',
+    description:
+      'Checks ownership, then extracts grounded projects (LLM-proposed prose, code-gated) and certifications (pure pattern match). Never fabricates; degrades safely. Charges CV_BUILDER_REWRITE only on a non-degraded LLM result.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  extractProjectsCertsFromStory(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: StoryExtractRequestDto,
+  ): Promise<StoryExtractResponseDto> {
+    return this.cvs.extractProjectsCertsFromStory(user.userId, id, dto);
   }
 
   @Post(':id/builder/assistant/rewrite')
