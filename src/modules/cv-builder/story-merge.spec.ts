@@ -1,5 +1,5 @@
 import { mergeStoryItems } from './story-merge';
-import { emptyCanonicalCv } from '../../common/types/canonical-cv';
+import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 
 describe('mergeStoryItems', () => {
   it('appends a new project and reports applied count', () => {
@@ -57,5 +57,28 @@ describe('mergeStoryItems', () => {
     });
     expect(JSON.stringify(doc)).toBe(before); // input untouched
     expect(JSON.stringify(r.doc)).not.toContain('frontend_developer'); // role not in doc
+  });
+
+  it('dedups two same-named projects within one selected.projects batch', () => {
+    const doc = emptyCanonicalCv('vi');
+    const r = mergeStoryItems(doc, {
+      projects: [
+        { name: 'Portfolio', role: null, tech: [], bullets: [], link: null },
+        { name: 'portfolio', role: null, tech: ['react'], bullets: [], link: null },
+      ],
+    });
+    expect(r.doc.projects.length).toBe(1);
+    expect(r.applied.projects).toBe(1);
+    expect(r.skipped_duplicates).toEqual([{ section: 'projects', name: 'portfolio' }]);
+  });
+
+  it('handles a malformed doc missing projects/certifications arrays without throwing', () => {
+    const malformed = {} as unknown as CanonicalCvDocument;
+    const r = mergeStoryItems(malformed, {
+      projects: [{ name: 'X', role: null, tech: [], bullets: [], link: null }],
+    });
+    expect(r.applied.projects).toBe(1);
+    expect(r.doc.projects.length).toBe(1);
+    expect(r.doc.certifications).toEqual([]);
   });
 });

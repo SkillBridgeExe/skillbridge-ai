@@ -27,6 +27,8 @@ export function mergeStoryItems(
   selected: SelectedStoryItems,
 ): MergeResult {
   const out: CanonicalCvDocument = JSON.parse(JSON.stringify(doc));
+  out.projects ??= [];
+  out.certifications ??= [];
   const skipped: MergeResult['skipped_duplicates'] = [];
   let appliedProjects = 0;
   let appliedCerts = 0;
