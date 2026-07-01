@@ -59,6 +59,7 @@ import { buildGapItems } from '../../modules/gap-engine/gap-item';
 import { computeReadiness, cvSkillsFromDoc } from '../../modules/cv-builder/readiness';
 import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
+import { ProjectIntakeRequestDto, ProjectIntakeResponseDto } from './dto/project-intake.dto';
 import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
 import { TailorVerifierService } from '../tailor-verifier/tailor-verifier.service';
 import {
@@ -496,6 +497,29 @@ export class CvsService {
       });
     }
     return result;
+  }
+
+  /** Story→CV project intake — one project for one CV card. Reuses the anti-fab extractor. Charges
+   *  CV_BUILDER_REWRITE only when a project was actually grounded (degraded / nothing-grounded = free). */
+  async intakeProjectFromStory(
+    userId: string,
+    cvId: string,
+    dto: ProjectIntakeRequestDto,
+  ): Promise<ProjectIntakeResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const { project, degraded, multipleDetected } = await this.storyExtraction.extractProject(
+      dto.story,
+      dto.language ?? 'vi',
+      userId,
+    );
+    if (!degraded && project != null) {
+      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+        sourceType: 'cv',
+        sourceId: cvId,
+      });
+    }
+    return { project, degraded, multiple_detected: multipleDetected };
   }
 
   /**
