@@ -482,6 +482,9 @@ export class CvsService {
     // computeReadiness into reporting a dishonest non-zero readiness for a role the system has
     // ZERO data on. Detect that case BEFORE computing readiness so the response can be an honest
     // empty state instead.
+    // ponytail: gate on skill-count — airtight for all 18 curated rubrics (each has ≥5 REQUIRED skills, so a
+    // rubric always implies requiredTotal>0). A future rubric with ZERO REQUIRED skills would slip past this and
+    // surface vacuous readiness 40 / coverage 1.0; harden to diff.scoring_breakdown.required_total > 0 if that ever ships.
     const role_has_rubric =
       diff.matched_skills.length + diff.missing_skills.length + diff.partial_skills.length > 0;
 

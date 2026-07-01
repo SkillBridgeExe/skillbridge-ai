@@ -20,10 +20,11 @@ describe('cvSkillsFromDoc', () => {
     const doc = emptyCanonicalCv('vi');
     doc.skills.technical = ['React', 'sql'];
     doc.projects.push({ name: 'P1', role: null, tech: ['sql', 'docker'], bullets: [], link: null });
-    const skills = cvSkillsFromDoc(doc)
-      .map((s) => s.name.toLowerCase())
-      .sort();
+    const result = cvSkillsFromDoc(doc);
+    const skills = result.map((s) => s.name.toLowerCase()).sort();
     expect(skills).toEqual(['docker', 'react', 'sql']); // sql deduped
+    // anti-fab: no invented evidence_text/proficiency_hint — name only, from the doc verbatim
+    expect(Object.keys(result[0])).toEqual(['name']);
   });
   it('returns [] for an empty doc', () => {
     expect(cvSkillsFromDoc(emptyCanonicalCv('vi'))).toEqual([]);
