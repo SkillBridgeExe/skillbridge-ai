@@ -50,13 +50,14 @@ function build(
     any,
     any, // 2-11
     any, // 12 roleInference
+    any, // 13 storyExtraction
     any,
-    any, // 13-14
-    entitlements as never, // 15
-    undefined, // 16 interviewPlan
-    undefined, // 17 githubEvidence
-    undefined, // 18 tailorVerifier
-    cvAssistant as never, // 19 cvAssistant
+    any, // 14-15
+    entitlements as never, // 16
+    undefined, // 17 interviewPlan
+    undefined, // 18 githubEvidence
+    undefined, // 19 tailorVerifier
+    cvAssistant as never, // 20 cvAssistant
   );
   return { service, cvsRepo, entitlements, cvAssistant };
 }
