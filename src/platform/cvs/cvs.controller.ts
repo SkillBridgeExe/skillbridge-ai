@@ -42,6 +42,7 @@ import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { CvsService } from './cvs.service';
@@ -285,6 +286,22 @@ export class CvsController {
     @Body() dto: CareerTargetStoryRequestDto,
   ): Promise<CareerTargetStoryResponseDto> {
     return this.cvs.inferCareerTargetFromStory(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story/extract')
+  @ApiOperation({
+    summary:
+      'Story→CV — extract projects + certifications from a free narrative (deterministic + anti-fab)',
+    description:
+      'Checks ownership, then extracts grounded projects (LLM-proposed prose, code-gated) and certifications (pure pattern match). Never fabricates; degrades safely. Charges CV_BUILDER_REWRITE only on a non-degraded LLM result.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  extractProjectsCertsFromStory(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: StoryExtractRequestDto,
+  ): Promise<StoryExtractResponseDto> {
+    return this.cvs.extractProjectsCertsFromStory(user.userId, id, dto);
   }
 
   @Post(':id/builder/assistant/rewrite')

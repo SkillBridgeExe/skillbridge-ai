@@ -46,10 +46,12 @@ import {
 import { SectionEvaluatorService } from '../../modules/cv-builder/section-evaluator.service';
 import { CvRewriteService } from '../../modules/cv-builder/cv-rewrite.service';
 import { RoleInferenceService } from '../../modules/cv-builder/role-inference.service';
+import { StoryExtractionService } from '../../modules/cv-builder/story-extraction.service';
 import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { VerifiedTailorAction } from '../../modules/cv-builder/tailor-verification';
 import { TailorVerifierService } from '../tailor-verifier/tailor-verifier.service';
 import {
@@ -103,6 +105,7 @@ export class CvsService {
     private readonly evaluator: SectionEvaluatorService,
     private readonly rewriter: CvRewriteService,
     private readonly roleInference: RoleInferenceService,
+    private readonly storyExtraction: StoryExtractionService,
     private readonly pdfRenderer: CvPdfRendererService,
     private readonly analysisQuota: CvAnalysisQuotaService,
     private readonly entitlements: EntitlementsService,
@@ -447,6 +450,31 @@ export class CvsService {
       needs_user_input: r.needs_user_input,
       reason: r.reason,
     };
+  }
+
+  /**
+   * Story→CV slice 2 — extract projects + certifications from a free narrative. Certs are pure-code
+   * (always free); projects use one grounded LLM call. Charges CV_BUILDER_REWRITE quota only when the
+   * project extraction is non-degraded AND grounds at least one project — a degraded fallback or a
+   * cert-only story delivered no LLM value.
+   */
+  async extractProjectsCertsFromStory(
+    userId: string,
+    cvId: string,
+    dto: StoryExtractRequestDto,
+  ): Promise<StoryExtractResponseDto> {
+    await this.findOwnedCv(userId, cvId);
+    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const result = await this.storyExtraction.extract(dto.story, dto.language ?? 'vi', userId);
+    // A non-degraded call that still grounds ZERO projects delivered no LLM value (e.g. cert-only
+    // story) — must stay free, matching the "no LLM value = free" norm used by assistantRewrite/Extract.
+    if (!result.degraded && result.projects.length > 0) {
+      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+        sourceType: 'cv',
+        sourceId: cvId,
+      });
+    }
+    return result;
   }
 
   /**

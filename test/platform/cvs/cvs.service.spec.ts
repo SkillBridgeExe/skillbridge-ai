@@ -109,6 +109,9 @@ describe('CvsService R1 completion behavior', () => {
     const roleInference = {
       inferFromStory: jest.fn(),
     };
+    const storyExtraction = {
+      extract: jest.fn(),
+    };
     const pdfRenderer = {
       extractSkillbridgeFingerprint: jest.fn().mockResolvedValue(null),
       renderHarvardPdf: jest.fn().mockResolvedValue({
@@ -151,6 +154,7 @@ describe('CvsService R1 completion behavior', () => {
       evaluator as never,
       rewriter as never,
       roleInference as never,
+      storyExtraction as never,
       pdfRenderer as never,
       analysisQuota as never,
       entitlements as never,
@@ -172,6 +176,7 @@ describe('CvsService R1 completion behavior', () => {
       evaluator,
       rewriter,
       roleInference,
+      storyExtraction,
       pdfRenderer,
       analysisQuota,
       entitlements,
@@ -1022,6 +1027,66 @@ describe('CvsService R1 completion behavior', () => {
       expect(res.display_name).toBeNull();
       expect(res.needs_user_input).toBe(true);
       expect(res.reason).toBe('too_weak');
+    });
+  });
+
+  describe('extractProjectsCertsFromStory', () => {
+    it('throws NotFound when cv not owned', async () => {
+      const { service, cvsRepo, entitlements, storyExtraction } = build();
+      cvsRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.extractProjectsCertsFromStory('u1', 'missing', { story: 'React, Node.' }),
+      ).rejects.toThrow();
+      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+      expect(storyExtraction.extract).not.toHaveBeenCalled();
+    });
+
+    it('charges CV_BUILDER_REWRITE only when not degraded', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extract.mockResolvedValue({
+        projects: [{ name: 'X' }],
+        certifications: [],
+        degraded: false,
+      });
+      await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'X project React' });
+      expect(entitlements.recordUsage).toHaveBeenCalled();
+    });
+
+    it('does NOT charge when non-degraded but zero grounded projects', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extract.mockResolvedValue({
+        projects: [],
+        certifications: [{ name: 'TOEIC', issuer: 'ETS', date: null, matched_pattern: 'toeic' }],
+        degraded: false,
+      });
+      await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'vague story' });
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
+
+    it('does NOT charge when degraded', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extract.mockResolvedValue({
+        projects: [],
+        certifications: [],
+        degraded: true,
+      });
+      await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'x' });
+      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    });
+
+    it('defaults language to vi', async () => {
+      const { service, cvsRepo, storyExtraction } = build();
+      cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
+      storyExtraction.extract.mockResolvedValue({
+        projects: [],
+        certifications: [],
+        degraded: false,
+      });
+      await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'x project' });
+      expect(storyExtraction.extract).toHaveBeenCalledWith('x project', 'vi', 'u1');
     });
   });
 });

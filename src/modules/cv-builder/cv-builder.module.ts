@@ -4,6 +4,7 @@ import { CvBuilderController } from './cv-builder.controller';
 import { SectionEvaluatorService } from './section-evaluator.service';
 import { CvRewriteService } from './cv-rewrite.service';
 import { RoleInferenceService } from './role-inference.service';
+import { StoryExtractionService } from './story-extraction.service';
 
 /**
  * R1b — CV Builder AI brain (spec §7A). Reuses BulletAnalyzerService (deterministic
@@ -13,7 +14,17 @@ import { RoleInferenceService } from './role-inference.service';
 @Module({
   imports: [CvReviewModule],
   controllers: [CvBuilderController],
-  providers: [SectionEvaluatorService, CvRewriteService, RoleInferenceService],
-  exports: [SectionEvaluatorService, CvRewriteService, RoleInferenceService],
+  providers: [
+    SectionEvaluatorService,
+    CvRewriteService,
+    RoleInferenceService,
+    StoryExtractionService,
+  ],
+  exports: [
+    SectionEvaluatorService,
+    CvRewriteService,
+    RoleInferenceService,
+    StoryExtractionService,
+  ],
 })
 export class CvBuilderModule {}
