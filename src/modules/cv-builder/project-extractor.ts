@@ -32,6 +32,11 @@ function deriveRole(text: string): string | null {
   return null;
 }
 
+// Strip trailing sentence punctuation a URL regex can accidentally capture (e.g. "site.com/x.").
+function stripTrailingPunct(url: string): string {
+  return url.replace(/[.,;)]+$/, '');
+}
+
 /**
  * Gate LLM-proposed projects against the raw narrative. The LLM only suggests name + prose; CODE decides
  * what survives: name must be grounded (atom) or the project is dropped; bullets keep only grounded prose;
@@ -63,14 +68,15 @@ export function gateProjects(
     if (tech.length) found.push('tech');
     else missing.push('tech');
 
-    // role/link: regex over the full narrative — these facts are rarely repeated inside the
-    // LLM's per-project description/contribution window, so scoping to `window` would miss them.
-    const role = deriveRole(narrative);
+    // Prefer the project's OWN window; widen to the full narrative only when the window is silent.
+    // ponytail: full-narrative fallback can still misattribute in a multi-project story whose window
+    // omits the field — best-effort ceiling; the common single-story case is correct.
+    const role = deriveRole(window) ?? deriveRole(narrative);
     if (role) found.push('role');
     else missing.push('role');
 
-    const linkMatch = URL_RE.exec(narrative);
-    const link = linkMatch ? linkMatch[1] : null;
+    const linkMatch = URL_RE.exec(window) ?? URL_RE.exec(narrative);
+    const link = linkMatch ? stripTrailingPunct(linkMatch[1]) : null;
     if (link) found.push('link');
     else missing.push('link');
 

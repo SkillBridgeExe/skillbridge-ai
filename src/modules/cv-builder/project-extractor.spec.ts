@@ -58,4 +58,36 @@ describe('gateProjects', () => {
     expect(p.tech).toContain('react');
     expect(p.tech).not.toContain('node_js'); // node not in THIS description window... (see impl note)
   });
+
+  it('binds each project to its OWN role/link, not the first project matched in the narrative', () => {
+    const multiNarrative =
+      'Dự án Kho Hàng, solo, link github.com/me/kho. Dự án Chat App, nhóm 5 người, link github.com/me/chat.';
+    const out = gateProjects(
+      [
+        { name: 'Kho Hàng', description: 'Dự án Kho Hàng, solo, link github.com/me/kho' },
+        { name: 'Chat App', description: 'Dự án Chat App, nhóm 5 người, link github.com/me/chat' },
+      ],
+      multiNarrative,
+      resolve,
+    );
+    expect(out.map((p) => p.name)).toEqual(['Kho Hàng', 'Chat App']); // both grounded names survive
+    const [khoHang, chatApp] = out;
+    expect(khoHang.role).toBe('Solo');
+    expect(khoHang.link).toBe('github.com/me/kho');
+    const chat = chatApp;
+    expect(chat.role).toBe('Team of 5'); // its OWN window, NOT Kho Hàng's "Solo"
+    expect(chat.link).toBe('github.com/me/chat'); // its OWN window, NOT Kho Hàng's link
+    expect(chat.found_fields).toContain('role');
+    expect(chat.found_fields).toContain('link');
+  });
+
+  it('strips trailing sentence punctuation off a link captured at end of sentence', () => {
+    const singleNarrative = 'Dự án Kho Hàng, solo, link github.com/me/kho.';
+    const [p] = gateProjects(
+      [{ name: 'Kho Hàng', description: 'Dự án Kho Hàng, solo, link github.com/me/kho.' }],
+      singleNarrative,
+      resolve,
+    );
+    expect(p.link).toBe('github.com/me/kho'); // no trailing "."
+  });
 });
