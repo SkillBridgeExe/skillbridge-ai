@@ -42,6 +42,7 @@ import {
   CareerTargetStoryRequestDto,
   CareerTargetStoryResponseDto,
 } from './dto/career-target-story.dto';
+import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
@@ -286,6 +287,21 @@ export class CvsController {
     @Body() dto: CareerTargetStoryRequestDto,
   ): Promise<CareerTargetStoryResponseDto> {
     return this.cvs.inferCareerTargetFromStory(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/story/apply-preview')
+  @ApiOperation({
+    summary: 'Story→CV — merge chosen projects/certs into the doc (stateless preview, no persist)',
+    description:
+      'Checks ownership, then deterministically merges the chosen story items into the supplied document (dedup by name, anti-empty) and returns the merged doc + a dedup report. Does NOT persist — the FE saves via PUT :id/builder.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  applyStoryPreview(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: StoryApplyRequestDto,
+  ): Promise<StoryApplyResponseDto> {
+    return this.cvs.applyStoryPreview(user.userId, id, dto);
   }
 
   @Post(':id/builder/story/extract')
