@@ -9,7 +9,10 @@ function buildSvc(parsedJson: unknown, throwLlm = false) {
   const llm = {
     complete: jest.fn().mockImplementation(() => {
       if (throwLlm) throw new Error('llm down');
-      return Promise.resolve({ parsedJson });
+      // Shorthand: a bare array of proposed projects is wrapped as `{ projects }`; anything else
+      // (already-shaped object, {}, null) is passed through unchanged for the pre-existing tests.
+      const payload = Array.isArray(parsedJson) ? { projects: parsedJson } : parsedJson;
+      return Promise.resolve({ parsedJson: payload });
     }),
   };
   // Faithful to PromptsService.get(): throws (like the real NotFoundException) for any code
@@ -71,5 +74,43 @@ describe('StoryExtractionService', () => {
     const r = await svc.extract(story, 'vi', 'user-1');
     expect(r.degraded).toBe(true);
     expect(r.projects).toEqual([]);
+  });
+});
+
+describe('StoryExtractionService.extractProject', () => {
+  it('returns the single grounded project (not degraded, not multiple)', async () => {
+    const svc = buildSvc([
+      { name: 'Shop Online', description: 'Dự án Shop Online bằng React và Node.js' },
+    ]);
+    const r = await svc.extractProject('Dự án Shop Online bằng React và Node.js.', 'vi', 'user-1');
+    expect(r.degraded).toBe(false);
+    expect(r.multipleDetected).toBe(false);
+    expect(r.project?.name).toBe('Shop Online');
+  });
+
+  it('fills the FIRST grounded project and flags multipleDetected when the story has 2', async () => {
+    const svc = buildSvc([
+      { name: 'Shop Online', description: 'Dự án Shop Online bằng React' },
+      { name: 'Chat App', description: 'Dự án Chat App bằng Node.js' },
+    ]);
+    const story = 'Dự án Shop Online bằng React. Dự án Chat App bằng Node.js.';
+    const r = await svc.extractProject(story, 'vi', 'user-1');
+    expect(r.project?.name).toBe('Shop Online');
+    expect(r.multipleDetected).toBe(true);
+  });
+
+  it('degrades (project:null) when the LLM throws', async () => {
+    const svc = buildSvc([], true); // throwLlm
+    const r = await svc.extractProject('x', 'vi', 'user-1');
+    expect(r.degraded).toBe(true);
+    expect(r.project).toBeNull();
+    expect(r.multipleDetected).toBe(false);
+  });
+
+  it('returns project:null when the proposed name is not grounded in the story (no fabrication)', async () => {
+    const svc = buildSvc([{ name: 'Imaginary CRM', description: 'a CRM' }]);
+    const r = await svc.extractProject('Tôi làm web với React.', 'vi', 'user-1');
+    expect(r.project).toBeNull();
+    expect(r.degraded).toBe(false); // honest "found nothing", not a failure
   });
 });

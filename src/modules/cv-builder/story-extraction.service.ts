@@ -15,6 +15,12 @@ export interface StoryExtractionResult {
   degraded: boolean;
 }
 
+export interface ProjectIntakeResult {
+  project: ExtractedProject | null;
+  degraded: boolean;
+  multipleDetected: boolean;
+}
+
 /**
  * Story→CV slice 2 orchestrator. Certs are pure-code (always run). Projects use ONE LLM call to propose
  * prose, then the deterministic gate decides what survives. LLM/parse failure → projects:[] + degraded
@@ -35,12 +41,14 @@ export class StoryExtractionService {
   private resolve = (raw: string): string | null =>
     this.taxonomy.lookupByAliasKey(SkillTaxonomyService.normalizeKey(raw)) ?? null;
 
-  async extract(
+  /** Shared step: ONE LLM call proposes project prose, then gateProjects decides what survives
+   *  (grounded against the RAW story). LLM/parse failure → projects:[] + degraded. Traced; never throws.
+   *  Used by extract() (slice-2 multi + certs) and extractProject() (single-project intake). */
+  private async proposeProjects(
     story: string,
     language: 'vi' | 'en',
     userId: string,
-  ): Promise<StoryExtractionResult> {
-    const certifications = extractCerts(story); // pure, always
+  ): Promise<{ projects: ExtractedProject[]; degraded: boolean }> {
     let projects: ExtractedProject[] = [];
     let degraded = false;
     const startedAt = Date.now();
@@ -103,6 +111,27 @@ export class StoryExtractionService {
       }
       this.logger.warn(`story project extraction degraded: ${(err as Error).message}`);
     }
+    return { projects, degraded };
+  }
+
+  async extract(
+    story: string,
+    language: 'vi' | 'en',
+    userId: string,
+  ): Promise<StoryExtractionResult> {
+    const certifications = extractCerts(story); // pure, always
+    const { projects, degraded } = await this.proposeProjects(story, language, userId);
     return { projects, certifications, degraded };
+  }
+
+  /** Story→CV project intake — single project for one CV card. Reuses the anti-fab proposeProjects gate;
+   *  returns the first grounded project (or null) + honest multipleDetected when the story named several. */
+  async extractProject(
+    story: string,
+    language: 'vi' | 'en',
+    userId: string,
+  ): Promise<ProjectIntakeResult> {
+    const { projects, degraded } = await this.proposeProjects(story, language, userId);
+    return { project: projects[0] ?? null, degraded, multipleDetected: projects.length > 1 };
   }
 }
