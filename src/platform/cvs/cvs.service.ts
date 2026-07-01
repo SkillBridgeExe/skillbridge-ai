@@ -455,7 +455,8 @@ export class CvsService {
   /**
    * Story→CV slice 2 — extract projects + certifications from a free narrative. Certs are pure-code
    * (always free); projects use one grounded LLM call. Charges CV_BUILDER_REWRITE quota only when the
-   * project extraction is non-degraded — a degraded fallback delivered no LLM value.
+   * project extraction is non-degraded AND grounds at least one project — a degraded fallback or a
+   * cert-only story delivered no LLM value.
    */
   async extractProjectsCertsFromStory(
     userId: string,
@@ -465,7 +466,9 @@ export class CvsService {
     await this.findOwnedCv(userId, cvId);
     await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
     const result = await this.storyExtraction.extract(dto.story, dto.language ?? 'vi', userId);
-    if (!result.degraded) {
+    // A non-degraded call that still grounds ZERO projects delivered no LLM value (e.g. cert-only
+    // story) — must stay free, matching the "no LLM value = free" norm used by assistantRewrite/Extract.
+    if (!result.degraded && result.projects.length > 0) {
       await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
         sourceType: 'cv',
         sourceId: cvId,

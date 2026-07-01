@@ -40,8 +40,9 @@ function stripTrailingPunct(url: string): string {
 /**
  * Gate LLM-proposed projects against the raw narrative. The LLM only suggests name + prose; CODE decides
  * what survives: name must be grounded (atom) or the project is dropped; bullets keep only grounded prose;
- * tech comes ONLY from the taxonomy resolver over the project window; role/link from regex over the full
- * narrative (a story usually states team size / link once, not per-project-window). No fabrication.
+ * tech comes ONLY from the taxonomy resolver over the project window; role/link from regex over the
+ * project's OWN window first, widening to the full narrative only when the window is silent (a story
+ * usually states team size / link once, not per-project-window). No fabrication.
  */
 export function gateProjects(
   proposed: ProposedProject[],

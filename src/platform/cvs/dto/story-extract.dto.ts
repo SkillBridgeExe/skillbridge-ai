@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 const LANGUAGES = ['vi', 'en'] as const;
 
@@ -9,6 +9,7 @@ export class StoryExtractRequestDto {
     maxLength: 5000,
   })
   @IsString()
+  @IsNotEmpty()
   @MaxLength(5000)
   story!: string;
 
