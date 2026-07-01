@@ -35,7 +35,7 @@ export class ProjectIntakeResponseDto {
 
   @ApiProperty({
     description:
-      'true → the story described more than one project; only the first grounded one was filled.',
+      'true → more than one grounded project was found; only the first was filled (split the rest manually).',
   })
   multiple_detected!: boolean;
 }
