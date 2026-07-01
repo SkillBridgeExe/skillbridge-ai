@@ -7,7 +7,7 @@ import { maskPii } from '../../common/services/pii-mask';
 import { ExtractedProject, gateProjects, ProposedProject } from './project-extractor';
 import { ExtractedCert, extractCerts } from './cert-extractor';
 
-const PROMPT_CODE = 'cv_story_project';
+const PROMPT_CODE = 'cv_story_project_v1';
 
 export interface StoryExtractionResult {
   projects: ExtractedProject[];
@@ -76,14 +76,16 @@ export class StoryExtractionService {
         },
       );
       const parsed = (llmResult.parsedJson ?? null) as { projects?: ProposedProject[] } | null;
-      const proposed = Array.isArray(parsed?.projects) ? parsed!.projects : [];
-      projects = gateProjects(proposed, story, this.resolve); // grounded against RAW story
+      // Malformed/absent output is untrustworthy, not "honestly zero projects" — degrade via the
+      // catch block below (mirrors CvIntakeService's bad-shape guard).
+      if (!parsed || !Array.isArray(parsed.projects))
+        throw new Error('cv_story_project: bad model output');
+      projects = gateProjects(parsed.projects, story, this.resolve); // grounded against RAW story
 
       if (aiRequestId) {
-        // Promise.resolve(...) tolerates both a real Promise and a plain-value test double;
         // .catch swallows telemetry failures so they never flip an otherwise-successful gate to degraded.
-        await Promise.resolve(
-          this.tracing.completeAiRequest(aiRequestId, {
+        await this.tracing
+          .completeAiRequest(aiRequestId, {
             promptTokens: llmResult.tokenUsage?.promptTokens ?? 0,
             completionTokens: llmResult.tokenUsage?.completionTokens ?? 0,
             totalTokens: llmResult.tokenUsage?.totalTokens ?? 0,
@@ -91,15 +93,13 @@ export class StoryExtractionService {
             latencyMs: llmResult.latencyMs ?? 0,
             status: 'SUCCESS',
             modelCode: llmResult.modelCode,
-          }),
-        ).catch(() => undefined);
+          })
+          .catch(() => undefined);
       }
     } catch (err) {
       degraded = true;
       if (aiRequestId) {
-        await Promise.resolve(this.tracing.markFailed(aiRequestId, startedAt, err)).catch(
-          () => undefined,
-        );
+        await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
       }
       this.logger.warn(`story project extraction degraded: ${(err as Error).message}`);
     }
