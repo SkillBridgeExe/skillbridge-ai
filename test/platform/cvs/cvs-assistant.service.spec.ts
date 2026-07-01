@@ -53,10 +53,11 @@ function build(
     any,
     any, // 13-14
     entitlements as never, // 15
-    undefined, // 16 interviewPlan
-    undefined, // 17 githubEvidence
-    undefined, // 18 tailorVerifier
-    cvAssistant as never, // 19 cvAssistant
+    any, // 16 skillDiff
+    undefined, // 17 interviewPlan
+    undefined, // 18 githubEvidence
+    undefined, // 19 tailorVerifier
+    cvAssistant as never, // 20 cvAssistant
   );
   return { service, cvsRepo, entitlements, cvAssistant };
 }

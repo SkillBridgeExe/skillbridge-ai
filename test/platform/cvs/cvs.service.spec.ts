@@ -137,6 +137,9 @@ describe('CvsService R1 completion behavior', () => {
     const githubEvidence = {
       build: jest.fn().mockResolvedValue({ available: false, reason: 'CONSENT_REQUIRED' }),
     };
+    const skillDiff = {
+      diff: jest.fn(),
+    };
 
     const service = new CvsService(
       cvsRepo as never,
@@ -154,6 +157,7 @@ describe('CvsService R1 completion behavior', () => {
       pdfRenderer as never,
       analysisQuota as never,
       entitlements as never,
+      skillDiff as never,
       interviewPlan as never,
       githubEvidence as never,
     );
@@ -175,6 +179,7 @@ describe('CvsService R1 completion behavior', () => {
       pdfRenderer,
       analysisQuota,
       entitlements,
+      skillDiff,
       interviewPlan,
       githubEvidence,
     };
@@ -1022,6 +1027,114 @@ describe('CvsService R1 completion behavior', () => {
       expect(res.display_name).toBeNull();
       expect(res.needs_user_input).toBe(true);
       expect(res.reason).toBe('too_weak');
+    });
+  });
+
+  describe('computeStoryReadiness', () => {
+    const docCv = {
+      id: 'cv1',
+      userId: 'u1',
+      language: 'vi',
+      parsedJson: {
+        language: 'vi',
+        contact: {},
+        summary: '',
+        education: [],
+        experience: [],
+        projects: [],
+        skills: { technical: ['react'], soft: [], languages: [], tools: [] },
+        certifications: [],
+        activities: [],
+      },
+    };
+
+    it('throws NotFound when cv not owned', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.computeStoryReadiness('u1', 'missing', { role_code: 'frontend_developer' }),
+      ).rejects.toThrow();
+    });
+
+    it('computes readiness (from raw_weighted_score) + full GapItems from the rubric diff', async () => {
+      const { service, cvsRepo, skillDiff } = build();
+      cvsRepo.findOne.mockResolvedValue(docCv);
+      skillDiff.diff.mockReturnValue({
+        matched_skills: [
+          {
+            canonical_name: 'react',
+            display_name: 'React',
+            cv_level: 3,
+            required_level: 3,
+            importance: 'REQUIRED',
+            weight: 0.2,
+            skill_type: 'hard',
+            skill_id: 'react',
+          },
+        ],
+        partial_skills: [],
+        missing_skills: [
+          {
+            canonical_name: 'typescript',
+            display_name: 'TypeScript',
+            required_level: 3,
+            importance: 'REQUIRED',
+            weight: 0.2,
+            skill_type: 'hard',
+            skill_id: 'ts',
+            gap_levels: 3,
+          },
+          {
+            canonical_name: 'css',
+            display_name: 'CSS',
+            required_level: 3,
+            importance: 'REQUIRED',
+            weight: 0.1,
+            skill_type: 'hard',
+            skill_id: 'css',
+            gap_levels: 3,
+          },
+        ],
+        requirements_source: 'role_rubric',
+        overall_score: 62, // capped value
+        required_coverage: 0.5,
+        scoring_breakdown: { raw_weighted_score: 80 }, // uncapped — what readiness must use
+      });
+      const res = await service.computeStoryReadiness('u1', 'cv1', {
+        role_code: 'frontend_developer',
+      });
+      expect(res.readiness).toBe(68); // 0.6*80(raw) + 40*0.5 — NOT 0.6*62(capped)
+      expect(res.band).toBe('building');
+      expect(res.missing_count).toBe(2);
+      expect(Array.isArray(res.gap_items)).toBe(true);
+      expect(res.gap_items.length).toBeGreaterThan(0); // buildGapItems produced canonical items
+      expect(res.role_has_rubric).toBe(true);
+      expect(res.roadmap_pointer.route).toContain('roadmap');
+    });
+
+    it('feeds structured doc skills into diff (deterministic, no LLM)', async () => {
+      const { service, cvsRepo, skillDiff } = build();
+      cvsRepo.findOne.mockResolvedValue(docCv);
+      skillDiff.diff.mockReturnValue({
+        matched_skills: [],
+        partial_skills: [],
+        missing_skills: [],
+        requirements_source: 'role_rubric',
+        overall_score: 0,
+        required_coverage: 0,
+        scoring_breakdown: { raw_weighted_score: 0 },
+      });
+      await service.computeStoryReadiness('u1', 'cv1', {
+        role_code: 'frontend_developer',
+        band: 'fresher',
+      });
+      expect(skillDiff.diff).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_role: 'frontend_developer',
+          target_band: 'fresher',
+          cv_skills_raw: [{ name: 'react' }],
+        }),
+      );
     });
   });
 });

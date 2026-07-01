@@ -8,6 +8,7 @@ import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
+import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { CvReviewModule } from '../../modules/cv-review/cv-review.module';
 import { GithubEvidenceModule } from '../../modules/github-evidence/github-evidence.module';
 import { InterviewModule } from '../../modules/interview/interview.module';
@@ -43,6 +44,10 @@ import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
     TracingModule,
     // PR4.5 — server-verified tailor rewrite. Standalone (no Cvs/CvMatches dep) → no module cycle.
     TailorVerifierModule,
+    // Story→CV slice 4 — SkillDiffService for the rubric-only readiness/gap endpoint. CvReviewModule
+    // already imports it internally but doesn't re-export it, so CvsModule needs its own import
+    // (CvJdMatchModule has no dep back on Cvs/CvBuilder/CvReview — no cycle).
+    CvJdMatchModule,
   ],
   controllers: [CvsController, DiagnosisController],
   providers: [
