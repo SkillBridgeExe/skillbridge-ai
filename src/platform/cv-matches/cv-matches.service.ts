@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThan, Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
@@ -49,6 +49,7 @@ import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
 import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { JdTextExtractorService } from './jd-text-extractor.service';
+import { jdContentHash } from './jd-content-hash';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_JD_TEXT_LENGTH = 60_000;
@@ -112,6 +113,7 @@ export class CvMatchesService {
           userId,
           title: this.trimOrNull(dto.title) ?? file?.originalname ?? null,
           rawText: jdText,
+          contentHash: jdContentHash(jdText),
           parsedJson: null,
           sourceType: file ? 'UPLOADED' : 'PASTED',
           documentId: null,
@@ -263,14 +265,23 @@ export class CvMatchesService {
 
     if (!current.jobDescriptionId) return baselineProgress(currGaps, currScore);
 
-    const prior = await this.matches.findOne({
-      where: {
-        cvId: current.cvId,
-        jobDescriptionId: current.jobDescriptionId,
-        createdAt: LessThan(current.createdAt),
-      },
-      order: { createdAt: 'DESC' },
+    const currentJd = await this.jobDescriptions.findOne({
+      where: { id: current.jobDescriptionId },
     });
+    if (!currentJd?.contentHash) return baselineProgress(currGaps, currScore);
+
+    // Lineage = same USER + same JD CONTENT (hash), any cvId: an edited re-uploaded CV gets a
+    // new cv row, and every match saves a new jd row — the old (cvId, jobDescriptionId) key
+    // never matched a real re-scan, so progress was always "baseline".
+    const prior = await this.matches
+      .createQueryBuilder('m')
+      .innerJoin(JobDescriptionEntity, 'jd', 'jd.id = m.jobDescriptionId')
+      .innerJoin(CvEntity, 'cv', 'cv.id = m.cvId')
+      .where('cv.userId = :userId', { userId })
+      .andWhere('jd.contentHash = :hash', { hash: currentJd.contentHash })
+      .andWhere('m.createdAt < :createdAt', { createdAt: current.createdAt })
+      .orderBy('m.createdAt', 'DESC')
+      .getOne();
     if (!prior) return baselineProgress(currGaps, currScore);
 
     try {
