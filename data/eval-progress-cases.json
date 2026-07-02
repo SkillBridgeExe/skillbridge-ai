@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "name": "gap_closed",
+      "prev": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "matched", "severity": 0, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 60, "currScore": 75, "prevCoverage": 0.5, "currCoverage": 0.7, "templateChanged": false },
+      "expect": { "closed": ["sql"], "improved": [], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "gap_improved",
+      "prev": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "missing", "severity": 0.8, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 55, "currScore": 62, "prevCoverage": 0.4, "currCoverage": 0.5, "templateChanged": false },
+      "expect": { "closed": [], "improved": ["docker"], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "gap_new",
+      "prev": [],
+      "curr": [
+        { "canonical_name": "kubernetes", "display_name": "Kubernetes", "cv_status": "missing", "severity": 0.7, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 70, "currScore": 68, "prevCoverage": 0.6, "currCoverage": 0.6, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": ["kubernetes"], "evidence_recognized": [] }
+    },
+    {
+      "name": "evidence_recognized",
+      "prev": [
+        { "canonical_name": "react", "display_name": "React", "cv_status": "unproven", "severity": 0.5, "evidence_risk": "unproven" }
+      ],
+      "curr": [
+        { "canonical_name": "react", "display_name": "React", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 58, "currScore": 64, "prevCoverage": 0.5, "currCoverage": 0.55, "templateChanged": false },
+      "expect": { "closed": [], "improved": ["react"], "new": [], "evidence_recognized": ["React"] }
+    },
+    {
+      "name": "template_mismatch",
+      "prev": [
+        { "canonical_name": "python", "display_name": "Python", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "python", "display_name": "Python", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 65, "currScore": 70, "prevCoverage": 0.6, "currCoverage": 0.6, "templateChanged": true },
+      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": [], "template_changed": true, "prev_score_null": true }
+    }
+  ]
+}
