@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
-import { EntitlementsService } from '../billing/entitlements.service';
+import { EntitlementsService, UsageReservation } from '../billing/entitlements.service';
 
 /**
  * Billing-aware quota gate for CV analysis.
@@ -12,16 +12,12 @@ import { EntitlementsService } from '../billing/entitlements.service';
 export class CvAnalysisQuotaService {
   constructor(private readonly entitlements: EntitlementsService) {}
 
-  async assertWithinDailyLimit(userId: string): Promise<void> {
-    if (!userId) return;
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_REVIEW);
-  }
-
-  async recordSuccessfulAnalysis(userId: string, cvId: string): Promise<void> {
-    if (!userId) return;
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_REVIEW, {
-      sourceType: 'cv',
-      sourceId: cvId,
-    });
+  /**
+   * Atomically charge one cv_review use (race-free reserve). Returns null for anonymous internal
+   * callers (no user = no quota). Caller must `refund()` on failure and `confirm()` with the cv id.
+   */
+  async reserveAnalysis(userId: string): Promise<UsageReservation | null> {
+    if (!userId) return null;
+    return this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_REVIEW);
   }
 }

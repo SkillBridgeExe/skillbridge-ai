@@ -201,3 +201,98 @@ describe('EntitlementsService', () => {
     jest.useRealTimers();
   });
 });
+
+describe('EntitlementsService.reserveUsage', () => {
+  function setup(options: { limitValue: number | null; used?: number }) {
+    const manager = {
+      query: jest.fn().mockResolvedValue(undefined),
+      count: jest.fn().mockResolvedValue(options.used ?? 0),
+      create: jest.fn((_entity: unknown, input: object) => input),
+      save: jest.fn(async (input: object) => ({ id: 'evt-1', ...input })),
+    };
+    const dataSource = {
+      transaction: jest.fn(async (cb: (m: typeof manager) => Promise<unknown>) => cb(manager)),
+    };
+    const usageEvents = {
+      update: jest.fn().mockResolvedValue(undefined),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = new EntitlementsService(
+      repo<BillingPlanEntity>({ findOne: jest.fn() }),
+      repo<PlanFeatureEntity>({
+        findOne: jest.fn().mockResolvedValue(
+          options.limitValue === null
+            ? null
+            : {
+                planCode: BillingPlanCode.FREE,
+                featureKey: BillingFeatureKey.CV_JD_MATCH,
+                limitValue: options.limitValue,
+                period: BillingFeaturePeriod.MONTHLY,
+              },
+        ),
+      }),
+      repo<UserSubscriptionEntity>({ findOne: jest.fn().mockResolvedValue(null) }),
+      usageEvents as unknown as Repository<UsageEventEntity>,
+      dataSource as never,
+    );
+    return { service, manager, dataSource, usageEvents };
+  }
+
+  it('charges atomically under the limit: advisory lock, count and insert in one transaction', async () => {
+    const { service, manager, dataSource } = setup({ limitValue: 3, used: 2 });
+
+    const reservation = await service.reserveUsage('user-1', BillingFeatureKey.CV_JD_MATCH);
+
+    expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    expect(manager.query).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      ['usage:user-1:cv_jd_match'],
+    );
+    expect(manager.save).toHaveBeenCalledTimes(1);
+    expect(reservation.eventId).toBe('evt-1');
+  });
+
+  it('rejects with 402 at the limit and inserts nothing', async () => {
+    const { service, manager } = setup({ limitValue: 3, used: 3 });
+
+    await expect(
+      service.reserveUsage('user-1', BillingFeatureKey.CV_JD_MATCH),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects a feature with limit 0 before opening a transaction', async () => {
+    const { service, dataSource } = setup({ limitValue: 0 });
+
+    await expect(
+      service.reserveUsage('user-1', BillingFeatureKey.CV_JD_MATCH),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('skips lock and count for an unlimited feature but still records the event', async () => {
+    const { service, manager } = setup({ limitValue: UNLIMITED_BILLING_LIMIT });
+
+    await service.reserveUsage('user-1', BillingFeatureKey.CV_JD_MATCH);
+
+    expect(manager.query).not.toHaveBeenCalled();
+    expect(manager.count).not.toHaveBeenCalled();
+    expect(manager.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('refund deletes the charged event and never throws; confirm attaches the source', async () => {
+    const { service, usageEvents } = setup({ limitValue: 3, used: 0 });
+
+    const reservation = await service.reserveUsage('user-1', BillingFeatureKey.CV_JD_MATCH);
+    await reservation.confirm({ sourceType: 'cv_match', sourceId: 'match-1' });
+    expect(usageEvents.update).toHaveBeenCalledWith('evt-1', {
+      sourceType: 'cv_match',
+      sourceId: 'match-1',
+    });
+
+    usageEvents.delete.mockRejectedValueOnce(new Error('db down'));
+    await expect(reservation.refund()).resolves.toBeUndefined();
+    await reservation.refund();
+    expect(usageEvents.delete).toHaveBeenCalledWith('evt-1');
+  });
+});
