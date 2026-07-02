@@ -175,8 +175,31 @@ describe('buildDiagnosisFacts — progress (B6)', () => {
       closed: ['Docker'],
       improved: [],
       new_gaps: [],
+      worsened: [],
       score_delta: 12,
     });
+  });
+
+  it('worsened transitions reach the facts — hidden on the banner by design, but the advisor answers honestly when asked', () => {
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({
+        transitions: [
+          {
+            canonical_name: 'sql',
+            display_name: 'SQL',
+            prev_status: 'partial',
+            curr_status: 'missing',
+            kind: 'worsened',
+            prev_severity: 0.3,
+            curr_severity: 0.6,
+          },
+        ],
+      }),
+    );
+    expect(facts.progress?.worsened).toEqual(['SQL']);
+    expect(facts.progress?.closed).toEqual([]);
   });
 
   it('progress omitted / null / baseline → facts has NO progress key (chat behaves exactly as today)', () => {

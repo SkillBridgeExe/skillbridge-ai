@@ -62,6 +62,10 @@ export interface DiagnosisFacts {
     closed: string[];
     improved: string[];
     new_gaps: string[];
+    /** Gaps whose status regressed since the prior scan. Deliberately NOT rendered on the banner
+     *  (extraction noise can produce false "regressions" — a proactive alarm would demotivate),
+     *  but the advisor must answer honestly when the user ASKS what got worse. */
+    worsened: string[];
     /** curr_score - prev_score rounded; null when either score is unknown (never a fabricated delta). */
     score_delta: number | null;
   };
@@ -222,6 +226,10 @@ export function buildDiagnosisFacts(
         .slice(0, 8),
       new_gaps: progress.transitions
         .filter((t) => t.kind === 'new')
+        .map((t) => t.display_name)
+        .slice(0, 8),
+      worsened: progress.transitions
+        .filter((t) => t.kind === 'worsened')
         .map((t) => t.display_name)
         .slice(0, 8),
       score_delta:
