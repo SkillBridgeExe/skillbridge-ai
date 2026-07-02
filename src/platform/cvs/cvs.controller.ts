@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -241,6 +242,10 @@ export class CvsController {
     return this.cvs.evaluateBuilderSection(user.userId, id, dto);
   }
 
+  // S4 abuse bound: OFF-TOPIC rejects refund the rewrite quota, so this LLM-burning endpoint
+  // gets a tight per-user rate — no human rewrites 10+ fields a minute; junk spam hits 429
+  // before the model is called.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post(':id/builder/rewrite')
   @ApiOperation({
     summary: 'Rewrite one CV Builder field',
