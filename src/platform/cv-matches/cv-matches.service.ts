@@ -54,6 +54,13 @@ import { jdContentHash } from './jd-content-hash';
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_JD_TEXT_LENGTH = 60_000;
 
+export interface OtherMatchSummary {
+  jd_title: string | null;
+  overall_score: number | null;
+  top_gaps: string[];
+  created_at: string;
+}
+
 @Injectable()
 export class CvMatchesService {
   constructor(
@@ -444,6 +451,44 @@ export class CvMatchesService {
     return buildInterviewPlanFromGapItems(report.gap_items, lang);
   }
 
+  async listRecentMatchSummariesForUser(
+    userId: string,
+    excludeMatchId: string,
+    limit = 3,
+  ): Promise<OtherMatchSummary[]> {
+    const rows = await this.matches
+      .createQueryBuilder('m')
+      .innerJoin(CvEntity, 'cv', 'cv.id = m.cvId')
+      .leftJoin(JobDescriptionEntity, 'jd', 'jd.id = m.jobDescriptionId')
+      .where('cv.userId = :userId', { userId })
+      .andWhere('cv.deletedAt IS NULL')
+      .andWhere('m.id != :excludeMatchId', { excludeMatchId })
+      .orderBy('m.createdAt', 'DESC')
+      .take(limit)
+      .select([
+        'jd.title AS "jdTitle"',
+        'm.overallScore AS "overallScore"',
+        'm.suggestions AS "suggestions"',
+        'm.createdAt AS "createdAt"',
+      ])
+      .getRawMany<{
+        jdTitle: string | null;
+        overallScore: string | number | null;
+        suggestions: unknown;
+        createdAt: Date | string;
+      }>();
+
+    return rows.map((row) => ({
+      jd_title: row.jdTitle,
+      overall_score: this.numberOrNull(row.overallScore),
+      top_gaps: this.topPersistedGaps(row.suggestions),
+      created_at:
+        row.createdAt instanceof Date
+          ? row.createdAt.toISOString()
+          : new Date(row.createdAt).toISOString(),
+    }));
+  }
+
   private async loadOwnedMatchParsedResponse(
     userId: string,
     matchId: string,
@@ -639,6 +684,21 @@ export class CvMatchesService {
   private percentToRatio(value: string | number | null | undefined): number | null {
     const number = this.numberOrNull(value);
     return number === null ? null : number / 100;
+  }
+
+  private topPersistedGaps(suggestions: unknown): string[] {
+    const persisted = objectLike(suggestions);
+    return [
+      ...this.displayNamesFromPersistedGaps(persisted.missing_skills),
+      ...this.displayNamesFromPersistedGaps(persisted.partial_skills),
+    ].slice(0, 2);
+  }
+
+  private displayNamesFromPersistedGaps(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => objectLike(item).display_name)
+      .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
   }
 }
 
