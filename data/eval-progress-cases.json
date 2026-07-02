@@ -45,13 +45,13 @@
     {
       "name": "template_mismatch",
       "prev": [
-        { "canonical_name": "python", "display_name": "Python", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+        { "canonical_name": "python", "display_name": "Python", "cv_status": "missing", "severity": 0.8, "evidence_risk": "none" }
       ],
       "curr": [
         { "canonical_name": "python", "display_name": "Python", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
       ],
       "opts": { "prevScore": 65, "currScore": 70, "prevCoverage": 0.6, "currCoverage": 0.6, "templateChanged": true },
-      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": [], "template_changed": true, "prev_score_null": true }
+      "expect": { "closed": [], "improved": ["python"], "new": [], "evidence_recognized": [], "template_changed": true, "prev_score_null": true }
     }
   ]
 }
