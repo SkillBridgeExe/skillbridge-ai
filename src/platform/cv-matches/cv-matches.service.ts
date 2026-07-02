@@ -28,9 +28,9 @@ import {
 } from '../../modules/gap-report/gap-report.service';
 import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
 import {
-  baselineProgress,
-  diffGapProgress,
-  ProgressDelta,
+  baselineReport,
+  buildProgressReport,
+  ProgressReport,
 } from '../../modules/gap-report/gap-progress';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
@@ -254,21 +254,21 @@ export class CvMatchesService {
     return this.platformCvs.getLatestReview(userId, match.cvId);
   }
 
-  async getProgress(userId: string, matchId: string): Promise<ProgressDelta> {
-    const current = await this.matches.findOne({ where: { id: matchId } });
-    if (!current) throw new NotFoundException('CV match not found');
-    await this.findOwnedCv(userId, current.cvId);
-
-    const currReport = await this.getGapReport(userId, matchId);
+  async getProgress(userId: string, matchId: string): Promise<ProgressReport> {
+    const { match: current, parsed: currParsed } = await this.loadOwnedMatchParsedResponse(
+      userId,
+      matchId,
+    );
+    const currReport = await this.buildGapReportFromParsed(userId, current, currParsed);
     const currGaps = currReport.gap_items;
     const currScore = this.numberOrNull(current.overallScore);
 
-    if (!current.jobDescriptionId) return baselineProgress(currGaps, currScore);
+    if (!current.jobDescriptionId) return baselineReport(currGaps, currScore);
 
     const currentJd = await this.jobDescriptions.findOne({
       where: { id: current.jobDescriptionId },
     });
-    if (!currentJd?.contentHash) return baselineProgress(currGaps, currScore);
+    if (!currentJd?.contentHash) return baselineReport(currGaps, currScore);
 
     // Lineage = same USER + same JD CONTENT (hash), any cvId: an edited re-uploaded CV gets a
     // new cv row, and every match saves a new jd row — the old (cvId, jobDescriptionId) key
@@ -282,22 +282,35 @@ export class CvMatchesService {
       .andWhere('m.createdAt < :createdAt', { createdAt: current.createdAt })
       .orderBy('m.createdAt', 'DESC')
       .getOne();
-    if (!prior) return baselineProgress(currGaps, currScore);
+    if (!prior) return baselineReport(currGaps, currScore);
+
+    // Prior was found via a query already scoped to cv.userId = :userId, so ownership is
+    // established — read its parsed response directly rather than re-checking via
+    // loadOwnedMatchParsedResponse (which is scoped to the CALLER's cvId, not prior's).
+    const prevParsed = await this.resolveParsedResponse(prior);
+    if (!prevParsed) return baselineReport(currGaps, currScore);
 
     try {
-      const prevReport = await this.getGapReport(userId, prior.id);
-      return diffGapProgress(
-        prevReport.gap_items,
-        currGaps,
-        this.numberOrNull(prior.overallScore),
+      const prevReport = await this.buildGapReportFromParsed(userId, prior, prevParsed);
+      // No template code is stored on the match row — infer it from schema shape instead:
+      // only the v2 (jd_intelligence) prompt template ever emits jd_dimensions.
+      const isV2 = (p: CvJdMatchParsedResponse) => p.jd_dimensions !== undefined;
+      const templateChanged = isV2(prevParsed) !== isV2(currParsed);
+      return buildProgressReport(prevReport.gap_items, currGaps, {
+        prevScore: this.numberOrNull(prior.overallScore),
         currScore,
-      );
+        prevCoverage: prevParsed.required_coverage ?? null,
+        currCoverage: currParsed.required_coverage ?? null,
+        prevJdIntel: prevReport.jd_intelligence?.dimensions ?? null,
+        currJdIntel: currReport.jd_intelligence?.dimensions ?? null,
+        templateChanged,
+      });
     } catch {
       // Prior gap-report unavailable (e.g. legacy/empty ai_results): degrade to a
       // baseline reading rather than fabricate a diff. We intentionally do NOT surface
       // prior.overallScore here — without the prior gaps there is no honest comparison,
       // so the FE shows "first measurement" instead of a misleading partial delta.
-      return baselineProgress(currGaps, currScore);
+      return baselineReport(currGaps, currScore);
     }
   }
 

@@ -374,18 +374,47 @@ describe('CvMatchesService', () => {
     expect(gapReport.build).not.toHaveBeenCalled();
   });
 
+  // getProgress no longer routes through the public getGapReport (it needs the raw parsed
+  // response too, for template-change detection) — spy on the private
+  // loadOwnedMatchParsedResponse/buildGapReportFromParsed/resolveParsedResponse steps instead.
+  function stubProgressReportBuilding(
+    service: ReturnType<typeof build>['service'],
+    opts: {
+      current: unknown;
+      currParsed?: unknown;
+      currGapItems: unknown[];
+      prevParsed?: unknown;
+      prevGapItems?: unknown[];
+    },
+  ) {
+    jest
+      .spyOn(service as never, 'loadOwnedMatchParsedResponse')
+      .mockResolvedValue({ match: opts.current, parsed: opts.currParsed ?? {} } as never);
+    const buildGapReportFromParsed = jest.spyOn(service as never, 'buildGapReportFromParsed');
+    buildGapReportFromParsed.mockResolvedValueOnce({ gap_items: opts.currGapItems } as never);
+    if (opts.prevGapItems) {
+      buildGapReportFromParsed.mockResolvedValueOnce({ gap_items: opts.prevGapItems } as never);
+    }
+    if (opts.prevParsed !== undefined) {
+      jest
+        .spyOn(service as never, 'resolveParsedResponse')
+        .mockResolvedValue(opts.prevParsed as never);
+    }
+    return buildGapReportFromParsed;
+  }
+
   it('returns baseline progress when there is no prior same-user/JD-hash match', async () => {
-    const { service, matchesRepo, matchesQueryBuilder } = build();
+    const { service, matchesQueryBuilder } = build();
     const current = {
       id: 'match-current',
       cvId: 'cv-1',
       jobDescriptionId: 'jd-1',
       createdAt: new Date('2026-06-06T00:00:00.000Z'),
     };
-    jest.spyOn(service, 'getGapReport').mockResolvedValue({
-      gap_items: [{ canonical_name: 'react', cv_status: 'missing' }],
-    } as never);
-    matchesRepo.findOne.mockResolvedValueOnce(current);
+    stubProgressReportBuilding(service, {
+      current,
+      currGapItems: [{ canonical_name: 'react', cv_status: 'missing' }],
+    });
     matchesQueryBuilder.getOne.mockResolvedValueOnce(null);
 
     const out = await service.getProgress('user-1', 'match-current');
@@ -401,20 +430,20 @@ describe('CvMatchesService', () => {
   });
 
   it('counts only open gaps in baseline progress', async () => {
-    const { service, matchesRepo, matchesQueryBuilder } = build();
+    const { service, matchesQueryBuilder } = build();
     const current = {
       id: 'match-current',
       cvId: 'cv-1',
       jobDescriptionId: 'jd-1',
       createdAt: new Date('2026-06-06T00:00:00.000Z'),
     };
-    jest.spyOn(service, 'getGapReport').mockResolvedValue({
-      gap_items: [
+    stubProgressReportBuilding(service, {
+      current,
+      currGapItems: [
         { canonical_name: 'react', cv_status: 'matched', severity: 0 },
         { canonical_name: 'sql', cv_status: 'missing', severity: 0.8 },
       ],
-    } as never);
-    matchesRepo.findOne.mockResolvedValueOnce(current);
+    });
     matchesQueryBuilder.getOne.mockResolvedValueOnce(null);
 
     const out = await service.getProgress('user-1', 'match-current');
@@ -423,7 +452,7 @@ describe('CvMatchesService', () => {
   });
 
   it('diffs progress against the previous same-user/JD-hash match (lineage, not raw jobDescriptionId)', async () => {
-    const { service, matchesRepo, matchesQueryBuilder } = build();
+    const { service, matchesQueryBuilder } = build();
     const current = {
       id: 'match-current',
       cvId: 'cv-1',
@@ -438,15 +467,12 @@ describe('CvMatchesService', () => {
       createdAt: new Date('2026-06-05T00:00:00.000Z'),
       overallScore: '72.00',
     };
-    jest
-      .spyOn(service, 'getGapReport')
-      .mockResolvedValueOnce({
-        gap_items: [{ canonical_name: 'react', cv_status: 'matched', severity: 0 }],
-      } as never)
-      .mockResolvedValueOnce({
-        gap_items: [{ canonical_name: 'react', cv_status: 'missing', severity: 0.8 }],
-      } as never);
-    matchesRepo.findOne.mockResolvedValueOnce(current);
+    stubProgressReportBuilding(service, {
+      current,
+      currGapItems: [{ canonical_name: 'react', cv_status: 'matched', severity: 0 }],
+      prevParsed: {},
+      prevGapItems: [{ canonical_name: 'react', cv_status: 'missing', severity: 0.8 }],
+    });
     matchesQueryBuilder.getOne.mockResolvedValueOnce(prior);
 
     const out = await service.getProgress('user-1', 'match-current');
