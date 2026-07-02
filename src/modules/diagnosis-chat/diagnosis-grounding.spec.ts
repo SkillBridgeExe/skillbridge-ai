@@ -147,6 +147,44 @@ describe('buildDiagnosisFacts', () => {
     expect(facts.overall_score).toBe(72);
   });
 
+  it('adds recent other-match summaries when provided, without created_at noise', () => {
+    const otherMatchesFromPlatform = [
+      {
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React', 'TypeScript', 'Testing'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+      {
+        jd_title: null,
+        overall_score: null,
+        top_gaps: ['Docker'],
+        created_at: '2026-07-01T08:00:00.000Z',
+      },
+    ];
+
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      null,
+      otherMatchesFromPlatform,
+    );
+
+    expect(facts.other_matches).toEqual([
+      { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React', 'TypeScript'] },
+      { jd_title: null, overall_score: null, top_gaps: ['Docker'] },
+    ]);
+  });
+
+  it('omits other_matches when the list is empty or absent', () => {
+    expect(buildDiagnosisFacts(makeReview(), makeGapReport([]))).not.toHaveProperty(
+      'other_matches',
+    );
+    expect(buildDiagnosisFacts(makeReview(), makeGapReport([]), null, [])).not.toHaveProperty(
+      'other_matches',
+    );
+  });
+
   it('missing/empty review dimension fields degrade to empty arrays, never throw', () => {
     const facts = buildDiagnosisFacts({} as unknown as CvReviewParsedResponse, null);
     expect(facts.dimensions).toEqual([]);
@@ -285,6 +323,55 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.answer).not.toContain('evil.example.com');
     expect(result.answer).not.toContain('http');
     expect(result.suggested_next_step).not.toContain('spam.io');
+  });
+
+  it('renders a grounded other-match comparison when the model cites a listed match index', () => {
+    const factsWithOtherMatches = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([makeGapItem()]),
+      null,
+      [
+        { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React', 'TypeScript'] },
+        { jd_title: 'Backend Developer', overall_score: 64, top_gaps: ['Docker'] },
+      ],
+    );
+
+    const result = groundDiagnosis(
+      {
+        message: 'The frontend JD is the best and the salary is 2000 USD.',
+        cited_other_match_index: 1,
+      },
+      factsWithOtherMatches,
+      'en',
+    );
+
+    expect(result.answer).toContain('Frontend Developer');
+    expect(result.answer).toContain('72');
+    expect(result.answer).toContain('React');
+    expect(result.answer).toContain('TypeScript');
+    expect(result.answer).not.toContain('2000');
+    expect(result.suggested_next_step).toBeNull();
+  });
+
+  it('drops fabricated other-match indexes and falls back to normal grounded advice', () => {
+    const factsWithOtherMatches = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([makeGapItem()]),
+      null,
+      [{ jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] }],
+    );
+
+    const result = groundDiagnosis(
+      {
+        message: 'JD 99 is great.',
+        cited_other_match_index: 99,
+      },
+      factsWithOtherMatches,
+      'en',
+    );
+
+    expect(result.answer).toContain('Add Docker evidence');
+    expect(result.answer).not.toContain('JD 99');
   });
 
   it('empty / parse-failed model output → deterministic grounded fallback built from top_summary (never a 500)', () => {

@@ -206,7 +206,12 @@ export class DiagnosisChatPlatformService {
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
     // Best-effort: a progress-lookup failure must never break the chat itself.
     const progress = await this.cvMatches.getProgress(userId, matchId).catch(() => null);
-    return buildDiagnosisFacts(review, report, progress);
+    // Best-effort: cross-match summaries add comparison context, but lookup failures must never
+    // break the diagnosis chat.
+    const otherMatches = await this.cvMatches
+      .listRecentMatchSummariesForUser(userId, matchId)
+      .catch(() => []);
+    return buildDiagnosisFacts(review, report, progress, otherMatches);
   }
 
   private async assertQuota(userId: string): Promise<void> {

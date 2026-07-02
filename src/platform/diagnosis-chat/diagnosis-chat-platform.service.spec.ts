@@ -46,6 +46,7 @@ function makeService(overrides?: {
   getReviewForMatch?: jest.Mock;
   getLatestReview?: jest.Mock;
   getProgress?: jest.Mock;
+  listRecentMatchSummariesForUser?: jest.Mock;
   turn?: jest.Mock;
   conversationFindOne?: jest.Mock;
   conversationDelete?: jest.Mock;
@@ -88,6 +89,8 @@ function makeService(overrides?: {
     getGapReport: overrides?.getGapReport ?? jest.fn().mockResolvedValue(GAP_REPORT),
     getReviewForMatch: overrides?.getReviewForMatch ?? jest.fn().mockResolvedValue(REVIEW),
     getProgress: overrides?.getProgress ?? jest.fn().mockResolvedValue(null),
+    listRecentMatchSummariesForUser:
+      overrides?.listRecentMatchSummariesForUser ?? jest.fn().mockResolvedValue([]),
   };
 
   const cvs = {
@@ -201,6 +204,44 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(getProgress).toHaveBeenCalledWith(USER_ID, MATCH_ID);
     const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(factsArg).not.toHaveProperty('progress');
+  });
+
+  it('adds recent other match summaries to facts for cross-JD comparison', async () => {
+    const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
+      {
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React', 'TypeScript'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ]);
+    const { service, chat } = makeService({ listRecentMatchSummariesForUser });
+
+    await service.turn(USER_ID, MATCH_ID, { question: 'JD nào hợp tôi hơn?', cvId: CV_ID });
+
+    expect(listRecentMatchSummariesForUser).toHaveBeenCalledWith(USER_ID, MATCH_ID);
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg.other_matches).toEqual([
+      {
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React', 'TypeScript'],
+      },
+    ]);
+  });
+
+  it('recent other-match lookup failure is best-effort and does not break chat', async () => {
+    const listRecentMatchSummariesForUser = jest
+      .fn()
+      .mockRejectedValue(new Error('summary lookup boom'));
+    const { service, chat } = makeService({ listRecentMatchSummariesForUser });
+
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+
+    expect(res.answer).toBeDefined();
+    expect(listRecentMatchSummariesForUser).toHaveBeenCalledWith(USER_ID, MATCH_ID);
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg).not.toHaveProperty('other_matches');
   });
 });
 
