@@ -51,9 +51,13 @@ function degraded(): CvIntakeResult {
 function build(opts: { owned?: boolean; result?: CvIntakeResult } = {}) {
   const cv = { id: 'cv1', userId: 'u1', cvKind: 'BUILT', parsedJson: null };
   const cvsRepo = { findOne: jest.fn().mockResolvedValue(opts.owned === false ? null : cv) };
+  const reservation = {
+    eventId: 'evt-1',
+    confirm: jest.fn().mockResolvedValue(undefined),
+    refund: jest.fn().mockResolvedValue(undefined),
+  };
   const entitlements = {
-    assertCanUse: jest.fn().mockResolvedValue(undefined),
-    recordUsage: jest.fn().mockResolvedValue(undefined),
+    reserveUsage: jest.fn().mockResolvedValue(reservation),
   };
   const cvIntake = {
     extract: jest.fn().mockResolvedValue(opts.result ?? grounded()),
@@ -83,7 +87,7 @@ function build(opts: { owned?: boolean; result?: CvIntakeResult } = {}) {
     undefined, // 20 cvAssistant
     cvIntake as never, // 21 cvIntake
   );
-  return { service, cvsRepo, entitlements, cvIntake };
+  return { service, cvsRepo, entitlements, reservation, cvIntake };
 }
 
 const extractDto: ExtractRequestDto = {
@@ -100,25 +104,25 @@ describe('CvsService — assistantExtract (narrative intake)', () => {
     await expect(service.assistantExtract('u1', 'cvX', extractDto)).rejects.toThrow(
       NotFoundException,
     );
-    expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
     expect(cvIntake.extract).not.toHaveBeenCalled();
   });
 
-  it('checks quota and records usage when extraction is not degraded', async () => {
-    const { service, entitlements, cvIntake } = build();
+  it('reserves quota and keeps the charge when extraction is not degraded', async () => {
+    const { service, entitlements, reservation, cvIntake } = build();
     const r = await service.assistantExtract('u1', 'cv1', extractDto);
-    expect(entitlements.assertCanUse).toHaveBeenCalledTimes(1);
+    expect(entitlements.reserveUsage).toHaveBeenCalledTimes(1);
     expect(cvIntake.extract).toHaveBeenCalledTimes(1);
     expect(r.degraded).toBe(false);
     expect(r.fields.company.found).toBe(true);
-    expect(entitlements.recordUsage).toHaveBeenCalledTimes(1);
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
-  it('does NOT record usage on a degraded extraction (no value delivered)', async () => {
-    const { service, entitlements } = build({ result: degraded() });
+  it('refunds the charge on a degraded extraction (no value delivered)', async () => {
+    const { service, entitlements, reservation } = build({ result: degraded() });
     const r = await service.assistantExtract('u1', 'cv1', extractDto);
     expect(r.degraded).toBe(true);
-    expect(entitlements.assertCanUse).toHaveBeenCalledTimes(1);
-    expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    expect(entitlements.reserveUsage).toHaveBeenCalledTimes(1);
+    expect(reservation.refund).toHaveBeenCalledTimes(1);
   });
 });

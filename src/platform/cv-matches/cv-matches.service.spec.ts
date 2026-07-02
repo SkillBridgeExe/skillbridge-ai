@@ -30,9 +30,13 @@ describe('CvMatchesService roadmap quota', () => {
     const aiResults = repo<AiResultEntity>();
     const extractor = { extract: jest.fn() };
     const matcher = { match: jest.fn() };
+    const reservation = {
+      eventId: 'usage-1',
+      confirm: jest.fn().mockResolvedValue(undefined),
+      refund: jest.fn().mockResolvedValue(undefined),
+    };
     const entitlements = {
-      assertCanUse: jest.fn().mockResolvedValue(undefined),
-      recordUsage: jest.fn().mockResolvedValue(undefined),
+      reserveUsage: jest.fn().mockResolvedValue(reservation),
     };
     const gapReport = {
       build: jest.fn().mockResolvedValue({
@@ -74,33 +78,30 @@ describe('CvMatchesService roadmap quota', () => {
     });
     cvs.findOne.mockResolvedValue({ id: 'cv-1', userId: 'user-1' });
 
-    return { service, entitlements, gapReport, platformCvs, roadmapComposer };
+    return { service, entitlements, reservation, gapReport, platformCvs, roadmapComposer };
   }
 
-  it('checks and records roadmap quota around roadmap generation', async () => {
-    const { service, entitlements, gapReport, roadmapComposer } = setup();
+  it('reserves roadmap quota atomically before roadmap generation and keeps the charge', async () => {
+    const { service, entitlements, reservation, gapReport, roadmapComposer } = setup();
 
     const result = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
 
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith(
-      'user-1',
-      BillingFeatureKey.ROADMAP_GENERATE,
-    );
-    expect(entitlements.assertCanUse.mock.invocationCallOrder[0]).toBeLessThan(
-      gapReport.build.mock.invocationCallOrder[0],
-    );
-    expect(entitlements.recordUsage).toHaveBeenCalledWith(
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith(
       'user-1',
       BillingFeatureKey.ROADMAP_GENERATE,
       { sourceType: 'cv_match', sourceId: 'match-1' },
     );
+    expect(entitlements.reserveUsage.mock.invocationCallOrder[0]).toBeLessThan(
+      gapReport.build.mock.invocationCallOrder[0],
+    );
+    expect(reservation.refund).not.toHaveBeenCalled();
     expect(roadmapComposer.compose).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ no_learning_gaps: true }));
   });
 
   it('does not build a gap report when roadmap quota is exhausted', async () => {
-    const { service, entitlements, gapReport, platformCvs } = setup();
-    entitlements.assertCanUse.mockRejectedValue(new Error('quota exhausted'));
+    const { service, entitlements, reservation, gapReport, platformCvs } = setup();
+    entitlements.reserveUsage.mockRejectedValue(new Error('quota exhausted'));
 
     await expect(service.generateRoadmapFromMatch('user-1', 'match-1', {})).rejects.toThrow(
       'quota exhausted',
@@ -108,6 +109,17 @@ describe('CvMatchesService roadmap quota', () => {
 
     expect(platformCvs.getLatestReview).not.toHaveBeenCalled();
     expect(gapReport.build).not.toHaveBeenCalled();
-    expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    expect(reservation.refund).not.toHaveBeenCalled();
+  });
+
+  it('refunds the reserved charge when roadmap generation fails after the reserve', async () => {
+    const { service, reservation, gapReport } = setup();
+    gapReport.build.mockRejectedValue(new Error('gap report unavailable'));
+
+    await expect(service.generateRoadmapFromMatch('user-1', 'match-1', {})).rejects.toThrow(
+      'gap report unavailable',
+    );
+
+    expect(reservation.refund).toHaveBeenCalledTimes(1);
   });
 });

@@ -58,9 +58,13 @@ function build() {
     }),
   };
   const aiResults = { findOne: jest.fn() };
+  const reservation = {
+    eventId: 'evt-1',
+    confirm: jest.fn().mockResolvedValue(undefined),
+    refund: jest.fn().mockResolvedValue(undefined),
+  };
   const entitlements = {
-    assertCanUse: jest.fn().mockResolvedValue(undefined),
-    recordUsage: jest.fn().mockResolvedValue(undefined),
+    reserveUsage: jest.fn().mockResolvedValue(reservation),
   };
   const gapReport: jest.Mocked<Pick<GapReportService, 'build'>> = {
     build: jest.fn(),
@@ -99,6 +103,7 @@ function build() {
     matches,
     aiResults,
     entitlements,
+    reservation,
     gapReport,
     platformCvs,
     roadmap,
@@ -109,7 +114,8 @@ function build() {
 
 describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flow', () => {
   it('builds unified learn items from the GapReport and calls deterministic composer', async () => {
-    const { service, roadmap, composer, entitlements, gapReport, platformCvs } = build();
+    const { service, roadmap, composer, entitlements, reservation, gapReport, platformCvs } =
+      build();
     gapReport.build.mockResolvedValue(
       report({
         target_role: 'backend_developer',
@@ -138,9 +144,10 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
     };
     const out = await service.generateRoadmapFromMatch('user-1', 'match-1', dto);
 
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith(
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith(
       'user-1',
       BillingFeatureKey.ROADMAP_GENERATE,
+      { sourceType: 'cv_match', sourceId: 'match-1' },
     );
     expect(platformCvs.getLatestReview).toHaveBeenCalledWith('user-1', 'cv-1');
     expect(gapReport.build).toHaveBeenCalledWith(
@@ -161,16 +168,12 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
     expect(
       composer.compose.mock.calls[0][0].learnItems.map((item) => item.skill_canonical),
     ).toEqual(['react', 'sql']);
-    expect(entitlements.recordUsage).toHaveBeenCalledWith(
-      'user-1',
-      BillingFeatureKey.ROADMAP_GENERATE,
-      { sourceType: 'cv_match', sourceId: 'match-1' },
-    );
+    expect(reservation.refund).not.toHaveBeenCalled();
     expect(out.ai_summary).toBe('deterministic');
   });
 
   it('honest empty-state when there are no learning gaps', async () => {
-    const { service, roadmap, composer, entitlements, gapReport } = build();
+    const { service, roadmap, composer, reservation, gapReport } = build();
     gapReport.build.mockResolvedValue(
       report({
         gap_items: [gap({ fixability: 'rewrite' }), gap({ fixability: 'add_evidence' })],
@@ -183,11 +186,8 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
     expect(composer.compose).not.toHaveBeenCalled();
     expect(out.no_learning_gaps).toBe(true);
     expect(out.steps).toEqual([]);
-    expect(entitlements.recordUsage).toHaveBeenCalledWith(
-      'user-1',
-      BillingFeatureKey.ROADMAP_GENERATE,
-      { sourceType: 'cv_match', sourceId: 'match-1' },
-    );
+    // The honest empty-state is still a delivered gap analysis — the charge stands.
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('passes budget overrides to composer', async () => {
@@ -258,7 +258,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
     await expect(service.generateRoadmapFromMatch('user-1', 'nope', {})).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
     expect(gapReport.build).not.toHaveBeenCalled();
     expect(roadmap.generate).not.toHaveBeenCalled();
     expect(composer.compose).not.toHaveBeenCalled();

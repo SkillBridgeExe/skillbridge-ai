@@ -48,7 +48,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         errorCode = this.statusToCode(status);
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const obj = exceptionResponse as Record<string, unknown>;
-        errorCode = (obj.errorCode as string) ?? (obj.code as string) ?? this.statusToCode(status);
+        // `code` (specific sub-code, e.g. MATCH_TOO_OLD / NO_REVIEW from the tailor verifier) wins
+        // over `errorCode` (generic registry code): throws that set BOTH intend the sub-code for
+        // client branching, and the old precedence silently dropped it from the envelope.
+        errorCode = (obj.code as string) ?? (obj.errorCode as string) ?? this.statusToCode(status);
         message = typeof obj.message === 'string' ? obj.message : message;
 
         // class-validator returns `message` as a string[] of error texts

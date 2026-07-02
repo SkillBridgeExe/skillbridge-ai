@@ -79,9 +79,13 @@ describe('CvMatchesService', () => {
         latency_ms: 450,
       }),
     };
+    const reservation = {
+      eventId: 'usage-1',
+      confirm: jest.fn().mockResolvedValue(undefined),
+      refund: jest.fn().mockResolvedValue(undefined),
+    };
     const entitlements = {
-      assertCanUse: jest.fn().mockResolvedValue(undefined),
-      recordUsage: jest.fn().mockResolvedValue(undefined),
+      reserveUsage: jest.fn().mockResolvedValue(reservation),
     };
     const gapReport = {
       build: jest.fn().mockResolvedValue({
@@ -124,6 +128,7 @@ describe('CvMatchesService', () => {
       extractor,
       matcher,
       entitlements,
+      reservation,
       gapReport,
       platformCvs,
       config,
@@ -142,8 +147,15 @@ describe('CvMatchesService', () => {
   });
 
   it('persists a pasted JD match and score breakdown for an owned CV', async () => {
-    const { service, jobDescriptionsRepo, matchesRepo, scoresRepo, matcher, entitlements } =
-      build();
+    const {
+      service,
+      jobDescriptionsRepo,
+      matchesRepo,
+      scoresRepo,
+      matcher,
+      entitlements,
+      reservation,
+    } = build();
 
     const response = await service.createMatch('user-1', 'cv-1', {
       jdText: 'We need React and TypeScript experience.',
@@ -200,16 +212,17 @@ describe('CvMatchesService', () => {
         parsedResponse,
       }),
     );
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith('user-1', 'cv_jd_match');
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('user-1', 'cv_jd_match', {
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('user-1', 'cv_jd_match');
+    expect(reservation.confirm).toHaveBeenCalledWith({
       sourceType: 'cv_match',
       sourceId: 'match-1',
     });
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('does not persist JD or call matcher when CV/JD match quota is denied', async () => {
-    const { service, jobDescriptionsRepo, matcher, entitlements } = build();
-    entitlements.assertCanUse.mockRejectedValue(new Error('quota denied'));
+    const { service, jobDescriptionsRepo, matcher, entitlements, reservation } = build();
+    entitlements.reserveUsage.mockRejectedValue(new Error('quota denied'));
 
     await expect(
       service.createMatch('user-1', 'cv-1', {
@@ -219,7 +232,21 @@ describe('CvMatchesService', () => {
 
     expect(jobDescriptionsRepo.save).not.toHaveBeenCalled();
     expect(matcher.match).not.toHaveBeenCalled();
-    expect(entitlements.recordUsage).not.toHaveBeenCalled();
+    expect(reservation.confirm).not.toHaveBeenCalled();
+  });
+
+  it('refunds the reserved charge when the matcher rejects (e.g. OFF-TOPIC) so junk input stays free', async () => {
+    const { service, matcher, reservation } = build();
+    matcher.match.mockRejectedValue(new Error('JD_CONTENT_INSUFFICIENT'));
+
+    await expect(
+      service.createMatch('user-1', 'cv-1', {
+        jdText: 'We need React and TypeScript experience.',
+      }),
+    ).rejects.toThrow('JD_CONTENT_INSUFFICIENT');
+
+    expect(reservation.refund).toHaveBeenCalledTimes(1);
+    expect(reservation.confirm).not.toHaveBeenCalled();
   });
 
   it('uses uploaded JD text and the CV target role when no override is provided', async () => {

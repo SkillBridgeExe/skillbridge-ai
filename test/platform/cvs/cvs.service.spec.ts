@@ -120,14 +120,26 @@ describe('CvsService R1 completion behavior', () => {
         fileName: 'cv-builder.pdf',
       }),
     };
-    // Per-user daily cv_review cap — default no-op; tests override to assert enforcement points.
+    // Per-user cv_review cap — default no-op; tests override to assert enforcement points.
+    const analysisReservation = {
+      eventId: 'analysis-evt-1',
+      confirm: jest.fn().mockResolvedValue(undefined),
+      refund: jest.fn().mockResolvedValue(undefined),
+    };
     const analysisQuota = {
-      assertWithinDailyLimit: jest.fn().mockResolvedValue(undefined),
-      recordSuccessfulAnalysis: jest.fn().mockResolvedValue(undefined),
+      reserveAnalysis: jest.fn().mockResolvedValue(analysisReservation),
+    };
+    const reservation = {
+      eventId: 'usage-evt-1',
+      confirm: jest.fn().mockResolvedValue(undefined),
+      refund: jest.fn().mockResolvedValue(undefined),
     };
     const entitlements = {
+      // Legacy pair — still used by builder-create and render-pdf (not yet migrated).
       assertCanUse: jest.fn().mockResolvedValue(undefined),
       recordUsage: jest.fn().mockResolvedValue(undefined),
+      // Atomic reserve — used by rewrite/story/intake/interview-plan and the cv_review paths.
+      reserveUsage: jest.fn().mockResolvedValue(reservation),
     };
     const interviewPlan = {
       generatePlan: jest.fn().mockResolvedValue({
@@ -184,7 +196,9 @@ describe('CvsService R1 completion behavior', () => {
       storyExtraction,
       pdfRenderer,
       analysisQuota,
+      analysisReservation,
       entitlements,
+      reservation,
       skillDiff,
       interviewPlan,
       githubEvidence,
@@ -449,7 +463,7 @@ describe('CvsService R1 completion behavior', () => {
   });
 
   it('delegates builder section evaluation and rewrite after ownership and entitlement checks', async () => {
-    const { service, cvsRepo, evaluator, rewriter, entitlements } = build();
+    const { service, cvsRepo, evaluator, rewriter, entitlements, reservation } = build();
     cvsRepo.findOne.mockResolvedValue({
       id: 'draft-1',
       userId: 'u1',
@@ -465,13 +479,14 @@ describe('CvsService R1 completion behavior', () => {
     await service.rewriteBuilderText('u1', 'draft-1', rewriteBody);
 
     expect(evaluator.evaluate).toHaveBeenCalledWith(evaluateBody);
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_rewrite');
-    // userId rides along so the ai_requests trace attributes cost to the real user.
-    expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody, 'u1');
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_rewrite', {
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'cv_builder_rewrite', {
       sourceType: 'cv',
       sourceId: 'draft-1',
     });
+    // userId rides along so the ai_requests trace attributes cost to the real user.
+    expect(rewriter.rewrite).toHaveBeenCalledWith(rewriteBody, 'u1');
+    // Delivered suggestion → the reserved charge stands.
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('renders a BUILT CV PDF from parsedJson without storage persistence', async () => {
@@ -500,7 +515,16 @@ describe('CvsService R1 completion behavior', () => {
   });
 
   it('analyzes an owned generated PDF when its builder draft has no review for the requested role', async () => {
-    const { service, cvsRepo, pdfRenderer, storage, cvReview, analysisQuota, aiResults } = build();
+    const {
+      service,
+      cvsRepo,
+      pdfRenderer,
+      storage,
+      cvReview,
+      analysisQuota,
+      analysisReservation,
+      aiResults,
+    } = build();
     const ownedCv = {
       id: 'original-cv',
       userId: 'u1',
@@ -534,8 +558,12 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.id).toBe('original-cv');
     expect(response.review).toEqual(parsedReview);
     expect(storage.upload).not.toHaveBeenCalled();
-    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalledWith('u1');
-    expect(analysisQuota.recordSuccessfulAnalysis).toHaveBeenCalledWith('u1', 'original-cv');
+    expect(analysisQuota.reserveAnalysis).toHaveBeenCalledWith('u1');
+    expect(analysisReservation.confirm).toHaveBeenCalledWith({
+      sourceType: 'cv',
+      sourceId: 'original-cv',
+    });
+    expect(analysisReservation.refund).not.toHaveBeenCalled();
     expect(cvReview.review).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({
@@ -559,7 +587,7 @@ describe('CvsService R1 completion behavior', () => {
 
   it('blocks upload+scoring when the daily analysis quota is reached — before any storage/row write', async () => {
     const { service, storage, cvsRepo, analysisQuota } = build();
-    analysisQuota.assertWithinDailyLimit.mockRejectedValue(
+    analysisQuota.reserveAnalysis.mockRejectedValue(
       new HttpException(
         { errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -598,7 +626,7 @@ describe('CvsService R1 completion behavior', () => {
     );
 
     expect(response.review).toEqual(parsedReview);
-    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+    expect(analysisQuota.reserveAnalysis).not.toHaveBeenCalled();
     expect(cvReview.review).not.toHaveBeenCalled();
     expect(storage.upload).not.toHaveBeenCalled();
     const [, params] = aiResults.manager.query.mock.calls.at(-1) as [string, unknown[]];
@@ -629,7 +657,7 @@ describe('CvsService R1 completion behavior', () => {
       { ...file, buffer: Buffer.from('%PDF-1.7 generated') },
     );
 
-    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalledWith('u1');
+    expect(analysisQuota.reserveAnalysis).toHaveBeenCalledWith('u1');
     expect(cvReview.review).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({ target_role: 'data_analyst' }),
@@ -682,7 +710,7 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.id).toBe('existing-cv');
     expect(storage.upload).not.toHaveBeenCalled();
     expect(cvReview.review).not.toHaveBeenCalled();
-    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+    expect(analysisQuota.reserveAnalysis).not.toHaveBeenCalled();
   });
 
   it('re-grades a duplicate file when re-uploaded under a NEW target role (role-aware dedup)', async () => {
@@ -707,7 +735,7 @@ describe('CvsService R1 completion behavior', () => {
 
     await service.create('u1', { consentAccepted: true, targetRole: 'data_analyst' }, file);
 
-    expect(analysisQuota.assertWithinDailyLimit).toHaveBeenCalled();
+    expect(analysisQuota.reserveAnalysis).toHaveBeenCalled();
     expect(cvReview.review).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({ target_role: 'data_analyst' }),
@@ -757,7 +785,7 @@ describe('CvsService R1 completion behavior', () => {
     const response = await service.rerunReview('u1', 'cv-1');
 
     expect(response.review).toEqual(parsedReview);
-    expect(analysisQuota.assertWithinDailyLimit).not.toHaveBeenCalled();
+    expect(analysisQuota.reserveAnalysis).not.toHaveBeenCalled();
     expect(cvReview.review).not.toHaveBeenCalled();
   });
 
@@ -834,15 +862,14 @@ describe('CvsService R1 completion behavior', () => {
 
     const response = await service.getInterviewPlan('u1', 'cv-1', 'frontend_developer', 'en');
 
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'interview_session');
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'interview_session', {
+      sourceType: 'cv',
+      sourceId: 'cv-1',
+    });
     expect(interviewPlan.generatePlan).toHaveBeenCalledWith('u1', {
       review: parsedReview,
       target_role: 'frontend_developer',
       lang: 'en',
-    });
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'interview_session', {
-      sourceType: 'cv',
-      sourceId: 'cv-1',
     });
     expect(response.target_role).toBe('frontend_developer');
   });
@@ -862,7 +889,11 @@ describe('CvsService R1 completion behavior', () => {
       service.getInterviewPlan('u1', 'cv-1', 'frontend_developer', 'vi'),
     ).rejects.toBeInstanceOf(NotFoundException);
 
-    expect(entitlements.assertCanUse).not.toHaveBeenCalledWith('u1', 'interview_session');
+    expect(entitlements.reserveUsage).not.toHaveBeenCalledWith(
+      'u1',
+      'interview_session',
+      expect.anything(),
+    );
     expect(interviewPlan.generatePlan).not.toHaveBeenCalled();
   });
 
@@ -901,7 +932,7 @@ describe('CvsService R1 completion behavior', () => {
       createdAt: now,
       updatedAt: now,
     });
-    analysisQuota.assertWithinDailyLimit.mockRejectedValue(
+    analysisQuota.reserveAnalysis.mockRejectedValue(
       new HttpException(
         { errorCode: 'CV_ANALYSIS_DAILY_LIMIT_REACHED' },
         HttpStatus.TOO_MANY_REQUESTS,
@@ -1228,12 +1259,12 @@ describe('CvsService R1 completion behavior', () => {
       await expect(
         service.extractProjectsCertsFromStory('u1', 'missing', { story: 'React, Node.' }),
       ).rejects.toThrow();
-      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+      expect(entitlements.reserveUsage).not.toHaveBeenCalled();
       expect(storyExtraction.extract).not.toHaveBeenCalled();
     });
 
-    it('charges CV_BUILDER_REWRITE only when not degraded', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('keeps the CV_BUILDER_REWRITE charge only when not degraded', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extract.mockResolvedValue({
         projects: [{ name: 'X' }],
@@ -1241,11 +1272,12 @@ describe('CvsService R1 completion behavior', () => {
         degraded: false,
       });
       await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'X project React' });
-      expect(entitlements.recordUsage).toHaveBeenCalled();
+      expect(entitlements.reserveUsage).toHaveBeenCalled();
+      expect(reservation.refund).not.toHaveBeenCalled();
     });
 
-    it('does NOT charge when non-degraded but zero grounded projects', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('refunds the charge when non-degraded but zero grounded projects', async () => {
+      const { service, cvsRepo, storyExtraction, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extract.mockResolvedValue({
         projects: [],
@@ -1253,11 +1285,11 @@ describe('CvsService R1 completion behavior', () => {
         degraded: false,
       });
       await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'vague story' });
-      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+      expect(reservation.refund).toHaveBeenCalledTimes(1);
     });
 
-    it('does NOT charge when degraded', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('refunds the charge when degraded', async () => {
+      const { service, cvsRepo, storyExtraction, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extract.mockResolvedValue({
         projects: [],
@@ -1265,7 +1297,7 @@ describe('CvsService R1 completion behavior', () => {
         degraded: true,
       });
       await service.extractProjectsCertsFromStory('u1', 'cv1', { story: 'x' });
-      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+      expect(reservation.refund).toHaveBeenCalledTimes(1);
     });
 
     it('defaults language to vi', async () => {
@@ -1288,12 +1320,12 @@ describe('CvsService R1 completion behavior', () => {
       await expect(
         service.intakeProjectFromStory('u1', 'missing', { story: 'React project' }),
       ).rejects.toThrow();
-      expect(entitlements.assertCanUse).not.toHaveBeenCalled();
+      expect(entitlements.reserveUsage).not.toHaveBeenCalled();
       expect(storyExtraction.extractProject).not.toHaveBeenCalled();
     });
 
-    it('charges CV_BUILDER_REWRITE when a project is grounded (not degraded)', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('keeps the CV_BUILDER_REWRITE charge when a project is grounded (not degraded)', async () => {
+      const { service, cvsRepo, storyExtraction, entitlements, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extractProject.mockResolvedValue({
         project: { name: 'Shop' },
@@ -1301,11 +1333,12 @@ describe('CvsService R1 completion behavior', () => {
         multipleDetected: false,
       });
       await service.intakeProjectFromStory('u1', 'cv1', { story: 'Shop project React' });
-      expect(entitlements.recordUsage).toHaveBeenCalled();
+      expect(entitlements.reserveUsage).toHaveBeenCalled();
+      expect(reservation.refund).not.toHaveBeenCalled();
     });
 
-    it('does NOT charge when project is null (nothing grounded)', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('refunds the charge when project is null (nothing grounded)', async () => {
+      const { service, cvsRepo, storyExtraction, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extractProject.mockResolvedValue({
         project: null,
@@ -1313,11 +1346,11 @@ describe('CvsService R1 completion behavior', () => {
         multipleDetected: false,
       });
       await service.intakeProjectFromStory('u1', 'cv1', { story: 'vague' });
-      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+      expect(reservation.refund).toHaveBeenCalledTimes(1);
     });
 
-    it('does NOT charge when degraded', async () => {
-      const { service, cvsRepo, storyExtraction, entitlements } = build();
+    it('refunds the charge when degraded', async () => {
+      const { service, cvsRepo, storyExtraction, reservation } = build();
       cvsRepo.findOne.mockResolvedValue({ id: 'cv1', userId: 'u1' });
       storyExtraction.extractProject.mockResolvedValue({
         project: null,
@@ -1325,7 +1358,7 @@ describe('CvsService R1 completion behavior', () => {
         multipleDetected: false,
       });
       await service.intakeProjectFromStory('u1', 'cv1', { story: 'x' });
-      expect(entitlements.recordUsage).not.toHaveBeenCalled();
+      expect(reservation.refund).toHaveBeenCalledTimes(1);
     });
 
     it('defaults language to vi', async () => {

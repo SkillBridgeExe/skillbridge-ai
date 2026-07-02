@@ -1,6 +1,14 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
+import { HttpException, HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import {
+  And,
+  DataSource,
+  LessThan,
+  LessThanOrEqual,
+  MoreThan,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import {
   BillingFeatureKey,
   BillingFeaturePeriod,
@@ -14,14 +22,31 @@ import { UsageEventEntity } from '../../database/entities/usage-event.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
 import { EntitlementFeatureDto, SubscriptionResponseDto } from './dto/billing.dto';
 
+/**
+ * A charged usage slot returned by `reserveUsage`. The charge already exists in `usage_events`;
+ * the flow that reserved it must either let it stand (value delivered), `confirm()` to attach the
+ * produced artifact id, or `refund()` when the flow failed / delivered no value.
+ */
+export interface UsageReservation {
+  eventId: string;
+  /** Attach the delivered artifact (e.g. the created match id) to the charged event. Never throws. */
+  confirm(source: { sourceType?: string; sourceId?: string }): Promise<void>;
+  /** Delete the reserved charge — call on failure or a no-value result. Idempotent, never throws. */
+  refund(): Promise<void>;
+}
+
 @Injectable()
 export class EntitlementsService {
+  private readonly logger = new Logger(EntitlementsService.name);
+
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     @InjectRepository(PlanFeatureEntity) private readonly features: Repository<PlanFeatureEntity>,
     @InjectRepository(UserSubscriptionEntity)
     private readonly subscriptions: Repository<UserSubscriptionEntity>,
     @InjectRepository(UsageEventEntity) private readonly usageEvents: Repository<UsageEventEntity>,
+    // Optional for unit tests that construct the service without a DB (reserveUsage requires it).
+    @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
 
   async assertCanUse(userId: string, featureKey: BillingFeatureKey): Promise<void> {
@@ -45,6 +70,12 @@ export class EntitlementsService {
     }
   }
 
+  /**
+   * @deprecated The assertCanUse→recordUsage pair is racy (TOCTOU): two concurrent requests at
+   * `limit-1` both pass the assert and both record, exceeding the limit. New/updated flows must
+   * use `reserveUsage()` (atomic check-and-charge) + `refund()` on failure. Kept only for the
+   * not-yet-migrated callers (interviews.start, jobs recommend, builder-create, render-pdf).
+   */
   async recordUsage(
     userId: string,
     featureKey: BillingFeatureKey,
@@ -60,6 +91,100 @@ export class EntitlementsService {
         sourceId: source?.sourceId ?? null,
       }),
     );
+  }
+
+  /**
+   * Atomic check-and-charge for one usage of `featureKey` — the race-free replacement for the
+   * assertCanUse→recordUsage pair. The count + insert run in ONE transaction serialized per
+   * (user, feature) by a pg advisory xact lock, so concurrent requests at `limit-1` queue and the
+   * loser sees the winner's row (402 instead of a silent overrun).
+   *
+   * Charge-first semantics: the usage row exists from this point on. Callers MUST `refund()` on
+   * failure or a no-value result so the "charge only for delivered value" norm is preserved, and
+   * may `confirm()` to attach the produced artifact id once it is known.
+   */
+  async reserveUsage(
+    userId: string,
+    featureKey: BillingFeatureKey,
+    source?: { sourceType?: string; sourceId?: string },
+  ): Promise<UsageReservation> {
+    if (!this.dataSource)
+      throw new Error('EntitlementsService requires a DataSource for reserveUsage');
+    const subscription = await this.findActiveSubscription(userId);
+    const planCode = subscription?.planCode ?? BillingPlanCode.FREE;
+    const feature = await this.features.findOne({ where: { planCode, featureKey } });
+    if (!feature || feature.limitValue === 0) {
+      throw new HttpException(
+        {
+          errorCode: ERROR_CODES.FEATURE_NOT_INCLUDED,
+          message: 'Your current plan does not include this feature.',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+    const unlimited = feature.limitValue === UNLIMITED_BILLING_LIMIT;
+    const currentPeriodStart = subscription?.currentPeriodStart ?? startOfCurrentMonthIct();
+    const currentPeriodEnd = subscription?.currentPeriodEnd ?? addMonths(currentPeriodStart, 1);
+    const window = this.featureWindow(feature.period, currentPeriodStart, currentPeriodEnd);
+
+    const event = await this.dataSource.transaction(async (manager) => {
+      if (!unlimited) {
+        // Serialize concurrent reserves for the same (user, feature); released at commit/rollback.
+        await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+          `usage:${userId}:${featureKey}`,
+        ]);
+        const used = await manager.count(UsageEventEntity, {
+          where: {
+            userId,
+            featureKey,
+            usedAt: And(MoreThanOrEqual(window.periodStart), LessThan(window.periodEnd)),
+          },
+        });
+        if (used >= feature.limitValue) {
+          throw new HttpException(
+            {
+              errorCode: ERROR_CODES.FEATURE_USAGE_LIMIT_REACHED,
+              message: 'You have used all quota for this feature in the current period.',
+            },
+            HttpStatus.PAYMENT_REQUIRED,
+          );
+        }
+      }
+      return manager.save(
+        manager.create(UsageEventEntity, {
+          userId,
+          featureKey,
+          subscriptionId: subscription?.id ?? null,
+          sourceType: source?.sourceType ?? null,
+          sourceId: source?.sourceId ?? null,
+        }),
+      );
+    });
+
+    // confirm/refund are best-effort and never throw: a metadata update (or refund) failure must
+    // not mask the flow's own result/error. A failed refund means one over-charged event — log it.
+    return {
+      eventId: event.id,
+      confirm: async (s) => {
+        try {
+          await this.usageEvents.update(event.id, {
+            sourceType: s.sourceType ?? null,
+            sourceId: s.sourceId ?? null,
+          });
+        } catch (error) {
+          this.logger.warn(`confirm(${event.id}) failed: ${(error as Error).message}`);
+        }
+      },
+      refund: async () => {
+        try {
+          await this.usageEvents.delete(event.id);
+        } catch (error) {
+          this.logger.warn(
+            `refund(${event.id}) failed — user ${userId} over-charged for ${featureKey}: ${(error as Error).message}`,
+          );
+        }
+      },
+    };
   }
 
   async getCurrentEntitlements(userId: string): Promise<SubscriptionResponseDto> {

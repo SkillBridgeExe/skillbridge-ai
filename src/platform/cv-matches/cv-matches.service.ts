@@ -101,62 +101,68 @@ export class CvMatchesService {
     }
 
     const jdText = await this.resolveJdText(dto, file);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_JD_MATCH);
-    const targetRole = this.trimOrNull(dto.targetRole) ?? this.trimOrNull(cv.targetRole);
-    const jd = await this.jobDescriptions.save(
-      this.jobDescriptions.create({
-        userId,
-        title: this.trimOrNull(dto.title) ?? file?.originalname ?? null,
-        rawText: jdText,
-        parsedJson: null,
-        sourceType: file ? 'UPLOADED' : 'PASTED',
-        documentId: null,
-      }),
-    );
+    // Atomic charge-first reserve (race-free); refunded below if the match fails — including the
+    // deterministic OFF-TOPIC reject inside matcher.match, so a rejected non-JD stays free (the
+    // pending product decision on charging junk input is unchanged by this refactor).
+    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_JD_MATCH);
+    try {
+      const targetRole = this.trimOrNull(dto.targetRole) ?? this.trimOrNull(cv.targetRole);
+      const jd = await this.jobDescriptions.save(
+        this.jobDescriptions.create({
+          userId,
+          title: this.trimOrNull(dto.title) ?? file?.originalname ?? null,
+          rawText: jdText,
+          parsedJson: null,
+          sourceType: file ? 'UPLOADED' : 'PASTED',
+          documentId: null,
+        }),
+      );
 
-    const ai = await this.matcher.match(userId, {
-      cv_id: cv.id,
-      cv_text: cv.parsedText,
-      jd_id: jd.id,
-      jd_text: jdText,
-      // Server-side prompt version (CV_JD_MATCH_TEMPLATE_CODE). Default v1 when unconfigured (unit
-      // tests / unset env); prod sets it via the typed config. FE never sends this.
-      scoring_template_code: this.config?.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v1',
-      target_role: targetRole ?? undefined,
-      target_band: dto.targetBand ?? undefined,
-    });
-    const parsed = ai.parsed_response;
-    const matchRatio = parsed.match_ratio;
-    const requiredCoveragePct = parsed.required_coverage * 100;
+      const ai = await this.matcher.match(userId, {
+        cv_id: cv.id,
+        cv_text: cv.parsedText,
+        jd_id: jd.id,
+        jd_text: jdText,
+        // Server-side prompt version (CV_JD_MATCH_TEMPLATE_CODE). Default v1 when unconfigured (unit
+        // tests / unset env); prod sets it via the typed config. FE never sends this.
+        scoring_template_code:
+          this.config?.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v1',
+        target_role: targetRole ?? undefined,
+        target_band: dto.targetBand ?? undefined,
+      });
+      const parsed = ai.parsed_response;
+      const matchRatio = parsed.match_ratio;
+      const requiredCoveragePct = parsed.required_coverage * 100;
 
-    const match = await this.matches.save(
-      this.matches.create({
-        cvId: cv.id,
-        targetType: 'JOB_DESCRIPTION',
-        jobDescriptionId: jd.id,
-        aiResultId: ai.ai_result_id,
-        overallScore: this.score(parsed.overall_score),
-        semanticScore: this.score(matchRatio),
-        atsScore: null,
-        llmScore: null,
-        ruleEngineScore: this.score(requiredCoveragePct),
-        strengths: parsed.matched_skills,
-        weaknesses: [...parsed.partial_skills, ...parsed.missing_skills],
-        suggestions: {
-          missing_skills: parsed.missing_skills,
-          partial_skills: parsed.partial_skills,
-          bonus_skills: parsed.bonus_skills,
-          scoring_breakdown: parsed.scoring_breakdown,
-        },
-      }),
-    );
+      const match = await this.matches.save(
+        this.matches.create({
+          cvId: cv.id,
+          targetType: 'JOB_DESCRIPTION',
+          jobDescriptionId: jd.id,
+          aiResultId: ai.ai_result_id,
+          overallScore: this.score(parsed.overall_score),
+          semanticScore: this.score(matchRatio),
+          atsScore: null,
+          llmScore: null,
+          ruleEngineScore: this.score(requiredCoveragePct),
+          strengths: parsed.matched_skills,
+          weaknesses: [...parsed.partial_skills, ...parsed.missing_skills],
+          suggestions: {
+            missing_skills: parsed.missing_skills,
+            partial_skills: parsed.partial_skills,
+            bonus_skills: parsed.bonus_skills,
+            scoring_breakdown: parsed.scoring_breakdown,
+          },
+        }),
+      );
 
-    await this.scores.save(this.buildScoreRows(match.id, parsed));
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_JD_MATCH, {
-      sourceType: 'cv_match',
-      sourceId: match.id,
-    });
-    return this.toResponse(match, jd, parsed);
+      await this.scores.save(this.buildScoreRows(match.id, parsed));
+      await usage.confirm({ sourceType: 'cv_match', sourceId: match.id });
+      return this.toResponse(match, jd, parsed);
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
   }
 
   async listMatches(
@@ -294,53 +300,52 @@ export class CvMatchesService {
     dto: RoadmapFromMatchDto,
   ): Promise<ComposedRoadmap> {
     const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.ROADMAP_GENERATE);
-    const report = await this.buildGapReportFromParsed(userId, match, parsed);
-    const plan = buildUnifiedPlan({
-      matchId,
-      sessionId: null,
-      gapItems: report.gap_items,
-      interviewItems: [],
-    });
-    const preferences = await this.learningPreferences?.findOne({ where: { userId } });
-    const budget = {
-      available_days: dto.available_days ?? preferences?.availableDays ?? 30,
-      hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
-    };
-    const languagePref: LearningLanguagePref =
-      dto.language_pref ?? preferences?.languagePref ?? 'both';
-
-    if (plan.learn_items.length === 0) {
-      const response = {
-        budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
-        steps: [],
-        not_feasible_items: [],
-        ai_summary:
-          'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
-        no_learning_gaps: true,
-      };
-      await this.entitlements.recordUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
-        sourceType: 'cv_match',
-        sourceId: matchId,
-      });
-      return response;
-    }
-
-    if (!this.roadmapComposer) {
-      throw new Error('Roadmap composer dependency is not configured');
-    }
-
-    const response = await this.roadmapComposer.compose({
-      learnItems: plan.learn_items,
-      gapItems: report.gap_items,
-      budget,
-      languagePref,
-    });
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
+    // Atomic charge-first reserve (race-free); refunded on any failure below.
+    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
       sourceType: 'cv_match',
       sourceId: matchId,
     });
-    return response;
+    try {
+      const report = await this.buildGapReportFromParsed(userId, match, parsed);
+      const plan = buildUnifiedPlan({
+        matchId,
+        sessionId: null,
+        gapItems: report.gap_items,
+        interviewItems: [],
+      });
+      const preferences = await this.learningPreferences?.findOne({ where: { userId } });
+      const budget = {
+        available_days: dto.available_days ?? preferences?.availableDays ?? 30,
+        hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
+      };
+      const languagePref: LearningLanguagePref =
+        dto.language_pref ?? preferences?.languagePref ?? 'both';
+
+      if (plan.learn_items.length === 0) {
+        return {
+          budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
+          steps: [],
+          not_feasible_items: [],
+          ai_summary:
+            'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
+          no_learning_gaps: true,
+        };
+      }
+
+      if (!this.roadmapComposer) {
+        throw new Error('Roadmap composer dependency is not configured');
+      }
+
+      return await this.roadmapComposer.compose({
+        learnItems: plan.learn_items,
+        gapItems: report.gap_items,
+        budget,
+        languagePref,
+      });
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
   }
 
   /**
