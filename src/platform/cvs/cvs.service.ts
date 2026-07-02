@@ -175,10 +175,15 @@ export class CvsService {
         generatedSource.targetRole = role;
         await this.cvs.save(generatedSource);
       }
-      await this.analysisQuota.assertWithinDailyLimit(userId);
-      const review = await this.reviewCv(userId, generatedSource, role ?? undefined);
-      await this.analysisQuota.recordSuccessfulAnalysis(userId, generatedSource.id);
-      return this.toResponse(review.cv, review.skills, review.parsed);
+      const usage = await this.analysisQuota.reserveAnalysis(userId);
+      try {
+        const review = await this.reviewCv(userId, generatedSource, role ?? undefined);
+        await usage?.confirm({ sourceType: 'cv', sourceId: generatedSource.id });
+        return this.toResponse(review.cv, review.skills, review.parsed);
+      } catch (error) {
+        await usage?.refund();
+        throw error;
+      }
     }
 
     const contentHash = this.sha256(file.buffer);
@@ -202,33 +207,38 @@ export class CvsService {
           cachedForRole,
         );
       }
-      await this.analysisQuota.assertWithinDailyLimit(userId);
-      if (requestedRole && requestedRole !== duplicate.targetRole) {
-        duplicate.targetRole = requestedRole;
-        await this.cvs.save(duplicate);
+      const usage = await this.analysisQuota.reserveAnalysis(userId);
+      try {
+        if (requestedRole && requestedRole !== duplicate.targetRole) {
+          duplicate.targetRole = requestedRole;
+          await this.cvs.save(duplicate);
+        }
+        const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined);
+        await usage?.confirm({ sourceType: 'cv', sourceId: duplicate.id });
+        return this.toResponse(review.cv, review.skills, review.parsed);
+      } catch (error) {
+        await usage?.refund();
+        throw error;
       }
-      const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined);
-      await this.analysisQuota.recordSuccessfulAnalysis(userId, duplicate.id);
-      return this.toResponse(review.cv, review.skills, review.parsed);
     }
 
     await this.enforceUploadQuota(userId);
-    // Shared daily cv_review budget for a real upload. Generated PDFs enforce this in their branch
-    // only on a cache miss; this check stays before storage/row writes so a reject leaves no orphan.
-    await this.analysisQuota.assertWithinDailyLimit(userId);
+    // Shared cv_review budget for a real upload. Generated PDFs enforce this in their branch only
+    // on a cache miss; the reserve stays before storage/row writes so a reject leaves no orphan.
+    // Charge-first: refunded in the catch below if extract/review fails.
+    const usage = await this.analysisQuota.reserveAnalysis(userId);
 
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
     const targetRole = this.normalizeTargetRole(dto.targetRole);
     let cvSaved = false;
 
-    await this.storage.upload({
-      key: objectKey,
-      body: file.buffer,
-      contentType: file.mimetype,
-    });
-
     try {
+      await this.storage.upload({
+        key: objectKey,
+        body: file.buffer,
+        contentType: file.mimetype,
+      });
       const extracted = await this.extractor.extract(file);
       let cv = await this.cvs.save(
         this.cvs.create({
@@ -251,10 +261,11 @@ export class CvsService {
 
       const review = await this.reviewCv(userId, cv, targetRole ?? undefined);
       cv = review.cv;
-      await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
+      await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
 
       return this.toResponse(cv, review.skills, review.parsed);
     } catch (error) {
+      await usage?.refund();
       if (!cvSaved) await this.storage.delete(objectKey).catch(() => undefined);
       throw error;
     }
@@ -380,43 +391,58 @@ export class CvsService {
     dto: RewriteRequestDto,
   ): Promise<RewriteResponseDto> {
     await this.findOwnedCv(userId, cvId);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    // Atomic charge-first reserve (quota gate before the verifier, as before): a verification
+    // reject or LLM failure refunds below, so rejects still cost the user nothing.
+    const usage = await this.entitlements.reserveUsage(
+      userId,
+      BillingFeatureKey.CV_BUILDER_REWRITE,
+      {
+        sourceType: 'cv',
+        sourceId: cvId,
+      },
+    );
 
-    // PR4.5: mode='tailor' must NOT trust FE-sent skill/level. Reload the match + gap report,
-    // verify ownership + the action, and let the rewriter build the instruction from the VERIFIED
-    // action only. The verifier runs AFTER the quota gate above but the LLM call is inside
-    // rewriter.rewrite — a verification reject here costs no LLM and no recorded usage (below).
-    let verifiedAction: VerifiedTailorAction | undefined;
-    if (dto.mode === 'tailor') {
-      if (!dto.match_id || !dto.action_id) {
-        throw new BadRequestException({
-          errorCode: ERROR_CODES.VALIDATION_ERROR,
-          message: 'match_id and action_id are required for tailor rewrite',
+    let response: RewriteResponseDto;
+    try {
+      // PR4.5: mode='tailor' must NOT trust FE-sent skill/level. Reload the match + gap report,
+      // verify ownership + the action, and let the rewriter build the instruction from the VERIFIED
+      // action only.
+      let verifiedAction: VerifiedTailorAction | undefined;
+      if (dto.mode === 'tailor') {
+        if (!dto.match_id || !dto.action_id) {
+          throw new BadRequestException({
+            errorCode: ERROR_CODES.VALIDATION_ERROR,
+            message: 'match_id and action_id are required for tailor rewrite',
+          });
+        }
+        if (!this.tailorVerifier) throw new Error('TailorVerifierService is not configured');
+        // lang is intentionally left to the verifier's 'vi' default: the lookup key (action_id =
+        // `${action_type}:${skill_canonical}`) and the anchored `before` (a verbatim CV bullet) are
+        // BOTH language-independent, so the rebuilt report finds the same action regardless of lang.
+        verifiedAction = await this.tailorVerifier.verify({
+          userId,
+          cvId,
+          matchId: dto.match_id,
+          actionId: dto.action_id,
+          text: dto.text,
         });
       }
-      if (!this.tailorVerifier) throw new Error('TailorVerifierService is not configured');
-      // lang is intentionally left to the verifier's 'vi' default: the lookup key (action_id =
-      // `${action_type}:${skill_canonical}`) and the anchored `before` (a verbatim CV bullet) are
-      // BOTH language-independent, so the rebuilt report finds the same action regardless of lang.
-      verifiedAction = await this.tailorVerifier.verify({
-        userId,
-        cvId,
-        matchId: dto.match_id,
-        actionId: dto.action_id,
-        text: dto.text,
-      });
-    }
 
-    // Pass the authenticated user so the ai_requests trace attributes cost/tokens to them
-    // (anonymous traces are reserved for internal/calibration callers). Only forward the verified
-    // action for tailor — keeping the non-tailor call shape unchanged.
-    const response = verifiedAction
-      ? await this.rewriter.rewrite(dto, userId, verifiedAction)
-      : await this.rewriter.rewrite(dto, userId);
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
-      sourceType: 'cv',
-      sourceId: cvId,
-    });
+      // Pass the authenticated user so the ai_requests trace attributes cost/tokens to them
+      // (anonymous traces are reserved for internal/calibration callers). Only forward the verified
+      // action for tailor — keeping the non-tailor call shape unchanged.
+      response = verifiedAction
+        ? await this.rewriter.rewrite(dto, userId, verifiedAction)
+        : await this.rewriter.rewrite(dto, userId);
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
+    if (response.fallback) {
+      // Fallback returns the user's original text (fabricated-metric guard / empty completion) —
+      // no LLM value delivered, so it stays free, matching the assistantRewrite/Extract norm.
+      await usage.refund();
+    }
     return response;
   }
 
@@ -486,15 +512,25 @@ export class CvsService {
     dto: StoryExtractRequestDto,
   ): Promise<StoryExtractResponseDto> {
     await this.findOwnedCv(userId, cvId);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
-    const result = await this.storyExtraction.extract(dto.story, dto.language ?? 'vi', userId);
-    // A non-degraded call that still grounds ZERO projects delivered no LLM value (e.g. cert-only
-    // story) — must stay free, matching the "no LLM value = free" norm used by assistantRewrite/Extract.
-    if (!result.degraded && result.projects.length > 0) {
-      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+    const usage = await this.entitlements.reserveUsage(
+      userId,
+      BillingFeatureKey.CV_BUILDER_REWRITE,
+      {
         sourceType: 'cv',
         sourceId: cvId,
-      });
+      },
+    );
+    let result: StoryExtractResponseDto;
+    try {
+      result = await this.storyExtraction.extract(dto.story, dto.language ?? 'vi', userId);
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
+    // A non-degraded call that still grounds ZERO projects delivered no LLM value (e.g. cert-only
+    // story) — must stay free, matching the "no LLM value = free" norm used by assistantRewrite/Extract.
+    if (result.degraded || result.projects.length === 0) {
+      await usage.refund();
     }
     return result;
   }
@@ -507,17 +543,28 @@ export class CvsService {
     dto: ProjectIntakeRequestDto,
   ): Promise<ProjectIntakeResponseDto> {
     await this.findOwnedCv(userId, cvId);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
-    const { project, degraded, multipleDetected } = await this.storyExtraction.extractProject(
-      dto.story,
-      dto.language ?? 'vi',
+    const usage = await this.entitlements.reserveUsage(
       userId,
-    );
-    if (!degraded && project != null) {
-      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+      BillingFeatureKey.CV_BUILDER_REWRITE,
+      {
         sourceType: 'cv',
         sourceId: cvId,
-      });
+      },
+    );
+    let extracted: Awaited<ReturnType<StoryExtractionService['extractProject']>>;
+    try {
+      extracted = await this.storyExtraction.extractProject(
+        dto.story,
+        dto.language ?? 'vi',
+        userId,
+      );
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
+    const { project, degraded, multipleDetected } = extracted;
+    if (degraded || project == null) {
+      await usage.refund();
     }
     return { project, degraded, multiple_detected: multipleDetected };
   }
@@ -619,25 +666,32 @@ export class CvsService {
     // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
     // diverge from the rewrite's own re-ask gate.
     const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
-    if (grounded.needs_detail.length === 0 && grounded.facts.length > 0) {
-      await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
+    const willRunRewrite = grounded.needs_detail.length === 0 && grounded.facts.length > 0;
+    const usage = willRunRewrite
+      ? await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+          sourceType: 'cv',
+          sourceId: cvId,
+        })
+      : null;
+    let result: CvAssistantRewriteResult;
+    try {
+      result = await this.cvAssistant.rewrite(
+        {
+          before: dto.before,
+          answers: dto.answers,
+          target: dto.target,
+          language,
+          outputLang: dto.output_lang ?? language,
+          kind: dto.kind ?? 'bullet',
+        },
+        userId,
+      );
+    } catch (error) {
+      await usage?.refund();
+      throw error;
     }
-    const result = await this.cvAssistant.rewrite(
-      {
-        before: dto.before,
-        answers: dto.answers,
-        target: dto.target,
-        language,
-        outputLang: dto.output_lang ?? language,
-        kind: dto.kind ?? 'bullet',
-      },
-      userId,
-    );
-    if (result.ok) {
-      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
-        sourceType: 'cv',
-        sourceId: cvId,
-      });
+    if (usage && !result.ok) {
+      await usage.refund();
     }
     return result;
   }
@@ -666,21 +720,31 @@ export class CvsService {
     await this.findOwnedCv(userId, cvId);
     if (!this.cvIntake) throw new Error('CvIntakeService is not configured');
     const locale = dto.locale ?? 'en';
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_REWRITE);
-    const result = await this.cvIntake.extract(
-      {
-        section: dto.section,
-        narrative: dto.narrative,
-        locale,
-        outputLang: dto.output_lang ?? locale,
-      },
+    const usage = await this.entitlements.reserveUsage(
       userId,
-    );
-    if (!result.degraded) {
-      await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
+      BillingFeatureKey.CV_BUILDER_REWRITE,
+      {
         sourceType: 'cv',
         sourceId: cvId,
-      });
+      },
+    );
+    let result: CvIntakeResult;
+    try {
+      result = await this.cvIntake.extract(
+        {
+          section: dto.section,
+          narrative: dto.narrative,
+          locale,
+          outputLang: dto.output_lang ?? locale,
+        },
+        userId,
+      );
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
+    if (result.degraded) {
+      await usage.refund();
     }
     return result;
   }
@@ -728,17 +792,24 @@ export class CvsService {
       throw new Error('InterviewPlanService is not configured');
     }
 
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.INTERVIEW_SESSION);
-    const response = await this.interviewPlan.generatePlan(userId, {
-      review,
-      target_role: targetRole,
-      lang,
-    });
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
-      sourceType: 'cv',
-      sourceId: cvId,
-    });
-    return response;
+    const usage = await this.entitlements.reserveUsage(
+      userId,
+      BillingFeatureKey.INTERVIEW_SESSION,
+      {
+        sourceType: 'cv',
+        sourceId: cvId,
+      },
+    );
+    try {
+      return await this.interviewPlan.generatePlan(userId, {
+        review,
+        target_role: targetRole,
+        lang,
+      });
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
   }
 
   async getGithubEvidence(
@@ -784,10 +855,15 @@ export class CvsService {
       cv.targetRole = role;
       await this.cvs.save(cv);
     }
-    await this.analysisQuota.assertWithinDailyLimit(userId);
-    const review = await this.reviewCv(userId, cv, role ?? undefined);
-    await this.analysisQuota.recordSuccessfulAnalysis(userId, cv.id);
-    return this.toResponse(review.cv, review.skills, review.parsed);
+    const usage = await this.analysisQuota.reserveAnalysis(userId);
+    try {
+      const review = await this.reviewCv(userId, cv, role ?? undefined);
+      await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
+      return this.toResponse(review.cv, review.skills, review.parsed);
+    } catch (error) {
+      await usage?.refund();
+      throw error;
+    }
   }
 
   private async reviewCv(
