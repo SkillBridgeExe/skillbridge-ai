@@ -174,7 +174,9 @@ export class DiagnosisChatPlatformService {
   private async buildFactsForMatch(userId: string, matchId: string): Promise<DiagnosisFacts> {
     const report = await this.cvMatches.getGapReport(userId, matchId);
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
-    return buildDiagnosisFacts(review, report);
+    // Best-effort: a progress-lookup failure must never break the chat itself.
+    const progress = await this.cvMatches.getProgress(userId, matchId).catch(() => null);
+    return buildDiagnosisFacts(review, report, progress);
   }
 
   private async assertQuota(userId: string): Promise<void> {

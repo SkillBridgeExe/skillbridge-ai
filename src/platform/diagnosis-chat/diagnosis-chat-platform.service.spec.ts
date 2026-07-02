@@ -45,6 +45,7 @@ function makeService(overrides?: {
   getGapReport?: jest.Mock;
   getReviewForMatch?: jest.Mock;
   getLatestReview?: jest.Mock;
+  getProgress?: jest.Mock;
   turn?: jest.Mock;
   conversationFindOne?: jest.Mock;
 }) {
@@ -81,6 +82,7 @@ function makeService(overrides?: {
   const cvMatches = {
     getGapReport: overrides?.getGapReport ?? jest.fn().mockResolvedValue(GAP_REPORT),
     getReviewForMatch: overrides?.getReviewForMatch ?? jest.fn().mockResolvedValue(REVIEW),
+    getProgress: overrides?.getProgress ?? jest.fn().mockResolvedValue(null),
   };
 
   const cvs = {
@@ -182,6 +184,18 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(factsArg.dimensions).toEqual([
       { key: 'skills_relevance', score20: 12, rationale: 'Some JD skills missing.' },
     ]);
+  });
+
+  it('progress load failing (best-effort) → chat facts still built, NO progress key (a progress failure must never break chat)', async () => {
+    const getProgress = jest.fn().mockRejectedValue(new Error('progress lookup boom'));
+    const { service, chat } = makeService({ getProgress });
+
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+
+    expect(res.answer).toBeDefined();
+    expect(getProgress).toHaveBeenCalledWith(USER_ID, MATCH_ID);
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg).not.toHaveProperty('progress');
   });
 });
 

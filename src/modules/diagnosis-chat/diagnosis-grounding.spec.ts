@@ -1,6 +1,7 @@
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
 import { SkillBridgeGapReport } from '../gap-report/gap-report.service';
 import { GapItem } from '../gap-engine/gap-item';
+import { ProgressReport } from '../gap-report/gap-progress';
 import {
   buildDiagnosisFacts,
   DIAGNOSIS_DIMENSION_KEYS,
@@ -58,6 +59,37 @@ function makeGapItem(overrides: Partial<GapItem> = {}): GapItem {
 
 function makeGapReport(gapItems: GapItem[]): SkillBridgeGapReport {
   return { gap_items: gapItems } as unknown as SkillBridgeGapReport;
+}
+
+/** Minimal ProgressReport fixture — one closed transition, non-baseline, template unchanged. */
+function makeProgress(overrides: Partial<ProgressReport> = {}): ProgressReport {
+  return {
+    baseline: false,
+    prev_count: 2,
+    curr_count: 1,
+    gaps_closed: ['docker'],
+    gaps_worsened: [],
+    avg_severity_delta: -0.1,
+    prev_score: 60,
+    curr_score: 72,
+    transitions: [
+      {
+        canonical_name: 'docker',
+        display_name: 'Docker',
+        prev_status: 'missing',
+        curr_status: 'matched',
+        kind: 'closed',
+        prev_severity: 0.5,
+        curr_severity: 0,
+      },
+    ],
+    dimension_changes: [],
+    evidence_recognized: [],
+    strengths_kept: [],
+    required_coverage_delta: null,
+    template_changed: false,
+    ...overrides,
+  };
 }
 
 describe('buildDiagnosisFacts', () => {
@@ -132,6 +164,43 @@ describe('buildDiagnosisFacts', () => {
       'experience',
       'education',
     ]);
+  });
+});
+
+describe('buildDiagnosisFacts — progress (B6)', () => {
+  it('progress (non-baseline) with a closed gap → facts.progress carries closed names + rounded score_delta', () => {
+    const progress = makeProgress();
+    const facts = buildDiagnosisFacts(makeReview(), makeGapReport([]), progress);
+    expect(facts.progress).toEqual({
+      closed: ['Docker'],
+      improved: [],
+      new_gaps: [],
+      score_delta: 12,
+    });
+  });
+
+  it('progress omitted / null / baseline → facts has NO progress key (chat behaves exactly as today)', () => {
+    const factsNoArg = buildDiagnosisFacts(makeReview(), makeGapReport([]));
+    expect(factsNoArg).not.toHaveProperty('progress');
+
+    const factsNull = buildDiagnosisFacts(makeReview(), makeGapReport([]), null);
+    expect(factsNull).not.toHaveProperty('progress');
+
+    const factsBaseline = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ baseline: true }),
+    );
+    expect(factsBaseline).not.toHaveProperty('progress');
+  });
+
+  it('score_delta is null when either score is missing (never a fabricated number)', () => {
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ prev_score: null }),
+    );
+    expect(facts.progress?.score_delta).toBeNull();
   });
 });
 
