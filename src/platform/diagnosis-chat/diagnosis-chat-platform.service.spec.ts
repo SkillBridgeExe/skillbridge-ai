@@ -48,6 +48,9 @@ function makeService(overrides?: {
   getProgress?: jest.Mock;
   turn?: jest.Mock;
   conversationFindOne?: jest.Mock;
+  conversationDelete?: jest.Mock;
+  messagesFind?: jest.Mock;
+  messagesDelete?: jest.Mock;
 }) {
   const saved: SavedMessage[] = [];
 
@@ -57,6 +60,7 @@ function makeService(overrides?: {
       jest.fn().mockResolvedValue({ id: CONVERSATION_ID, userId: USER_ID, matchId: MATCH_ID }),
     create: jest.fn((v) => v),
     save: jest.fn((v) => Promise.resolve({ id: CONVERSATION_ID, ...v })),
+    delete: overrides?.conversationDelete ?? jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
   const messages = {
@@ -65,7 +69,8 @@ function makeService(overrides?: {
       saved.push(v);
       return Promise.resolve({ id: `msg-${saved.length}`, ...v });
     }),
-    find: jest.fn().mockResolvedValue([]),
+    find: overrides?.messagesFind ?? jest.fn().mockResolvedValue([]),
+    delete: overrides?.messagesDelete ?? jest.fn().mockResolvedValue({ affected: 1 }),
   };
 
   const chat = {
@@ -257,5 +262,64 @@ describe('DiagnosisChatPlatformService.turnCvOnly — CV-only route (no JD match
     );
     // No assistant answer must have been produced/persisted for a non-owned CV.
     expect(saved.find((m) => m.role === 'assistant')).toBeUndefined();
+  });
+});
+
+describe('DiagnosisChatPlatformService thread endpoints (MB1)', () => {
+  it('returns persisted turns ASC for owned conversation', async () => {
+    const rows = Array.from({ length: 42 }, (_, i) => ({
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      content: `message-${i + 1}`,
+      createdAt: new Date(`2026-01-01T00:${String(i).padStart(2, '0')}:00.000Z`),
+    }));
+    const messagesFind = jest.fn().mockResolvedValue(rows);
+    const { service } = makeService({ messagesFind });
+
+    const result = await service.getThread(USER_ID, MATCH_ID);
+
+    expect(messagesFind).toHaveBeenCalledWith({
+      where: { conversationId: CONVERSATION_ID },
+      order: { createdAt: 'ASC' },
+    });
+    expect(result.turns).toHaveLength(40);
+    expect(result.turns[0]).toEqual({
+      role: 'user',
+      text: 'message-3',
+      ts: '2026-01-01T00:02:00.000Z',
+    });
+    expect(result.turns[39]).toEqual({
+      role: 'assistant',
+      text: 'message-42',
+      ts: '2026-01-01T00:41:00.000Z',
+    });
+  });
+
+  it('returns empty turns when no conversation exists', async () => {
+    const conversationFindOne = jest.fn().mockResolvedValue(null);
+    const messagesFind = jest.fn();
+    const { service, conversations } = makeService({ conversationFindOne, messagesFind });
+
+    await expect(service.getThread(USER_ID, MATCH_ID)).resolves.toEqual({ turns: [] });
+
+    expect(conversationFindOne).toHaveBeenCalledWith({
+      where: { userId: USER_ID, matchId: MATCH_ID },
+    });
+    expect(messagesFind).not.toHaveBeenCalled();
+    expect(conversations.create).not.toHaveBeenCalled();
+    expect(conversations.save).not.toHaveBeenCalled();
+  });
+
+  it('deleteThread deletes messages then conversation', async () => {
+    const messagesDelete = jest.fn().mockResolvedValue({ affected: 2 });
+    const conversationDelete = jest.fn().mockResolvedValue({ affected: 1 });
+    const { service } = makeService({ messagesDelete, conversationDelete });
+
+    await service.deleteThread(USER_ID, MATCH_ID);
+
+    expect(messagesDelete).toHaveBeenCalledWith({ conversationId: CONVERSATION_ID });
+    expect(conversationDelete).toHaveBeenCalledWith({ id: CONVERSATION_ID });
+    expect(messagesDelete.mock.invocationCallOrder[0]).toBeLessThan(
+      conversationDelete.mock.invocationCallOrder[0],
+    );
   });
 });
