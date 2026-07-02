@@ -1,5 +1,6 @@
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
 import { SkillBridgeGapReport } from '../gap-report/gap-report.service';
+import { ProgressReport } from '../gap-report/gap-progress';
 
 /**
  * Anti-fabrication core of the CV-diagnosis advisor (PURE — no LLM, no IO). The LLM only PHRASES an
@@ -54,6 +55,20 @@ export interface DiagnosisFacts {
   top_summary: { prioritized_actions: string[] };
   /** Top-N gaps by severity (already severity-ranked by buildGapItems); [] on the CV-only path. */
   gap_items: DiagnosisGapFact[];
+  /** Progress since the prior scan of the SAME CV+JD — present ONLY when there is a real, non-baseline
+   *  ProgressReport (absent on first scan / CV-only path / a failed progress lookup) so the LLM prompt
+   *  and any UI reading this shape see no key at all rather than an empty/undefined one. */
+  progress?: {
+    closed: string[];
+    improved: string[];
+    new_gaps: string[];
+    /** Gaps whose status regressed since the prior scan. Deliberately NOT rendered on the banner
+     *  (extraction noise can produce false "regressions" — a proactive alarm would demotivate),
+     *  but the advisor must answer honestly when the user ASKS what got worse. */
+    worsened: string[];
+    /** curr_score - prev_score rounded; null when either score is unknown (never a fabricated delta). */
+    score_delta: number | null;
+  };
 }
 
 export interface DiagnosisChatResult {
@@ -163,6 +178,7 @@ function renderGroundedAnswer(input: {
 export function buildDiagnosisFacts(
   review: CvReviewParsedResponse | null | undefined,
   gapReport: Pick<SkillBridgeGapReport, 'gap_items'> | null | undefined,
+  progress?: ProgressReport | null,
 ): DiagnosisFacts {
   const dims = review?.llm_score_dimensions;
   const rationale = review?.rationale;
@@ -190,13 +206,40 @@ export function buildDiagnosisFacts(
       recommended_next_action: g.recommended_next_action,
     }));
 
-  return {
+  const facts: DiagnosisFacts = {
     overall_score: numOrNull(review?.overall_score),
     ats_score: numOrNull(review?.ats_rule_score),
     dimensions,
     top_summary: { prioritized_actions },
     gap_items,
   };
+
+  if (progress && !progress.baseline) {
+    facts.progress = {
+      closed: progress.transitions
+        .filter((t) => t.kind === 'closed')
+        .map((t) => t.display_name)
+        .slice(0, 8),
+      improved: progress.transitions
+        .filter((t) => t.kind === 'improved')
+        .map((t) => t.display_name)
+        .slice(0, 8),
+      new_gaps: progress.transitions
+        .filter((t) => t.kind === 'new')
+        .map((t) => t.display_name)
+        .slice(0, 8),
+      worsened: progress.transitions
+        .filter((t) => t.kind === 'worsened')
+        .map((t) => t.display_name)
+        .slice(0, 8),
+      score_delta:
+        progress.prev_score != null && progress.curr_score != null
+          ? Math.round(progress.curr_score - progress.prev_score)
+          : null,
+    };
+  }
+
+  return facts;
 }
 
 /** Deterministic grounded fallback built ONLY from the user's own FACTS — used on empty / failed model

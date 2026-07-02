@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -43,6 +44,10 @@ const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 export class CvMatchesController {
   constructor(private readonly matches: CvMatchesService) {}
 
+  // S4 abuse bound: OFF-TOPIC rejects refund the quota (a real user's paste mistake must not eat
+  // 1/3 of a FREE month), so the LLM-burning endpoint gets a tight per-user rate instead — no
+  // human matches 5+ JDs a minute; a scripted junk-spammer hits 429 before the model is called.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('match')
   @ApiOperation({
     summary: 'Match a CV against a pasted job description',
@@ -83,6 +88,8 @@ export class CvMatchesController {
     return this.matches.createMatch(user.userId, cvId, dto);
   }
 
+  // Same S4 abuse bound as the paste route (shared LLM extraction path).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('match/file')
   @ApiOperation({
     summary: 'Match a CV against an uploaded job description file',

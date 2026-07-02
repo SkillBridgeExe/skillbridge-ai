@@ -31,6 +31,11 @@ export class JobDescriptionEntity {
   @Column({ type: 'varchar', name: 'source_type', nullable: true })
   sourceType!: JobDescriptionSourceType | null;
 
+  /** sha256 of normalized raw_text — lineage key for progress-vs-previous-match. Null on legacy rows the backfill could not hash. */
+  @Index()
+  @Column({ type: 'varchar', length: 64, name: 'content_hash', nullable: true })
+  contentHash!: string | null;
+
   @Index()
   @Column('uuid', { name: 'document_id', nullable: true })
   documentId!: string | null;

@@ -1,4 +1,5 @@
 import { GapItem } from '../gap-engine/gap-item';
+import { JdIntelligenceItem } from './gap-report';
 
 export interface ProgressDelta {
   baseline: boolean;
@@ -66,5 +67,161 @@ export function baselineProgress(
     avg_severity_delta: 0,
     prev_score: null,
     curr_score: currScore,
+  };
+}
+
+// ── Full progress report (per-gap transitions + JD-dimension + evidence honesty) ────────────────
+// Additive on top of ProgressDelta/diffGapProgress/baselineProgress above — those stay unchanged.
+
+export type TransitionKind = 'closed' | 'improved' | 'worsened' | 'new' | 'unchanged';
+
+export interface GapTransition {
+  canonical_name: string;
+  display_name: string;
+  prev_status: GapItem['cv_status'] | null;
+  curr_status: GapItem['cv_status'];
+  kind: TransitionKind;
+  prev_severity: number | null;
+  curr_severity: number;
+}
+
+export interface DimensionChange {
+  dimension: string;
+  prev_verdict: string;
+  curr_verdict: string;
+  changed: boolean;
+}
+
+export interface ProgressReport extends ProgressDelta {
+  transitions: GapTransition[];
+  dimension_changes: DimensionChange[];
+  evidence_recognized: string[]; // display_name
+  strengths_kept: string[]; // display_name
+  required_coverage_delta: number | null;
+  template_changed: boolean;
+}
+
+const STATUS_RANK: Record<GapItem['cv_status'], number> = {
+  missing: 0,
+  overclaimed: 1,
+  unproven: 2,
+  partial: 3,
+  matched: 4,
+};
+
+const EVIDENCE_RECOGNIZED_RISK = new Set<GapItem['evidence_risk']>(['listed_only', 'unproven']);
+const EVIDENCE_RECOGNIZED_PREV_STATUS = new Set<GapItem['cv_status']>(['unproven', 'overclaimed']);
+const EVIDENCE_RECOGNIZED_CURR_STATUS = new Set<GapItem['cv_status']>(['matched', 'partial']);
+
+const verdictOf = (item: JdIntelligenceItem): string =>
+  item.verdict ?? (item.graded ? 'gap' : 'ok');
+
+export function buildProgressReport(
+  prev: GapItem[],
+  curr: GapItem[],
+  opts: {
+    prevScore: number | null;
+    currScore: number | null;
+    prevCoverage: number | null;
+    currCoverage: number | null;
+    prevJdIntel?: JdIntelligenceItem[] | null;
+    currJdIntel?: JdIntelligenceItem[] | null;
+    templateChanged: boolean;
+  },
+): ProgressReport {
+  const base = diffGapProgress(
+    prev,
+    curr,
+    opts.templateChanged ? null : opts.prevScore,
+    opts.currScore,
+  );
+  const prevBy = new Map(prev.map((item) => [item.canonical_name, item]));
+
+  const transitions: GapTransition[] = [];
+  const evidence_recognized: string[] = [];
+  const strengths_kept: string[] = [];
+  for (const c of curr) {
+    const p = prevBy.get(c.canonical_name) ?? null;
+    if (p && p.cv_status === 'matched' && c.cv_status === 'matched') {
+      strengths_kept.push(c.display_name);
+      continue;
+    }
+
+    const prevRank = p ? STATUS_RANK[p.cv_status] : null;
+    const currRank = STATUS_RANK[c.cv_status];
+    let kind: TransitionKind;
+    if (p == null) {
+      if (c.cv_status === 'matched') continue; // net-new "match" without a prior baseline: nothing to report
+      kind = 'new';
+    } else if (currRank === 4 && prevRank! < 4) {
+      kind = 'closed';
+    } else if (currRank > prevRank!) {
+      kind = 'improved';
+    } else if (currRank < prevRank!) {
+      kind = 'worsened';
+    } else {
+      kind = 'unchanged';
+    }
+
+    transitions.push({
+      canonical_name: c.canonical_name,
+      display_name: c.display_name,
+      prev_status: p?.cv_status ?? null,
+      curr_status: c.cv_status,
+      kind,
+      prev_severity: p?.severity ?? null,
+      curr_severity: c.severity,
+    });
+
+    if (
+      p &&
+      ((EVIDENCE_RECOGNIZED_RISK.has(p.evidence_risk) && c.evidence_risk === 'none') ||
+        (EVIDENCE_RECOGNIZED_PREV_STATUS.has(p.cv_status) &&
+          EVIDENCE_RECOGNIZED_CURR_STATUS.has(c.cv_status)))
+    ) {
+      evidence_recognized.push(c.display_name);
+    }
+  }
+
+  const dimension_changes: DimensionChange[] = [];
+  const prevDims = new Map((opts.prevJdIntel ?? []).map((d) => [d.dimension, d]));
+  for (const d of opts.currJdIntel ?? []) {
+    const pd = prevDims.get(d.dimension);
+    if (!pd) continue;
+    const prev_verdict = verdictOf(pd);
+    const curr_verdict = verdictOf(d);
+    dimension_changes.push({
+      dimension: d.dimension,
+      prev_verdict,
+      curr_verdict,
+      changed: prev_verdict !== curr_verdict,
+    });
+  }
+
+  const required_coverage_delta =
+    opts.templateChanged || opts.prevCoverage == null || opts.currCoverage == null
+      ? null
+      : round3(opts.currCoverage - opts.prevCoverage);
+
+  return {
+    ...base,
+    transitions,
+    dimension_changes,
+    evidence_recognized,
+    strengths_kept,
+    required_coverage_delta,
+    template_changed: opts.templateChanged,
+  };
+}
+
+export function baselineReport(curr: GapItem[], currScore: number | null): ProgressReport {
+  return {
+    ...baselineProgress(curr, currScore),
+    transitions: [],
+    dimension_changes: [],
+    evidence_recognized: [],
+    strengths_kept: [],
+    required_coverage_delta: null,
+    template_changed: false,
   };
 }
