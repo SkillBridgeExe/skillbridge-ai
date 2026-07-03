@@ -16,6 +16,7 @@ describe('TracingService.logToolCall (un-stubbed)', () => {
     const { service, aiToolCalls } = makeService();
     await service.logToolCall({
       aiRequestId: 'req-1',
+      userId: 'user-1',
       toolName: 'github.enrich',
       argsHash: 'a'.repeat(64),
       latencyMs: 120,
@@ -24,6 +25,7 @@ describe('TracingService.logToolCall (un-stubbed)', () => {
     expect(aiToolCalls.create).toHaveBeenCalledWith(
       expect.objectContaining({
         aiRequestId: 'req-1',
+        userId: 'user-1',
         toolName: 'github.enrich',
         argsHash: 'a'.repeat(64),
         status: 'SUCCESS',
@@ -51,7 +53,7 @@ describe('TracingService.countToolCallsSince', () => {
     const n = await service.countToolCallsSince('user-1', 'github.enrich', since);
     expect(n).toBe(3);
     expect(aiToolCalls.count).toHaveBeenCalledWith({
-      where: { toolName: 'github.enrich', createdAt: expect.anything() },
+      where: { userId: 'user-1', toolName: 'github.enrich', createdAt: expect.anything() },
     });
   });
 

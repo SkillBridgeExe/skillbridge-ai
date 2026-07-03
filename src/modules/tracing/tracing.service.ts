@@ -49,6 +49,7 @@ export interface LogRetrievalInput {
 
 export interface LogToolCallInput {
   aiRequestId?: string;
+  userId?: string;
   toolName: string;
   argsHash: string; // sha256 hex — caller (ToolRegistry) tính, KHÔNG lưu raw args
   latencyMs?: number;
@@ -195,6 +196,7 @@ export class TracingService {
     const row = await this.aiToolCalls.save(
       this.aiToolCalls.create({
         aiRequestId: input.aiRequestId ?? null,
+        userId: input.userId ?? null,
         toolName: input.toolName,
         argsHash: input.argsHash,
         status: input.status,
@@ -205,11 +207,12 @@ export class TracingService {
     return row.id;
   }
 
-  /** Per-tool rate-limit window. NOTE: ai_tool_calls has no user_id column (spec's 7-col schema —
-   *  no PII), so this counts calls for the tool ACROSS ALL USERS since `since`, not per-user. */
+  /** Per-user, per-tool rate-limit window. user_id is stored as UUID only (no email/name/raw args). */
   async countToolCallsSince(userId: string, toolName: string, since: Date): Promise<number> {
     if (!this.aiToolCalls) return 0;
-    return this.aiToolCalls.count({ where: { toolName, createdAt: MoreThanOrEqual(since) } });
+    return this.aiToolCalls.count({
+      where: { userId, toolName, createdAt: MoreThanOrEqual(since) },
+    });
   }
 
   private stubAiRequest(input: StartAiRequestInput): string {

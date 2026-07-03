@@ -3,6 +3,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 
 export type AiToolCallStatus = 'SUCCESS' | 'FAILED' | 'PENDING';
 
 @Entity('ai_tool_calls')
+@Index(['userId', 'toolName', 'createdAt'])
 export class AiToolCallEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -10,6 +11,10 @@ export class AiToolCallEntity {
   @Index()
   @Column('uuid', { name: 'ai_request_id', nullable: true })
   aiRequestId!: string | null;
+
+  @Index()
+  @Column('uuid', { name: 'user_id', nullable: true })
+  userId!: string | null;
 
   @Index()
   @Column({ type: 'varchar', name: 'tool_name' })

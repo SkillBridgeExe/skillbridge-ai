@@ -16,7 +16,7 @@ import { GithubEnrichAdapter } from './adapters/github-enrich.adapter';
 
 const TIMEOUT_MS = 10_000;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1h
-const RATE_LIMIT_MAX = 20; // per tool, system-wide (ai_tool_calls has no user_id — see Task 1)
+const RATE_LIMIT_MAX = 20; // per user + tool
 const CIRCUIT_FAIL_THRESHOLD = 5;
 const CIRCUIT_OPEN_MS = 5 * 60 * 1000; // 5 min
 
@@ -61,17 +61,19 @@ export class ToolRegistry {
       );
     }
 
-    const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
-    const count = await this.tracing.countToolCallsSince(ctx.userId ?? '', name, since);
-    if (count >= RATE_LIMIT_MAX) {
-      throw new ToolRateLimitError(`tool "${name}" rate limit reached (${RATE_LIMIT_MAX}/h)`);
-    }
-
     let parsedArgs: unknown;
     try {
       parsedArgs = adapter.argsSchema(args);
     } catch (err) {
       throw new ToolBadArgsError((err as Error).message);
+    }
+
+    if (ctx.userId) {
+      const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
+      const count = await this.tracing.countToolCallsSince(ctx.userId, name, since);
+      if (count >= RATE_LIMIT_MAX) {
+        throw new ToolRateLimitError(`tool "${name}" rate limit reached (${RATE_LIMIT_MAX}/h)`);
+      }
     }
 
     const argsHash = createHash('sha256').update(JSON.stringify(parsedArgs)).digest('hex');
@@ -81,6 +83,7 @@ export class ToolRegistry {
       this.circuits.delete(name);
       await this.tracing.logToolCall({
         aiRequestId: ctx.aiRequestId,
+        userId: ctx.userId,
         toolName: name,
         argsHash,
         latencyMs: Date.now() - start,
@@ -91,6 +94,7 @@ export class ToolRegistry {
       this.recordFailure(name);
       await this.tracing.logToolCall({
         aiRequestId: ctx.aiRequestId,
+        userId: ctx.userId,
         toolName: name,
         argsHash,
         latencyMs: Date.now() - start,

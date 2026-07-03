@@ -98,7 +98,7 @@ describe('ToolRegistry.invoke', () => {
     jest.useRealTimers();
   });
 
-  it('rejects with ToolRateLimitError once the per-tool window is exhausted', async () => {
+  it('rejects with ToolRateLimitError once the per-user tool window is exhausted', async () => {
     const tracing = {
       logToolCall: jest.fn(),
       countToolCallsSince: jest.fn().mockResolvedValue(20),
@@ -107,7 +107,53 @@ describe('ToolRegistry.invoke', () => {
     await expect(
       registry.invoke('diagnosis_chat', 'github.enrich', { username: 'x' }, { userId: 'u1' }),
     ).rejects.toBeInstanceOf(ToolRateLimitError);
+    expect(tracing.countToolCallsSince).toHaveBeenCalledWith(
+      'u1',
+      'github.enrich',
+      expect.any(Date),
+    );
     expect(githubEnrich.invoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps rate-limit isolated per user: user A at limit does not imply user B is blocked', async () => {
+    const tracing = {
+      logToolCall: jest.fn().mockResolvedValue('log-1'),
+      countToolCallsSince: jest.fn(async (userId: string) => (userId === 'u1' ? 20 : 0)),
+    };
+    const { registry, githubEnrich } = makeRegistry({ tracing });
+
+    await expect(
+      registry.invoke('diagnosis_chat', 'github.enrich', { username: 'x' }, { userId: 'u1' }),
+    ).rejects.toBeInstanceOf(ToolRateLimitError);
+
+    await expect(
+      registry.invoke('diagnosis_chat', 'github.enrich', { username: 'x' }, { userId: 'u2' }),
+    ).resolves.toEqual({ exists: true });
+
+    expect(githubEnrich.invoke).toHaveBeenCalledTimes(1);
+    expect(tracing.logToolCall).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u2', status: 'SUCCESS' }),
+    );
+  });
+
+  it('validates args before checking quota, so malformed args do not hit the rate-limit path', async () => {
+    const githubEnrich = {
+      name: 'github.enrich',
+      argsSchema: jest.fn(() => {
+        throw new Error('missing username');
+      }),
+      invoke: jest.fn(),
+    };
+    const tracing = {
+      logToolCall: jest.fn(),
+      countToolCallsSince: jest.fn().mockResolvedValue(20),
+    };
+    const { registry } = makeRegistry({ githubEnrich, tracing });
+
+    await expect(
+      registry.invoke('diagnosis_chat', 'github.enrich', {}, { userId: 'u1' }),
+    ).rejects.toBeInstanceOf(ToolBadArgsError);
+    expect(tracing.countToolCallsSince).not.toHaveBeenCalled();
   });
 
   it('opens the circuit after 5 consecutive failures and short-circuits the 6th call', async () => {
