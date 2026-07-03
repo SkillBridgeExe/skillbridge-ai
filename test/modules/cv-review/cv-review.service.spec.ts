@@ -237,6 +237,90 @@ describe('CvReviewService', () => {
     expect(dim1[0].score).toBe(75); // stale 90 replaced by the deterministic value
   });
 
+  it('appends an authoritative Dim-2 section when the LLM section label does not match', async () => {
+    const { service, parser, roleRubric, skillDiff } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: {},
+      // LLM label does not match /skill/i (e.g., "Kỹ năng kỹ thuật" → will NOT match isDim2Section)
+      sections: [{ name: 'Proficiency Summary', score: 85, issues: [] }],
+      ats_extracted: {
+        name: null,
+        email: null,
+        phone: null,
+        skills_raw: ['React'],
+        skills_extracted: [{ name: 'React', proficiency_hint: 'advanced', evidence_text: null }],
+      },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [
+        {
+          display_name: 'React',
+          importance: 'REQUIRED',
+          required_level: 3,
+          cv_level: 4,
+        },
+      ],
+      partial_skills: [],
+      missing_skills: [{ display_name: 'TypeScript', importance: 'REQUIRED', required_level: 4 }],
+      overall_score: 50,
+    });
+    const res = await service.review('u1', input);
+    const sections = res.parsed_response.sections;
+    // Deterministic Dim-2 section with score=round(50/100*20/20*100)=50, prepended + authoritative
+    const dim2 = sections.filter((s) => /skill/i.test(s.name));
+    expect(dim2.length).toBeGreaterThan(0);
+    expect(dim2[0].name).toBe('Skills Relevance');
+    expect(dim2[0].score).toBe(50);
+    // The LLM's non-matching section is preserved (not dropped)
+    expect(sections.some((s) => s.name === 'Proficiency Summary')).toBe(true);
+  });
+
+  it('rewrites the matching Dim-2 section in place — replaces stale LLM content, no duplicate', async () => {
+    const { service, parser, roleRubric, skillDiff } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: {},
+      sections: [
+        {
+          name: 'Skills Matching',
+          score: 90,
+          issues: [{ severity: 'warning', text: 'stale LLM analysis' }],
+        },
+      ],
+      ats_extracted: {
+        name: null,
+        email: null,
+        phone: null,
+        skills_raw: ['React'],
+        skills_extracted: [{ name: 'React', proficiency_hint: 'advanced', evidence_text: null }],
+      },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [
+        {
+          display_name: 'React',
+          importance: 'REQUIRED',
+          required_level: 3,
+          cv_level: 4,
+        },
+      ],
+      partial_skills: [],
+      missing_skills: [{ display_name: 'TypeScript', importance: 'REQUIRED', required_level: 4 }],
+      overall_score: 60,
+    });
+    const res = await service.review('u1', input);
+    const dim2 = res.parsed_response.sections.filter((s) => /skill/i.test(s.name));
+    expect(dim2).toHaveLength(1); // not duplicated
+    expect(dim2[0].score).toBe(60); // stale 90 replaced by the deterministic value
+    // Authoritative issues from breakdown (not LLM's stale analysis)
+    expect(dim2[0].issues.some((i) => i.text.includes('TypeScript'))).toBe(true);
+  });
+
   // ─── fast-follow: Dim-2 breakdown + top_summary (deterministic, no LLM) ───────
 
   it('builds a deterministic Dim-2 matched/missing breakdown when a role rubric exists', async () => {
@@ -388,13 +472,21 @@ describe('CvReviewService', () => {
   });
 
   it('SE-1a: no rubric → keeps the LLM skills_relevance score + provenance source llm', async () => {
-    const { service } = build(); // roleRubric.getRubric → null by default (no target_role rubric)
+    const { service, parser } = build(); // roleRubric.getRubric → null by default (no target_role rubric)
+    const knownRationale = 'CV shows foundational technical skills for the role.';
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: { skills_relevance: knownRationale },
+      sections: [],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
     const res = await service.review('u1', input);
     // Default parser stub scores skills_relevance=15 — untouched (no rubric to override it).
     expect(res.parsed_response.llm_score_dimensions.skills_relevance).toBe(15);
     expect(res.parsed_response.dimension_provenance?.skills_relevance?.source).toBe('llm');
     expect(res.parsed_response.dimension_provenance?.skills_relevance?.evidence).toEqual([
-      res.parsed_response.rationale.skills_relevance,
+      knownRationale,
     ]);
   });
 
