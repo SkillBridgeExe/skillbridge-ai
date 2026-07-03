@@ -19,6 +19,8 @@ export interface ChatFact {
 
 export interface ChatFacts {
   open_gaps: ChatFact[];
+  /** Sanitized tool-call results for THIS turn, keyed by tool name (e.g. 'resource.validate'). */
+  tool_results?: Record<string, unknown>;
 }
 
 export interface GroundedAnswer {

@@ -59,7 +59,9 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
       outcome_type: 'understand',
     }));
     const stubRetriever = { nearest: async () => retrieved } as never;
-    const chat = new ChatService(stubRetriever, llm, prompts);
+    // No userId is passed to chat.turn below → the tool loop is gated off, so this stub is never invoked.
+    const stubRegistry = { invoke: async () => ({}) } as never;
+    const chat = new ChatService(stubRetriever, llm, prompts, stubRegistry);
     // Gap-aware tutor: feed the case's OWN gaps as FACTS so --live measures grounding to THEIR situation
     // (the gap-aware tutoring), not just "answer grounded by the retrieved resources".
     const facts = c.context.gaps?.length
