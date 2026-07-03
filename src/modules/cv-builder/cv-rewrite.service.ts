@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { LlmService } from '../../infrastructure/llm/llm.service';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { RewriteRequestDto, RewriteResponseDto } from './dto/rewrite.dto';
@@ -53,6 +54,7 @@ export class CvRewriteService {
     private readonly llm: LlmService,
     private readonly prompts: PromptsService,
     private readonly tracing: TracingService,
+    private readonly scanner: SkillTextScannerService,
   ) {}
 
   /**
@@ -194,6 +196,25 @@ export class CvRewriteService {
         );
         suggestion = text;
         fallback = true;
+      }
+      // Guardrail 2 (TRUST T3): a rewrite must not INTRODUCE a technology/skill absent from the
+      // input. Numbers-guard catches fabricated metrics; this catches fabricated stack. Tailor's
+      // verified skill is explicitly allowed (emphasize instruction names it on purpose).
+      // translate is skipped for the same reason inventedNumber skips it (cross-language surface forms).
+      if (req.mode !== 'translate' && !fallback) {
+        const allowed = new Set(this.scanner.scan(text).map((s) => s.canonical_name));
+        if (verifiedAction?.skill_canonical) allowed.add(verifiedAction.skill_canonical);
+        const invented = this.scanner
+          .scan(suggestion)
+          .map((s) => s.canonical_name)
+          .filter((c) => !allowed.has(c));
+        if (invented.length > 0) {
+          this.logger.warn(
+            `cv_rewrite introduced skills not in the input (mode=${req.mode}): ${invented.join(', ')} — falling back to original.`,
+          );
+          suggestion = text;
+          fallback = true;
+        }
       }
       // Empty / refusal → fall back to original rather than blank the field.
       if (suggestion.length === 0) {

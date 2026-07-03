@@ -21,6 +21,7 @@ if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENA
 import * as fs from 'fs';
 import * as path from 'path';
 import { SkillTaxonomyService } from '../common/services/skill-taxonomy.service';
+import { SkillTextScannerService } from '../common/services/skill-text-scanner.service';
 import { RoleRubricService } from '../common/services/role-rubric.service';
 import { BulletAnalyzerService } from '../modules/cv-review/bullet-analyzer.service';
 import { SectionEvaluatorService } from '../modules/cv-builder/section-evaluator.service';
@@ -57,6 +58,8 @@ async function main(): Promise<void> {
 
   const taxonomy = new SkillTaxonomyService();
   await taxonomy.onModuleInit();
+  const scanner = new SkillTextScannerService(taxonomy);
+  scanner.buildMatchers();
   const rubrics = new RoleRubricService();
   await rubrics.onModuleInit();
   const analyzer = new BulletAnalyzerService();
@@ -127,7 +130,7 @@ async function main(): Promise<void> {
       completeAiRequest: () => Promise.resolve(),
       markFailed: () => Promise.resolve(),
     };
-    const rewriter = new CvRewriteService(llm, prompts, noopTracing as never);
+    const rewriter = new CvRewriteService(llm, prompts, noopTracing as never, scanner);
 
     for (const c of data.rewrite_cases) {
       try {

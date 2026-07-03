@@ -27,19 +27,35 @@ describe('CvRewriteService (mocked LLM)', () => {
     complete: jest.fn().mockResolvedValue(makeLlmResult(text)),
   });
 
+  // Fake gazetteer: detects 'react'/'docker' surface forms only — the guard tests below don't
+  // need the real taxonomy (mocking the scanner is sufficient; see task brief).
+  const makeScanner = () => ({
+    scan: jest.fn((s: string) => {
+      const hits: Array<{ canonical_name: string; matched_text: string; occurrences: number }> = [];
+      if (/react/i.test(s))
+        hits.push({ canonical_name: 'react', matched_text: 'React', occurrences: 1 });
+      if (/docker/i.test(s))
+        hits.push({ canonical_name: 'docker', matched_text: 'Docker', occurrences: 1 });
+      return hits;
+    }),
+  });
+
   // Shared mutable mocks used by the tailor describe block
   let svc: CvRewriteService;
   let llm: { complete: jest.Mock };
   let prompts: ReturnType<typeof makePrompts>;
+  let scanner: ReturnType<typeof makeScanner>;
 
   const build = (llmText: string) => {
     const llm = makeLlm(llmText);
     const prompts = makePrompts();
     const tracing = makeTracing();
+    const scanner = makeScanner();
     return {
-      svc: new CvRewriteService(llm as never, prompts as never, tracing as never),
+      svc: new CvRewriteService(llm as never, prompts as never, tracing as never, scanner as never),
       llm,
       tracing,
+      scanner,
     };
   };
 
@@ -231,7 +247,12 @@ describe('CvRewriteService (mocked LLM)', () => {
       const llm = { complete: jest.fn().mockRejectedValue(new Error('LLM timeout')) };
       const prompts = makePrompts();
       const tracing = makeTracing();
-      const svc = new CvRewriteService(llm as never, prompts as never, tracing as never);
+      const svc = new CvRewriteService(
+        llm as never,
+        prompts as never,
+        tracing as never,
+        makeScanner() as never,
+      );
       await expect(
         svc.rewrite({ text: 'did important infrastructure things here', mode: 'harvard' }),
       ).rejects.toThrow('LLM timeout');
@@ -347,7 +368,13 @@ describe('CvRewriteService (mocked LLM)', () => {
     beforeEach(() => {
       llm = { complete: jest.fn() };
       prompts = makePrompts();
-      svc = new CvRewriteService(llm as never, prompts as never, makeTracing() as never);
+      scanner = makeScanner();
+      svc = new CvRewriteService(
+        llm as never,
+        prompts as never,
+        makeTracing() as never,
+        scanner as never,
+      );
     });
 
     it('tailor without a verified action → BadRequest NO_VERIFIED_ACTION (fails closed)', async () => {
@@ -389,6 +416,58 @@ describe('CvRewriteService (mocked LLM)', () => {
       await svc.rewrite(req as never, 'user-1', verifiedEmphasizeReact);
       await svc.rewrite(req as never, 'user-1', verifiedEmphasizeDocker);
       expect(llm.complete).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // fabricated-skill guard (TRUST T3) — a rewrite must not INTRODUCE a technology/skill absent
+  // from the input, mirroring the invented-number guard for a fabricated stack instead of a
+  // fabricated metric. Gazetteer-based (mocked scanner here — see task brief).
+  // ---------------------------------------------------------------------------
+  describe('fabricated-skill guard (T3)', () => {
+    it('harvard: suggestion introduces "React" absent from the input → fallback to original', async () => {
+      const { svc } = build('Built the dashboard with React and shipped it.');
+      const res = await svc.rewrite({
+        text: 'Built the dashboard and shipped it',
+        mode: 'harvard',
+      });
+      expect(res.fallback).toBe(true);
+      expect(res.suggestion).toBe('Built the dashboard and shipped it');
+    });
+
+    it('tailor: verified skill_canonical="react" explicitly allows naming React → NOT fallback', async () => {
+      const { svc } = build('Built React dashboards for ops teams');
+      const res = await svc.rewrite(
+        { text: 'built dashboards for internal ops teams', mode: 'tailor' } as never,
+        'user-1',
+        {
+          action_id: 'emphasize:react',
+          action_type: 'emphasize',
+          skill_canonical: 'react',
+          skill_display: 'React',
+          cv_level: 3,
+          required_level: 4,
+        },
+      );
+      expect(res.fallback).toBeFalsy();
+      expect(res.suggestion).toBe('Built React dashboards for ops teams');
+    });
+
+    it('translate: guard is skipped entirely (scanner never called)', async () => {
+      const { svc, scanner } = build('Built the dashboard with React and shipped it.');
+      const res = await svc.rewrite({
+        text: 'Đã xây dashboard và triển khai',
+        mode: 'translate',
+        target_lang: 'en',
+      });
+      expect(res.fallback).toBeFalsy();
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
+    it('suggestion uses only a skill already present in the input → no fallback', async () => {
+      const { svc } = build('Built the React dashboard faster.');
+      const res = await svc.rewrite({ text: 'Built the React dashboard', mode: 'harvard' });
+      expect(res.fallback).toBeFalsy();
     });
   });
 });
