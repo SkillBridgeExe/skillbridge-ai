@@ -162,6 +162,8 @@ export class DiagnosisChatPlatformService {
         focus: dto.focus,
         language: dto.language ?? 'vi',
         history: history.map((m) => ({ role: m.role, content: maskPii(m.content) })),
+        userId,
+        aiRequestId,
       });
 
       await this.messages.save(

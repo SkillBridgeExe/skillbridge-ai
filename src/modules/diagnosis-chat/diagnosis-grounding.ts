@@ -84,6 +84,9 @@ export interface DiagnosisFacts {
   /** Other recent JD matches for THIS user, present only when available. Used only for explicit
    *  cross-JD comparison questions; excludes timestamps to avoid irrelevant prompt noise. */
   other_matches?: DiagnosisOtherMatchFact[];
+  /** Sanitized tool-call results for THIS turn, keyed by tool name (e.g. 'github.enrich') — set by
+   *  the chat-tool loop (#22 PR3), never by the model. Each value is {untrusted_data: ...}. */
+  tool_results?: Record<string, unknown>;
 }
 
 export interface DiagnosisChatResult {
@@ -146,6 +149,7 @@ function renderGroundedAnswer(input: {
   dimension?: DiagnosisDimensionFact;
   gap?: DiagnosisGapFact;
   otherMatch?: DiagnosisOtherMatchFact;
+  toolResult?: { toolName: string; data: unknown };
   facts: DiagnosisFacts;
   language?: string;
 }): DiagnosisChatResult {
@@ -199,6 +203,26 @@ function renderGroundedAnswer(input: {
         ? `Recent JD match: ${title} has ${score}. Stored top gaps: ${gaps}. Use this only as comparison context against your current diagnosis.`
         : `JD match gần đây: ${title} có ${score}. Gap chính đã lưu: ${gaps}. Chỉ dùng thông tin này để so sánh với chẩn đoán hiện tại của bạn.`,
     );
+    suggested_next_step = null;
+  }
+
+  if (input.toolResult) {
+    const wrapped = input.toolResult.data as { untrusted_data?: Record<string, unknown> };
+    const d = wrapped.untrusted_data ?? {};
+    if (input.toolResult.toolName === 'github.enrich') {
+      const exists = Boolean(d.exists);
+      const repoCount = Array.isArray(d.public_repos) ? d.public_repos.length : 0;
+      const days = typeof d.recent_activity_days === 'number' ? d.recent_activity_days : null;
+      parts.push(
+        !exists
+          ? isEn
+            ? 'Verified GitHub: no public account found for that username.'
+            : 'Đã kiểm tra GitHub: không tìm thấy tài khoản công khai với username đó.'
+          : isEn
+            ? `Verified GitHub: ${repoCount} public repo(s) found${days !== null ? `, most recent activity ${days} day(s) ago` : ''}.`
+            : `Đã kiểm tra GitHub: tìm thấy ${repoCount} repo công khai${days !== null ? `, hoạt động gần nhất ${days} ngày trước` : ''}.`,
+      );
+    }
     suggested_next_step = null;
   }
 
@@ -353,7 +377,13 @@ export function groundDiagnosis(
   const otherMatch =
     otherIndex >= 0 && facts.other_matches ? facts.other_matches[otherIndex] : undefined;
 
-  if (!dimension && !gap && !otherMatch) return fallback(facts, language);
+  const citedTool = typeof obj.cited_tool === 'string' ? obj.cited_tool : undefined;
+  const toolResult =
+    citedTool && facts.tool_results && citedTool in facts.tool_results
+      ? { toolName: citedTool, data: facts.tool_results[citedTool] }
+      : undefined;
 
-  return renderGroundedAnswer({ dimension, gap, otherMatch, facts, language });
+  if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
+
+  return renderGroundedAnswer({ dimension, gap, otherMatch, toolResult, facts, language });
 }
