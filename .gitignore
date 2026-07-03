@@ -4,6 +4,9 @@
 /build
 /coverage
 
+# Isolated worktrees for subagent-driven development
+.worktrees/
+
 # Logs
 logs
 *.log
