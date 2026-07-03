@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  HttpException,
-  Injectable,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { LlmProvider } from '../../infrastructure/llm/types/llm.types';

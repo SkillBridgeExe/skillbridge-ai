@@ -488,10 +488,7 @@ describe('CvRewriteService (mocked LLM)', () => {
       const { svc, llm, tracing } = build('irrelevant');
       tracing.countRejectedSince.mockResolvedValue(5);
       await expect(
-        svc.rewrite(
-          { text: 'some meaningful technical text here', mode: 'harvard' },
-          'user-1',
-        ),
+        svc.rewrite({ text: 'some meaningful technical text here', mode: 'harvard' }, 'user-1'),
       ).rejects.toMatchObject({ status: 429, response: { code: 'ABUSE_THROTTLED' } });
       expect(llm.complete).not.toHaveBeenCalled();
       expect(tracing.startAiRequest).not.toHaveBeenCalled();
