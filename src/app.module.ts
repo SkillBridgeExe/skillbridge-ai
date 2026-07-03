@@ -24,6 +24,7 @@ import { UserAwareThrottlerGuard } from './common/guards/user-throttler.guard';
 import { DatabaseModule } from './infrastructure/database/database.module';
 import { VectorModule } from './infrastructure/vector/vector.module';
 import { LlmModule } from './infrastructure/llm/llm.module';
+import { ToolsModule } from './infrastructure/tools/tools.module';
 
 import { CommonServicesModule } from './common/services/common-services.module';
 
@@ -85,6 +86,7 @@ const PLATFORM_MODULES =
     DatabaseModule,
     VectorModule,
     LlmModule,
+    ToolsModule,
 
     // Cross-cutting common services (skill taxonomy + normalization + rubrics)
     // @Global so feature modules don't need to import explicitly.

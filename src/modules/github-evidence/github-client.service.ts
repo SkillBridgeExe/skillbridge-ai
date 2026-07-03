@@ -6,7 +6,7 @@ export class GithubUserNotFoundError extends Error {}
 export class GithubRateLimitError extends Error {}
 export class GithubFetchError extends Error {}
 
-const TTL_MS = 6 * 60 * 60 * 1000; // 6h — ToS-friendly caching
+const TTL_MS = 24 * 60 * 60 * 1000; // 24h — resource.validate/github.enrich are now mid-chat callers, more request pressure than the once-per-CV evidence-ledger use
 const CACHE_MAX = 500;
 const TIMEOUT_MS = 8000;
 
@@ -19,7 +19,10 @@ export class GithubClientService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async fetchPublicRepos(username: string): Promise<GithubRepo[]> {
+  async fetchPublicRepos(
+    username: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<GithubRepo[]> {
     const key = username.toLowerCase();
     const hit = this.cache.get(key);
     if (hit && Date.now() - hit.at < TTL_MS) return hit.repos;
@@ -34,6 +37,12 @@ export class GithubClientService {
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const abortFromParent = () => ctrl.abort(options.signal?.reason);
+    if (options.signal?.aborted) {
+      ctrl.abort(options.signal.reason);
+    } else {
+      options.signal?.addEventListener('abort', abortFromParent, { once: true });
+    }
     let res: Response;
     try {
       res = await fetch(
@@ -44,6 +53,7 @@ export class GithubClientService {
       throw new GithubFetchError(`github fetch failed: ${String(err)}`);
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abortFromParent);
     }
     if (res.status === 404) throw new GithubUserNotFoundError(username);
     if (res.status === 403 || res.status === 429)
@@ -61,6 +71,7 @@ export class GithubClientService {
         : [],
       description: typeof r.description === 'string' ? r.description : null,
       pushed_at: typeof r.pushed_at === 'string' ? r.pushed_at : null,
+      stars: typeof r.stargazers_count === 'number' ? r.stargazers_count : 0,
     }));
 
     if (this.cache.size >= CACHE_MAX) {

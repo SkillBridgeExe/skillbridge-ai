@@ -31,7 +31,6 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
   const { ConfigService } = await import('@nestjs/config');
   const { LlmService } = await import('../infrastructure/llm/llm.service');
   const { OpenAiProvider } = await import('../infrastructure/llm/providers/openai.provider');
-  const { GeminiProvider } = await import('../infrastructure/llm/providers/gemini.provider');
   const { PromptsService } = await import('../modules/prompts/prompts.service');
   const { TemplateRenderer } = await import('../modules/prompts/template-renderer');
   const { ChatService } = await import('../modules/learning-chat/learning-chat.service');
@@ -43,10 +42,9 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
         apiKey: process.env.OPENAI_API_KEY,
         modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
       },
-      gemini: { apiKey: '' },
     },
   });
-  const llm = new LlmService(cfg, new GeminiProvider(cfg), new OpenAiProvider(cfg));
+  const llm = new LlmService(cfg, new OpenAiProvider(cfg));
   const prompts = new PromptsService(new TemplateRenderer());
   await prompts.onModuleInit();
 
@@ -61,7 +59,9 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
       outcome_type: 'understand',
     }));
     const stubRetriever = { nearest: async () => retrieved } as never;
-    const chat = new ChatService(stubRetriever, llm, prompts);
+    // No userId is passed to chat.turn below → the tool loop is gated off, so this stub is never invoked.
+    const stubRegistry = { invoke: async () => ({}) } as never;
+    const chat = new ChatService(stubRetriever, llm, prompts, stubRegistry);
     // Gap-aware tutor: feed the case's OWN gaps as FACTS so --live measures grounding to THEIR situation
     // (the gap-aware tutoring), not just "answer grounded by the retrieved resources".
     const facts = c.context.gaps?.length

@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { maskPii } from '../../common/services/pii-mask';
 import { LlmService } from '../../infrastructure/llm/llm.service';
+import { ToolRegistry } from '../../infrastructure/tools/tool-registry.service';
+import { runChatToolLoop } from '../../infrastructure/tools/chat-tool-loop';
+import { mightNeedTool, toolDeclarationsForFlow } from '../../infrastructure/tools/declarations';
 import { PromptsService } from '../prompts/prompts.service';
 import { LearningResourceRetriever } from '../roadmap/learning-resource-retriever.service';
 import { RetrievedResource } from '../roadmap/resource-embedding';
@@ -9,6 +12,7 @@ import { ChatFacts, GroundedAnswer, groundResources } from './chat-grounding';
 const PROMPT_CODE = 'learning_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror interview MAX_ANSWER_HISTORY_TURNS)
 const DEFAULT_TOPK = 6;
+const FLOW = 'learning_chat';
 
 /** Schema-enforced output (audit F1) — defense-in-depth alongside groundResources. */
 export const CHAT_SCHEMA: Record<string, unknown> = {
@@ -35,6 +39,11 @@ export interface ChatTurnInput {
   /** Deterministic user FACTS (their open gaps) — built by the caller via buildChatFacts. Optional. */
   facts?: ChatFacts;
   topK?: number;
+  /** Present only on the real (authenticated) platform turn — gates the tool loop (#22 PR3) and is
+   *  threaded into ToolContext for rate-limiting + audit. Absent in unit tests → tool loop skipped. */
+  userId?: string;
+  /** Threaded into ToolContext for tool-call audit (ai_tool_calls.ai_request_id); optional. */
+  aiRequestId?: string;
 }
 
 export interface ChatTurnResult extends GroundedAnswer {
@@ -77,12 +86,13 @@ export class ChatService {
     private readonly retriever: LearningResourceRetriever,
     private readonly llm: LlmService,
     private readonly prompts: PromptsService,
+    private readonly registry: ToolRegistry,
   ) {}
 
   async turn(input: ChatTurnInput): Promise<ChatTurnResult> {
     const language = input.language ?? 'vi';
     const maskedQuestion = maskPii(input.question);
-    const facts = input.facts ?? { open_gaps: [] };
+    let facts = input.facts ?? { open_gaps: [] };
 
     const retrieved = await this.retriever.nearest({
       query: maskedQuestion,
@@ -95,15 +105,35 @@ export class ChatService {
       .map((m) => `${m.role}: ${maskPii(m.content)}`)
       .join('\n');
 
-    const userPrompt = this.prompts.render(PROMPT_CODE, {
-      language,
-      user_context: JSON.stringify(facts, null, 2),
-      resources: JSON.stringify(retrieved.map(promptResource), null, 2),
-      history: history || '(no prior messages)',
-      question: maskedQuestion,
-    });
-
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
+    const renderPrompt = (f: ChatFacts) =>
+      this.prompts.render(PROMPT_CODE, {
+        language,
+        user_context: JSON.stringify(f, null, 2),
+        resources: JSON.stringify(retrieved.map(promptResource), null, 2),
+        history: history || '(no prior messages)',
+        question: maskedQuestion,
+      });
+
+    const declarations = toolDeclarationsForFlow(FLOW);
+    if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
+      const loop = await runChatToolLoop(
+        FLOW,
+        this.llm,
+        this.registry,
+        declarations,
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: renderPrompt(facts) },
+        ],
+        { userId: input.userId, aiRequestId: input.aiRequestId, turnText: maskedQuestion },
+      );
+      if (Object.keys(loop.toolFacts).length > 0) {
+        facts = { ...facts, tool_results: loop.toolFacts };
+      }
+    }
+
+    const userPrompt = renderPrompt(facts);
     // Resilience: an LLM transport error (timeout / 429 / 5xx → ServiceUnavailableException) must NOT 500 the
     // turn. groundResources(null, retrieved, facts) already serves the honest grounded fallback over the
     // retrieved set (mirrors trends-insight / interview-plan). Previously only bad/empty MODEL OUTPUT was

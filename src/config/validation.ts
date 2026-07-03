@@ -33,10 +33,7 @@ export const configValidationSchema = Joi.object({
   PASSWORD_RESET_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(1800),
 
   // LLM
-  LLM_PROVIDER_DEFAULT: Joi.string().valid('gemini', 'openai').default('openai'),
-  GEMINI_API_KEY: Joi.string().allow('').optional(),
-  GEMINI_MODEL_DEFAULT: Joi.string().default('gemini-2.0-flash'),
-  GEMINI_MODEL_EMBEDDING: Joi.string().default('text-embedding-004'),
+  LLM_PROVIDER_DEFAULT: Joi.string().valid('openai').default('openai'),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-5.4-mini'),
   OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2'),

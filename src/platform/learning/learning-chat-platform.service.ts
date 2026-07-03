@@ -81,6 +81,8 @@ export class LearningChatPlatformService {
         language: dto.language ?? 'vi',
         history,
         facts,
+        userId,
+        aiRequestId,
       });
 
       await this.messages.save(

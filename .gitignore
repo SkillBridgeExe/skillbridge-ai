@@ -4,6 +4,9 @@
 /build
 /coverage
 
+# Isolated worktrees for subagent-driven development
+.worktrees/
+
 # Logs
 logs
 *.log
@@ -12,6 +15,9 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+
+# npm lockfile — this repo is pnpm-only (see packageManager in package.json); pnpm-lock.yaml is the real lockfile
+package-lock.json
 
 # OS
 .DS_Store

@@ -11,6 +11,7 @@ const repo = (over: Partial<GithubRepo>): GithubRepo => ({
   topics: [],
   description: null,
   pushed_at: '2026-03-01T00:00:00Z',
+  stars: 0,
   ...over,
 });
 

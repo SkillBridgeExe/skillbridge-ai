@@ -317,12 +317,8 @@ export class CvJdMatchService {
     temperature: number;
     seed?: number;
   } {
-    const provider = (this.config?.get<LlmProvider>('llm.providerDefault') ??
-      'openai') as LlmProvider;
-    const defaultModel =
-      provider === 'openai'
-        ? (this.config?.get<string>('llm.openai.modelDefault') ?? 'gpt-5.4-mini')
-        : (this.config?.get<string>('llm.gemini.modelDefault') ?? 'gemini-2.5-flash');
+    const provider: LlmProvider = 'openai';
+    const defaultModel = this.config?.get<string>('llm.openai.modelDefault') ?? 'gpt-5.4-mini';
     // Phase 2 toggle: an override model (non-reasoning) switches extraction to temp-0 (+ optional
     // seed) for determinism. Unset → legacy default model + temp 0.1 (byte-identical).
     const resolved = resolveExtractionModel({

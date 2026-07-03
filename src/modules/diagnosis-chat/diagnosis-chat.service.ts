@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
+import { ToolRegistry } from '../../infrastructure/tools/tool-registry.service';
+import { runChatToolLoop } from '../../infrastructure/tools/chat-tool-loop';
+import { mightNeedTool, toolDeclarationsForFlow } from '../../infrastructure/tools/declarations';
 import { PromptsService } from '../prompts/prompts.service';
 import {
   DiagnosisChatResult,
@@ -12,6 +15,7 @@ const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
 const DEFAULT_TEMPERATURE = 0.3;
 const MAX_OUTPUT_TOKENS = 600;
+const FLOW = 'diagnosis_chat';
 
 /** Schema-enforced output (audit F1) — defense-in-depth alongside groundDiagnosis. cited_dimension is
  *  constrained to the 4 real dimension keys; cited_gap_id is a free string (post-verified against FACTS). */
@@ -29,6 +33,7 @@ export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
     'cited_dimension',
     'cited_gap_id',
     'cited_other_match_index',
+    'cited_tool',
     'suggested_next_step',
   ],
   properties: {
@@ -36,6 +41,7 @@ export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
     cited_dimension: { type: ['string', 'null'], enum: [...DIAGNOSIS_DIMENSION_KEYS, null] },
     cited_gap_id: { type: ['string', 'null'] },
     cited_other_match_index: { type: ['number', 'null'] },
+    cited_tool: { type: ['string', 'null'], enum: ['github.enrich', null] },
     suggested_next_step: { type: ['string', 'null'] },
   },
 };
@@ -54,6 +60,11 @@ export interface DiagnosisChatTurnInput {
   focus?: string;
   /** Prior conversation (the platform layer loads + persists it); bounded to the last N here. */
   history?: DiagnosisChatHistoryMessage[];
+  /** Present only on the real (authenticated) platform turn — gates the tool loop (#22 PR3) and is
+   *  threaded into ToolContext for rate-limiting + audit. Absent in unit tests → tool loop skipped. */
+  userId?: string;
+  /** Threaded into ToolContext for tool-call audit (ai_tool_calls.ai_request_id); optional. */
+  aiRequestId?: string;
 }
 
 function safeParse(text: string): unknown {
@@ -81,25 +92,45 @@ export class DiagnosisChatService {
   constructor(
     private readonly llm: LlmService,
     private readonly prompts: PromptsService,
+    private readonly registry: ToolRegistry,
   ) {}
 
   async turn(input: DiagnosisChatTurnInput): Promise<DiagnosisChatResult> {
     const language = input.language ?? 'vi';
-
     const history = (input.history ?? [])
       .slice(-MAX_HISTORY)
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n');
-
-    const userPrompt = this.prompts.render(PROMPT_CODE, {
-      language,
-      facts: JSON.stringify(input.facts, null, 2),
-      history: history || '(no prior messages)',
-      focus: input.focus ?? '(none)',
-      question: input.question,
-    });
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
+    const renderPrompt = (facts: DiagnosisFacts) =>
+      this.prompts.render(PROMPT_CODE, {
+        language,
+        facts: JSON.stringify(facts, null, 2),
+        history: history || '(no prior messages)',
+        focus: input.focus ?? '(none)',
+        question: input.question,
+      });
 
+    let facts = input.facts;
+    const declarations = toolDeclarationsForFlow(FLOW);
+    if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
+      const loop = await runChatToolLoop(
+        FLOW,
+        this.llm,
+        this.registry,
+        declarations,
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: renderPrompt(facts) },
+        ],
+        { userId: input.userId, aiRequestId: input.aiRequestId, turnText: input.question },
+      );
+      if (Object.keys(loop.toolFacts).length > 0) {
+        facts = { ...facts, tool_results: loop.toolFacts };
+      }
+    }
+
+    const userPrompt = renderPrompt(facts);
     let parsed: unknown = null;
     try {
       const result = await this.llm.complete(
@@ -116,7 +147,7 @@ export class DiagnosisChatService {
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);
-      const grounded = groundDiagnosis(parsed, input.facts, language);
+      const grounded = groundDiagnosis(parsed, facts, language);
       return {
         ...grounded,
         trace: {
@@ -138,6 +169,6 @@ export class DiagnosisChatService {
 
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    return groundDiagnosis(parsed, input.facts, language);
+    return groundDiagnosis(parsed, facts, language);
   }
 }

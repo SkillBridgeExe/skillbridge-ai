@@ -137,6 +137,35 @@ describe('groundResources — anti-fabrication guard', () => {
     expect(out.suggested_next_step).not.toMatch(/https?:\/\//i);
     expect(out.suggested_next_step).toContain('[link]');
   });
+
+  it('overrides model prose when resource.validate proves the checked link is dead', () => {
+    const out = groundResources(
+      {
+        message: 'Link này vẫn dùng được, bạn cứ mở học tiếp.',
+        cited_resource_ids: [],
+        suggested_next_step: 'Tiếp tục dùng link này',
+      },
+      [res('r1')],
+      {
+        ...facts,
+        tool_results: {
+          'resource.validate': {
+            untrusted_data: {
+              alive: false,
+              status: 404,
+              final_url: 'https://course.example/dead',
+              content_type: null,
+            },
+          },
+        },
+      },
+    );
+
+    expect(out.message).toContain('không truy cập được');
+    expect(out.message).toContain('404');
+    expect(out.message).not.toContain('vẫn dùng được');
+    expect(out.suggested_next_step).toContain('tài nguyên khác');
+  });
 });
 
 describe('buildChatFacts', () => {

@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { LearningResource } from '../modules/roadmap/learning-resource';
+import { probeUrl as sharedProbeUrl } from '../infrastructure/tools/adapters/link-probe';
 
 export type LinkProbe = (url: string) => Promise<number | null>;
 
@@ -50,18 +51,8 @@ export async function revalidateResources(
 }
 
 async function probeUrl(url: string): Promise<number | null> {
-  const init = {
-    redirect: 'follow' as const,
-    signal: AbortSignal.timeout(10_000),
-  };
-  try {
-    const head = await fetch(url, { ...init, method: 'HEAD' });
-    if (head.status !== 405) return head.status;
-    const get = await fetch(url, { ...init, method: 'GET' });
-    return get.status;
-  } catch {
-    return null;
-  }
+  const result = await sharedProbeUrl(url);
+  return result.status;
 }
 
 async function main(): Promise<void> {

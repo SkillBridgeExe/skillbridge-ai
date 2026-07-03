@@ -17,10 +17,10 @@ process.env.NODE_ENV = 'test'; // DB-less BEFORE AppModule import — we measure
 
 const TRIALS = Number(process.env.DETERMINISM_TRIALS ?? 5);
 const CANDIDATE_MODEL = process.env.DETERMINISM_CANDIDATE_MODEL ?? 'gpt-4o-mini';
-// Candidate may live on a different provider (e.g. gemini for stronger VN recall). Provider is
-// resolved from config default unless set here — the model name alone does NOT pick the provider.
+// Provider is resolved from config default unless set here — the model name alone does NOT pick
+// the provider.
 const CANDIDATE_PROVIDER =
-  (process.env.DETERMINISM_CANDIDATE_PROVIDER as 'openai' | 'gemini' | undefined) || undefined;
+  (process.env.DETERMINISM_CANDIDATE_PROVIDER as 'openai' | undefined) || undefined;
 const SEED =
   process.env.DETERMINISM_SEED !== undefined ? Number(process.env.DETERMINISM_SEED) : undefined;
 const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 2000);
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
     model: string,
     temperature: number,
     seed?: number,
-    provider?: 'openai' | 'gemini',
+    provider?: 'openai',
   ): Promise<Trial> => {
     const startedAt = Date.now();
     try {
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
     model: string,
     temperature: number,
     seed?: number,
-    provider?: 'openai' | 'gemini',
+    provider?: 'openai',
   ): Promise<Trial[]> => {
     const out: Trial[] = [];
     for (let i = 0; i < TRIALS; i++) {

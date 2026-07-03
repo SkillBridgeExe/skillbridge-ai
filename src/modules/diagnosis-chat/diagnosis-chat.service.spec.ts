@@ -19,13 +19,20 @@ const FACTS: DiagnosisFacts = {
   ],
 };
 
-function makeService(llmComplete: jest.Mock): DiagnosisChatService {
+function makeService(
+  llmComplete: jest.Mock,
+  registry: unknown = { invoke: jest.fn() },
+): DiagnosisChatService {
   const prompts = {
     render: jest.fn().mockReturnValue('rendered-user-prompt'),
     get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
   };
-  // positional construction (llm, prompts) — both mocked.
-  return new DiagnosisChatService({ complete: llmComplete } as never, prompts as never);
+  // positional construction (llm, prompts, registry) — all mocked.
+  return new DiagnosisChatService(
+    { complete: llmComplete } as never,
+    prompts as never,
+    registry as never,
+  );
 }
 
 describe('DiagnosisChatService.turn', () => {
@@ -91,5 +98,95 @@ describe('DiagnosisChatService.turn', () => {
     const result = await service.turn({ question: 'q', facts: FACTS });
     expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_dimension).toBeUndefined();
+  });
+});
+
+describe('DiagnosisChatService.turn — tool loop', () => {
+  it('when userId is present and the decision call proposes github.enrich, merges tool facts before the final call', async () => {
+    const complete = jest
+      .fn()
+      // call #1 (decision, tools) — proposes a tool call
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ name: 'github.enrich', args: { username: 'octocat' } }],
+      })
+      // call #2 (final, schema)
+      .mockResolvedValueOnce({
+        parsedJson: {
+          message: 'ok',
+          cited_dimension: null,
+          cited_gap_id: null,
+          cited_other_match_index: null,
+          cited_tool: 'github.enrich',
+        },
+        text: '',
+        tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        latencyMs: 1,
+        modelCode: 'test',
+      });
+    const invoke = jest
+      .fn()
+      .mockResolvedValue({ exists: true, public_repos: [], recent_activity_days: 1 });
+    const service = makeService(complete, { invoke });
+    const result = await service.turn({
+      question: 'does my github show react?',
+      facts: FACTS,
+      userId: 'u1',
+      aiRequestId: 'req-1',
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      'diagnosis_chat',
+      'github.enrich',
+      { username: 'octocat' },
+      {
+        userId: 'u1',
+        aiRequestId: 'req-1',
+        turnText: 'does my github show react?',
+      },
+    );
+    expect(result.answer).toContain('GitHub');
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('no userId → tool loop skipped entirely, single call as before', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'ok',
+        cited_dimension: 'skills_relevance',
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: null,
+      },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const invoke = jest.fn();
+    const service = makeService(complete, { invoke });
+    await service.turn({ question: 'q', facts: FACTS });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('userId present but off-topic question → pre-gate skips the tool-decision call entirely', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'ok',
+        cited_dimension: 'skills_relevance',
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: null,
+      },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const invoke = jest.fn();
+    const service = makeService(complete, { invoke });
+    await service.turn({ question: 'why is my score low?', facts: FACTS, userId: 'u1' });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
   });
 });

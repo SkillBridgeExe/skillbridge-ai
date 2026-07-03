@@ -1,0 +1,21 @@
+export interface ToolContext {
+  userId?: string;
+  aiRequestId?: string;
+  /** Current user turn only. Used by the tool-decision call so it never replays the full final prompt. */
+  turnText?: string;
+  /** Aborted by ToolRegistry when the tool call times out or the parent request is cancelled. */
+  signal?: AbortSignal;
+}
+
+/** A → parsed/validated args type, R → structured result (FACTS) type. */
+export interface ToolAdapter<A, R> {
+  readonly name: string;
+  argsSchema: (args: unknown) => A;
+  invoke(args: A, ctx: ToolContext): Promise<R>;
+}
+
+export class ToolNotAllowedError extends Error {}
+export class ToolBadArgsError extends Error {}
+export class ToolTimeoutError extends Error {}
+export class ToolCircuitOpenError extends Error {}
+export class ToolRateLimitError extends Error {}

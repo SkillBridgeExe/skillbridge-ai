@@ -5,6 +5,7 @@ import { ProgressReport } from '../gap-report/gap-progress';
 import {
   buildDiagnosisFacts,
   DIAGNOSIS_DIMENSION_KEYS,
+  DiagnosisFacts,
   groundDiagnosis,
 } from './diagnosis-grounding';
 
@@ -440,5 +441,65 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
         expect(result.answer).not.toContain(marker);
       }
     });
+  });
+});
+
+describe('groundDiagnosis — cited_tool (github.enrich)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+  const factsWithTool: DiagnosisFacts = {
+    ...facts,
+    tool_results: {
+      'github.enrich': {
+        untrusted_data: { exists: true, public_repos: [{ name: 'app' }], recent_activity_days: 2 },
+      },
+    },
+  };
+
+  it('renders a templated tool-verified answer when cited_tool matches a present tool_results key', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'ok',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'github.enrich',
+      },
+      factsWithTool,
+      'vi',
+    );
+    expect(result.answer).toContain('GitHub');
+    expect(result.answer).toContain('2'); // recent_activity_days templated in
+  });
+
+  it('preserves the gap next-step when the model cites both a real gap and a verified tool', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'ok',
+        cited_gap_id: 'jd:hard_skill:docker',
+        cited_tool: 'github.enrich',
+      },
+      factsWithTool,
+      'vi',
+    );
+
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.answer).toContain('GitHub');
+    expect(result.answer).toContain('Docker');
+    expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
+  });
+
+  it('drops cited_tool when tool_results has no such key (model cited a tool that was never actually called) — falls back', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'ok',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'github.enrich',
+      },
+      { ...facts }, // no tool_results at all
+      'vi',
+    );
+    expect(result.answer).not.toContain('GitHub');
   });
 });

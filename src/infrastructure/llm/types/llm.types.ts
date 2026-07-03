@@ -2,11 +2,23 @@
  * Provider-agnostic LLM types.
  */
 
-export type LlmProvider = 'gemini' | 'openai';
+export type LlmProvider = 'openai';
 
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+}
+
+export interface LlmToolDeclaration {
+  name: string;
+  description: string;
+  /** JSON Schema (object type) — mapped directly into OpenAI's tools[].function.parameters. */
+  parameters: Record<string, unknown>;
+}
+
+export interface LlmToolCall {
+  name: string;
+  args: unknown;
 }
 
 export interface LlmCompleteOptions {
@@ -34,6 +46,9 @@ export interface LlmCompleteOptions {
    * this, so prod behavior is unchanged; it exists for the determinism harness / candidate path.
    */
   seed?: number;
+  /** Function-calling declarations. When set, the call is a TOOL-DECISION call — do not combine
+   *  with jsonMode/responseSchema in the SAME call (keep them as 2 separate calls, see chat-tool-loop.ts). */
+  tools?: LlmToolDeclaration[];
 }
 
 export interface LlmCompleteResult {
@@ -43,6 +58,8 @@ export interface LlmCompleteResult {
   text: string;
   /** If jsonMode was true, parsed JSON. Otherwise undefined. */
   parsedJson?: unknown;
+  /** Present only when the model proposed one or more tool calls (function-calling). */
+  toolCalls?: LlmToolCall[];
   /** Token usage from provider. */
   tokenUsage: {
     promptTokens: number;

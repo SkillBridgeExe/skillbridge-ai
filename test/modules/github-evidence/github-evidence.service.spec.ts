@@ -68,7 +68,8 @@ describe('GithubClientService', () => {
     expect(repos[0].topics).toEqual(['react', 'web']);
     expect(repos[0].description).toBe('A sample app');
     expect(repos[0].pushed_at).toBe('2026-01-01T00:00:00Z');
-    // Ensure stars are absent — GithubRepo type has no stargazers_count
+    // stargazers_count is mapped into the `stars` field, not passed through under its raw name
+    expect(repos[0].stars).toBe(999);
     expect((repos[0] as unknown as Record<string, unknown>).stargazers_count).toBeUndefined();
 
     // Assert request headers
@@ -197,6 +198,7 @@ describe('GithubEvidenceService', () => {
         topics: [],
         description: null,
         pushed_at: '2026-03-01T00:00:00Z',
+        stars: 0,
       },
     ]);
 
@@ -240,6 +242,7 @@ describe('GithubEvidenceService', () => {
         topics: ['docker'],
         description: null,
         pushed_at: '2025-12-01T00:00:00Z',
+        stars: 0,
       },
     ]);
 
