@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { LlmProvider } from '../../infrastructure/llm/types/llm.types';
@@ -83,6 +89,22 @@ export class CvJdMatchService {
             'Nội dung JD quá ngắn hoặc không phải mô tả công việc — hãy dán JD thật (yêu cầu, kỹ năng, mô tả). / ' +
             'The pasted JD is too thin or not a job description — paste the real JD (requirements, skills, description).',
         });
+      }
+    }
+
+    // TRUST (S4): OFF_TOPIC rejects are free for the user (quota refunded) but burn real LLM
+    // cost. 5+ rejected requests in the last hour = abuse pattern → 429 before any LLM spend.
+    // ponytail: fixed window via existing ai_requests rows; move to a real rate-limiter if traffic grows.
+    if (userId) {
+      const rejected = await this.tracing.countRejectedSince(
+        userId,
+        new Date(Date.now() - 3600_000),
+      );
+      if (rejected >= 5) {
+        throw new HttpException(
+          { code: 'ABUSE_THROTTLED', message: 'Too many off-topic requests — try again later.' },
+          429,
+        );
       }
     }
 
@@ -177,9 +199,10 @@ export class CvJdMatchService {
       // side extracted fine — e.g. a recipe, a news article, chat. Silently falling back to
       // the role rubric would score the CV against requirements the user never pasted and
       // read as "26% match" for nonsense input. Reject deterministically instead. The LLM
-      // call already happened, so the trace completes as SUCCESS first (cost stays visible) —
-      // mirrors the cv-rewrite OFF_TOPIC precedent. Reuses JD_CONTENT_INSUFFICIENT so the FE
-      // gate mapping ("paste a real JD") applies unchanged.
+      // call already happened, so the trace completes as REJECTED first (T5 — cost stays
+      // visible, but it's not a SUCCESS match; also backs the abuse-throttle count) — mirrors
+      // the cv-rewrite OFF_TOPIC precedent. Reuses JD_CONTENT_INSUFFICIENT so the FE gate
+      // mapping ("paste a real JD") applies unchanged.
       if (
         jdText &&
         extraction.jd_requirements_raw.length === 0 &&
@@ -191,7 +214,7 @@ export class CvJdMatchService {
           totalTokens: llmTelemetry.totalTokens,
           estimatedCost: llmTelemetry.estimatedCost,
           latencyMs: llmTelemetry.latencyMs,
-          status: 'SUCCESS',
+          status: 'REJECTED',
           modelCode: llmTelemetry.modelCode,
         });
         throw new BadRequestException({
@@ -315,8 +338,8 @@ export class CvJdMatchService {
         latency_ms: llmTelemetry.latencyMs,
       };
     } catch (err) {
-      // The OFF-TOPIC rejection above is a SUCCESSFUL call whose trace is already completed —
-      // re-throw without flipping it to FAILED (mirrors cv-rewrite).
+      // The OFF-TOPIC rejection above is a real LLM call whose trace is already completed
+      // REJECTED (T5) — re-throw without flipping it to FAILED (mirrors cv-rewrite).
       if (err instanceof BadRequestException) throw err;
       // LLM/parse/persist failed after the PENDING row was created — mark it FAILED so the
       // trace never accumulates orphan PENDING rows (mirrors cv-review).
