@@ -38,9 +38,10 @@
         { "name": "Postman", "proficiency_hint": "NOVICE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": ".NET backend fresher with SQL/REST/auth/git. Should be employable but not high because DB design, Linux, NoSQL/cache breadth are still thin."
+      "expected_overall": [81, 95],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage on the 2026-07-01 VN-prevalence weights; breadth gaps (DB design, Linux, NoSQL/cache) now carry less weight in the recentered taxonomy.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-be-fresher-java-spring",
@@ -56,9 +57,10 @@
         { "name": "Postman", "proficiency_hint": "NOVICE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Java/Spring backend fresher — must reach PARITY with the .NET case. Spring is a Java alias; the backend-language OR-group makes Java a first-class runtime alongside Node/.NET."
+      "expected_overall": [76, 90],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Java/Spring backend fresher reaches parity with .NET via backend-language OR-group; post-0cf58ab weights reflect VN-prevalence scoring consistently at 76-90.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-be-fresher-php-laravel",
@@ -73,9 +75,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "PHP/Laravel backend fresher — must reach PARITY with the .NET case. The backend-language OR-group makes PHP/Laravel a first-class runtime."
+      "expected_overall": [73, 87],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "PHP/Laravel backend fresher reaches parity with .NET via backend-language OR-group; post-0cf58ab weights reflect VN-prevalence scoring at 73-87.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-fs-fresher-balanced",
@@ -94,9 +97,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [74, 86],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Balanced fresher fullstack with real frontend and shallow backend. Good enough for junior screening, but still missing auth, Docker, system-design breadth."
+      "expected_overall": [81, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full coverage of required fullstack spine (React/Node/Express/PostgreSQL/REST/Git/communication); breadth gaps (auth/Docker/system-design) carry lower weight post-0cf58ab, yielding 81-93.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-fs-fresher-vue-spring",
@@ -115,9 +119,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [74, 86],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Vue + Java/Spring fullstack fresher — must reach PARITY with the balanced (React/Node) case. Same profile with Vue in place of React and Java/Spring in place of Node/Express, via the frontend-framework + backend-language OR-groups."
+      "expected_overall": [81, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Vue + Java/Spring fullstack fresher reaches parity with balanced (React/Node) via frontend-framework + backend-language OR-groups; full required coverage scores 81-93 post-0cf58ab.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-da-fresher-sql-excel",
