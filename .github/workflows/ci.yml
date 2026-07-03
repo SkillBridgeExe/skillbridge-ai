@@ -43,6 +43,18 @@ jobs:
       - name: Test (jest)
         run: pnpm test
 
+      # Scoring/gap/grounding regression gates — ALL offline fixtures (no LLM, no API key,
+      # no DB). These protect the deterministic engine the same way jest protects units.
+      - name: Eval gates (offline fixtures)
+        env:
+          EVAL_MATCH_STRICT: '1'
+        run: |
+          pnpm eval:gap
+          pnpm eval:match
+          pnpm eval:rubric
+          pnpm eval:progress
+          pnpm eval:chat-tools
+
       # The real OCR pipeline (pdfium WASM render + Tesseract) can't run under jest's CJS VM
       # (ESM dynamic import), so jest green does NOT prove production OCR works. Gate it here on the
       # committed synthetic scanned fixture. Cache eng+vie traineddata so reruns don't re-download.
