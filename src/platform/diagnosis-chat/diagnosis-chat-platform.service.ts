@@ -27,6 +27,10 @@ export interface DiagnosisChatTurnResponse {
   suggested_next_step?: string | null;
 }
 
+export interface DiagnosisChatThreadResponse {
+  turns: Array<{ role: 'user' | 'assistant'; text: string; ts: string }>;
+}
+
 /**
  * Platform layer for the grounded CV-diagnosis advisor — mirrors LearningChatPlatformService:
  * assertQuota → resolveConversation (scoped {id,userId}, validating matchId) → build deterministic FACTS
@@ -60,6 +64,32 @@ export class DiagnosisChatPlatformService {
     const facts = await this.buildFactsForMatch(userId, matchId);
     const conversation = await this.resolveConversation(userId, matchId);
     return this.runTurn(userId, conversation, facts, dto, { match_id: matchId });
+  }
+
+  async getThread(userId: string, matchId: string): Promise<DiagnosisChatThreadResponse> {
+    const conversation = await this.conversations.findOne({ where: { userId, matchId } });
+    if (!conversation) return { turns: [] };
+
+    const rows = await this.messages.find({
+      where: { conversationId: conversation.id },
+      order: { createdAt: 'ASC' },
+    });
+
+    return {
+      turns: rows.slice(-40).map((message) => ({
+        role: message.role,
+        text: message.content,
+        ts: message.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  async deleteThread(userId: string, matchId: string): Promise<void> {
+    const conversation = await this.conversations.findOne({ where: { userId, matchId } });
+    if (!conversation) return;
+
+    await this.messages.delete({ conversationId: conversation.id });
+    await this.conversations.delete({ id: conversation.id });
   }
 
   /**
@@ -176,7 +206,12 @@ export class DiagnosisChatPlatformService {
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
     // Best-effort: a progress-lookup failure must never break the chat itself.
     const progress = await this.cvMatches.getProgress(userId, matchId).catch(() => null);
-    return buildDiagnosisFacts(review, report, progress);
+    // Best-effort: cross-match summaries add comparison context, but lookup failures must never
+    // break the diagnosis chat.
+    const otherMatches = await this.cvMatches
+      .listRecentMatchSummariesForUser(userId, matchId)
+      .catch(() => []);
+    return buildDiagnosisFacts(review, report, progress, otherMatches);
   }
 
   private async assertQuota(userId: string): Promise<void> {

@@ -46,6 +46,18 @@ export interface DiagnosisGapFact {
   recommended_next_action: string;
 }
 
+export interface DiagnosisOtherMatchInput {
+  jd_title: string | null;
+  overall_score: number | null;
+  top_gaps: string[];
+}
+
+export interface DiagnosisOtherMatchFact {
+  jd_title: string | null;
+  overall_score: number | null;
+  top_gaps: string[];
+}
+
 export interface DiagnosisFacts {
   /** Composite 0-100 CV score from the stored review; null when the record lacks it. */
   overall_score: number | null;
@@ -69,6 +81,9 @@ export interface DiagnosisFacts {
     /** curr_score - prev_score rounded; null when either score is unknown (never a fabricated delta). */
     score_delta: number | null;
   };
+  /** Other recent JD matches for THIS user, present only when available. Used only for explicit
+   *  cross-JD comparison questions; excludes timestamps to avoid irrelevant prompt noise. */
+  other_matches?: DiagnosisOtherMatchFact[];
 }
 
 export interface DiagnosisChatResult {
@@ -130,6 +145,7 @@ function stringOrEmpty(value: unknown): string {
 function renderGroundedAnswer(input: {
   dimension?: DiagnosisDimensionFact;
   gap?: DiagnosisGapFact;
+  otherMatch?: DiagnosisOtherMatchFact;
   facts: DiagnosisFacts;
   language?: string;
 }): DiagnosisChatResult {
@@ -161,6 +177,31 @@ function renderGroundedAnswer(input: {
     suggested_next_step = input.gap.recommended_next_action;
   }
 
+  if (input.otherMatch) {
+    const title =
+      input.otherMatch.jd_title ??
+      (isEn ? 'an unnamed recent JD match' : 'một JD match gần đây chưa có tên');
+    const score =
+      input.otherMatch.overall_score === null
+        ? isEn
+          ? 'no stored score'
+          : 'chưa có điểm đã lưu'
+        : isEn
+          ? `${input.otherMatch.overall_score}/100`
+          : `${input.otherMatch.overall_score}/100`;
+    const gaps = input.otherMatch.top_gaps.length
+      ? input.otherMatch.top_gaps.join(', ')
+      : isEn
+        ? 'no stored top gaps'
+        : 'không có gap chính đã lưu';
+    parts.push(
+      isEn
+        ? `Recent JD match: ${title} has ${score}. Stored top gaps: ${gaps}. Use this only as comparison context against your current diagnosis.`
+        : `JD match gần đây: ${title} có ${score}. Gap chính đã lưu: ${gaps}. Chỉ dùng thông tin này để so sánh với chẩn đoán hiện tại của bạn.`,
+    );
+    suggested_next_step = null;
+  }
+
   return {
     answer: stripRawUrls(parts.join(' ')),
     ...(input.dimension ? { cited_dimension: input.dimension.key } : {}),
@@ -179,6 +220,7 @@ export function buildDiagnosisFacts(
   review: CvReviewParsedResponse | null | undefined,
   gapReport: Pick<SkillBridgeGapReport, 'gap_items'> | null | undefined,
   progress?: ProgressReport | null,
+  otherMatches?: DiagnosisOtherMatchInput[] | null,
 ): DiagnosisFacts {
   const dims = review?.llm_score_dimensions;
   const rationale = review?.rationale;
@@ -239,6 +281,14 @@ export function buildDiagnosisFacts(
     };
   }
 
+  if (otherMatches && otherMatches.length > 0) {
+    facts.other_matches = otherMatches.slice(0, 3).map((match) => ({
+      jd_title: match.jd_title,
+      overall_score: match.overall_score,
+      top_gaps: match.top_gaps.slice(0, 2),
+    }));
+  }
+
   return facts;
 }
 
@@ -296,7 +346,14 @@ export function groundDiagnosis(
       ? facts.gap_items.find((g) => g.requirement_id === obj.cited_gap_id)
       : undefined;
 
-  if (!dimension && !gap) return fallback(facts, language);
+  const otherIndex =
+    typeof obj.cited_other_match_index === 'number' && Number.isInteger(obj.cited_other_match_index)
+      ? obj.cited_other_match_index - 1
+      : -1;
+  const otherMatch =
+    otherIndex >= 0 && facts.other_matches ? facts.other_matches[otherIndex] : undefined;
 
-  return renderGroundedAnswer({ dimension, gap, facts, language });
+  if (!dimension && !gap && !otherMatch) return fallback(facts, language);
+
+  return renderGroundedAnswer({ dimension, gap, otherMatch, facts, language });
 }

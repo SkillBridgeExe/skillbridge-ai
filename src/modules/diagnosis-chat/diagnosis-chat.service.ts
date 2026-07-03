@@ -24,11 +24,18 @@ const MAX_OUTPUT_TOKENS = 600;
 export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
-  required: ['message', 'cited_dimension', 'cited_gap_id', 'suggested_next_step'],
+  required: [
+    'message',
+    'cited_dimension',
+    'cited_gap_id',
+    'cited_other_match_index',
+    'suggested_next_step',
+  ],
   properties: {
     message: { type: 'string' },
     cited_dimension: { type: ['string', 'null'], enum: [...DIAGNOSIS_DIMENSION_KEYS, null] },
     cited_gap_id: { type: ['string', 'null'] },
+    cited_other_match_index: { type: ['number', 'null'] },
     suggested_next_step: { type: ['string', 'null'] },
   },
 };
