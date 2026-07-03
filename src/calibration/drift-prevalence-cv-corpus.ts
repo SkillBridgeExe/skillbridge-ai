@@ -30,13 +30,13 @@ import { withRetry } from './retry';
 
 process.env.NODE_ENV = 'test'; // DB-less BEFORE AppModule import — we measure extraction, not persistence.
 
-type Provider = 'openai' | 'gemini';
+type Provider = 'openai';
 
 const CORPUS_DIR = path.join(process.cwd(), 'data', 'corpus', 'cv');
 const TEMPLATE = process.env.DRIFT_TEMPLATE ?? 'cv_jd_match_v2'; // the live prod template.
 const CANDIDATE_MODEL = process.env.DRIFT_CANDIDATE_MODEL ?? 'gpt-4o-mini';
-// Force providers explicitly — LlmService resolves an unset provider from config default (fallback
-// gemini), which would mis-route an OpenAI model name. Both default to openai (both models are OpenAI).
+// Force providers explicitly for clarity even though LlmService's own default is openai too
+// (both models are OpenAI).
 const CANDIDATE_PROVIDER = (process.env.DRIFT_CANDIDATE_PROVIDER ?? 'openai') as Provider;
 const BASELINE_PROVIDER = (process.env.DRIFT_BASELINE_PROVIDER ?? 'openai') as Provider;
 const SEED = process.env.DRIFT_SEED !== undefined ? Number(process.env.DRIFT_SEED) : 7;

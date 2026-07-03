@@ -1,6 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GeminiProvider } from './providers/gemini.provider';
 import { OpenAiProvider } from './providers/openai.provider';
 import {
   LlmCompleteOptions,
@@ -25,11 +24,10 @@ export class LlmService {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly gemini: GeminiProvider,
     private readonly openai: OpenAiProvider,
   ) {
     this.defaultProvider = (this.config.get<string>('llm.providerDefault') ??
-      'gemini') as LlmProvider;
+      'openai') as LlmProvider;
   }
 
   async complete(
@@ -80,8 +78,6 @@ export class LlmService {
   private resolveProvider(name?: LlmProvider): LlmProviderClient {
     const chosen = name ?? this.defaultProvider;
     switch (chosen) {
-      case 'gemini':
-        return this.gemini;
       case 'openai':
         return this.openai;
       default:

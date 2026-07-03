@@ -24,7 +24,6 @@ async function buildLiveProduceFn(): Promise<ProduceFn> {
   const { ConfigService } = await import('@nestjs/config');
   const { LlmService } = await import('../infrastructure/llm/llm.service');
   const { OpenAiProvider } = await import('../infrastructure/llm/providers/openai.provider');
-  const { GeminiProvider } = await import('../infrastructure/llm/providers/gemini.provider');
   const { PromptsService } = await import('../modules/prompts/prompts.service');
   const { TemplateRenderer } = await import('../modules/prompts/template-renderer');
   const { TracingService } = await import('../modules/tracing/tracing.service');
@@ -37,10 +36,9 @@ async function buildLiveProduceFn(): Promise<ProduceFn> {
         apiKey: process.env.OPENAI_API_KEY,
         modelDefault: process.env.CURATION_MODEL ?? 'gpt-4o-mini',
       },
-      gemini: { apiKey: '' },
     },
   });
-  const llm = new LlmService(cfg, new GeminiProvider(cfg), new OpenAiProvider(cfg));
+  const llm = new LlmService(cfg, new OpenAiProvider(cfg));
   const prompts = new PromptsService(new TemplateRenderer());
   await prompts.onModuleInit();
   const tracing = new TracingService(); // stub mode (no repos) — no DB needed for eval

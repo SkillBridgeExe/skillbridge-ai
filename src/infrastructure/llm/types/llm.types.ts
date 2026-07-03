@@ -2,7 +2,7 @@
  * Provider-agnostic LLM types.
  */
 
-export type LlmProvider = 'gemini' | 'openai';
+export type LlmProvider = 'openai';
 
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';

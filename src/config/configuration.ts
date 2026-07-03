@@ -22,15 +22,8 @@ export default () => ({
   },
 
   llm: {
-    // OpenAI is the standardized text-LLM provider (2026-06-04 decision; Gemini chỉ còn cho
-    // Gemini Live voice sau này). Fallback openai để môi trường thiếu env không âm thầm rơi về
-    // Gemini free-tier (quota 20/ngày).
+    // OpenAI is the standardized text-LLM provider (2026-06-04 decision).
     providerDefault: process.env.LLM_PROVIDER_DEFAULT ?? 'openai',
-    gemini: {
-      apiKey: process.env.GEMINI_API_KEY ?? '',
-      modelDefault: process.env.GEMINI_MODEL_DEFAULT ?? 'gemini-2.5-flash',
-      modelEmbedding: process.env.GEMINI_MODEL_EMBEDDING ?? 'gemini-embedding-001',
-    },
     openai: {
       apiKey: process.env.OPENAI_API_KEY ?? '',
       // gpt-5.4-mini = benchmark winner (94% within-band, lowest MAE) — see model-routing memo.

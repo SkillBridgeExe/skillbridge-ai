@@ -31,7 +31,6 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
   const { ConfigService } = await import('@nestjs/config');
   const { LlmService } = await import('../infrastructure/llm/llm.service');
   const { OpenAiProvider } = await import('../infrastructure/llm/providers/openai.provider');
-  const { GeminiProvider } = await import('../infrastructure/llm/providers/gemini.provider');
   const { PromptsService } = await import('../modules/prompts/prompts.service');
   const { TemplateRenderer } = await import('../modules/prompts/template-renderer');
   const { ChatService } = await import('../modules/learning-chat/learning-chat.service');
@@ -43,10 +42,9 @@ async function buildRealAnswerFn(): Promise<AnswerFn> {
         apiKey: process.env.OPENAI_API_KEY,
         modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
       },
-      gemini: { apiKey: '' },
     },
   });
-  const llm = new LlmService(cfg, new GeminiProvider(cfg), new OpenAiProvider(cfg));
+  const llm = new LlmService(cfg, new OpenAiProvider(cfg));
   const prompts = new PromptsService(new TemplateRenderer());
   await prompts.onModuleInit();
 

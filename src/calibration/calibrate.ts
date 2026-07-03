@@ -41,7 +41,7 @@ interface SampleCv {
 async function main(): Promise<void> {
   const file = path.join(process.cwd(), 'data', 'calibration-cvs.json');
   const { cvs } = JSON.parse(fs.readFileSync(file, 'utf-8')) as { cvs: SampleCv[] };
-  const provider = process.env.LLM_PROVIDER_DEFAULT ?? 'gemini';
+  const provider = process.env.LLM_PROVIDER_DEFAULT ?? 'openai';
 
   // Dynamic import AFTER NODE_ENV is set, so AppModule evaluates with the test guard.
   const { NestFactory } = await import('@nestjs/core');
