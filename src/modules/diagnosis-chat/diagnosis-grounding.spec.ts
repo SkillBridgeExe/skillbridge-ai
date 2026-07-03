@@ -457,7 +457,13 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
 
   it('renders a templated tool-verified answer when cited_tool matches a present tool_results key', () => {
     const result = groundDiagnosis(
-      { message: 'ok', cited_dimension: null, cited_gap_id: null, cited_other_match_index: null, cited_tool: 'github.enrich' },
+      {
+        message: 'ok',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'github.enrich',
+      },
       factsWithTool,
       'vi',
     );
@@ -467,7 +473,13 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
 
   it('drops cited_tool when tool_results has no such key (model cited a tool that was never actually called) — falls back', () => {
     const result = groundDiagnosis(
-      { message: 'ok', cited_dimension: null, cited_gap_id: null, cited_other_match_index: null, cited_tool: 'github.enrich' },
+      {
+        message: 'ok',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'github.enrich',
+      },
       { ...facts }, // no tool_results at all
       'vi',
     );

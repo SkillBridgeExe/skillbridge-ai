@@ -20,9 +20,14 @@ function isDeadStatus(status: number): boolean {
 export async function probeUrl(url: string): Promise<LinkProbeResult> {
   try {
     let current = url;
-    let res: { status: number; url: string; headers: { get(name: string): string | null } } | null = null;
+    let res: { status: number; url: string; headers: { get(name: string): string | null } } | null =
+      null;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      res = await fetch(current, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) });
+      res = await fetch(current, {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         current = new URL(res.headers.get('location')!, current).toString();
         continue;
@@ -30,7 +35,11 @@ export async function probeUrl(url: string): Promise<LinkProbeResult> {
       break;
     }
     if (res!.status === 405) {
-      res = await fetch(current, { method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(TIMEOUT_MS) });
+      res = await fetch(current, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
     }
     const status = res!.status;
     return {

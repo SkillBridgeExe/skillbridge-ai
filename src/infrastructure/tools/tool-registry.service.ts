@@ -56,7 +56,9 @@ export class ToolRegistry {
 
     const circuit = this.circuits.get(name);
     if (circuit && circuit.openUntil > Date.now()) {
-      throw new ToolCircuitOpenError(`tool "${name}" circuit open until ${new Date(circuit.openUntil).toISOString()}`);
+      throw new ToolCircuitOpenError(
+        `tool "${name}" circuit open until ${new Date(circuit.openUntil).toISOString()}`,
+      );
     }
 
     const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
@@ -102,7 +104,10 @@ export class ToolRegistry {
   private withTimeout<T>(p: Promise<T>, name: string): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new ToolTimeoutError(`tool "${name}" timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS);
+      timer = setTimeout(
+        () => reject(new ToolTimeoutError(`tool "${name}" timed out after ${TIMEOUT_MS}ms`)),
+        TIMEOUT_MS,
+      );
     });
     return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
   }
@@ -112,7 +117,9 @@ export class ToolRegistry {
     state.consecutiveFailures += 1;
     if (state.consecutiveFailures >= CIRCUIT_FAIL_THRESHOLD) {
       state.openUntil = Date.now() + CIRCUIT_OPEN_MS;
-      this.logger.warn(`tool "${name}" circuit OPEN for ${CIRCUIT_OPEN_MS / 1000}s after ${state.consecutiveFailures} consecutive failures`);
+      this.logger.warn(
+        `tool "${name}" circuit OPEN for ${CIRCUIT_OPEN_MS / 1000}s after ${state.consecutiveFailures} consecutive failures`,
+      );
     }
     this.circuits.set(name, state);
   }

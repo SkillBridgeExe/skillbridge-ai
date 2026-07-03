@@ -52,9 +52,7 @@ export function scoreChatToolsCase(c: ChatToolsEvalCase): ChatToolsEvalResult {
     return {
       id: c.id,
       pass,
-      detail: pass
-        ? ''
-        : `answer "${result.answer}" missing "${c.expect_contains}"`,
+      detail: pass ? '' : `answer "${result.answer}" missing "${c.expect_contains}"`,
     };
   }
   if (c.kind === 'tool-not-in-facts') {
@@ -104,8 +102,6 @@ if (require.main === module) {
     }
   }
   // eslint-disable-next-line no-console
-  console.log(
-    `chat-tools eval: ${golden.cases.length - failed}/${golden.cases.length} passed`,
-  );
+  console.log(`chat-tools eval: ${golden.cases.length - failed}/${golden.cases.length} passed`);
   process.exit(failed === 0 ? 0 : 1);
 }

@@ -82,7 +82,12 @@ export class OpenAiProvider implements LlmProviderClient {
           }
         : {}),
       ...(options.tools?.length
-        ? { tools: options.tools.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: t.parameters } })) }
+        ? {
+            tools: options.tools.map((t) => ({
+              type: 'function' as const,
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            })),
+          }
         : {}),
     });
     const latencyMs = Date.now() - start;

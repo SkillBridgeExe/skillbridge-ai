@@ -106,7 +106,10 @@ describe('DiagnosisChatService.turn — tool loop', () => {
     const complete = jest
       .fn()
       // call #1 (decision, tools) — proposes a tool call
-      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'github.enrich', args: { username: 'octocat' } }] })
+      .mockResolvedValueOnce({
+        text: '',
+        toolCalls: [{ name: 'github.enrich', args: { username: 'octocat' } }],
+      })
       // call #2 (final, schema)
       .mockResolvedValueOnce({
         parsedJson: {
@@ -121,7 +124,9 @@ describe('DiagnosisChatService.turn — tool loop', () => {
         latencyMs: 1,
         modelCode: 'test',
       });
-    const invoke = jest.fn().mockResolvedValue({ exists: true, public_repos: [], recent_activity_days: 1 });
+    const invoke = jest
+      .fn()
+      .mockResolvedValue({ exists: true, public_repos: [], recent_activity_days: 1 });
     const service = makeService(complete, { invoke });
     const result = await service.turn({
       question: 'does my github show react?',
@@ -129,10 +134,15 @@ describe('DiagnosisChatService.turn — tool loop', () => {
       userId: 'u1',
       aiRequestId: 'req-1',
     });
-    expect(invoke).toHaveBeenCalledWith('diagnosis_chat', 'github.enrich', { username: 'octocat' }, {
-      userId: 'u1',
-      aiRequestId: 'req-1',
-    });
+    expect(invoke).toHaveBeenCalledWith(
+      'diagnosis_chat',
+      'github.enrich',
+      { username: 'octocat' },
+      {
+        userId: 'u1',
+        aiRequestId: 'req-1',
+      },
+    );
     expect(result.answer).toContain('GitHub');
     expect(complete).toHaveBeenCalledTimes(2);
   });

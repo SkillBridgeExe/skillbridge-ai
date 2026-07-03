@@ -21,7 +21,12 @@ const TOOL_DECLARATIONS: Record<string, LlmToolDeclaration> = {
       "Look up a candidate's PUBLIC GitHub profile (public repos, languages, recent activity) to check real coding evidence for a skill. Call this ONLY when the user asks something GitHub can answer (e.g. 'does my GitHub show React experience?') AND a GitHub username is present in the conversation — never guess or invent a username.",
     parameters: {
       type: 'object',
-      properties: { username: { type: 'string', description: 'The GitHub username exactly as given by the user.' } },
+      properties: {
+        username: {
+          type: 'string',
+          description: 'The GitHub username exactly as given by the user.',
+        },
+      },
       required: ['username'],
       additionalProperties: false,
     },

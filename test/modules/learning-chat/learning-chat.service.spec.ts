@@ -34,7 +34,12 @@ function makeService(over: {
     get: jest.fn(() => ({ meta: { system: 'SYS' } })),
   };
   const registry = over.registry ?? { invoke: jest.fn() };
-  const svc = new ChatService(retriever as never, llm as never, prompts as never, registry as never);
+  const svc = new ChatService(
+    retriever as never,
+    llm as never,
+    prompts as never,
+    registry as never,
+  );
   return { svc, retriever, llm, prompts, registry };
 }
 
@@ -115,7 +120,12 @@ describe('ChatService.turn', () => {
     };
     const prompts = { render: jest.fn(() => 'R'), get: jest.fn(() => ({ meta: { system: 'S' } })) };
     const registry = { invoke: jest.fn() };
-    const svc = new ChatService(retriever as never, llm as never, prompts as never, registry as never);
+    const svc = new ChatService(
+      retriever as never,
+      llm as never,
+      prompts as never,
+      registry as never,
+    );
     const out = await svc.turn({ question: 'tôi thiếu Docker thì học gì?' });
     expect(out.cited_resources.map((r) => r.resource_id)).toEqual(['r1']); // fallback over retrieved
     expect(out.message.length).toBeGreaterThan(0);
@@ -140,17 +150,46 @@ describe('ChatService.turn — tool loop', () => {
   it('resource.validate tool call merges into facts.tool_results before the final call, no schema change needed', async () => {
     const complete = jest
       .fn()
-      .mockResolvedValueOnce({ text: '', toolCalls: [{ name: 'resource.validate', args: { url: 'https://x.dev/course' } }] })
       .mockResolvedValueOnce({
-        parsedJson: { message: 'That link is still live.', cited_resource_ids: [], suggested_next_step: null },
+        text: '',
+        toolCalls: [{ name: 'resource.validate', args: { url: 'https://x.dev/course' } }],
+      })
+      .mockResolvedValueOnce({
+        parsedJson: {
+          message: 'That link is still live.',
+          cited_resource_ids: [],
+          suggested_next_step: null,
+        },
         text: '',
       });
-    const invoke = jest.fn().mockResolvedValue({ alive: true, status: 200, final_url: 'https://x.dev/course', content_type: 'text/html' });
+    const invoke = jest.fn().mockResolvedValue({
+      alive: true,
+      status: 200,
+      final_url: 'https://x.dev/course',
+      content_type: 'text/html',
+    });
     const retriever = { nearest: jest.fn().mockResolvedValue([]) };
-    const prompts = { render: jest.fn().mockReturnValue('p'), get: jest.fn().mockReturnValue({ meta: { system: 's' } }) };
-    const service = new ChatService(retriever as never, { complete } as never, prompts as never, { invoke } as never);
-    const result = await service.turn({ question: 'is https://x.dev/course still alive?', userId: 'u1', aiRequestId: 'req-1' });
-    expect(invoke).toHaveBeenCalledWith('learning_chat', 'resource.validate', { url: 'https://x.dev/course' }, { userId: 'u1', aiRequestId: 'req-1' });
+    const prompts = {
+      render: jest.fn().mockReturnValue('p'),
+      get: jest.fn().mockReturnValue({ meta: { system: 's' } }),
+    };
+    const service = new ChatService(
+      retriever as never,
+      { complete } as never,
+      prompts as never,
+      { invoke } as never,
+    );
+    const result = await service.turn({
+      question: 'is https://x.dev/course still alive?',
+      userId: 'u1',
+      aiRequestId: 'req-1',
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      'learning_chat',
+      'resource.validate',
+      { url: 'https://x.dev/course' },
+      { userId: 'u1', aiRequestId: 'req-1' },
+    );
     expect(result.message).toContain('still live');
   });
 });

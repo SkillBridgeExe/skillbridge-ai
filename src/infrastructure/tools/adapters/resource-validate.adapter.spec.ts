@@ -10,6 +10,8 @@ describe('ResourceValidateAdapter', () => {
 
   it('accepts a valid https url', () => {
     const adapter = new ResourceValidateAdapter();
-    expect(adapter.argsSchema({ url: 'https://x.dev/course' })).toEqual({ url: 'https://x.dev/course' });
+    expect(adapter.argsSchema({ url: 'https://x.dev/course' })).toEqual({
+      url: 'https://x.dev/course',
+    });
   });
 });

@@ -34,7 +34,11 @@ describe('TracingService.logToolCall (un-stubbed)', () => {
 
   it('falls back to the debug-log stub when no repo is injected (test/NODE_ENV path)', async () => {
     const service = new TracingService();
-    const id = await service.logToolCall({ toolName: 'resource.validate', argsHash: 'b'.repeat(64), status: 'FAILED' });
+    const id = await service.logToolCall({
+      toolName: 'resource.validate',
+      argsHash: 'b'.repeat(64),
+      status: 'FAILED',
+    });
     expect(typeof id).toBe('string');
   });
 });
