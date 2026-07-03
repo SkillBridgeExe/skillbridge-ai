@@ -17,20 +17,46 @@ function isDeadStatus(status: number): boolean {
  * `resource.validate` tool (mid-chat, one URL) AND `src/tools/revalidate-links.ts` (offline batch
  * over the whole catalog) — one probe implementation, two callers (Task 4).
  */
-export async function probeUrl(url: string): Promise<LinkProbeResult> {
+function timeoutSignal(
+  remainingMs: number,
+  parent?: AbortSignal,
+): { signal: AbortSignal; dispose: () => void } {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), Math.max(1, remainingMs));
+  const abortFromParent = () => ctrl.abort(parent?.reason);
+  if (parent?.aborted) {
+    ctrl.abort(parent.reason);
+    clearTimeout(timer);
+  } else if (parent) {
+    parent.addEventListener('abort', abortFromParent, { once: true });
+  }
+  const dispose = () => {
+    clearTimeout(timer);
+    parent?.removeEventListener('abort', abortFromParent);
+  };
+  ctrl.signal.addEventListener('abort', dispose, { once: true });
+  return { signal: ctrl.signal, dispose };
+}
+
+export async function probeUrl(url: string, parentSignal?: AbortSignal): Promise<LinkProbeResult> {
   try {
     const startedAt = Date.now();
-    const signal = () => AbortSignal.timeout(Math.max(1, TIMEOUT_MS - (Date.now() - startedAt)));
+    const signal = () => timeoutSignal(TIMEOUT_MS - (Date.now() - startedAt), parentSignal);
     let current = url;
     let res: { status: number; url: string; headers: { get(name: string): string | null } } | null =
       null;
     let unresolvedRedirect = false;
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      res = await fetch(current, {
-        method: 'HEAD',
-        redirect: 'manual',
-        signal: signal(),
-      });
+      const timeout = signal();
+      try {
+        res = await fetch(current, {
+          method: 'HEAD',
+          redirect: 'manual',
+          signal: timeout.signal,
+        });
+      } finally {
+        timeout.dispose();
+      }
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         current = new URL(res.headers.get('location')!, current).toString();
         unresolvedRedirect = hop === MAX_REDIRECTS;
@@ -48,11 +74,16 @@ export async function probeUrl(url: string): Promise<LinkProbeResult> {
       };
     }
     if (res!.status === 405) {
-      res = await fetch(current, {
-        method: 'GET',
-        redirect: 'follow',
-        signal: signal(),
-      });
+      const timeout = signal();
+      try {
+        res = await fetch(current, {
+          method: 'GET',
+          redirect: 'follow',
+          signal: timeout.signal,
+        });
+      } finally {
+        timeout.dispose();
+      }
     }
     const status = res!.status;
     return {

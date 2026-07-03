@@ -45,7 +45,7 @@ export class GithubEnrichAdapter implements ToolAdapter<GithubEnrichArgs, Github
   async invoke(args: GithubEnrichArgs, _ctx: ToolContext): Promise<GithubEnrichResult> {
     let repos;
     try {
-      repos = await this.client.fetchPublicRepos(args.username);
+      repos = await this.client.fetchPublicRepos(args.username, { signal: _ctx.signal });
     } catch (err) {
       if (err instanceof GithubUserNotFoundError) {
         return {

@@ -78,8 +78,16 @@ export class ToolRegistry {
 
     const argsHash = createHash('sha256').update(JSON.stringify(parsedArgs)).digest('hex');
     const start = Date.now();
+    const controller = new AbortController();
+    const parentAbort = () => controller.abort(ctx.signal?.reason);
+    if (ctx.signal?.aborted) {
+      controller.abort(ctx.signal.reason);
+    } else {
+      ctx.signal?.addEventListener('abort', parentAbort, { once: true });
+    }
+    const toolCtx: ToolContext = { ...ctx, signal: controller.signal };
     try {
-      const result = await this.withTimeout(adapter.invoke(parsedArgs, ctx), name);
+      const result = await this.withTimeout(adapter.invoke(parsedArgs, toolCtx), name, controller);
       this.circuits.delete(name);
       await this.tracing.logToolCall({
         aiRequestId: ctx.aiRequestId,
@@ -102,16 +110,18 @@ export class ToolRegistry {
         errorMessage: (err as Error).message,
       });
       throw err;
+    } finally {
+      ctx.signal?.removeEventListener('abort', parentAbort);
     }
   }
 
-  private withTimeout<T>(p: Promise<T>, name: string): Promise<T> {
+  private withTimeout<T>(p: Promise<T>, name: string, controller: AbortController): Promise<T> {
     let timer!: ReturnType<typeof setTimeout>;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new ToolTimeoutError(`tool "${name}" timed out after ${TIMEOUT_MS}ms`)),
-        TIMEOUT_MS,
-      );
+      timer = setTimeout(() => {
+        controller.abort(new ToolTimeoutError(`tool "${name}" timed out after ${TIMEOUT_MS}ms`));
+        reject(new ToolTimeoutError(`tool "${name}" timed out after ${TIMEOUT_MS}ms`));
+      }, TIMEOUT_MS);
     });
     return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
   }

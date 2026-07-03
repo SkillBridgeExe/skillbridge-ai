@@ -18,7 +18,7 @@ export class ResourceValidateAdapter implements ToolAdapter<ResourceValidateArgs
     return { url };
   }
 
-  async invoke(args: ResourceValidateArgs, _ctx: ToolContext): Promise<LinkProbeResult> {
-    return probeUrl(args.url);
+  async invoke(args: ResourceValidateArgs, ctx: ToolContext): Promise<LinkProbeResult> {
+    return probeUrl(args.url, ctx.signal);
   }
 }

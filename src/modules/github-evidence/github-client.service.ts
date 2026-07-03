@@ -19,7 +19,10 @@ export class GithubClientService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async fetchPublicRepos(username: string): Promise<GithubRepo[]> {
+  async fetchPublicRepos(
+    username: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<GithubRepo[]> {
     const key = username.toLowerCase();
     const hit = this.cache.get(key);
     if (hit && Date.now() - hit.at < TTL_MS) return hit.repos;
@@ -34,6 +37,12 @@ export class GithubClientService {
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    const abortFromParent = () => ctrl.abort(options.signal?.reason);
+    if (options.signal?.aborted) {
+      ctrl.abort(options.signal.reason);
+    } else {
+      options.signal?.addEventListener('abort', abortFromParent, { once: true });
+    }
     let res: Response;
     try {
       res = await fetch(
@@ -44,6 +53,7 @@ export class GithubClientService {
       throw new GithubFetchError(`github fetch failed: ${String(err)}`);
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abortFromParent);
     }
     if (res.status === 404) throw new GithubUserNotFoundError(username);
     if (res.status === 403 || res.status === 429)

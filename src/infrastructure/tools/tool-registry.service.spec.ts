@@ -1,5 +1,6 @@
 import { ToolRegistry } from './tool-registry.service';
 import {
+  ToolAdapter,
   ToolBadArgsError,
   ToolCircuitOpenError,
   ToolNotAllowedError,
@@ -7,24 +8,38 @@ import {
   ToolTimeoutError,
 } from './types';
 
+type TestToolAdapter = ToolAdapter<unknown, unknown>;
+type TestTracing = {
+  logToolCall: jest.Mock<Promise<string>, [unknown]>;
+  countToolCallsSince: jest.Mock<Promise<number>, [string, string, Date]>;
+};
+
 function makeRegistry(
-  overrides: { resourceValidate?: any; githubEnrich?: any; tracing?: any } = {},
+  overrides: {
+    resourceValidate?: TestToolAdapter;
+    githubEnrich?: TestToolAdapter;
+    tracing?: TestTracing;
+  } = {},
 ) {
-  const resourceValidate: any = overrides.resourceValidate ?? {
+  const resourceValidate: TestToolAdapter = overrides.resourceValidate ?? {
     name: 'resource.validate',
     argsSchema: jest.fn((a) => a),
     invoke: jest.fn().mockResolvedValue({ alive: true }),
   };
-  const githubEnrich: any = overrides.githubEnrich ?? {
+  const githubEnrich: TestToolAdapter = overrides.githubEnrich ?? {
     name: 'github.enrich',
     argsSchema: jest.fn((a) => a),
     invoke: jest.fn().mockResolvedValue({ exists: true }),
   };
-  const tracing: any = overrides.tracing ?? {
+  const tracing: TestTracing = overrides.tracing ?? {
     logToolCall: jest.fn().mockResolvedValue('log-1'),
     countToolCallsSince: jest.fn().mockResolvedValue(0),
   };
-  const registry = new ToolRegistry(tracing, resourceValidate, githubEnrich);
+  const registry = new ToolRegistry(
+    tracing as never,
+    resourceValidate as never,
+    githubEnrich as never,
+  );
   return { registry, resourceValidate, githubEnrich, tracing };
 }
 
@@ -55,7 +70,7 @@ describe('ToolRegistry.invoke', () => {
     expect(result).toEqual({ exists: true });
     expect(githubEnrich.invoke).toHaveBeenCalledWith(
       { username: 'octocat' },
-      { aiRequestId: 'req-1' },
+      expect.objectContaining({ aiRequestId: 'req-1', signal: expect.any(AbortSignal) }),
     );
     expect(tracing.logToolCall).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -98,8 +113,36 @@ describe('ToolRegistry.invoke', () => {
     jest.useRealTimers();
   });
 
+  it('aborts the adapter signal when the timeout fires so background network work can stop', async () => {
+    jest.useFakeTimers();
+    let receivedSignal: AbortSignal | undefined;
+    let aborted = false;
+    const githubEnrich = {
+      name: 'github.enrich',
+      argsSchema: jest.fn((a) => a),
+      invoke: jest.fn((_args, ctx) => {
+        receivedSignal = ctx.signal;
+        ctx.signal?.addEventListener('abort', () => {
+          aborted = true;
+        });
+        return new Promise(() => {});
+      }),
+    };
+    const { registry } = makeRegistry({ githubEnrich });
+
+    const promise = registry.invoke('diagnosis_chat', 'github.enrich', { username: 'x' }, {});
+    const assertion = expect(promise).rejects.toBeInstanceOf(ToolTimeoutError);
+    await jest.advanceTimersByTimeAsync(10_000);
+    await assertion;
+
+    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(aborted).toBe(true);
+    jest.useRealTimers();
+  });
+
   it('rejects with ToolRateLimitError once the per-user tool window is exhausted', async () => {
-    const tracing = {
+    const tracing: TestTracing = {
       logToolCall: jest.fn(),
       countToolCallsSince: jest.fn().mockResolvedValue(20),
     };
@@ -116,9 +159,11 @@ describe('ToolRegistry.invoke', () => {
   });
 
   it('keeps rate-limit isolated per user: user A at limit does not imply user B is blocked', async () => {
-    const tracing = {
+    const tracing: TestTracing = {
       logToolCall: jest.fn().mockResolvedValue('log-1'),
-      countToolCallsSince: jest.fn(async (userId: string) => (userId === 'u1' ? 20 : 0)),
+      countToolCallsSince: jest.fn(async (userId: string, _toolName: string, _since: Date) =>
+        userId === 'u1' ? 20 : 0,
+      ),
     };
     const { registry, githubEnrich } = makeRegistry({ tracing });
 

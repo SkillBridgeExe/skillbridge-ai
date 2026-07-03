@@ -3,6 +3,8 @@ export interface ToolContext {
   aiRequestId?: string;
   /** Current user turn only. Used by the tool-decision call so it never replays the full final prompt. */
   turnText?: string;
+  /** Aborted by ToolRegistry when the tool call times out or the parent request is cancelled. */
+  signal?: AbortSignal;
 }
 
 /** A → parsed/validated args type, R → structured result (FACTS) type. */
