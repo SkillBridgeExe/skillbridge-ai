@@ -1,0 +1,35 @@
+import { LlmToolDeclaration } from '../llm/types/llm.types';
+import { TOOL_ALLOW_LIST } from './allow-list';
+
+// USER-REVIEW GATE (spec #22 PR3): tool `description` steers the model's decision to call it —
+// treat any change here like a prompt diff, same sign-off as prompts/diagnosis_chat_v1.md.
+const TOOL_DECLARATIONS: Record<string, LlmToolDeclaration> = {
+  'resource.validate': {
+    name: 'resource.validate',
+    description:
+      'Check whether a learning-resource URL is still reachable. Call this ONLY when the user explicitly asks if a specific link/course still works or is available — never speculatively, never for a URL the user did not mention.',
+    parameters: {
+      type: 'object',
+      properties: { url: { type: 'string', description: 'The exact URL to check.' } },
+      required: ['url'],
+      additionalProperties: false,
+    },
+  },
+  'github.enrich': {
+    name: 'github.enrich',
+    description:
+      "Look up a candidate's PUBLIC GitHub profile (public repos, languages, recent activity) to check real coding evidence for a skill. Call this ONLY when the user asks something GitHub can answer (e.g. 'does my GitHub show React experience?') AND a GitHub username is present in the conversation — never guess or invent a username.",
+    parameters: {
+      type: 'object',
+      properties: { username: { type: 'string', description: 'The GitHub username exactly as given by the user.' } },
+      required: ['username'],
+      additionalProperties: false,
+    },
+  },
+};
+
+export function toolDeclarationsForFlow(flow: string): LlmToolDeclaration[] {
+  return (TOOL_ALLOW_LIST[flow] ?? [])
+    .map((name) => TOOL_DECLARATIONS[name])
+    .filter((d): d is LlmToolDeclaration => Boolean(d));
+}
