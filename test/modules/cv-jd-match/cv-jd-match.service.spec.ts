@@ -232,7 +232,7 @@ describe('CvJdMatchService — abuse throttle (T5)', () => {
  * yields ZERO extracted job requirements (while the CV side extracts fine) must be rejected
  * deterministically — silently falling back to the role rubric would score the CV against
  * requirements the user never pasted (live repro: a phở recipe scored "26% match"). The LLM
- * call already happened → its trace completes as SUCCESS (cost stays visible), never FAILED.
+ * call already happened → its trace completes as REJECTED (cost stays visible), never FAILED.
  */
 describe('CvJdMatchService — OFF-TOPIC JD gate (post-extraction)', () => {
   const diffResult = {
