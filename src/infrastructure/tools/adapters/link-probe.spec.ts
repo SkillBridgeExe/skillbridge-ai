@@ -61,6 +61,39 @@ describe('probeUrl', () => {
     expect(r.final_url).toBe('https://b.dev/');
   });
 
+  it('treats an unresolved redirect chain beyond the hop cap as dead, not alive:true on a 3xx', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        status: 302,
+        url: 'https://a.dev/',
+        headers: { get: (h: string) => (h === 'location' ? 'https://b.dev/' : null) },
+      })
+      .mockResolvedValueOnce({
+        status: 302,
+        url: 'https://b.dev/',
+        headers: { get: (h: string) => (h === 'location' ? 'https://c.dev/' : null) },
+      })
+      .mockResolvedValueOnce({
+        status: 302,
+        url: 'https://c.dev/',
+        headers: { get: (h: string) => (h === 'location' ? 'https://d.dev/' : null) },
+      })
+      .mockResolvedValueOnce({
+        status: 302,
+        url: 'https://d.dev/',
+        headers: { get: (h: string) => (h === 'location' ? 'https://e.dev/' : null) },
+      });
+
+    global.fetch = fetchMock;
+
+    const r = await probeUrl('https://a.dev/');
+
+    expect(r.alive).toBe(false);
+    expect(r.status).toBe(302);
+    expect(r.final_url).toBe('https://e.dev/');
+  });
+
   it('a network error yields a null-status dead result, never throws', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET'));
     const r = await probeUrl('https://x.dev/');

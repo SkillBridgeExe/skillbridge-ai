@@ -73,6 +73,33 @@ function stripRawUrls(text: string): string {
     .slice(0, MAX_MESSAGE_LEN);
 }
 
+function resourceValidateOverride(facts: ChatFacts): GroundedAnswer | null {
+  const wrapped = facts.tool_results?.['resource.validate'];
+  if (typeof wrapped !== 'object' || wrapped === null) return null;
+
+  const data = (wrapped as { untrusted_data?: Record<string, unknown> }).untrusted_data;
+  if (!data || typeof data.alive !== 'boolean') return null;
+
+  const status = typeof data.status === 'number' ? data.status : null;
+  const statusText = status === null ? '' : ` (HTTP ${status})`;
+
+  if (!data.alive) {
+    return {
+      message: `Mình đã kiểm tra: link này hiện không truy cập được${statusText}.`,
+      cited_resources: [],
+      suggested_next_step:
+        'Chọn tài nguyên khác trong lộ trình hoặc hỏi mình để tìm lựa chọn thay thế.',
+    };
+  }
+
+  return {
+    message: `Mình đã kiểm tra: link này hiện vẫn truy cập được${statusText}.`,
+    cited_resources: [],
+    suggested_next_step:
+      'Bạn có thể tiếp tục với tài nguyên này, rồi quay lại roadmap để đánh dấu tiến độ.',
+  };
+}
+
 export function groundResources(
   parsed: unknown,
   retrieved: RetrievedResource[],
@@ -80,6 +107,9 @@ export function groundResources(
   // free-text skill/gap mentions in the prose (that grounding is prompt-only by design). Kept for that contract.
   _facts: ChatFacts,
 ): GroundedAnswer {
+  const toolOverride = resourceValidateOverride(_facts);
+  if (toolOverride) return toolOverride;
+
   const fallback = (): GroundedAnswer => ({
     message:
       retrieved.length > 0

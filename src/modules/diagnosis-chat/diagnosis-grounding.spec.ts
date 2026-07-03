@@ -471,6 +471,23 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
     expect(result.answer).toContain('2'); // recent_activity_days templated in
   });
 
+  it('preserves the gap next-step when the model cites both a real gap and a verified tool', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'ok',
+        cited_gap_id: 'jd:hard_skill:docker',
+        cited_tool: 'github.enrich',
+      },
+      factsWithTool,
+      'vi',
+    );
+
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.answer).toContain('GitHub');
+    expect(result.answer).toContain('Docker');
+    expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
+  });
+
   it('drops cited_tool when tool_results has no such key (model cited a tool that was never actually called) — falls back', () => {
     const result = groundDiagnosis(
       {

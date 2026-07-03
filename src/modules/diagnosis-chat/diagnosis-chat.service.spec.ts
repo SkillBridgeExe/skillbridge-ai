@@ -141,6 +141,7 @@ describe('DiagnosisChatService.turn — tool loop', () => {
       {
         userId: 'u1',
         aiRequestId: 'req-1',
+        turnText: 'does my github show react?',
       },
     );
     expect(result.answer).toContain('GitHub');

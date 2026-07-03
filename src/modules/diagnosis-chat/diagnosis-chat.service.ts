@@ -123,7 +123,7 @@ export class DiagnosisChatService {
           { role: 'system', content: system },
           { role: 'user', content: renderPrompt(facts) },
         ],
-        { userId: input.userId, aiRequestId: input.aiRequestId },
+        { userId: input.userId, aiRequestId: input.aiRequestId, turnText: input.question },
       );
       if (Object.keys(loop.toolFacts).length > 0) {
         facts = { ...facts, tool_results: loop.toolFacts };

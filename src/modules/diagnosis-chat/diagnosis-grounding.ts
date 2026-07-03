@@ -223,7 +223,6 @@ function renderGroundedAnswer(input: {
             : `Đã kiểm tra GitHub: tìm thấy ${repoCount} repo công khai${days !== null ? `, hoạt động gần nhất ${days} ngày trước` : ''}.`,
       );
     }
-    suggested_next_step = null;
   }
 
   return {

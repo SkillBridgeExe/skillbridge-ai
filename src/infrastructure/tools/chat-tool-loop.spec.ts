@@ -55,6 +55,37 @@ describe('runChatToolLoop', () => {
     expect(out.degraded).toBe(false);
   });
 
+  it('uses a dedicated tool-decision prompt instead of reusing the final JSON prompt', async () => {
+    const complete = jest.fn().mockResolvedValue({ text: '', toolCalls: [] });
+    const llm = makeLlm(complete);
+    const registry = { invoke: jest.fn() } as never;
+
+    await runChatToolLoop(
+      'diagnosis_chat',
+      llm,
+      registry,
+      [{ name: 'github.enrich', description: 'd', parameters: {} }],
+      [
+        {
+          role: 'system',
+          content: 'You are the final answerer. Return valid JSON only, no markdown.',
+        },
+        {
+          role: 'user',
+          content: 'FULL FACTS + history + final answer schema payload that should not be replayed',
+        },
+      ],
+      {},
+    );
+
+    const decisionMessages = complete.mock.calls[0][0];
+    expect(decisionMessages).toHaveLength(2);
+    expect(decisionMessages[0].role).toBe('system');
+    expect(decisionMessages[0].content).toContain('tool-decision');
+    expect(decisionMessages[0].content).not.toContain('Return valid JSON only');
+    expect(decisionMessages[1].content).not.toContain('FULL FACTS');
+  });
+
   it('hop budget ≤2 — a 3rd requested tool call is dropped and degraded is true', async () => {
     const llm = makeLlm(
       jest.fn().mockResolvedValue({

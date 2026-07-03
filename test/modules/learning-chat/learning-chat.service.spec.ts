@@ -188,9 +188,9 @@ describe('ChatService.turn — tool loop', () => {
       'learning_chat',
       'resource.validate',
       { url: 'https://x.dev/course' },
-      { userId: 'u1', aiRequestId: 'req-1' },
+      { userId: 'u1', aiRequestId: 'req-1', turnText: 'is https://x.dev/course still alive?' },
     );
-    expect(result.message).toContain('still live');
+    expect(result.message).toContain('vẫn truy cập được');
   });
 
   it('userId present but off-topic question → pre-gate skips the tool-decision call entirely', async () => {

@@ -14,7 +14,8 @@ export class AiToolCalls1781060000000 implements MigrationInterface {
         "latency_ms" integer,
         "error_message" text,
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        CONSTRAINT "PK_ai_tool_calls_id" PRIMARY KEY ("id")
+        CONSTRAINT "PK_ai_tool_calls_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_ai_tool_calls_ai_request_id" FOREIGN KEY ("ai_request_id") REFERENCES "ai_requests"("id") ON DELETE SET NULL
       )
     `);
     await queryRunner.query(
@@ -29,6 +30,9 @@ export class AiToolCalls1781060000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "ai_tool_calls" DROP CONSTRAINT IF EXISTS "FK_ai_tool_calls_ai_request_id"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_ai_tool_calls_created_at"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_ai_tool_calls_tool_name"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_ai_tool_calls_ai_request_id"`);

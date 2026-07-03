@@ -7,6 +7,11 @@ import { sanitizeUntrustedFacts } from './injection-defense';
 const HOP_BUDGET = 2;
 const DECISION_TEMPERATURE = 0.1;
 const DECISION_MAX_OUTPUT_TOKENS = 300;
+const TOOL_DECISION_SYSTEM = `You are a tool-decision router for SkillBridge.
+Decide whether the current user turn requires one of the provided tools.
+If a tool is needed, call exactly the relevant tool with the smallest valid arguments.
+If no tool is needed, return no tool calls.
+Do not answer the user. Do not return JSON prose. This is a tool-decision call only.`;
 
 /**
  * Pure: given the decision call's proposed tool calls, which ones execute (hop budget ≤2) and
@@ -40,14 +45,18 @@ export async function runChatToolLoop(
   llm: LlmService,
   registry: ToolRegistry,
   declarations: LlmToolDeclaration[],
-  messages: LlmMessage[],
+  _messages: LlmMessage[],
   ctx: ToolContext,
 ): Promise<ToolLoopOutcome> {
   if (declarations.length === 0) return { toolFacts: {}, degraded: false };
 
   let decision;
   try {
-    decision = await llm.complete(messages, {
+    const decisionMessages: LlmMessage[] = [
+      { role: 'system', content: TOOL_DECISION_SYSTEM },
+      { role: 'user', content: `Current user turn:\n${ctx.turnText ?? '(not provided)'}` },
+    ];
+    decision = await llm.complete(decisionMessages, {
       tools: declarations,
       temperature: DECISION_TEMPERATURE,
       maxOutputTokens: DECISION_MAX_OUTPUT_TOKENS,

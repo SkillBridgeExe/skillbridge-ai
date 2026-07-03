@@ -1,6 +1,8 @@
 export interface ToolContext {
   userId?: string;
   aiRequestId?: string;
+  /** Current user turn only. Used by the tool-decision call so it never replays the full final prompt. */
+  turnText?: string;
 }
 
 /** A → parsed/validated args type, R → structured result (FACTS) type. */
