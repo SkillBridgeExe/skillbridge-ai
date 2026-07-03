@@ -591,6 +591,7 @@ describe('CvJdMatchService — fell_back_to_rubric flag (S10)', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
