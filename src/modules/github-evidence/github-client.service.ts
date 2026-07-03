@@ -6,7 +6,7 @@ export class GithubUserNotFoundError extends Error {}
 export class GithubRateLimitError extends Error {}
 export class GithubFetchError extends Error {}
 
-const TTL_MS = 6 * 60 * 60 * 1000; // 6h — ToS-friendly caching
+const TTL_MS = 24 * 60 * 60 * 1000; // 24h — resource.validate/github.enrich are now mid-chat callers, more request pressure than the once-per-CV evidence-ledger use
 const CACHE_MAX = 500;
 const TIMEOUT_MS = 8000;
 
@@ -61,6 +61,7 @@ export class GithubClientService {
         : [],
       description: typeof r.description === 'string' ? r.description : null,
       pushed_at: typeof r.pushed_at === 'string' ? r.pushed_at : null,
+      stars: typeof r.stargazers_count === 'number' ? r.stargazers_count : 0,
     }));
 
     if (this.cache.size >= CACHE_MAX) {

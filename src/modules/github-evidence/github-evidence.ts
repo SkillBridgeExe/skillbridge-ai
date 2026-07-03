@@ -1,7 +1,8 @@
 import { ScannedSkill } from '../../common/services/skill-text-scanner.service';
 
-/** The ONLY fields we read from the GitHub API. stars/forks counts are deliberately ABSENT
- *  (gameable signals — design rule, do not add them). */
+/** The ONLY fields we read from the GitHub API. `stars` is raw context for the `github.enrich`
+ *  chat tool only — buildGithubEvidence below never reads it (gameable signal, kept OUT of the
+ *  deterministic CV↔GitHub evidence scoring — design rule, do not wire it in there). */
 export interface GithubRepo {
   name: string;
   html_url: string;
@@ -10,6 +11,7 @@ export interface GithubRepo {
   topics: string[];
   description: string | null;
   pushed_at: string | null;
+  stars: number;
 }
 
 export interface GithubSkillEvidence {
