@@ -408,6 +408,143 @@ describe('CvJdMatchService — jd_dimensions extraction (PR3)', () => {
   });
 });
 
+/**
+ * S10 (trust hardening): a user pastes a REAL JD, but every raw requirement extracted from it
+ * fails taxonomy normalization → SkillDiffService silently falls back to the role rubric (or
+ * empty set). The score is then computed against something the user never pasted, with no
+ * signal in the response other than `source_of_requirements` (easy to miss). `fell_back_to_rubric`
+ * makes this explicit so the FE can render a warning banner.
+ */
+describe('CvJdMatchService — fell_back_to_rubric flag (S10)', () => {
+  const baseInput = {
+    cv_id: 'cv-1',
+    cv_text: 'Backend developer with Node.js and PostgreSQL experience at FPT Software.',
+    scoring_template_code: 'cv_jd_match_v1',
+  };
+
+  // Real, meaningful JD content (passes the thin-content + off-topic gates) — the point is that
+  // its extracted requirement fails NORMALIZATION downstream (mocked via skillDiff.diff), not
+  // that the JD itself is garbage.
+  const nicheJd =
+    'We need an engineer skilled in the proprietary SuperNicheSkillXYZ framework used only ' +
+    'internally, with three years of hands-on experience building internal tooling around it.';
+
+  const diffResultBase = {
+    matched_skills: [],
+    partial_skills: [],
+    missing_skills: [],
+    bonus_skills: [],
+    unnormalized_cv_skills: [],
+    unnormalized_jd_requirements: [
+      { raw_input: 'SuperNicheSkillXYZ', evidence_text: 'framework used only internally' },
+    ],
+    match_ratio: 0,
+    required_coverage: 0,
+    overall_score: 40,
+    scoring_breakdown: {
+      total_requirements: 3,
+      matched_count: 0,
+      partial_count: 0,
+      missing_count: 3,
+      weight_sum: 9,
+      achieved_weight: 0,
+      required_total: 2,
+      required_met: 0,
+      raw_weighted_score: 0,
+      cap_applied: false,
+    },
+    inferred_skills: [],
+  };
+
+  const build = (parsedJson: unknown, diffResult: unknown) => {
+    const llm = {
+      complete: jest.fn().mockResolvedValue({
+        parsedJson,
+        rawResponse: '{}',
+        tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        estimatedCostUsd: 0,
+        latencyMs: 1,
+      }),
+    };
+    const prompts = {
+      get: jest.fn().mockReturnValue({ code: 'cv_jd_match', version: 1, meta: { system: 's' } }),
+      render: jest.fn().mockReturnValue('rendered'),
+    };
+    const tracing = {
+      startAiRequest: jest.fn().mockResolvedValue('req-1'),
+      saveAiResult: jest.fn().mockResolvedValue('res-1'),
+      completeAiRequest: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+    };
+    const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
+    const scanner = { scan: jest.fn().mockReturnValue([]) };
+    const svc = new CvJdMatchService(
+      llm as never,
+      prompts as never,
+      tracing as never,
+      skillDiff as never,
+      scanner as never,
+    );
+    return { svc };
+  };
+
+  it('a JD whose requirements ALL fail normalization → fell_back_to_rubric=true, source=role_rubric', async () => {
+    const { svc } = build(
+      {
+        cv_skills_raw: [{ name: 'Node.js', evidence_text: 'CV mentions Node.js' }],
+        jd_requirements_raw: [{ name: 'SuperNicheSkillXYZ', evidence_text: 'JD requires it' }],
+      },
+      { ...diffResultBase, requirements_source: 'role_rubric', rubric_band: 'fresher' },
+    );
+    const res = await svc.match('user-1', {
+      ...baseInput,
+      jd_text: nicheJd,
+      target_role: 'backend_developer',
+    } as never);
+    expect(res.parsed_response.source_of_requirements).toBe('role_rubric');
+    expect(res.parsed_response.fell_back_to_rubric).toBe(true);
+  });
+
+  it('a JD whose requirements normalize fine → fell_back_to_rubric is false/absent', async () => {
+    const { svc } = build(
+      {
+        cv_skills_raw: [{ name: 'Node.js', evidence_text: 'CV mentions Node.js' }],
+        jd_requirements_raw: [{ name: 'Node.js', evidence_text: 'JD requires Node.js' }],
+      },
+      {
+        ...diffResultBase,
+        unnormalized_jd_requirements: [],
+        requirements_source: 'jd_extraction',
+        rubric_band: null,
+      },
+    );
+    const res = await svc.match('user-1', {
+      ...baseInput,
+      jd_text: nicheJd,
+      target_role: 'backend_developer',
+    } as never);
+    expect(res.parsed_response.source_of_requirements).toBe('jd_extraction');
+    expect(res.parsed_response.fell_back_to_rubric).toBeFalsy();
+  });
+
+  it('no target_role + all-unnormalized → source="none", still fell_back_to_rubric=true', async () => {
+    const { svc } = build(
+      {
+        cv_skills_raw: [{ name: 'Node.js', evidence_text: 'CV mentions Node.js' }],
+        jd_requirements_raw: [{ name: 'SuperNicheSkillXYZ', evidence_text: 'JD requires it' }],
+      },
+      { ...diffResultBase, requirements_source: 'none', rubric_band: null },
+    );
+    const res = await svc.match('user-1', {
+      ...baseInput,
+      jd_text: nicheJd,
+      target_role: undefined,
+    } as never);
+    expect(res.parsed_response.source_of_requirements).toBe('none');
+    expect(res.parsed_response.fell_back_to_rubric).toBe(true);
+  });
+});
+
 describe('CvJdMatchService — extraction cache', () => {
   const diffResult = {
     matched_skills: [{ name: 'React', required_level: 3, cv_level: 4, importance: 'REQUIRED' }],
