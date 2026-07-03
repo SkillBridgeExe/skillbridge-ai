@@ -167,6 +167,27 @@ describe('buildEvidenceLedger (pure)', () => {
     expect(python.sources[0].quote).toBe('Strong in Python and distributed systems.');
   });
 
+  // Fix 1: within a section, a label unit (project tech line, quote:null) used to be scanned
+  // before the bullet units, so a shared `seen` dedup let the label claim the skill first and the
+  // real bullet quote was lost. Quotable units must win when both match the same skill.
+  it('a bullet quote wins over a project tech-line label for the same skill', () => {
+    const doc = docWith({
+      projects: [
+        {
+          name: 'Checkout Revamp',
+          role: null,
+          tech: ['React', 'Node.js'],
+          bullets: ['Built the checkout UI with React'],
+          link: null,
+        },
+      ],
+    });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const react = led.items.find((i) => i.skill_canonical === 'react')!;
+    expect(react.sources).toHaveLength(1); // dedup within the section still holds
+    expect(react.sources[0].quote).toBe('Built the checkout UI with React');
+  });
+
   it('integration: real scanner finds a demonstrated skill in a bullet', async () => {
     const taxonomy = new SkillTaxonomyService();
     await taxonomy.onModuleInit();

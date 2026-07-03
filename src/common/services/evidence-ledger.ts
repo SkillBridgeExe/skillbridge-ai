@@ -149,7 +149,12 @@ export function buildEvidenceLedger(
     // Perf: scanning per-bullet instead of the old joined-section text raises scan() calls from
     // ~4/CV to ~30-60/CV (one per bullet/unit). Accepted — SkillTextScannerService's matchers are
     // precompiled regex (skill-text-scanner.service.ts:34), so each call is cheap.
-    for (const unit of section.units) {
+    // Quotable units (bullets/summary) scan first: Array.prototype.sort is a stable sort, so this
+    // only moves label units (role title, project name, tech line) after them within the section.
+    // A label matching a skill already claimed by a bullet is then skipped by the seen-dedup below
+    // instead of stealing the slot with a null quote.
+    const orderedUnits = [...section.units].sort((a, b) => Number(b.quotable) - Number(a.quotable));
+    for (const unit of orderedUnits) {
       if (!unit.text.trim()) continue;
       for (const hit of scan(unit.text)) {
         if (seen.has(hit.canonical_name)) continue;
