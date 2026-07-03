@@ -38,3 +38,16 @@ export function toolDeclarationsForFlow(flow: string): LlmToolDeclaration[] {
     .map((name) => TOOL_DECLARATIONS[name])
     .filter((d): d is LlmToolDeclaration => Boolean(d));
 }
+
+// Cheap deterministic pre-gate — skip the tool-decision LLM call entirely unless the
+// question plausibly needs a tool. Keeps the "~2x cost only when a tool is used" model
+// the spec describes; false negatives (missing a real tool opportunity) are acceptable,
+// false positives (an unnecessary decision call) are what this exists to prevent.
+const GITHUB_HINT = /\bgithub\b|\brepo(?:s|sitory)?\b/i;
+const LINK_HINT = /https?:\/\/|\blink\b|\burl\b|\bcòn (?:sống|hoạt động)\b|\bvalid\b/i;
+
+export function mightNeedTool(flow: string, question: string): boolean {
+  if (flow === 'diagnosis_chat') return GITHUB_HINT.test(question);
+  if (flow === 'learning_chat') return LINK_HINT.test(question);
+  return false;
+}

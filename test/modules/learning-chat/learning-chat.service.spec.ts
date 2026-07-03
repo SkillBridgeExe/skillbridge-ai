@@ -192,4 +192,28 @@ describe('ChatService.turn — tool loop', () => {
     );
     expect(result.message).toContain('still live');
   });
+
+  it('userId present but off-topic question → pre-gate skips the tool-decision call entirely', async () => {
+    const invoke = jest.fn();
+    const { svc, llm } = makeService({
+      retrieved: [res('r1')],
+      llmResult: {
+        parsedJson: {
+          message: 'Học Docker nhé',
+          cited_resource_ids: [],
+          suggested_next_step: null,
+        },
+        text: '',
+      },
+      registry: { invoke },
+    });
+    const result = await svc.turn({
+      question: 'what should I learn after Docker?',
+      userId: 'u1',
+      aiRequestId: 'req-1',
+    });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(llm.complete).toHaveBeenCalledTimes(1);
+    expect(result.message.length).toBeGreaterThan(0);
+  });
 });

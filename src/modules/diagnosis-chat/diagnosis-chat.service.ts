@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { ToolRegistry } from '../../infrastructure/tools/tool-registry.service';
 import { runChatToolLoop } from '../../infrastructure/tools/chat-tool-loop';
-import { toolDeclarationsForFlow } from '../../infrastructure/tools/declarations';
+import { mightNeedTool, toolDeclarationsForFlow } from '../../infrastructure/tools/declarations';
 import { PromptsService } from '../prompts/prompts.service';
 import {
   DiagnosisChatResult,
@@ -113,7 +113,7 @@ export class DiagnosisChatService {
 
     let facts = input.facts;
     const declarations = toolDeclarationsForFlow(FLOW);
-    if (declarations.length > 0 && input.userId) {
+    if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
       const loop = await runChatToolLoop(
         FLOW,
         this.llm,

@@ -167,4 +167,25 @@ describe('DiagnosisChatService.turn — tool loop', () => {
     expect(invoke).not.toHaveBeenCalled();
     expect(complete).toHaveBeenCalledTimes(1);
   });
+
+  it('userId present but off-topic question → pre-gate skips the tool-decision call entirely', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'ok',
+        cited_dimension: 'skills_relevance',
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: null,
+      },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const invoke = jest.fn();
+    const service = makeService(complete, { invoke });
+    await service.turn({ question: 'why is my score low?', facts: FACTS, userId: 'u1' });
+    expect(invoke).not.toHaveBeenCalled();
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
 });
