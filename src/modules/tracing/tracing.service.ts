@@ -4,6 +4,7 @@ import { MoreThanOrEqual, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { AiRequestEntity } from '../../database/entities/ai-request.entity';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
+import { AiToolCallEntity } from '../../database/entities/ai-tool-call.entity';
 
 export interface StartAiRequestInput {
   userId: string;
@@ -49,8 +50,7 @@ export interface LogRetrievalInput {
 export interface LogToolCallInput {
   aiRequestId?: string;
   toolName: string;
-  inputPayload: unknown;
-  outputPayload?: unknown;
+  argsHash: string; // sha256 hex — caller (ToolRegistry) tính, KHÔNG lưu raw args
   latencyMs?: number;
   status: 'SUCCESS' | 'FAILED' | 'PENDING';
   errorMessage?: string;
@@ -70,6 +70,9 @@ export class TracingService {
     @Optional()
     @InjectRepository(AiResultEntity)
     private readonly aiResults?: Repository<AiResultEntity>,
+    @Optional()
+    @InjectRepository(AiToolCallEntity)
+    private readonly aiToolCalls?: Repository<AiToolCallEntity>,
   ) {}
 
   async startAiRequest(input: StartAiRequestInput): Promise<string> {
@@ -182,11 +185,31 @@ export class TracingService {
   }
 
   async logToolCall(input: LogToolCallInput): Promise<string> {
-    const id = uuidv4();
-    this.logger.debug(
-      `[stub] ai_tool_calls INSERT id=${id} tool=${input.toolName} status=${input.status}`,
+    if (!this.aiToolCalls) {
+      const id = uuidv4();
+      this.logger.debug(
+        `[stub] ai_tool_calls INSERT id=${id} tool=${input.toolName} status=${input.status}`,
+      );
+      return id;
+    }
+    const row = await this.aiToolCalls.save(
+      this.aiToolCalls.create({
+        aiRequestId: input.aiRequestId ?? null,
+        toolName: input.toolName,
+        argsHash: input.argsHash,
+        status: input.status,
+        latencyMs: input.latencyMs ?? null,
+        errorMessage: input.errorMessage ?? null,
+      }),
     );
-    return id;
+    return row.id;
+  }
+
+  /** Per-tool rate-limit window. NOTE: ai_tool_calls has no user_id column (spec's 7-col schema —
+   *  no PII), so this counts calls for the tool ACROSS ALL USERS since `since`, not per-user. */
+  async countToolCallsSince(userId: string, toolName: string, since: Date): Promise<number> {
+    if (!this.aiToolCalls) return 0;
+    return this.aiToolCalls.count({ where: { toolName, createdAt: MoreThanOrEqual(since) } });
   }
 
   private stubAiRequest(input: StartAiRequestInput): string {
