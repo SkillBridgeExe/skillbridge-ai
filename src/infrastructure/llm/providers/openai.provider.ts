@@ -81,6 +81,9 @@ export class OpenAiProvider implements LlmProviderClient {
               : { type: 'json_object' as const },
           }
         : {}),
+      ...(options.tools?.length
+        ? { tools: options.tools.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: t.parameters } })) }
+        : {}),
     });
     const latencyMs = Date.now() - start;
 
@@ -103,10 +106,28 @@ export class OpenAiProvider implements LlmProviderClient {
       }
     }
 
+    const rawToolCalls = response.choices[0]?.message?.tool_calls;
+    const toolCalls = rawToolCalls?.length
+      ? rawToolCalls
+          .map((tc) => {
+            try {
+              // Type guard: only function type tool calls have a function property
+              if (tc.type !== 'function' || !tc.function) {
+                return null;
+              }
+              return { name: tc.function.name, args: JSON.parse(tc.function.arguments) };
+            } catch {
+              return null;
+            }
+          })
+          .filter((tc): tc is { name: string; args: unknown } => tc !== null)
+      : undefined;
+
     return {
       rawResponse: response,
       text,
       parsedJson,
+      ...(toolCalls !== undefined ? { toolCalls } : {}),
       tokenUsage: {
         promptTokens: response.usage?.prompt_tokens ?? 0,
         completionTokens: response.usage?.completion_tokens ?? 0,
