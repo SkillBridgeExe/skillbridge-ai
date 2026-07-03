@@ -8,6 +8,17 @@ const HOP_BUDGET = 2;
 const DECISION_TEMPERATURE = 0.1;
 const DECISION_MAX_OUTPUT_TOKENS = 300;
 
+/**
+ * Pure: given the decision call's proposed tool calls, which ones execute (hop budget ≤2) and
+ * whether the turn is "exceeded". Exported for eval:chat-tools (offline, no LLM/registry mock).
+ */
+export function applyHopBudget(calls: Array<{ name: string; args: unknown }>): {
+  budgeted: Array<{ name: string; args: unknown }>;
+  exceeded: boolean;
+} {
+  return { budgeted: calls.slice(0, HOP_BUDGET), exceeded: calls.length > HOP_BUDGET };
+}
+
 export interface ToolLoopOutcome {
   /** Sanitized tool-result facts keyed by tool name — merge into the flow's own FACTS before the
    *  final structured-output call. Empty when no tool was used. */
@@ -48,8 +59,7 @@ export async function runChatToolLoop(
   const calls = decision.toolCalls ?? [];
   if (calls.length === 0) return { toolFacts: {}, degraded: false };
 
-  const budgeted = calls.slice(0, HOP_BUDGET);
-  const exceeded = calls.length > HOP_BUDGET;
+  const { budgeted, exceeded } = applyHopBudget(calls);
 
   const toolFacts: Record<string, unknown> = {};
   let anyFailed = false;
