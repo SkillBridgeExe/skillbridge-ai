@@ -74,6 +74,13 @@ export interface CvJdMatchParsedResponse {
 
   /** Indicates which source was used for "required skills". */
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';
+  /**
+   * TRUST (S10): true when the user pasted a JD but NONE of its raw requirements survived
+   * normalization, so `source_of_requirements` silently fell back to the role rubric (or 'none')
+   * instead of the pasted JD. Optional so older persisted/reconstructed rows (pre-S10) stay valid.
+   * FE renders a warning banner when true.
+   */
+  fell_back_to_rubric?: boolean;
   /** Echo of target_role if rubric was used. */
   target_role: string | null;
   /** Seniority yardstick applied (rubric path only; null khi JD đặt thước). UI phải hiện nhãn. */

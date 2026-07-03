@@ -215,6 +215,19 @@ export class CvJdMatchService {
       // Source is decided inside the diff (JD wins over rubric) — read it, don't re-derive.
       const sourceOfRequirements = diff.requirements_source;
 
+      // TRUST (S10): user pasted a JD but NONE of its raw requirements survived normalization —
+      // the score below is vs the role rubric (or empty set), NOT their JD. Never silent: flag it
+      // so the FE can warn; unnormalized_jd_requirements (already in the response) lists what fell out.
+      const fellBackToRubric =
+        Boolean(jdText) &&
+        extraction.jd_requirements_raw.length > 0 &&
+        sourceOfRequirements !== 'jd_extraction';
+      if (fellBackToRubric) {
+        this.logger.warn(
+          `cv_jd_match: JD provided but 0/${extraction.jd_requirements_raw.length} requirements normalized — scored vs ${sourceOfRequirements}.`,
+        );
+      }
+
       const cvScan = this.scanner.scan(input.cv_text);
       const jdScan = this.scanner.scan(input.jd_text ?? '');
       const keyword_frequency = buildKeywordFrequency(
@@ -238,6 +251,7 @@ export class CvJdMatchService {
         inferred_skills: diff.inferred_skills,
         jd_dimensions: extraction.jd_dimensions,
         source_of_requirements: sourceOfRequirements,
+        fell_back_to_rubric: fellBackToRubric,
         target_role: input.target_role ?? null,
         rubric_band: diff.rubric_band,
       };
