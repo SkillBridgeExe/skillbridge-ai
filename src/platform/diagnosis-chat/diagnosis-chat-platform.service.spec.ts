@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { IsNull } from 'typeorm';
 import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
@@ -194,9 +194,10 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     ]);
   });
 
-  it('progress load failing (best-effort) → chat facts still built, NO progress key (a progress failure must never break chat)', async () => {
+  it('progress load failing (best-effort) → chat facts still built, NO progress key, degradation is WARN-logged (not silent)', async () => {
     const getProgress = jest.fn().mockRejectedValue(new Error('progress lookup boom'));
     const { service, chat } = makeService({ getProgress });
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
 
@@ -204,6 +205,8 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(getProgress).toHaveBeenCalledWith(USER_ID, MATCH_ID);
     const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(factsArg).not.toHaveProperty('progress');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('progress lookup failed'));
+    warn.mockRestore();
   });
 
   it('adds recent other match summaries to facts for cross-JD comparison', async () => {
@@ -230,11 +233,12 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     ]);
   });
 
-  it('recent other-match lookup failure is best-effort and does not break chat', async () => {
+  it('recent other-match lookup failure is best-effort, does not break chat, and is WARN-logged (not silent)', async () => {
     const listRecentMatchSummariesForUser = jest
       .fn()
       .mockRejectedValue(new Error('summary lookup boom'));
     const { service, chat } = makeService({ listRecentMatchSummariesForUser });
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
     const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
 
@@ -242,6 +246,8 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(listRecentMatchSummariesForUser).toHaveBeenCalledWith(USER_ID, MATCH_ID);
     const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(factsArg).not.toHaveProperty('other_matches');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('other-matches lookup failed'));
+    warn.mockRestore();
   });
 });
 
