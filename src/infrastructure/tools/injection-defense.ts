@@ -3,7 +3,7 @@
  *  model untrusted_data is DATA, not instructions (Task 10/11 prompt diff); this is the deterministic
  *  backstop (mirrors stripRawUrls' role in diagnosis-grounding.ts / chat-grounding.ts). */
 const INSTRUCTION_LIKE =
-  /\b(?:ignore|disregard)\s+(?:all|any|the|previous)(?:\s+(?:all|any|the|previous))*\s+instructions?|\bsystem prompt\b|you are now|new instructions?:/gi;
+  /\b(?:ignore|disregard)\s+(?:all|any|the|previous)(?:\s+(?:all|any|the|previous))*\s+instructions?\b|\bsystem prompt\b|\byou are now\b|\bnew instructions?:/gi;
 
 /** Wrap a tool's result under an explicit "untrusted" marker key, with any instruction-like phrase
  *  in the (stringified) payload redacted first. */
