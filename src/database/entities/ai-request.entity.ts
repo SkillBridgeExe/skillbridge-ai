@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type AiRequestStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
+export type AiRequestStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REJECTED';
 
 @Entity('ai_requests')
 export class AiRequestEntity {

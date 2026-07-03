@@ -22,7 +22,7 @@ export interface CompleteAiRequestInput {
   totalTokens: number;
   estimatedCost?: number;
   latencyMs: number;
-  status: 'SUCCESS' | 'FAILED';
+  status: 'SUCCESS' | 'FAILED' | 'REJECTED';
   errorMessage?: string;
   /** Resolved model code, backfilled into request_payload.model_code on completion. */
   modelCode?: string;
@@ -153,6 +153,20 @@ export class TracingService {
     if (!this.aiRequests) return 0;
     return this.aiRequests.count({
       where: { userId, requestType, createdAt: MoreThanOrEqual(since) },
+    });
+  }
+
+  /**
+   * Count a user's REJECTED ai_requests since `since` (inclusive) — backs the off-topic abuse
+   * throttle (TRUST S4): deterministic-reject completions (JD_CONTENT_INSUFFICIENT, OFF_TOPIC)
+   * are free for the user (quota refunded) but the LLM call that produced them still cost money,
+   * so repeated rejects in a short window are the abuse signal. Mirrors countRequestsSince.
+   * Returns 0 in the stub/test path (no repo) so the throttle never blocks where tracing is disabled.
+   */
+  async countRejectedSince(userId: string, since: Date): Promise<number> {
+    if (!this.aiRequests) return 0;
+    return this.aiRequests.count({
+      where: { userId, status: 'REJECTED', createdAt: MoreThanOrEqual(since) },
     });
   }
 
