@@ -8,6 +8,7 @@ import {
   CvReviewResponseDto,
   CvReviewSectionIssue,
   CvSkillExtracted,
+  DimensionProvenance,
   SkillBreakdownItem,
   SkillsRelevanceBreakdown,
   TopSummary,
@@ -78,6 +79,14 @@ const ATS_ACTION: Record<string, { vi: string; en: string; impact: number }> = {
     en: 'Adjust CV length toward ~1 page with enough detail.',
   },
 };
+
+/** Internal-only: buildSkillBreakdown's result, carrying the diff's 0-100 overall_score alongside
+ *  the display breakdown so routeDimension2 can derive the 0-20 score from it. NOT the API shape —
+ *  the DTO's `skills_relevance_breakdown` field stays exactly `SkillsRelevanceBreakdown | null`. */
+interface SkillBreakdownResult {
+  breakdown: SkillsRelevanceBreakdown;
+  diffOverallScore: number;
+}
 
 /**
  * Hybrid CV review:
@@ -213,7 +222,25 @@ export class CvReviewService {
       // route deterministically ONLY for vi/en; otherwise keep the LLM's action_verbs estimate
       // (the model can actually read the language). Signals are still surfaced for transparency.
       const dim1Supported = document.language === 'vi' || document.language === 'en';
-      const routed = dim1Supported ? this.routeDimension1(llmParsed, bulletAnalysis) : llmParsed;
+      const routed1 = dim1Supported ? this.routeDimension1(llmParsed, bulletAnalysis) : llmParsed;
+
+      // ─── Routed-Evidence: Dimension-2 (skills_relevance) is scored deterministically too ────
+      // buildSkillBreakdown's diff vs the role rubric is the SAME engine as CV-JD match — when a
+      // rubric exists for the target role, its overall_score OWNS the dimension (the LLM's own
+      // skills_relevance number is discarded), mirroring the Dim-1 override above.
+      const skillBreakdown = this.buildSkillBreakdown(
+        routed1.ats_extracted.skills_extracted,
+        input.target_role,
+      );
+      const routed = skillBreakdown
+        ? this.routeDimension2(
+            routed1,
+            skillBreakdown.breakdown,
+            skillBreakdown.diffOverallScore,
+            document.language,
+          )
+        : routed1;
+      const skills_relevance_breakdown = skillBreakdown?.breakdown ?? null;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
       const llm_normalized = Math.round((routed.llm_total / 80) * 100);
@@ -237,11 +264,7 @@ export class CvReviewService {
       // Stage-1 parse tokens are aggregated only into the result-level total below.
       const combinedTokens = llmResult.tokenUsage.totalTokens + parse.tokenUsage;
 
-      // Dim-2 transparency + top-of-page verdict — both DETERMINISTIC (no extra LLM call).
-      const skills_relevance_breakdown = this.buildSkillBreakdown(
-        routed.ats_extracted.skills_extracted,
-        input.target_role,
-      );
+      // Top-of-page verdict — DETERMINISTIC (no extra LLM call).
       const top_summary = this.buildTopSummary({
         overallScore: overall_score,
         atsCheck,
@@ -267,6 +290,15 @@ export class CvReviewService {
         scan: (t) => this.scanner.scan(t),
       });
 
+      // Per-dimension explainability: which scorer owns each dimension's number (built AFTER
+      // both routes, so it reflects what actually landed in `routed`, not what was attempted).
+      const dimension_provenance = this.buildDimensionProvenance({
+        dim1Supported,
+        bulletAnalysis,
+        skillBreakdown,
+        rationale: routed.rationale,
+      });
+
       const parsedResponse: CvReviewParsedResponse = {
         language: document.language,
         document,
@@ -290,6 +322,7 @@ export class CvReviewService {
         top_summary,
         evidence_ledger,
         extraction_quality,
+        dimension_provenance,
       };
 
       // Persist the result BEFORE flipping the request to SUCCESS — so the audit invariant
@@ -493,13 +526,14 @@ export class CvReviewService {
 
   /**
    * Deterministic Dimension-2 breakdown via SkillDiffService (the SAME engine as CV-JD match —
-   * no new scoring logic). Display-only: it does NOT change the LLM's skills_relevance score yet.
-   * Returns null when there is no seeded rubric for the target role.
+   * no new scoring logic). Returns null when there is no seeded rubric for the target role.
+   * Carries `diff.overall_score` (0-100) alongside the display breakdown — internal-only, NOT
+   * part of the `SkillsRelevanceBreakdown` API shape — for routeDimension2 to derive the 0-20 score.
    */
   private buildSkillBreakdown(
     skills: CvSkillExtracted[],
     targetRole?: string,
-  ): SkillsRelevanceBreakdown | null {
+  ): SkillBreakdownResult | null {
     if (!targetRole || !this.roleRubric.getRubric(targetRole)) return null;
     const diff = this.skillDiff.diff({
       cv_skills_raw: skills.map((s) => ({
@@ -523,9 +557,135 @@ export class CvReviewService {
       ...(s.skill_type ? { skill_type: s.skill_type } : {}),
     });
     return {
-      matched: diff.matched_skills.map(item),
-      partial: diff.partial_skills.map(item),
-      missing: diff.missing_skills.map(item),
+      breakdown: {
+        matched: diff.matched_skills.map(item),
+        partial: diff.partial_skills.map(item),
+        missing: diff.missing_skills.map(item),
+      },
+      diffOverallScore: diff.overall_score,
+    };
+  }
+
+  /**
+   * Routed-Evidence: overlay the deterministic Dimension-2 (skills_relevance) result onto the LLM
+   * output — same pattern as routeDimension1. `diffOverall` (0-100, from SkillDiffService) maps
+   * to the 0-20 dimension scale; the LLM's own skills_relevance number is discarded.
+   */
+  private routeDimension2(
+    llmParsed: CvReviewLlmRawOutput,
+    breakdown: SkillsRelevanceBreakdown,
+    diffOverall: number,
+    language: string,
+  ): CvReviewLlmRawOutput {
+    const score20 = Math.round((diffOverall / 100) * 20);
+    const scores = { ...llmParsed.scores, skills_relevance: score20 };
+    const llm_total =
+      scores.action_verbs + scores.skills_relevance + scores.experience + scores.education;
+    const rationale = {
+      ...llmParsed.rationale,
+      skills_relevance: this.dim2Rationale(breakdown, language),
+    };
+
+    const dim2Section = {
+      name: 'Skills Relevance',
+      score: Math.round((score20 / 20) * 100),
+      issues: this.dim2Issues(breakdown, language),
+    };
+    let replaced = false;
+    const sections = llmParsed.sections.map((s) => {
+      if (!replaced && this.isDim2Section(s.name)) {
+        replaced = true;
+        return { ...dim2Section, name: s.name };
+      }
+      return s;
+    });
+    if (!replaced) sections.unshift(dim2Section);
+
+    return { ...llmParsed, scores, llm_total, rationale, sections };
+  }
+
+  /** Match the Skills-Relevance section regardless of the exact label the prompt used. */
+  private isDim2Section(name: string): boolean {
+    return /skill/i.test(name);
+  }
+
+  /** Bilingual, evidence-based rationale for the Dim-2 rationale — mirrors dim1Rationale's plain-
+   *  fact style, keyed to the CV's detected language (buildTopSummary's `vi` ternary pattern). */
+  private dim2Rationale(breakdown: SkillsRelevanceBreakdown, language: string): string {
+    const vi = language === 'vi';
+    const total = breakdown.matched.length + breakdown.partial.length + breakdown.missing.length;
+    const matchedCount = breakdown.matched.length;
+    const missingNames = breakdown.missing.slice(0, 3).map((s) => s.name);
+    if (missingNames.length === 0) {
+      return vi
+        ? `Khớp ${matchedCount}/${total} kỹ năng trọng yếu của vai trò.`
+        : `Matches ${matchedCount}/${total} of the role's key skills.`;
+    }
+    const missingList = missingNames.join(', ');
+    return vi
+      ? `Khớp ${matchedCount}/${total} kỹ năng trọng yếu của vai trò (thiếu: ${missingList}).`
+      : `Matches ${matchedCount}/${total} of the role's key skills (missing: ${missingList}).`;
+  }
+
+  /** Turn the rubric diff into actionable section issues (or a single info note if fully covered). */
+  private dim2Issues(
+    breakdown: SkillsRelevanceBreakdown,
+    language: string,
+  ): CvReviewSectionIssue[] {
+    const vi = language === 'vi';
+    if (breakdown.missing.length === 0) {
+      return [
+        {
+          severity: 'info',
+          text: vi
+            ? 'CV đáp ứng đủ kỹ năng trọng yếu của vai trò.'
+            : `The CV covers the role's key skills.`,
+        },
+      ];
+    }
+    return breakdown.missing.map((s) => ({
+      severity: s.importance === 'REQUIRED' ? 'error' : 'warning',
+      text: vi
+        ? `Thiếu kỹ năng: ${s.name} (yêu cầu cấp ${s.required_level}).`
+        : `Missing skill: ${s.name} (requires level ${s.required_level}).`,
+    }));
+  }
+
+  /**
+   * Per-dimension explainability, built AFTER both routes settle. `action_verbs`/`skills_relevance`
+   * are 'deterministic' when their route actually applied; otherwise (unsupported language / no
+   * rubric) they stay 'llm', same as `experience`/`education` which have no deterministic route yet.
+   */
+  private buildDimensionProvenance(ctx: {
+    dim1Supported: boolean;
+    bulletAnalysis: BulletAnalysis;
+    skillBreakdown: SkillBreakdownResult | null;
+    rationale: CvReviewLlmRawOutput['rationale'];
+  }): DimensionProvenance {
+    return {
+      action_verbs: ctx.dim1Supported
+        ? {
+            source: 'deterministic',
+            confidence: 'high',
+            evidence: [
+              `verb_first_ratio=${ctx.bulletAnalysis.verbFirstRatio}`,
+              `quantified_ratio=${ctx.bulletAnalysis.quantifiedRatio}`,
+            ],
+          }
+        : { source: 'llm', confidence: 'low', evidence: [ctx.rationale.action_verbs] },
+      skills_relevance: ctx.skillBreakdown
+        ? {
+            source: 'deterministic',
+            confidence: 'high',
+            evidence: [
+              `matched=${ctx.skillBreakdown.breakdown.matched.length}`,
+              `partial=${ctx.skillBreakdown.breakdown.partial.length}`,
+              `missing=${ctx.skillBreakdown.breakdown.missing.length}`,
+            ],
+          }
+        : { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.skills_relevance] },
+      experience: { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.experience] },
+      education: { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.education] },
     };
   }
 

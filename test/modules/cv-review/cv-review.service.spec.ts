@@ -261,6 +261,7 @@ describe('CvReviewService', () => {
       ],
       partial_skills: [],
       missing_skills: [{ display_name: 'TypeScript', importance: 'REQUIRED', required_level: 4 }],
+      overall_score: 50, // 1/2 role skills matched — consumed by routeDimension2 (SE-1a)
     });
     const res = await service.review('u1', input);
     const bd = res.parsed_response.skills_relevance_breakdown;
@@ -310,6 +311,101 @@ describe('CvReviewService', () => {
     expect(ts.prioritized_actions.length).toBeGreaterThan(0);
     expect(ts.prioritized_actions[0]).toMatch(/số liệu/); // vi CV → vi action
     expect(ts.headline).toContain('/100');
+  });
+
+  // ─── SE-1a: deterministic skills_relevance score from the rubric diff ────────
+
+  it('SE-1a: deterministic rubric diff OWNS Dim-2 score + recomputes llm_total/overall_score + provenance', async () => {
+    const { service, roleRubric, skillDiff, parser } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    parser.parse.mockReturnValue({
+      // LLM says skills_relevance=5 — deliberately far from the deterministic diff below, so a
+      // pass proves the OVERRIDE happened (not a coincidence).
+      scores: { action_verbs: 15, skills_relevance: 5, experience: 15, education: 15 },
+      llm_total: 50,
+      rationale: { skills_relevance: 'LLM guess' },
+      sections: [],
+      ats_extracted: {
+        name: null,
+        email: null,
+        phone: null,
+        skills_raw: ['React'],
+        skills_extracted: [{ name: 'React', proficiency_hint: 'advanced', evidence_text: null }],
+      },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [
+        { display_name: 'React', importance: 'REQUIRED', required_level: 3, cv_level: 4 },
+      ],
+      partial_skills: [],
+      missing_skills: [
+        { display_name: 'TypeScript', importance: 'REQUIRED', required_level: 4 },
+        { display_name: 'Redux', importance: 'PREFERRED', required_level: 2 },
+      ],
+      overall_score: 60, // → score20 = round(60/100*20) = 12
+    });
+    const res = await service.review('u1', input);
+    const dims = res.parsed_response.llm_score_dimensions;
+    expect(dims.skills_relevance).toBe(12); // NOT the LLM's 5
+    // llm_total recomputed = 15 (action_verbs, unchanged from analyzer default) + 12 + 15 + 15 = 57
+    expect(res.parsed_response.llm_total).toBe(57);
+    expect(res.parsed_response.llm_normalized).toBe(Math.round((57 / 80) * 100));
+    // Templated bilingual rationale — CV language is 'vi' — with real matched/missing counts.
+    expect(res.parsed_response.rationale.skills_relevance).toMatch(/Khớp 1\/3/);
+    expect(res.parsed_response.rationale.skills_relevance).toMatch(/TypeScript/);
+    expect(res.parsed_response.rationale.skills_relevance).toMatch(/Redux/);
+    expect(res.parsed_response.dimension_provenance?.skills_relevance).toEqual({
+      source: 'deterministic',
+      confidence: 'high',
+      evidence: expect.arrayContaining([
+        expect.stringContaining('matched'),
+        expect.stringContaining('missing'),
+      ]),
+    });
+  });
+
+  it('SE-1a edge: diff.overall_score=0 → score20=0, rationale adapts when nothing is missing', async () => {
+    const { service, roleRubric, skillDiff, parser } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 20, experience: 15, education: 15 },
+      llm_total: 65,
+      rationale: {},
+      sections: [],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [], skills_extracted: [] },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [],
+      partial_skills: [],
+      missing_skills: [],
+      overall_score: 0,
+    });
+    const res = await service.review('u1', input);
+    expect(res.parsed_response.llm_score_dimensions.skills_relevance).toBe(0);
+    // No missing skills — the "thiếu:" clause must not appear (graceful, not an empty "thiếu:").
+    expect(res.parsed_response.rationale.skills_relevance).not.toMatch(/thiếu:\s*\./);
+    expect(res.parsed_response.rationale.skills_relevance).toMatch(/Khớp 0\/0/);
+  });
+
+  it('SE-1a: no rubric → keeps the LLM skills_relevance score + provenance source llm', async () => {
+    const { service } = build(); // roleRubric.getRubric → null by default (no target_role rubric)
+    const res = await service.review('u1', input);
+    // Default parser stub scores skills_relevance=15 — untouched (no rubric to override it).
+    expect(res.parsed_response.llm_score_dimensions.skills_relevance).toBe(15);
+    expect(res.parsed_response.dimension_provenance?.skills_relevance?.source).toBe('llm');
+    expect(res.parsed_response.dimension_provenance?.skills_relevance?.evidence).toEqual([
+      res.parsed_response.rationale.skills_relevance,
+    ]);
+  });
+
+  it('SE-1a: provenance.action_verbs is deterministic with ratio evidence when Dim-1 is routed', async () => {
+    const { service } = build();
+    const res = await service.review('u1', input);
+    expect(res.parsed_response.dimension_provenance?.action_verbs).toEqual({
+      source: 'deterministic',
+      confidence: 'high',
+      evidence: expect.arrayContaining([expect.any(String), expect.any(String)]),
+    });
   });
 
   it('attaches evidence_ledger to the parsed response (display-only, structure always present)', async () => {
