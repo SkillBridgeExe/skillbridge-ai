@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
@@ -121,6 +121,22 @@ export class CvRewriteService {
     // Cache hit → return immediately. No tracing row: there is no LLM call, so no cost to record.
     if (hit) return hit;
 
+    // TRUST (S4): OFF_TOPIC rejects are free for the user (quota refunded) but burn real LLM
+    // cost. 5+ rejected requests in the last hour = abuse pattern → 429 before any LLM spend.
+    // ponytail: fixed window via existing ai_requests rows; move to a real rate-limiter if traffic grows.
+    if (userId) {
+      const rejected = await this.tracing.countRejectedSince(
+        userId,
+        new Date(Date.now() - 3600_000),
+      );
+      if (rejected >= 5) {
+        throw new HttpException(
+          { code: 'ABUSE_THROTTLED', message: 'Too many off-topic requests — try again later.' },
+          429,
+        );
+      }
+    }
+
     const template = this.prompts.get(PROMPT_CODE);
     const userPrompt = this.prompts.render(PROMPT_CODE, {
       text,
@@ -170,8 +186,9 @@ export class CvRewriteService {
 
       // ON-TOPIC guard: the prompt instructs the model to answer the literal sentinel OFF_TOPIC
       // for non-CV input (weather, chat, lyrics…). Map it to a deterministic 400 so the FE can
-      // guide the user. The trace is completed as SUCCESS first — the LLM call really happened
-      // and its cost must stay visible; the catch below re-throws BadRequest WITHOUT markFailed.
+      // guide the user. The trace completes REJECTED first (T5) — the LLM call really happened
+      // and its cost must stay visible, but it's not a SUCCESS and it backs the abuse-throttle
+      // count; the catch below re-throws BadRequest WITHOUT markFailed.
       if (/^OFF[\s_-]?TOPIC[.!]?$/i.test(suggestion)) {
         await this.tracing.completeAiRequest(aiRequestId, {
           promptTokens: result.tokenUsage.promptTokens,
@@ -179,7 +196,7 @@ export class CvRewriteService {
           totalTokens: result.tokenUsage.totalTokens,
           estimatedCost: result.estimatedCostUsd,
           latencyMs: result.latencyMs,
-          status: 'SUCCESS',
+          status: 'REJECTED',
         });
         throw new BadRequestException({
           code: 'OFF_TOPIC',
@@ -238,8 +255,8 @@ export class CvRewriteService {
       this.remember(key, out);
       return out;
     } catch (err) {
-      // OFF_TOPIC (BadRequest) is a SUCCESSFUL call whose trace is already completed above —
-      // only genuine LLM/infra failures get a FAILED row.
+      // OFF_TOPIC (BadRequest) already completed its trace REJECTED above (T5) — only genuine
+      // LLM/infra failures get a FAILED row.
       if (err instanceof BadRequestException) throw err;
       await this.tracing.markFailed(aiRequestId, startedAt, err);
       throw err;

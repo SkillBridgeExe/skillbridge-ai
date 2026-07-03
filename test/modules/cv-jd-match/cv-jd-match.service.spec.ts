@@ -17,6 +17,7 @@ describe('CvJdMatchService — JD content gate', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn() };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
@@ -73,6 +74,7 @@ describe('CvJdMatchService — JD content gate', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = {
       diff: jest.fn().mockReturnValue({
@@ -116,11 +118,121 @@ describe('CvJdMatchService — JD content gate', () => {
 });
 
 /**
+ * T5 — abuse throttle: 5+ REJECTED ai_requests for this user in the last hour → 429
+ * ABUSE_THROTTLED BEFORE any LLM spend. Off-topic/insufficient-JD rejects are free for the
+ * user (quota refunded) but still burn real LLM cost — this caps repeated free spam.
+ */
+describe('CvJdMatchService — abuse throttle (T5)', () => {
+  const build = () => {
+    const llm = { complete: jest.fn() };
+    const prompts = {
+      get: jest.fn().mockReturnValue({ code: 'cv_jd_match', version: 1, meta: { system: 's' } }),
+      render: jest.fn().mockReturnValue('rendered'),
+    };
+    const tracing = {
+      startAiRequest: jest.fn().mockResolvedValue('req-1'),
+      saveAiResult: jest.fn().mockResolvedValue('res-1'),
+      completeAiRequest: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(5),
+    };
+    const skillDiff = { diff: jest.fn() };
+    const scanner = { scan: jest.fn().mockReturnValue([]) };
+    const svc = new CvJdMatchService(
+      llm as never,
+      prompts as never,
+      tracing as never,
+      skillDiff as never,
+      scanner as never,
+    );
+    return { svc, llm, tracing };
+  };
+
+  const baseInput = {
+    cv_id: 'cv-1',
+    cv_text: 'Frontend developer with ReactJS and TypeScript experience at FPT Software.',
+    scoring_template_code: 'cv_jd_match_v1',
+    target_role: 'frontend_developer',
+  };
+
+  it('5+ rejected in the last hour → 429 ABUSE_THROTTLED before any LLM call or trace start', async () => {
+    const { svc, llm, tracing } = build();
+    await expect(svc.match('user-1', { ...baseInput } as never)).rejects.toMatchObject({
+      status: 429,
+      response: { code: 'ABUSE_THROTTLED' },
+    });
+    expect(llm.complete).not.toHaveBeenCalled();
+    expect(tracing.startAiRequest).not.toHaveBeenCalled();
+    expect(tracing.countRejectedSince).toHaveBeenCalledWith('user-1', expect.any(Date));
+  });
+
+  it('under the threshold (4 rejected) → proceeds normally, no throttle', async () => {
+    const tracing = {
+      startAiRequest: jest.fn().mockResolvedValue('req-1'),
+      saveAiResult: jest.fn().mockResolvedValue('res-1'),
+      completeAiRequest: jest.fn().mockResolvedValue(undefined),
+      markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(4),
+    };
+    const skillDiffResult = {
+      matched_skills: [],
+      partial_skills: [],
+      missing_skills: [],
+      bonus_skills: [],
+      unnormalized_cv_skills: [],
+      unnormalized_jd_requirements: [],
+      match_ratio: 0,
+      required_coverage: 1,
+      overall_score: 0,
+      requirements_source: 'none',
+      scoring_breakdown: {
+        total_requirements: 0,
+        matched_count: 0,
+        partial_count: 0,
+        missing_count: 0,
+        weight_sum: 0,
+        achieved_weight: 0,
+        required_total: 0,
+        required_met: 0,
+        raw_weighted_score: 0,
+        cap_applied: false,
+      },
+      inferred_skills: [],
+    };
+    const llm = {
+      complete: jest.fn().mockResolvedValue({
+        parsedJson: { cv_skills_raw: [], jd_requirements_raw: [] },
+        rawResponse: '{}',
+        tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        estimatedCostUsd: 0,
+        latencyMs: 1,
+      }),
+    };
+    const prompts = {
+      get: jest.fn().mockReturnValue({ code: 'cv_jd_match', version: 1, meta: { system: 's' } }),
+      render: jest.fn().mockReturnValue('rendered'),
+    };
+    const skillDiff = { diff: jest.fn().mockReturnValue(skillDiffResult) };
+    const scanner = { scan: jest.fn().mockReturnValue([]) };
+    const svc = new CvJdMatchService(
+      llm as never,
+      prompts as never,
+      tracing as never,
+      skillDiff as never,
+      scanner as never,
+    );
+    const res = await svc.match('user-1', { ...baseInput } as never);
+    expect(llm.complete).toHaveBeenCalled();
+    expect(res.parsed_response.overall_score).toBe(0);
+  });
+});
+
+/**
  * OFF-TOPIC JD gate (post-extraction): a PROVIDED JD that passes the thin-content gate but
  * yields ZERO extracted job requirements (while the CV side extracts fine) must be rejected
  * deterministically — silently falling back to the role rubric would score the CV against
  * requirements the user never pasted (live repro: a phở recipe scored "26% match"). The LLM
- * call already happened → its trace completes as SUCCESS (cost stays visible), never FAILED.
+ * call already happened → its trace completes as REJECTED (cost stays visible), never FAILED.
  */
 describe('CvJdMatchService — OFF-TOPIC JD gate (post-extraction)', () => {
   const diffResult = {
@@ -168,6 +280,7 @@ describe('CvJdMatchService — OFF-TOPIC JD gate (post-extraction)', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
@@ -203,10 +316,11 @@ describe('CvJdMatchService — OFF-TOPIC JD gate (post-extraction)', () => {
     ).rejects.toMatchObject({ response: { code: 'JD_CONTENT_INSUFFICIENT' } });
     expect(llm.complete).toHaveBeenCalled(); // post-extraction gate: the call DID happen
     expect(skillDiff.diff).not.toHaveBeenCalled(); // never scored against the rubric
-    // Cost stays visible: trace completed SUCCESS, never flipped to FAILED.
+    // Cost stays visible: trace completes REJECTED (T5 — not SUCCESS, never FAILED). REJECTED
+    // keeps the "SUCCESS ⇒ has ai_result" invariant clean and backs the abuse-throttle count.
     expect(tracing.completeAiRequest).toHaveBeenCalledWith(
       'req-1',
-      expect.objectContaining({ status: 'SUCCESS', totalTokens: 15 }),
+      expect.objectContaining({ status: 'REJECTED', totalTokens: 15 }),
     );
     expect(tracing.markFailed).not.toHaveBeenCalled();
   });
@@ -254,6 +368,7 @@ describe('CvJdMatchService — band default (product layer)', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = {
       diff: jest.fn().mockReturnValue({
@@ -355,6 +470,7 @@ describe('CvJdMatchService — jd_dimensions extraction (PR3)', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
@@ -475,6 +591,7 @@ describe('CvJdMatchService — fell_back_to_rubric flag (S10)', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
@@ -616,6 +733,7 @@ describe('CvJdMatchService — extraction cache', () => {
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       markFailed: jest.fn().mockResolvedValue(undefined),
+      countRejectedSince: jest.fn().mockResolvedValue(0),
     };
     const skillDiff = { diff: jest.fn().mockReturnValue(diffResult) };
     const scanner = { scan: jest.fn().mockReturnValue([]) };
@@ -724,7 +842,7 @@ describe('CvJdMatchService — extraction cache', () => {
     expect(skillDiff.diff).not.toHaveBeenCalled();
     expect(tracing.completeAiRequest).toHaveBeenCalledWith(
       'req-1',
-      expect.objectContaining({ status: 'SUCCESS', totalTokens: 0 }),
+      expect.objectContaining({ status: 'REJECTED', totalTokens: 0 }),
     );
   });
 });

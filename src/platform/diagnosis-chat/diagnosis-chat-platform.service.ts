@@ -1,4 +1,4 @@
-import { HttpException, Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
@@ -40,6 +40,8 @@ export interface DiagnosisChatThreadResponse {
  */
 @Injectable()
 export class DiagnosisChatPlatformService {
+  private readonly logger = new Logger(DiagnosisChatPlatformService.name);
+
   constructor(
     @InjectRepository(ChatConversationEntity)
     private readonly conversations: Repository<ChatConversationEntity>,
@@ -206,13 +208,24 @@ export class DiagnosisChatPlatformService {
   private async buildFactsForMatch(userId: string, matchId: string): Promise<DiagnosisFacts> {
     const report = await this.cvMatches.getGapReport(userId, matchId);
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
-    // Best-effort: a progress-lookup failure must never break the chat itself.
-    const progress = await this.cvMatches.getProgress(userId, matchId).catch(() => null);
+    // Best-effort: a progress-lookup failure must never break the chat itself, but a silently
+    // dropped fact should still surface somewhere (T5 — no more silent facts degradation).
+    const progress = await this.cvMatches.getProgress(userId, matchId).catch((err: unknown) => {
+      this.logger.warn(
+        `diagnosis facts degraded: progress lookup failed (match=${matchId}): ${(err as Error)?.message}`,
+      );
+      return null;
+    });
     // Best-effort: cross-match summaries add comparison context, but lookup failures must never
-    // break the diagnosis chat.
+    // break the diagnosis chat — still logged so a degraded-facts pattern is visible.
     const otherMatches = await this.cvMatches
       .listRecentMatchSummariesForUser(userId, matchId)
-      .catch(() => []);
+      .catch((err: unknown) => {
+        this.logger.warn(
+          `diagnosis facts degraded: other-matches lookup failed (match=${matchId}): ${(err as Error)?.message}`,
+        );
+        return [];
+      });
     return buildDiagnosisFacts(review, report, progress, otherMatches);
   }
 

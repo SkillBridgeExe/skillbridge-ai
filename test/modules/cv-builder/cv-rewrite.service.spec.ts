@@ -21,6 +21,7 @@ describe('CvRewriteService (mocked LLM)', () => {
     startAiRequest: jest.fn().mockResolvedValue('req-1'),
     completeAiRequest: jest.fn().mockResolvedValue(undefined),
     markFailed: jest.fn().mockResolvedValue(undefined),
+    countRejectedSince: jest.fn().mockResolvedValue(0),
   });
 
   const makeLlm = (text: string) => ({
@@ -65,7 +66,7 @@ describe('CvRewriteService (mocked LLM)', () => {
   });
 
   describe('ON-TOPIC guard (prompt sentinel)', () => {
-    it('maps the OFF_TOPIC sentinel to a 400, completes the trace as SUCCESS, never markFailed, never caches', async () => {
+    it('maps the OFF_TOPIC sentinel to a 400, completes the trace as REJECTED, never markFailed, never caches', async () => {
       const { svc, llm, tracing } = build('OFF_TOPIC');
       const req = {
         text: 'hôm nay trời đẹp quá nên mình đi chơi công viên',
@@ -74,8 +75,14 @@ describe('CvRewriteService (mocked LLM)', () => {
       await expect(svc.rewrite(req)).rejects.toMatchObject({
         response: { code: 'OFF_TOPIC' },
       });
-      // The LLM call really happened and cost money → SUCCESS trace, not FAILED.
+      // The LLM call really happened and cost money → trace completes REJECTED (T5), not
+      // SUCCESS (off-topic isn't a successful match) and not FAILED (cost stays visible, and
+      // REJECTED backs the abuse-throttle count).
       expect(tracing.completeAiRequest).toHaveBeenCalledTimes(1);
+      expect(tracing.completeAiRequest).toHaveBeenCalledWith(
+        'req-1',
+        expect.objectContaining({ status: 'REJECTED' }),
+      );
       expect(tracing.markFailed).not.toHaveBeenCalled();
       // Not cached: a second identical call hits the LLM again (verdicts are not RewriteResponses).
       await expect(svc.rewrite(req)).rejects.toMatchObject({
@@ -468,6 +475,52 @@ describe('CvRewriteService (mocked LLM)', () => {
       const { svc } = build('Built the React dashboard faster.');
       const res = await svc.rewrite({ text: 'Built the React dashboard', mode: 'harvard' });
       expect(res.fallback).toBeFalsy();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // abuse throttle (T5) — 5+ REJECTED requests for this user in the last hour → 429
+  // ABUSE_THROTTLED BEFORE any LLM spend. Anonymous (userId=null) calls are never throttled
+  // (no per-user identity to count against).
+  // ---------------------------------------------------------------------------
+  describe('abuse throttle (T5)', () => {
+    it('5+ rejected in the last hour → 429 ABUSE_THROTTLED before any LLM call or trace start', async () => {
+      const { svc, llm, tracing } = build('irrelevant');
+      tracing.countRejectedSince.mockResolvedValue(5);
+      await expect(
+        svc.rewrite({ text: 'some meaningful technical text here', mode: 'harvard' }, 'user-1'),
+      ).rejects.toMatchObject({ status: 429, response: { code: 'ABUSE_THROTTLED' } });
+      expect(llm.complete).not.toHaveBeenCalled();
+      expect(tracing.startAiRequest).not.toHaveBeenCalled();
+      expect(tracing.countRejectedSince).toHaveBeenCalledWith('user-1', expect.any(Date));
+    });
+
+    it('under the threshold (4 rejected) → proceeds normally, no throttle', async () => {
+      const { svc, llm, tracing } = build('Improved the system.');
+      tracing.countRejectedSince.mockResolvedValue(4);
+      const res = await svc.rewrite(
+        { text: 'worked on the system with real details', mode: 'harvard' },
+        'user-1',
+      );
+      expect(llm.complete).toHaveBeenCalled();
+      expect(res.suggestion).toBe('Improved the system.');
+    });
+
+    it('anonymous (userId=null) calls are never throttled — no countRejectedSince call', async () => {
+      const { svc, llm, tracing } = build('Improved the system.');
+      await svc.rewrite({ text: 'worked on the system with real details', mode: 'harvard' });
+      expect(tracing.countRejectedSince).not.toHaveBeenCalled();
+      expect(llm.complete).toHaveBeenCalled();
+    });
+
+    it('a cache hit is never throttled (no LLM call to protect)', async () => {
+      const { svc, llm, tracing } = build('Optimized the API.');
+      const req = { text: 'made the api better', mode: 'harvard' as const };
+      await svc.rewrite(req, 'user-1');
+      tracing.countRejectedSince.mockClear();
+      await svc.rewrite(req, 'user-1'); // cache hit
+      expect(llm.complete).toHaveBeenCalledTimes(1);
+      expect(tracing.countRejectedSince).not.toHaveBeenCalled();
     });
   });
 });
