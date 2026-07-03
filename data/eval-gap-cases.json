@@ -48,7 +48,7 @@
       "ledger_demonstrated": ["sql"],
       "rationale": "SQL adv>=int + demonstrated in experience → matched, no action, severity 0.",
       "expect": [
-        { "canonical": "sql", "cv_status": "matched", "fixability": "not_fixable_now" }
+        { "canonical": "sql", "cv_status": "matched", "fixability": "not_fixable_now", "evidence_quote": "Used sql extensively in a production project" }
       ]
     },
     {

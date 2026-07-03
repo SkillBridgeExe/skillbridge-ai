@@ -56,6 +56,11 @@ export interface GapItem {
   satisfied_by: string | null;
   /** Where in the CV this skill is evidenced (ledger source refs). */
   evidence_refs: string[];
+  /** E1: the real ledger sources (kind + ref + the actual matched quote), so the UI can SHOW the
+   *  proof line instead of just naming it. Additive — ABSENT (not []) when there is no evidence,
+   *  to keep the byte-shape minimal for the common (no-ledger) caller. `evidence_refs` above is
+   *  kept byte-identical for FE back-compat. */
+  evidence?: Array<{ kind: string; ref: string; quote: string | null }>;
   evidence_risk: EvidenceRisk;
   fixability: Fixability;
   /** pct_of_postings (0-100) when market data is supplied; null otherwise (PR1 default). */
@@ -298,27 +303,41 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
   const refsByCanonical = new Map(
     (ledger?.items ?? []).map((i) => [i.skill_canonical, i.sources.map((s) => s.ref)] as const),
   );
+  // E1: same sources, but carrying the real quote through for the UI to show as proof.
+  const evidenceByCanonical = new Map(
+    (ledger?.items ?? []).map(
+      (i) =>
+        [
+          i.skill_canonical,
+          i.sources.map((s) => ({ kind: s.kind, ref: s.ref, quote: s.quote })),
+        ] as const,
+    ),
+  );
 
   const base = (
     canonical: string,
     displayName: string,
     importance: GapImportance,
     type: GapType,
-  ) => ({
-    // Report-SCOPED id — unique within one gap report, enough to dedupe/key the UI. NOT globally
-    // unique across JD/role/band: typescript@frontend-L4 and typescript@fullstack-L3 collide.
-    // When history/analytics tracks a gap across re-grades, add a context id (match_id/role/band).
-    requirement_id: `${source}:${type}:${canonical}`,
-    source,
-    type,
-    canonical_name: canonical,
-    display_name: displayName,
-    importance,
-    satisfied_by: null as string | null,
-    evidence_refs: refsByCanonical.get(canonical) ?? [],
-    market_demand: marketDemand?.get(canonical) ?? null,
-    confidence: 1,
-  });
+  ) => {
+    const evidence = evidenceByCanonical.get(canonical) ?? [];
+    return {
+      // Report-SCOPED id — unique within one gap report, enough to dedupe/key the UI. NOT globally
+      // unique across JD/role/band: typescript@frontend-L4 and typescript@fullstack-L3 collide.
+      // When history/analytics tracks a gap across re-grades, add a context id (match_id/role/band).
+      requirement_id: `${source}:${type}:${canonical}`,
+      source,
+      type,
+      canonical_name: canonical,
+      display_name: displayName,
+      importance,
+      satisfied_by: null as string | null,
+      evidence_refs: refsByCanonical.get(canonical) ?? [],
+      ...(evidence.length ? { evidence } : {}),
+      market_demand: marketDemand?.get(canonical) ?? null,
+      confidence: 1,
+    };
+  };
 
   const items: GapItem[] = [];
 

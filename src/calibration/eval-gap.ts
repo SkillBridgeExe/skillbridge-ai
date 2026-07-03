@@ -71,6 +71,9 @@ interface GapCase {
     cv_status: string;
     fixability?: string;
     evidence_risk?: string;
+    /** E1: exact expected quote on the produced GapItem's first `evidence` entry — gates the real
+     *  quote span flowing ledger → GapItem end-to-end (buildFixtureLedger below fabricates it). */
+    evidence_quote?: string;
   }>;
   /** Canonicals that must NOT appear in the emitted items[] — the honest-omission gate (e.g. a
    *  seniority dim with no/low-confidence CV signal must produce NO gap, never a fabricated one). */
@@ -97,10 +100,19 @@ function buildFixtureLedger(c: GapCase): EvidenceLedger | null {
         strength: 'listed_only' as const,
         most_recent_year: null,
       })),
+      // E1: fixture quote (additive) — a realistic bullet text so buildGapItems's `evidence` field
+      // has something real to carry through end-to-end (gates EG-1: ledger quote → GapItem.evidence).
       ...demonstrated.map((s) => ({
         skill_canonical: s,
         display_name: s,
-        sources: [{ kind: 'experience' as const, ref: 'fixture', recency_year: 2025 }],
+        sources: [
+          {
+            kind: 'experience' as const,
+            ref: 'fixture',
+            recency_year: 2025,
+            quote: `Used ${s} extensively in a production project`,
+          },
+        ],
         strength: 'demonstrated' as const,
         most_recent_year: 2025,
       })),
@@ -245,10 +257,11 @@ async function main(): Promise<void> {
         misses.push(`  ${c.id}: expected gap "${e.canonical}" not produced`);
         continue;
       }
-      const checks: Array<[string, string | undefined, string]> = [
+      const checks: Array<[string, string | undefined, string | undefined]> = [
         ['cv_status', e.cv_status, g.cv_status],
         ['fixability', e.fixability, g.fixability],
         ['evidence_risk', e.evidence_risk, g.evidence_risk],
+        ['evidence_quote', e.evidence_quote, g.evidence?.[0]?.quote ?? undefined],
       ];
       for (const [field, want, got] of checks) {
         if (want !== undefined && want !== got) {

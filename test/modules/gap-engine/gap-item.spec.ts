@@ -202,7 +202,9 @@ describe('buildGapItems', () => {
         {
           skill_canonical: 'sql',
           display_name: 'SQL',
-          sources: [{ kind: 'experience', ref: 'FPT — BE', recency_year: 2024 }],
+          sources: [
+            { kind: 'experience', ref: 'FPT — BE', recency_year: 2024, quote: 'Wrote SQL queries' },
+          ],
           strength: 'demonstrated',
           most_recent_year: 2024,
         },
@@ -216,6 +218,32 @@ describe('buildGapItems', () => {
     const noEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }) })[0];
     expect(noEv.fixability).toBe('learn');
     expect(noEv.evidence_refs).toEqual([]);
+  });
+
+  // E1: GapItem carries the real quote (additive `evidence`, existing `evidence_refs` byte-identical).
+  it('emits evidence [{kind, ref, quote}] from the ledger sources; absent (not []) when there is none', () => {
+    const ledger: EvidenceLedger = {
+      items: [
+        {
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          sources: [
+            { kind: 'experience', ref: 'FPT — BE', recency_year: 2024, quote: 'Wrote SQL queries' },
+          ],
+          strength: 'demonstrated',
+          most_recent_year: 2024,
+        },
+      ],
+      evidence_gap: [],
+    };
+    const withEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }), ledger })[0];
+    expect(withEv.evidence).toEqual([
+      { kind: 'experience', ref: 'FPT — BE', quote: 'Wrote SQL queries' },
+    ]);
+    expect(withEv.evidence_refs).toEqual(['FPT — BE']); // unchanged, byte-identical
+
+    const noEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }) })[0];
+    expect(noEv.evidence).toBeUndefined();
   });
 
   it('matched skill listed-only (in evidence_gap) → unproven / add_evidence', () => {
@@ -318,7 +346,9 @@ describe('buildGapItems', () => {
         {
           skill_canonical: 'react',
           display_name: 'React',
-          sources: [{ kind: 'project', ref: 'Portfolio', recency_year: 2025 }],
+          sources: [
+            { kind: 'project', ref: 'Portfolio', recency_year: 2025, quote: 'Shipped React app' },
+          ],
           strength: 'demonstrated',
           most_recent_year: 2025,
         },
