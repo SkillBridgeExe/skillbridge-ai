@@ -1,17 +1,24 @@
-import { ToolAdapter, ToolContext } from '../types';
+import { Injectable } from '@nestjs/common';
+import { ToolAdapter, ToolBadArgsError, ToolContext } from '../types';
+import { LinkProbeResult, probeUrl } from './link-probe';
 
-/**
- * Stub — implemented in Task 3.
- * Validates resource URLs via HEAD request (alive check).
- */
-export class ResourceValidateAdapter implements ToolAdapter<{ url: string }, { alive: boolean }> {
+export interface ResourceValidateArgs {
+  url: string;
+}
+
+@Injectable()
+export class ResourceValidateAdapter implements ToolAdapter<ResourceValidateArgs, LinkProbeResult> {
   readonly name = 'resource.validate';
 
-  argsSchema(args: unknown): { url: string } {
-    throw new Error('Not implemented in stub');
+  argsSchema(args: unknown): ResourceValidateArgs {
+    const url = (args as { url?: unknown })?.url;
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      throw new ToolBadArgsError('resource.validate requires a valid http(s) url');
+    }
+    return { url };
   }
 
-  async invoke(args: { url: string }, ctx: ToolContext): Promise<{ alive: boolean }> {
-    throw new Error('Not implemented in stub');
+  async invoke(args: ResourceValidateArgs, _ctx: ToolContext): Promise<LinkProbeResult> {
+    return probeUrl(args.url);
   }
 }
