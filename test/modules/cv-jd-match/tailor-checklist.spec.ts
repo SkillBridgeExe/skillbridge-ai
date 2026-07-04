@@ -182,3 +182,52 @@ describe('buildTailorChecklist (pure)', () => {
     expect(out[0].why).toMatch(/requires/i);
   });
 });
+
+describe('buildTailorChecklist — severity ranking (A2, fixes B3)', () => {
+  // docker: missing_required (old bucket #1). sql: deepen_wording (old bucket #4, demonstrated).
+  const m = baseMatch({
+    missing_skills: [missing('docker', 0.3)],
+    partial_skills: [partial('sql', 0.2, 2, 4)],
+  });
+  const ledger = ledgerOf([], [['sql', 'Dự án — Booking App']]);
+
+  it('RED→GREEN: highest-severity gap (rewrite-class) leads even though its bucket ranks lower', () => {
+    // Without a severity map, old bucket order wins (missing_required before deepen_wording).
+    const unranked = buildTailorChecklist(m, ledger, 'vi');
+    expect(unranked.map((x) => x.action_type)).toEqual(['missing_required', 'deepen_wording']);
+
+    // sql's gap is far more severe than docker's → after the fix, sql (deepen_wording) leads.
+    const severityByCanonical = new Map([
+      ['docker', 0.2],
+      ['sql', 0.9],
+    ]);
+    const ranked = buildTailorChecklist(m, ledger, 'vi', severityByCanonical);
+    expect(ranked.map((x) => x.skill_canonical)).toEqual(['sql', 'docker']);
+    expect(ranked[0].action_type).toBe('deepen_wording');
+    expect(ranked[0].gap_severity).toBe(0.9);
+    expect(ranked[1].gap_severity).toBe(0.2);
+  });
+
+  it('equal severity → old relative (bucket) order preserved (stable tie-break)', () => {
+    const severityByCanonical = new Map([
+      ['docker', 0.5],
+      ['sql', 0.5],
+    ]);
+    const ranked = buildTailorChecklist(m, ledger, 'vi', severityByCanonical);
+    expect(ranked.map((x) => x.skill_canonical)).toEqual(['docker', 'sql']); // old bucket order
+  });
+
+  it('no severity map → unchanged bucket order, no gap_severity field emitted', () => {
+    const out = buildTailorChecklist(m, ledger, 'vi');
+    expect(out.map((x) => x.action_type)).toEqual(['missing_required', 'deepen_wording']);
+    for (const x of out) expect(x.gap_severity).toBeUndefined();
+  });
+
+  it('guard: canonical absent from the map sorts as severity 0 (end of list), no gap_severity field', () => {
+    const severityByCanonical = new Map([['sql', 0.9]]); // docker deliberately absent
+    const ranked = buildTailorChecklist(m, ledger, 'vi', severityByCanonical);
+    expect(ranked.map((x) => x.skill_canonical)).toEqual(['sql', 'docker']);
+    expect(ranked[0].gap_severity).toBe(0.9);
+    expect(ranked[1]).not.toHaveProperty('gap_severity');
+  });
+});

@@ -19,6 +19,10 @@ export interface TailorAction {
   cv_count: number | null;
   cv_level: number | null;
   required_level: number | null;
+  /** A2: the joined gap_items[] severity (0-1) for this skill — additive, so FE can explain why
+   *  this action ranks where it does. Absent when no severity map was supplied, or the skill's
+   *  canonical has no matching gap item (should not happen; guarded defensively). */
+  gap_severity?: number;
 }
 
 const MAX_MISSING = 3;
@@ -61,11 +65,18 @@ const T = {
  *   2. add_evidence     — matched but listed-only → write a proving bullet (no rewrite).
  *   3. emphasize        — JD stresses it (jd_count ≥ 2), CV barely mentions it (cv_count ≤ 1).
  *   4. deepen_wording   — partial with demonstrated evidence → reword the anchored bullet.
+ *
+ * A2 (severity ranking): the 4 buckets above decide WHICH skills make the list (unchanged). The
+ * FINAL order is then re-ranked by the joined gap_items severity (desc) so action #1 never
+ * contradicts gap #1 (bug B3) — ties fall back to the bucket/weight order above via a stable sort.
+ * Pass `severityByCanonical` from the SAME gap_items the caller already built (gap-report.service);
+ * omit it to keep the old bucket-order behavior (e.g. standalone/legacy callers).
  */
 export function buildTailorChecklist(
   match: CvJdMatchParsedResponse,
   ledger: EvidenceLedger | null,
   lang: Lang,
+  severityByCanonical?: Map<string, number> | null,
 ): TailorAction[] {
   const t = T[lang];
   const taken = new Set<string>();
@@ -182,5 +193,14 @@ export function buildTailorChecklist(
     }
   }
 
-  return out.slice(0, MAX_TOTAL);
+  const capped = out.slice(0, MAX_TOTAL);
+  if (!severityByCanonical) return capped;
+
+  // Final ordering: severity desc, stable (Array.sort is spec-guaranteed stable) so ties keep the
+  // bucket→weight order already baked into `capped`. A canonical missing from the map (shouldn't
+  // happen — guarded) sorts as severity 0, i.e. to the end, and gets NO gap_severity field.
+  return capped
+    .map((a) => ({ a, sev: severityByCanonical.get(a.skill_canonical) }))
+    .sort((x, y) => (y.sev ?? 0) - (x.sev ?? 0))
+    .map(({ a, sev }) => (sev === undefined ? a : { ...a, gap_severity: sev }));
 }

@@ -140,6 +140,41 @@ describe('GapReportService', () => {
     expect(k).toMatchObject({ cv_status: 'missing', fixability: 'learn', market_demand: 62 });
   });
 
+  it('(a3, A2) passes a severity-by-canonical map (from gap_items) into the checklist builder', async () => {
+    tailorMock.build.mockReturnValue({
+      actions: [],
+      generated_with_ledger: false,
+      source_of_requirements: 'jd_extraction',
+      overall_score: 72,
+    });
+    marketMock.build.mockResolvedValue({ available: false, reason: 'NO_ROLE' });
+
+    const match = baseMatch();
+    match.missing_skills = [
+      {
+        skill_id: 'kubernetes',
+        canonical_name: 'kubernetes',
+        display_name: 'Kubernetes',
+        required_level: 4,
+        importance: 'REQUIRED',
+        weight: 0.2,
+        skill_type: 'hard',
+        gap_levels: 4,
+      },
+    ] as never;
+
+    const report = await service.build({ match, review: null });
+
+    // The map passed to the checklist builder must carry the SAME severity as the emitted gap_items
+    // (built once, not re-derived) — proves the plumbing joins by canonical, not a fresh computation.
+    const callArg = tailorMock.build.mock.calls[0][0] as {
+      severityByCanonical: Map<string, number>;
+    };
+    expect(callArg.severityByCanonical).toBeInstanceOf(Map);
+    const k8sGap = report.gap_items.find((g) => g.canonical_name === 'kubernetes');
+    expect(callArg.severityByCanonical.get('kubernetes')).toBe(k8sGap?.severity);
+  });
+
   it('(b) market unavailable → market_trend_gaps: null, reason echoed', async () => {
     tailorMock.build.mockReturnValue({
       actions: [],

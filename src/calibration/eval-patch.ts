@@ -126,9 +126,13 @@ async function main(): Promise<void> {
     } as unknown as CvJdMatchParsedResponse;
 
     const ledger = buildLedger(c);
+    // Mirrors gap-report.service.ts: gapItems built first, its severity fed into the checklist
+    // builder (A2 ranking) rather than re-derived downstream.
+    const gapItems = buildGapItems({ match, ledger });
+    const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
     const items = decorateWithPatch({
-      actions: buildTailorChecklist(match, ledger, 'vi'),
-      gapItems: buildGapItems({ match, ledger }),
+      actions: buildTailorChecklist(match, ledger, 'vi', severityByCanonical),
+      gapItems,
       document: buildDoc(c),
       lang: 'vi',
     });
