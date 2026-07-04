@@ -108,11 +108,13 @@ describe('SkillBridge lesson content catalog', () => {
       expect(lesson?.quiz.length).toBeGreaterThanOrEqual(20);
       expect(lesson?.quiz_bank).toEqual(lesson?.quiz);
       expect(lesson?.quiz.every((question) => question.options.length === 4)).toBe(true);
+      expect(new Set(lesson?.quiz.map((question) => question.kind))).toEqual(
+        new Set(['concept', 'scenario', 'debug', 'mini_case']),
+      );
       expect(
-        new Set(lesson?.quiz.map((question) => question.kind)),
-      ).toEqual(new Set(['concept', 'scenario', 'debug', 'mini_case']));
-      expect(
-        lesson?.quiz.every((question) => question.objective_id.length > 0 && question.section_id.length > 0),
+        lesson?.quiz.every(
+          (question) => question.objective_id.length > 0 && question.section_id.length > 0,
+        ),
       ).toBe(true);
       const questionsByObjective = new Map<string, number>();
       for (const question of lesson?.quiz ?? []) {
@@ -161,7 +163,9 @@ describe('SkillBridge lesson content catalog', () => {
     const objectiveIds = new Set(lesson?.learning_objectives.map((objective) => objective.id));
     for (const question of lesson?.quiz_bank ?? []) {
       expect(objectiveIds.has(question.objective_id)).toBe(true);
-      expect(question.remediation?.video_resource_id).toBe('youtube-course-computer_vision-oXlwWbU8l2o');
+      expect(question.remediation?.video_resource_id).toBe(
+        'youtube-course-computer_vision-oXlwWbU8l2o',
+      );
       expect(question.remediation?.video_chapter_id).toBe(question.objective_id);
       expect(question.remediation?.start_seconds).toBeGreaterThanOrEqual(0);
     }

@@ -133,7 +133,10 @@ export class LearningSessionProgressService {
     }
 
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
-    return buildAdaptiveNextQuestions(lesson.quiz_bank, normalizeQuizAttempts(existing?.quizAttempts));
+    return buildAdaptiveNextQuestions(
+      lesson.quiz_bank,
+      normalizeQuizAttempts(existing?.quizAttempts),
+    );
   }
 
   async patchChecklistItem(
@@ -260,9 +263,10 @@ function buildAdaptiveNextQuestions(
           .filter((mastery) => !mastery.mastered)
       : [];
   const weakObjectiveIds = new Set(weakObjectives.map((item) => item.objective_id));
-  const candidates = weakObjectiveIds.size > 0
-    ? quizBank.filter((item) => weakObjectiveIds.has(item.objective_id))
-    : quizBank;
+  const candidates =
+    weakObjectiveIds.size > 0
+      ? quizBank.filter((item) => weakObjectiveIds.has(item.objective_id))
+      : quizBank;
 
   return {
     weak_objectives: weakObjectives,

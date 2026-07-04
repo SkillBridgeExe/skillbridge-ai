@@ -373,8 +373,7 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'react-lists-keys',
         section_id: 'lists-keys',
-        explanation:
-          'Stable keys help React match elements to data items when the list changes.',
+        explanation: 'Stable keys help React match elements to data items when the list changes.',
       },
       {
         id: 'stable-key-choice',
@@ -1964,27 +1963,32 @@ const LESSON_BLUEPRINTS = {
       {
         id: 'opencv-setup',
         title: 'Prepare an OpenCV workspace',
-        description: 'Install OpenCV/Caer dependencies and explain the image/video processing workflow used in the course.',
+        description:
+          'Install OpenCV/Caer dependencies and explain the image/video processing workflow used in the course.',
       },
       {
         id: 'opencv-read-media',
         title: 'Read images and video',
-        description: 'Load image files, video files, and camera frames with OpenCV and inspect their shape safely.',
+        description:
+          'Load image files, video files, and camera frames with OpenCV and inspect their shape safely.',
       },
       {
         id: 'opencv-draw-resize',
         title: 'Resize, rescale, draw, and annotate',
-        description: 'Rescale frames and draw lines, rectangles, circles, and text overlays on image arrays.',
+        description:
+          'Rescale frames and draw lines, rectangles, circles, and text overlays on image arrays.',
       },
       {
         id: 'opencv-transform-contours',
         title: 'Transform images and detect contours',
-        description: 'Use grayscale, blur, edge detection, thresholding, and contour extraction to find image structure.',
+        description:
+          'Use grayscale, blur, edge detection, thresholding, and contour extraction to find image structure.',
       },
       {
         id: 'opencv-face-detection',
         title: 'Apply face detection and recognition basics',
-        description: 'Use Haar cascades and a simple recognizer workflow while understanding limits and evaluation needs.',
+        description:
+          'Use Haar cascades and a simple recognizer workflow while understanding limits and evaluation needs.',
       },
     ],
     sections: [
@@ -2057,7 +2061,8 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'opencv-setup',
         section_id: 'opencv-setup',
-        explanation: 'OpenCV images are NumPy arrays, commonly organized by rows, columns, and channels.',
+        explanation:
+          'OpenCV images are NumPy arrays, commonly organized by rows, columns, and channels.',
       },
       {
         id: 'opencv-env-purpose',
@@ -2071,7 +2076,8 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'opencv-setup',
         section_id: 'opencv-setup',
-        explanation: 'A controlled environment makes package versions and examples easier to reproduce.',
+        explanation:
+          'A controlled environment makes package versions and examples easier to reproduce.',
       },
       {
         id: 'opencv-videocapture',
@@ -2136,7 +2142,8 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'opencv-transform-contours',
         section_id: 'opencv-transform-contours',
-        explanation: 'Many detection steps work better when noise is reduced and intensity changes are clearer.',
+        explanation:
+          'Many detection steps work better when noise is reduced and intensity changes are clearer.',
       },
       {
         id: 'opencv-contours-purpose',
@@ -2164,7 +2171,8 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'opencv-face-detection',
         section_id: 'opencv-face-detection',
-        explanation: 'Haar cascades are a classic OpenCV approach for simple object detection such as faces.',
+        explanation:
+          'Haar cascades are a classic OpenCV approach for simple object detection such as faces.',
       },
       {
         id: 'opencv-face-risk',
@@ -2178,7 +2186,8 @@ const LESSON_BLUEPRINTS = {
         correct_option_index: 0,
         objective_id: 'opencv-face-detection',
         section_id: 'opencv-face-detection',
-        explanation: 'Real vision systems need evaluation because detection and recognition can be wrong.',
+        explanation:
+          'Real vision systems need evaluation because detection and recognition can be wrong.',
       },
     ],
     exercise: {
@@ -2280,7 +2289,9 @@ function slugify(str: string): string {
     .slice(0, 64);
 }
 
-function reactVideoChapterForObjective(objectiveId: string): { id: string; start_seconds: number } | null {
+function reactVideoChapterForObjective(
+  objectiveId: string,
+): { id: string; start_seconds: number } | null {
   const chapters: Record<string, { id: string; start_seconds: number }> = {
     'react-components': { id: 'react-components', start_seconds: 360 },
     'react-props': { id: 'react-props', start_seconds: 900 },
@@ -2503,7 +2514,10 @@ function buildLesson(
   const sectionObjectives = new Map(
     actualBlueprint.sections.map((section, index) => [
       section.id,
-      section.objective_id ?? learningObjectives[index]?.id ?? learningObjectives[0]?.id ?? section.id,
+      section.objective_id ??
+        learningObjectives[index]?.id ??
+        learningObjectives[0]?.id ??
+        section.id,
     ]),
   );
   const sections = actualBlueprint.sections.map((section) => {
@@ -2521,9 +2535,12 @@ function buildLesson(
     };
   });
   const quizBank = actualBlueprint.quiz.map((question, index) => {
-    const section = sections.find((item) => item.id === question.section_id) ?? sections[index % sections.length];
+    const section =
+      sections.find((item) => item.id === question.section_id) ?? sections[index % sections.length];
     const objectiveId =
-      question.objective_id ?? section?.objective_id ?? learningObjectives[index % learningObjectives.length]?.id;
+      question.objective_id ??
+      section?.objective_id ??
+      learningObjectives[index % learningObjectives.length]?.id;
     const sectionId = question.section_id ?? section?.id ?? 'lesson';
     return {
       id: question.id,
@@ -2542,8 +2559,7 @@ function buildLesson(
     quizBank.filter((question) => question.objective_id === objectiveId).length;
 
   for (const objective of learningObjectives) {
-    const section =
-      sections.find((item) => item.objective_id === objective.id) ?? sections[0];
+    const section = sections.find((item) => item.objective_id === objective.id) ?? sections[0];
     for (const generated of generatedQuizTemplates(skill, objective, section)) {
       if (
         quizBank.length >= MIN_QUIZ_QUESTIONS_PER_LESSON &&
@@ -2574,8 +2590,7 @@ function buildLesson(
   let fillIndex = 0;
   while (quizBank.length < MIN_QUIZ_QUESTIONS_PER_LESSON && learningObjectives.length > 0) {
     const objective = learningObjectives[fillIndex % learningObjectives.length];
-    const section =
-      sections.find((item) => item.objective_id === objective.id) ?? sections[0];
+    const section = sections.find((item) => item.objective_id === objective.id) ?? sections[0];
     const template = generatedQuizTemplates(skill, objective, section)[
       fillIndex % generatedQuizTemplates(skill, objective, section).length
     ];

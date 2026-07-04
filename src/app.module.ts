@@ -57,6 +57,7 @@ const PLATFORM_MODULES =
         DiagnosisChatModule,
         MentorsModule,
         BusinessJobsModule,
+        RoadmapModule,
       ];
 
 @Module({
@@ -102,7 +103,6 @@ const PLATFORM_MODULES =
     CvReviewModule,
     CvJdMatchModule,
     InterviewModule,
-    RoadmapModule,
     JobsModule,
     CvBuilderModule,
     GithubEvidenceModule,

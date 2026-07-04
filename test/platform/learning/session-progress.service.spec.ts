@@ -294,10 +294,15 @@ describe('LearningSessionProgressService', () => {
       repo as unknown as Repository<LearningSessionProgressEntity>,
     );
 
-    await service.patchChecklistItem('user-1', 'roadmap-react', 'state-events-update-state-without-mutating-the-existing-value', {
-      section_id: 'state-events',
-      checked: true,
-    });
+    await service.patchChecklistItem(
+      'user-1',
+      'roadmap-react',
+      'state-events-update-state-without-mutating-the-existing-value',
+      {
+        section_id: 'state-events',
+        checked: true,
+      },
+    );
 
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({

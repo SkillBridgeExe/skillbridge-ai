@@ -87,7 +87,10 @@ export class RoadmapComposerService {
           skillResources.push(scoredVideo);
         }
       }
-      const boundedSkillResources = keepOnePrimaryVideo(skillResources).slice(0, MAX_RESOURCES_PER_STEP);
+      const boundedSkillResources = keepOnePrimaryVideo(skillResources).slice(
+        0,
+        MAX_RESOURCES_PER_STEP,
+      );
       const resources = boundedSkillResources.map((resource) => ({
         id: resource.id,
         source_type: resource.source_type,
