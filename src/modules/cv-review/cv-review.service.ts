@@ -19,6 +19,7 @@ import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
+import { ExperienceScoreResult, scoreExperience } from './experience-scorer';
 import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { buildEvidenceLedger } from '../../common/services/evidence-ledger';
@@ -232,7 +233,7 @@ export class CvReviewService {
         routed1.ats_extracted.skills_extracted,
         input.target_role,
       );
-      const routed = skillBreakdown
+      const routed2 = skillBreakdown
         ? this.routeDimension2(
             routed1,
             skillBreakdown.breakdown,
@@ -241,6 +242,17 @@ export class CvReviewService {
           )
         : routed1;
       const skills_relevance_breakdown = skillBreakdown?.breakdown ?? null;
+
+      // ─── Routed-Evidence: Dimension-3 (experience) is scored deterministically too ──────────
+      // scoreExperience is a pure function over the structured document + per-bullet feedback
+      // (the SAME bulletFeedback surfaced below as `bullet_feedback`). It returns null when
+      // entries exist but there are too few bullets to judge quality — in which case the LLM's
+      // own experience estimate is kept, mirroring the Dim-1/Dim-2 fallback behavior.
+      const bulletFeedback = this.bulletAnalyzer.analyzeBullets(document);
+      const experienceScore = scoreExperience(document, bulletFeedback);
+      const routed = experienceScore
+        ? this.routeDimension3(routed2, experienceScore, document.language)
+        : routed2;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
       const llm_normalized = Math.round((routed.llm_total / 80) * 100);
@@ -296,6 +308,7 @@ export class CvReviewService {
         dim1Supported,
         bulletAnalysis,
         skillBreakdown,
+        experienceScore,
         rationale: routed.rationale,
       });
 
@@ -317,7 +330,7 @@ export class CvReviewService {
         action_verbs_analysis: bulletAnalysis,
         scoring_weights_version: scoringWeights.version,
         skills_relevance_breakdown,
-        bullet_feedback: this.bulletAnalyzer.analyzeBullets(document),
+        bullet_feedback: bulletFeedback,
         buzzwords_detected: this.bulletAnalyzer.detectBuzzwords(document),
         top_summary,
         evidence_ledger,
@@ -652,14 +665,63 @@ export class CvReviewService {
   }
 
   /**
-   * Per-dimension explainability, built AFTER both routes settle. `action_verbs`/`skills_relevance`
-   * are 'deterministic' when their route actually applied; otherwise (unsupported language / no
-   * rubric) they stay 'llm', same as `experience`/`education` which have no deterministic route yet.
+   * Routed-Evidence: overlay the deterministic Dimension-3 (experience) result onto the LLM
+   * output — same pattern as routeDimension1/routeDimension2. `experienceScore` is already null-
+   * checked by the caller (null = signal too thin, LLM estimate is kept untouched).
+   */
+  private routeDimension3(
+    llmParsed: CvReviewLlmRawOutput,
+    experienceScore: ExperienceScoreResult,
+    language: string,
+  ): CvReviewLlmRawOutput {
+    const scores = { ...llmParsed.scores, experience: experienceScore.score20 };
+    const llm_total =
+      scores.action_verbs + scores.skills_relevance + scores.experience + scores.education;
+    const vi = language === 'vi';
+    const rationale = {
+      ...llmParsed.rationale,
+      experience: vi ? experienceScore.rationale_vi : experienceScore.rationale_en,
+    };
+
+    const dim3Section = {
+      name: 'Experience',
+      score: Math.round((experienceScore.score20 / 20) * 100),
+      issues: [
+        {
+          severity: 'info' as const,
+          text: vi ? experienceScore.rationale_vi : experienceScore.rationale_en,
+        },
+      ],
+    };
+    let replaced = false;
+    const sections = llmParsed.sections.map((s) => {
+      if (!replaced && this.isDim3Section(s.name)) {
+        replaced = true;
+        return { ...dim3Section, name: s.name };
+      }
+      return s;
+    });
+    if (!replaced) sections.unshift(dim3Section);
+
+    return { ...llmParsed, scores, llm_total, rationale, sections };
+  }
+
+  /** Match the Experience section regardless of the exact label the prompt used. */
+  private isDim3Section(name: string): boolean {
+    return /experience|kinh nghiệm|kinh nghiem/i.test(name);
+  }
+
+  /**
+   * Per-dimension explainability, built AFTER both routes settle. `action_verbs`/`skills_relevance`/
+   * `experience` are 'deterministic' when their route actually applied; otherwise (unsupported
+   * language / no rubric / signal too thin) they stay 'llm', same as `education` which has no
+   * deterministic route yet.
    */
   private buildDimensionProvenance(ctx: {
     dim1Supported: boolean;
     bulletAnalysis: BulletAnalysis;
     skillBreakdown: SkillBreakdownResult | null;
+    experienceScore: ExperienceScoreResult | null;
     rationale: CvReviewLlmRawOutput['rationale'];
   }): DimensionProvenance {
     return {
@@ -684,7 +746,13 @@ export class CvReviewService {
             ],
           }
         : { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.skills_relevance] },
-      experience: { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.experience] },
+      experience: ctx.experienceScore
+        ? {
+            source: 'deterministic',
+            confidence: ctx.experienceScore.confidence,
+            evidence: ctx.experienceScore.evidence,
+          }
+        : { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.experience] },
       education: { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.education] },
     };
   }

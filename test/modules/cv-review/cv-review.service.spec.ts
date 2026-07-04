@@ -149,9 +149,12 @@ describe('CvReviewService', () => {
   it('composes overall = ats×0.4 + (llm_total/80×100)×0.6', async () => {
     const { service } = build();
     const res = await service.review('u1', input);
-    // ats=80, llm_total=60 → llm_normalized=75 → 80×0.4 + 75×0.6 = 32 + 45 = 77
-    expect(res.parsed_response.llm_normalized).toBe(75);
-    expect(res.total_score).toBe(77);
+    // ats=80, llm_total base 60 → but the fixture document has NO experience/projects, so E3's
+    // deterministic Dim-3 override kicks in (0 entries -> score20=2, not the LLM's 15): llm_total
+    // = 15(action_verbs) + 15(skills_relevance) + 2(experience) + 15(education) = 47.
+    // llm_normalized = round(47/80*100) = 59 → 80×0.4 + 59×0.6 = 32 + 35.4 = 67.4 → round 67.
+    expect(res.parsed_response.llm_normalized).toBe(59);
+    expect(res.total_score).toBe(67);
   });
 
   it('GAP A+B: feeds the structured document + detected language to the rubric prompt', async () => {
@@ -192,9 +195,11 @@ describe('CvReviewService', () => {
     const dims = res.parsed_response.llm_score_dimensions;
     // action_verbs comes from the analyzer, not the LLM (15 → 8).
     expect(dims.action_verbs).toBe(8);
-    // llm_total recomputed = 8 + 15 + 15 + 15 = 53.
-    expect(res.parsed_response.llm_total).toBe(53);
-    expect(res.parsed_response.llm_normalized).toBe(Math.round((53 / 80) * 100));
+    // llm_total recomputed = 8 + 15 + 2 + 15 = 40. The `experience` term is 2, not the LLM's 15,
+    // because the fixture document has NO experience/projects — E3's deterministic Dim-3 override
+    // (0 entries -> score20=2) also applies here.
+    expect(res.parsed_response.llm_total).toBe(40);
+    expect(res.parsed_response.llm_normalized).toBe(Math.round((40 / 80) * 100));
     // The deterministic signals + the analyzer's rationale are surfaced.
     expect(res.parsed_response.action_verbs_analysis.actionVerbsScore).toBe(8);
     expect(res.parsed_response.rationale.action_verbs).toMatch(/deterministic analysis/);
@@ -213,9 +218,11 @@ describe('CvReviewService', () => {
     });
     const res = await service.review('u1', input);
     const sections = res.parsed_response.sections;
-    // analyzer default score 15 → section score round(15/20*100)=75, prepended + authoritative
-    expect(sections[0].name).toBe('Action Verbs & Impact');
-    expect(sections[0].score).toBe(75);
+    // analyzer default score 15 → section score round(15/20*100)=75, prepended + authoritative.
+    // (Not necessarily sections[0]: the fixture document has no experience/projects, so E3's
+    // Dim-3 route ALSO prepends its own "Experience" section — find by name instead of index.)
+    const dim1 = sections.find((s) => s.name === 'Action Verbs & Impact');
+    expect(dim1?.score).toBe(75);
     // the LLM's localized section is preserved (not dropped)
     expect(sections.some((s) => s.name === 'Động từ hành động')).toBe(true);
   });
@@ -431,9 +438,10 @@ describe('CvReviewService', () => {
     const res = await service.review('u1', input);
     const dims = res.parsed_response.llm_score_dimensions;
     expect(dims.skills_relevance).toBe(12); // NOT the LLM's 5
-    // llm_total recomputed = 15 (action_verbs, unchanged from analyzer default) + 12 + 15 + 15 = 57
-    expect(res.parsed_response.llm_total).toBe(57);
-    expect(res.parsed_response.llm_normalized).toBe(Math.round((57 / 80) * 100));
+    // llm_total recomputed = 15 (action_verbs, unchanged from analyzer default) + 12 + 2 (experience,
+    // E3 override: fixture document has no experience/projects) + 15 (education) = 44
+    expect(res.parsed_response.llm_total).toBe(44);
+    expect(res.parsed_response.llm_normalized).toBe(Math.round((44 / 80) * 100));
     // Templated bilingual rationale — CV language is 'vi' — with real matched/missing counts.
     expect(res.parsed_response.rationale.skills_relevance).toMatch(/Khớp 1\/3/);
     expect(res.parsed_response.rationale.skills_relevance).toMatch(/TypeScript/);
@@ -508,5 +516,190 @@ describe('CvReviewService', () => {
     expect(ledger).toBeDefined();
     expect(Array.isArray(ledger!.items)).toBe(true);
     expect(Array.isArray(ledger!.evidence_gap)).toBe(true);
+  });
+
+  // ─── E3: deterministic experience scoring (Dim-3) ────────────────────────────
+
+  const experienceBullets = [
+    {
+      text: 'Built X',
+      section: 'experience' as const,
+      verbFirst: true,
+      quantified: true,
+      weakOpener: false,
+      firstPerson: false,
+      fillerCount: 0,
+      tips: [],
+    },
+    {
+      text: 'Led Y',
+      section: 'experience' as const,
+      verbFirst: true,
+      quantified: true,
+      weakOpener: false,
+      firstPerson: false,
+      fillerCount: 0,
+      tips: [],
+    },
+  ];
+
+  it('E3: deterministic experience score OWNS Dim-3 + recomputes llm_total/overall_score + provenance evidence', async () => {
+    const { service, cvParser, bulletAnalyzer, parser } = build();
+    cvParser.parse.mockResolvedValue({
+      document: {
+        ...document,
+        experience: [
+          {
+            org: 'A',
+            role: 'Dev',
+            start: '2020',
+            end: '2022',
+            location: null,
+            bullets: ['a', 'b'],
+          },
+        ],
+      },
+      tokenUsage: 10,
+      modelCode: 'gemini-2.0-flash',
+      latencyMs: 1,
+      promptTemplateVersion: 1,
+    });
+    bulletAnalyzer.analyzeBullets.mockReturnValue(experienceBullets);
+    parser.parse.mockReturnValue({
+      // LLM guesses experience=5 — deliberately far off, so a pass proves the OVERRIDE happened.
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 5, education: 15 },
+      llm_total: 50,
+      rationale: { experience: 'LLM guess' },
+      sections: [],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    const dims = res.parsed_response.llm_score_dimensions;
+    // quantity: 1 entry * 3 = 3, +2 seniority bonus (est_years=2, confidence high) = 5
+    // quality: quantifiedRatio=1 -> 5, verbFirstRatio=1 -> 3 = 8. total = 13
+    expect(dims.experience).toBe(13); // NOT the LLM's 5
+    // llm_total recomputed = 15 (action_verbs, analyzer default) + 15 (skills_relevance, no rubric -> LLM) + 13 + 15 = 58
+    expect(res.parsed_response.llm_total).toBe(58);
+    expect(res.parsed_response.llm_normalized).toBe(Math.round((58 / 80) * 100));
+    // rationale.experience replaced with the scorer's vi rationale (document.language is 'vi').
+    expect(res.parsed_response.rationale.experience).not.toBe('LLM guess');
+    expect(res.parsed_response.rationale.experience).toMatch(/kinh nghiệm/);
+    expect(res.parsed_response.dimension_provenance?.experience).toEqual({
+      source: 'deterministic',
+      confidence: 'medium', // 1 experience entry -> medium regardless of bullet count
+      evidence: expect.arrayContaining([
+        expect.stringContaining('experience entries'),
+        expect.stringContaining('quantified'),
+      ]),
+    });
+  });
+
+  it('E3: appends an authoritative Experience section when the LLM section label does not match', async () => {
+    const { service, cvParser, bulletAnalyzer, parser } = build();
+    cvParser.parse.mockResolvedValue({
+      document: {
+        ...document,
+        experience: [
+          {
+            org: 'A',
+            role: 'Dev',
+            start: '2020',
+            end: '2022',
+            location: null,
+            bullets: ['a', 'b'],
+          },
+        ],
+      },
+      tokenUsage: 10,
+      modelCode: 'gemini-2.0-flash',
+      latencyMs: 1,
+      promptTemplateVersion: 1,
+    });
+    bulletAnalyzer.analyzeBullets.mockReturnValue(experienceBullets);
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 5, education: 15 },
+      llm_total: 50,
+      rationale: {},
+      // Label does not match /experience|kinh nghiệm/i
+      sections: [{ name: 'Work History Summary', score: 20, issues: [] }],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    const sections = res.parsed_response.sections;
+    const dim3 = sections.filter((s) => s.name === 'Experience');
+    expect(dim3).toHaveLength(1);
+    expect(dim3[0].score).toBe(Math.round((13 / 20) * 100));
+    // The LLM's non-matching section is preserved (not dropped)
+    expect(sections.some((s) => s.name === 'Work History Summary')).toBe(true);
+  });
+
+  it('E3: rewrites the matching Experience section in place — replaces stale LLM content, no duplicate', async () => {
+    const { service, cvParser, bulletAnalyzer, parser } = build();
+    cvParser.parse.mockResolvedValue({
+      document: {
+        ...document,
+        experience: [
+          {
+            org: 'A',
+            role: 'Dev',
+            start: '2020',
+            end: '2022',
+            location: null,
+            bullets: ['a', 'b'],
+          },
+        ],
+      },
+      tokenUsage: 10,
+      modelCode: 'gemini-2.0-flash',
+      latencyMs: 1,
+      promptTemplateVersion: 1,
+    });
+    bulletAnalyzer.analyzeBullets.mockReturnValue(experienceBullets);
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 5, education: 15 },
+      llm_total: 50,
+      rationale: {},
+      sections: [{ name: 'Experience', score: 90, issues: [{ severity: 'info', text: 'stale' }] }],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    const dim3 = res.parsed_response.sections.filter((s) => s.name === 'Experience');
+    expect(dim3).toHaveLength(1); // not duplicated
+    expect(dim3[0].score).toBe(Math.round((13 / 20) * 100)); // stale 90 replaced
+  });
+
+  it('E3: signal too thin (entries>0 but <2 bullets) → null → keeps the LLM experience score + provenance llm', async () => {
+    const { service, cvParser, bulletAnalyzer, parser } = build();
+    cvParser.parse.mockResolvedValue({
+      document: {
+        ...document,
+        experience: [
+          { org: 'A', role: 'Dev', start: '2020', end: '2022', location: null, bullets: ['a'] },
+        ],
+      },
+      tokenUsage: 10,
+      modelCode: 'gemini-2.0-flash',
+      latencyMs: 1,
+      promptTemplateVersion: 1,
+    });
+    // Only 1 relevant bullet — below MIN_BULLETS_FOR_SIGNAL(2) -> scorer returns null.
+    bulletAnalyzer.analyzeBullets.mockReturnValue([experienceBullets[0]]);
+    const knownRationale = 'CV shows solid on-the-job experience.';
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 15, experience: 15, education: 15 },
+      llm_total: 60,
+      rationale: { experience: knownRationale },
+      sections: [],
+      ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
+    });
+    const res = await service.review('u1', input);
+    // Untouched — no scorer override.
+    expect(res.parsed_response.llm_score_dimensions.experience).toBe(15);
+    expect(res.parsed_response.rationale.experience).toBe(knownRationale);
+    expect(res.parsed_response.dimension_provenance?.experience).toEqual({
+      source: 'llm',
+      confidence: 'medium',
+      evidence: [knownRationale],
+    });
   });
 });
