@@ -68,6 +68,10 @@ export interface GapItem {
   /** 0-1 ranking score from computeSeverity() (PR2): clamp01(importance × core × marketMult),
    *  core = 0.65·max(level,evidence) + 0.35·interview_risk. Deterministic; matched+proven = 0. */
   severity: number;
+  /** E5: additive breakdown of the severityRaw() factors (each round3'd), so the FE can EXPLAIN a
+   *  score instead of just showing the number. importance × core × market_mult recomputes to
+   *  `severity` within rounding tolerance. Always present (severityFactors() has no failure mode). */
+  severity_factors?: { importance: number; core: number; market_mult: number };
   /** 0-1. 1.0 for deterministic skill-diff items; lower reserved for market_implied (PR3+). */
   confidence: number;
   /** Deterministic short label (PR1). LLM prose is a later PR. '' when no action (a strength). */
@@ -136,11 +140,13 @@ type SeverityInput = Pick<
   'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
 >;
 
-/** UNROUNDED severity — the internal RANKING value. PURE, deterministic, clamped [0,1] but NOT
- *  rounded. Ordering must use THIS, never the rounded public `severity`: two gaps differing only
- *  slightly (e.g. market_demand 53 vs 50) round to the same 3dp public value yet must still order by
- *  their true magnitude. The public `computeSeverity()` is just round3 of this. */
-export function severityRaw(item: SeverityInput): number {
+/** The three severityRaw() locals, unrounded — shared by severityRaw() and severityFactors() (E5)
+ *  so there is exactly ONE formula to keep in sync. */
+function severityComponents(item: SeverityInput): {
+  imp: number;
+  core: number;
+  marketMult: number;
+} {
   const imp = importanceWeight(item.importance);
   const levelPart = clamp01((item.gap_levels ?? 0) / 5);
   const evPart = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
@@ -148,6 +154,15 @@ export function severityRaw(item: SeverityInput): number {
   const core = NEED_W * need + IV_W * interviewRiskRaw(item);
   const fMarket = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
   const marketMult = MARKET_FLOOR + MARKET_SPAN * fMarket; // [0.8,1.2]; null → 1.0
+  return { imp, core, marketMult };
+}
+
+/** UNROUNDED severity — the internal RANKING value. PURE, deterministic, clamped [0,1] but NOT
+ *  rounded. Ordering must use THIS, never the rounded public `severity`: two gaps differing only
+ *  slightly (e.g. market_demand 53 vs 50) round to the same 3dp public value yet must still order by
+ *  their true magnitude. The public `computeSeverity()` is just round3 of this. */
+export function severityRaw(item: SeverityInput): number {
+  const { imp, core, marketMult } = severityComponents(item);
   return clamp01(imp * core * marketMult);
 }
 
@@ -155,6 +170,17 @@ export function severityRaw(item: SeverityInput): number {
  *  GapItem.severity. Ranking uses severityRaw() so near-ties don't collapse. */
 export function computeSeverity(item: SeverityInput): number {
   return round3(severityRaw(item));
+}
+
+/** E5: the severity factors (round3'd) for GapItem.severity_factors — same components severityRaw()
+ *  multiplies, exposed so the FE can show "why" a gap ranks where it does. */
+export function severityFactors(item: SeverityInput): {
+  importance: number;
+  core: number;
+  market_mult: number;
+} {
+  const { imp, core, marketMult } = severityComponents(item);
+  return { importance: round3(imp), core: round3(core), market_mult: round3(marketMult) };
 }
 
 const ACTION_LABEL: Record<CvStatus, string> = {
@@ -218,6 +244,13 @@ export function gradeJdDimensions(input: {
 
   const g = gradeSeniority(jdDimensions, cvSeniority);
   if (g) {
+    const seniorityInput: SeverityInput = {
+      importance: g.dim.importance,
+      gap_levels: g.gap_levels,
+      evidence_risk,
+      cv_status: g.cv_status,
+      market_demand: null,
+    };
     out.push({
       requirement_id: `${source}:seniority:seniority`,
       source,
@@ -235,13 +268,8 @@ export function gradeJdDimensions(input: {
       // Experience can't be fabricated by a rewrite — a real gap is "learn" (gain experience).
       fixability: g.cv_status === 'matched' ? 'not_fixable_now' : 'learn',
       market_demand: null,
-      severity: computeSeverity({
-        importance: g.dim.importance,
-        gap_levels: g.gap_levels,
-        evidence_risk,
-        cv_status: g.cv_status,
-        market_demand: null,
-      }),
+      severity: computeSeverity(seniorityInput),
+      severity_factors: severityFactors(seniorityInput),
       // <1 for a non-deterministic (LLM-extracted) requirement — the GapItem contract reserves this.
       confidence: cvSeniority?.confidence === 'high' ? 0.8 : 0.6,
       recommended_next_action: SENIORITY_ACTION[g.cv_status] ?? '',
@@ -250,6 +278,13 @@ export function gradeJdDimensions(input: {
 
   // PR3c: language/education/domain. Same SHARED graders the disclosure uses; work_mode never grades.
   for (const ng of gradeNonSkillDimensions(jdDimensions, cvProfileSignals)) {
+    const nonSkillInput: SeverityInput = {
+      importance: ng.importance,
+      gap_levels: ng.gap_levels,
+      evidence_risk,
+      cv_status: ng.cv_status,
+      market_demand: null,
+    };
     out.push({
       requirement_id: `${source}:${ng.type}:${ng.canonical_name}`,
       source,
@@ -267,13 +302,8 @@ export function gradeJdDimensions(input: {
       // Language/education/domain gaps are closed by learning / experience, never a rewrite.
       fixability: ng.cv_status === 'matched' ? 'not_fixable_now' : 'learn',
       market_demand: null,
-      severity: computeSeverity({
-        importance: ng.importance,
-        gap_levels: ng.gap_levels,
-        evidence_risk,
-        cv_status: ng.cv_status,
-        market_demand: null,
-      }),
+      severity: computeSeverity(nonSkillInput),
+      severity_factors: severityFactors(nonSkillInput),
       confidence: ng.confidence,
       recommended_next_action: nonSkillAction(ng),
     });
@@ -343,6 +373,13 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
 
   for (const m of match.missing_skills) {
     const evidence_risk: EvidenceRisk = 'none';
+    const sevInput: SeverityInput = {
+      importance: m.importance,
+      gap_levels: m.gap_levels,
+      evidence_risk,
+      cv_status: 'missing',
+      market_demand: marketDemand?.get(m.canonical_name) ?? null,
+    };
     items.push({
       ...base(m.canonical_name, m.display_name, m.importance, typeOf(m.skill_type)),
       cv_status: 'missing',
@@ -351,13 +388,8 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       gap_levels: m.gap_levels,
       evidence_risk,
       fixability: 'learn',
-      severity: computeSeverity({
-        importance: m.importance,
-        gap_levels: m.gap_levels,
-        evidence_risk,
-        cv_status: 'missing',
-        market_demand: marketDemand?.get(m.canonical_name) ?? null,
-      }),
+      severity: computeSeverity(sevInput),
+      severity_factors: severityFactors(sevInput),
       recommended_next_action: ACTION_LABEL.missing,
     });
   }
@@ -378,6 +410,13 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       : listedOnly
         ? 'listed_only'
         : 'none';
+    const sevInput: SeverityInput = {
+      importance: p.importance,
+      gap_levels: p.gap_levels,
+      evidence_risk,
+      cv_status,
+      market_demand: marketDemand?.get(p.canonical_name) ?? null,
+    };
     items.push({
       ...base(p.canonical_name, p.display_name, p.importance, typeOf(p.skill_type)),
       satisfied_by: p.satisfied_by ?? null,
@@ -389,13 +428,8 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       // Overclaim → prove it (add evidence); demonstrated → a rewrite can foreground it;
       // otherwise the level itself must grow.
       fixability: overclaimed ? 'add_evidence' : demonstrated ? 'rewrite' : 'learn',
-      severity: computeSeverity({
-        importance: p.importance,
-        gap_levels: p.gap_levels,
-        evidence_risk,
-        cv_status,
-        market_demand: marketDemand?.get(p.canonical_name) ?? null,
-      }),
+      severity: computeSeverity(sevInput),
+      severity_factors: severityFactors(sevInput),
       recommended_next_action: ACTION_LABEL[cv_status],
     });
   }
@@ -410,6 +444,13 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       : listedOnly
         ? 'listed_only'
         : 'none';
+    const sevInput: SeverityInput = {
+      importance: mt.importance,
+      gap_levels: 0,
+      evidence_risk,
+      cv_status,
+      market_demand: marketDemand?.get(mt.canonical_name) ?? null,
+    };
     items.push({
       ...base(mt.canonical_name, mt.display_name, mt.importance, typeOf(mt.skill_type)),
       satisfied_by: mt.satisfied_by ?? null,
@@ -419,13 +460,8 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       gap_levels: 0,
       evidence_risk,
       fixability: cv_status === 'matched' ? 'not_fixable_now' : 'add_evidence',
-      severity: computeSeverity({
-        importance: mt.importance,
-        gap_levels: 0,
-        evidence_risk,
-        cv_status,
-        market_demand: marketDemand?.get(mt.canonical_name) ?? null,
-      }),
+      severity: computeSeverity(sevInput),
+      severity_factors: severityFactors(sevInput),
       recommended_next_action: ACTION_LABEL[cv_status],
     });
   }

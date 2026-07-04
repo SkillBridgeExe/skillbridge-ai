@@ -196,6 +196,26 @@ describe('buildGapItems', () => {
     expect(g.recommended_next_action).not.toBe('');
   });
 
+  // E5: severity_factors — additive breakdown of the severityRaw locals (importance/core/market_mult),
+  // so the FE can explain a score instead of just showing the number. Recomputing severity from the
+  // factors must reproduce the emitted severity within rounding tolerance (each factor is round3'd).
+  it('emits severity_factors that recompute to the same severity (±1e-3), on every branch', () => {
+    const items = buildGapItems({
+      match: emptyMatch({
+        missing_skills: [missing()],
+        partial_skills: [partial()],
+        matched_skills: [matched()],
+      }),
+    });
+    expect(items.length).toBe(3);
+    for (const g of items) {
+      expect(g.severity_factors).toBeDefined();
+      const { importance, core, market_mult } = g.severity_factors!;
+      const recomputed = Math.round(importance * core * market_mult * 1000) / 1000;
+      expect(Math.abs(recomputed - g.severity)).toBeLessThanOrEqual(1e-3);
+    }
+  });
+
   it('partial WITH demonstrated evidence → rewrite; WITHOUT → learn', () => {
     const ledger: EvidenceLedger = {
       items: [
