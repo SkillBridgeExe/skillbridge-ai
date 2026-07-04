@@ -393,6 +393,8 @@ describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_i
     expect(core.seniority.verdict).toBe('stretch');
     expect(core.fit!.verdict).toBe('not_recommended');
     expect(core.fit!.reasons).toContain('DEAL_BREAKER_UNMET');
+    // a REAL graded-unmet verdict ('stretch', non-null) is NOT the same bucket as an ungraded/null one.
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNVERIFIED');
   });
 
   it('a deal_breaker dim with a graded "over_qualified" seniority verdict counts as MET (not unmet)', () => {
@@ -414,7 +416,7 @@ describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_i
     expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
   });
 
-  it('a deal_breaker dim on an ungraded dimension (language) is ALWAYS unmet — verdict is never asserted there', () => {
+  it('a deal_breaker dim on an ungraded dimension (language) is UNVERIFIED (not fabricated unmet) — capped at stretch, never safe_apply', () => {
     const jd_dimensions = [
       {
         dimension: 'language' as const,
@@ -428,7 +430,9 @@ describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_i
     ];
     const m = baseMatch({ jd_dimensions, overall_score: 90, required_coverage: 1 });
     // Even with a CV signal that plainly meets C1, the dim's `verdict` field stays null (only
-    // seniority carries an ExperienceVerdict today) — so the honest, conservative reading is unmet.
+    // seniority carries an ExperienceVerdict today) — "cannot verify" must not read as "unmet":
+    // it is capped at stretch, never fabricated into not_recommended, and never lets a perfect
+    // score/coverage combo slip through to safe_apply either.
     const signals: CvProfileSignals = {
       english: { cefr: 'C1', source_kind: 'ielts', raw: '', confidence: 'high', signals: [] },
       education: null,
@@ -437,8 +441,10 @@ describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_i
     };
     const core = buildGapReportCore(m, null, null, signals, 'en');
     expect(core.jd_intelligence?.dimensions[0].verdict).toBeNull();
-    expect(core.fit!.verdict).toBe('not_recommended');
-    expect(core.fit!.reasons).toContain('DEAL_BREAKER_UNMET');
+    expect(core.fit!.verdict).toBe('stretch');
+    expect(core.fit!.verdict).not.toBe('safe_apply');
+    expect(core.fit!.reasons).toContain('DEAL_BREAKER_UNVERIFIED');
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
   });
 
   it('required_coverage flows through verbatim (no re-scoring) — low coverage blocks safe_apply', () => {

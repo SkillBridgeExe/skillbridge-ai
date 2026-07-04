@@ -84,9 +84,10 @@ export interface GapReportCore {
    *  is byte-identical. Present only when cv_jd_match_v2 extracted dimensions. */
   jd_intelligence?: JdIntelligenceBlock;
   language: 'vi' | 'en';
-  /** Wave ACTION (A1): deterministic safe_apply/stretch/not_recommended verdict, input score =
-   *  overall_score (the match score, not re-scored). unmet_deal_breakers is derived from
-   *  jd_intelligence dims (see buildGapReportCore) — always [] on the v1 path (no jd_intelligence). */
+  /** Wave ACTION (A1/A2): deterministic safe_apply/stretch/not_recommended verdict, input score =
+   *  overall_score (the match score, not re-scored). unmet_deal_breakers (confirmed) and
+   *  unverified_deal_breakers (cannot-grade) are both derived from jd_intelligence dims (see
+   *  buildGapReportCore) — always [] on the v1 path (no jd_intelligence). */
   fit?: FitVerdict;
 }
 
@@ -182,10 +183,10 @@ const EMPHASIS_JD_MIN = 2;
 const EMPHASIS_CV_MAX = 1;
 
 /** A JD-Intelligence dim's requirement counts as MET when the graded seniority verdict says the CV
- *  fits or exceeds it (`fits`/`over_qualified`). `stretch`, `unknown`, and null (ungraded — language/
- *  education/domain/work_mode never carry an ExperienceVerdict today, only seniority does — see
- *  buildJdIntelligence above) are all treated as UNMET: this codebase's honesty rule is to never
- *  claim a deal-breaker is satisfied without a positive, graded confirmation. */
+ *  fits or exceeds it (`fits`/`over_qualified`). `stretch` and `unknown` are graded-but-not-met.
+ *  `verdict === null` is a SEPARATE bucket handled by the caller (buildGapReportCore) — it means the
+ *  dim was never gradeable at all (language/education/domain/work_mode carry no ExperienceVerdict
+ *  today), i.e. "cannot verify", which is NOT the same claim as "confirmed unmet". */
 function isDimVerdictMet(verdict: ExperienceVerdict | null): boolean {
   return verdict === 'fits' || verdict === 'over_qualified';
 }
@@ -250,10 +251,19 @@ export function buildGapReportCore(
   const seniorityGrade = gradeSeniority(jdDims, cvSeniority);
   const seniorityVerdict = seniorityGrade?.verdict ?? 'unknown';
 
-  // A1 (Wave ACTION): deal-breaker dims that are NOT confirmed met — see isDimVerdictMet above.
-  // [] on the v1 path (no jd_intelligence extracted at all, same as the byte-identical fallback).
-  const unmetDealBreakers = (jd_intelligence?.dimensions ?? [])
-    .filter((d) => d.deal_breaker && !isDimVerdictMet(d.verdict))
+  // A1/A2 (Wave ACTION): split deal-breaker dims into two honest buckets — see isDimVerdictMet above.
+  // Both are [] on the v1 path (no jd_intelligence extracted at all, byte-identical fallback).
+  //  - unmetDealBreakers: CONFIRMED unmet — graded (verdict !== null) and not fits/over_qualified.
+  //    Only seniority is gradeable today, so only a graded seniority deal-breaker can land here.
+  //  - unverifiedDealBreakers: verdict === null — never gradeable at all (language/education/domain/
+  //    work_mode). "Cannot verify" is not "unmet"; classifyFit caps these at stretch instead of
+  //    fabricating a not_recommended.
+  const dealBreakerDims = (jd_intelligence?.dimensions ?? []).filter((d) => d.deal_breaker);
+  const unmetDealBreakers = dealBreakerDims
+    .filter((d) => d.verdict !== null && !isDimVerdictMet(d.verdict))
+    .map((d) => d.value_text);
+  const unverifiedDealBreakers = dealBreakerDims
+    .filter((d) => d.verdict === null)
     .map((d) => d.value_text);
 
   const fit = classifyFit({
@@ -261,6 +271,7 @@ export function buildGapReportCore(
     required_coverage: match.required_coverage,
     seniority_verdict: seniorityVerdict,
     unmet_deal_breakers: unmetDealBreakers,
+    unverified_deal_breakers: unverifiedDealBreakers,
   });
 
   return {

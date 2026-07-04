@@ -24,15 +24,22 @@ export type FitReasonCode =
   | 'SENIORITY_STRETCH'
   | 'SENIORITY_OVERQUALIFIED'
   | 'DEAL_BREAKER_UNMET'
-  | 'SEVERE_STRETCH';
+  | 'SEVERE_STRETCH'
+  | 'DEAL_BREAKER_UNVERIFIED';
 
 export interface FitInput {
   score: number;
   required_coverage: number | null;
   seniority_verdict: ExperienceVerdict;
-  /** Requirement labels the source flagged as deal-breaker AND unmet. Always [] on the job-rec path
-   *  (pool jobs carry no JD dims — see job-recommendation.service.ts's buildJobRecommendation). */
+  /** Requirement labels the source flagged as deal-breaker AND CONFIRMED unmet (graded verdict,
+   *  non-null, not fits/over_qualified). Always [] on the job-rec path (pool jobs carry no JD dims
+   *  — see job-recommendation.service.ts's buildJobRecommendation). */
   unmet_deal_breakers: string[];
+  /** Requirement labels the source flagged as deal-breaker but CANNOT grade (no verdict at all —
+   *  e.g. language/education/domain dims with no ExperienceVerdict grader yet). "Cannot verify" is
+   *  not "unmet": this caps the verdict at `stretch` (blocks safe_apply) but never fabricates/joins
+   *  a `not_recommended`. Always [] on the job-rec path. */
+  unverified_deal_breakers?: string[];
   /** job-rec path only — recommendationSeniorityPolicy().level_gap (job_level rank − cv rank).
    *  Absent/undefined on the match/gap-report path (no comparable per-job level_gap there). */
   level_gap?: number;
@@ -83,6 +90,7 @@ export function classifyFit(input: FitInput): FitVerdict {
     Math.abs(input.level_gap) >= policy.overqualified_severe_level_gap_at_least;
   const dealBreaker = input.unmet_deal_breakers.length > 0;
   const severeStretch = input.severe_stretch === true;
+  const unverifiedDealBreaker = (input.unverified_deal_breakers?.length ?? 0) > 0;
 
   if (strongScore) reasons.push('STRONG_SCORE');
   if (strongCoverage) reasons.push('STRONG_COVERAGE');
@@ -93,6 +101,7 @@ export function classifyFit(input: FitInput): FitVerdict {
   if (severeOverQualified) reasons.push('SENIORITY_OVERQUALIFIED');
   if (dealBreaker) reasons.push('DEAL_BREAKER_UNMET');
   if (severeStretch) reasons.push('SEVERE_STRETCH');
+  if (unverifiedDealBreaker) reasons.push('DEAL_BREAKER_UNVERIFIED');
 
   if (dealBreaker || lowScore || severeOverQualified || severeStretch) {
     return { verdict: 'not_recommended', reasons };
@@ -100,7 +109,10 @@ export function classifyFit(input: FitInput): FitVerdict {
 
   const coverageOk = !hasCoverage || strongCoverage;
   const seniorityOk = seniorityFits || input.seniority_verdict === 'unknown';
-  if (strongScore && coverageOk && seniorityOk) {
+  // An unverified deal-breaker ("cannot verify") is honest-unknown, not a confirmed miss — it can
+  // never fabricate/join a not_recommended (see the OR above), but it DOES cap the ceiling at
+  // stretch: safe_apply asserts a positive, checked fit, which we don't have here.
+  if (strongScore && coverageOk && seniorityOk && !unverifiedDealBreaker) {
     return { verdict: 'safe_apply', reasons };
   }
 

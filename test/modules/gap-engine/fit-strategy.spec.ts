@@ -113,4 +113,37 @@ describe('classifyFit', () => {
     expect(() => classifyFit(input)).not.toThrow();
     expect(classifyFit(input).verdict).toBe('stretch');
   });
+
+  // A2 fix: "cannot verify" (ungraded JD dim) must never read as "unmet" — it caps at stretch,
+  // it never fabricates a not_recommended.
+  it('unverified deal breaker caps an otherwise-perfect fit at stretch — never fabricates not_recommended', () => {
+    const result = classifyFit(
+      base({ score: 90, required_coverage: 1, unverified_deal_breakers: ['English C1'] }),
+    );
+    expect(result.verdict).toBe('stretch');
+    expect(result.reasons).toContain('DEAL_BREAKER_UNVERIFIED');
+    expect(result.reasons).not.toContain('DEAL_BREAKER_UNMET');
+  });
+
+  it('unverified deal breaker NEVER produces safe_apply, even at score 90 / coverage 1.0 / fits', () => {
+    const result = classifyFit(
+      base({ score: 90, required_coverage: 1, unverified_deal_breakers: ['Onsite only'] }),
+    );
+    expect(result.verdict).not.toBe('safe_apply');
+  });
+
+  it('a REAL unmet deal breaker still forces not_recommended even alongside an unverified one', () => {
+    const result = classifyFit(
+      base({
+        score: 90,
+        required_coverage: 1,
+        unmet_deal_breakers: ['Fresher role required'],
+        unverified_deal_breakers: ['English C1'],
+      }),
+    );
+    expect(result.verdict).toBe('not_recommended');
+    expect(result.reasons).toEqual(
+      expect.arrayContaining(['DEAL_BREAKER_UNMET', 'DEAL_BREAKER_UNVERIFIED']),
+    );
+  });
 });
