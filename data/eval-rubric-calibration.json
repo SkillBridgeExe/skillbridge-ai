@@ -38,9 +38,10 @@
         { "name": "Postman", "proficiency_hint": "NOVICE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": ".NET backend fresher with SQL/REST/auth/git. Should be employable but not high because DB design, Linux, NoSQL/cache breadth are still thin."
+      "expected_overall": [81, 95],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage on the 2026-07-01 VN-prevalence weights; breadth gaps (DB design, Linux, NoSQL/cache) now carry less weight in the recentered taxonomy.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-be-fresher-java-spring",
@@ -56,9 +57,10 @@
         { "name": "Postman", "proficiency_hint": "NOVICE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Java/Spring backend fresher — must reach PARITY with the .NET case. Spring is a Java alias; the backend-language OR-group makes Java a first-class runtime alongside Node/.NET."
+      "expected_overall": [76, 90],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Java/Spring backend fresher reaches parity with .NET via backend-language OR-group; post-0cf58ab weights reflect VN-prevalence scoring consistently at 76-90.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-be-fresher-php-laravel",
@@ -73,9 +75,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [64, 78],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "PHP/Laravel backend fresher — must reach PARITY with the .NET case. The backend-language OR-group makes PHP/Laravel a first-class runtime."
+      "expected_overall": [73, 87],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "PHP/Laravel backend fresher reaches parity with .NET via backend-language OR-group; post-0cf58ab weights reflect VN-prevalence scoring at 73-87.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-fs-fresher-balanced",
@@ -94,9 +97,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [74, 86],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Balanced fresher fullstack with real frontend and shallow backend. Good enough for junior screening, but still missing auth, Docker, system-design breadth."
+      "expected_overall": [81, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full coverage of required fullstack spine (React/Node/Express/PostgreSQL/REST/Git/communication); breadth gaps (auth/Docker/system-design) carry lower weight post-0cf58ab, yielding 81-93.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-fs-fresher-vue-spring",
@@ -115,9 +119,10 @@
         { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
         { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
       ],
-      "expected_overall": [74, 86],
-      "expected_required_coverage": [0.75, 0.9],
-      "rationale": "Vue + Java/Spring fullstack fresher — must reach PARITY with the balanced (React/Node) case. Same profile with Vue in place of React and Java/Spring in place of Node/Express, via the frontend-framework + backend-language OR-groups."
+      "expected_overall": [81, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Vue + Java/Spring fullstack fresher reaches parity with balanced (React/Node) via frontend-framework + backend-language OR-groups; full required coverage scores 81-93 post-0cf58ab.",
+      "rebaselined": "2026-07-04 after 0cf58ab VN-prevalence weight calibration"
     },
     {
       "id": "rubric-da-fresher-sql-excel",
@@ -286,6 +291,161 @@
       "expected_overall": [10, 32],
       "expected_required_coverage": [0.08, 0.3],
       "rationale": "Produced 20 / coverage 0.167 (matched 2/12: python + machine_learning only). Identity guard: classic-ML-only CV (no llm_engineering/prompt_engineering/rest_api) misses the 0.32+ LLM/app REQUIRED core, so it scores LOW here. pytorch_tensorflow/statistics/pandas are NOT in this rubric and contribute nothing. This person's home is ai_ml_engineer (where the same CV scores ~70), not ai_app_engineer."
+    },
+    {
+      "id": "de-fresher-coverage-snapshot",
+      "target_role": "data_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "ETL / Data Pipelines", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Data Warehouse", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [60, 74],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "sec-fresher-coverage-snapshot",
+      "target_role": "security_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Security", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SIEM (Security Monitoring)", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Incident Response", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Networking", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Linux / Shell", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Vulnerability Assessment", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [79, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "iot-fresher-coverage-snapshot",
+      "target_role": "embedded_iot_engineer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "C (Programming Language)", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Embedded Systems", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Internet of Things", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [65, 79],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "dba-fresher-coverage-snapshot",
+      "target_role": "database_administrator",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Backup & Recovery", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Oracle Database", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Query / Performance Tuning", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "High Availability / Clustering", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Database Replication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [74, 88],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "uiux-fresher-coverage-snapshot",
+      "target_role": "ui_ux_designer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "UI/UX Design", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Figma", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "User Research", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Wireframing", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Prototyping", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [79, 93],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "game-fresher-coverage-snapshot",
+      "target_role": "game_developer",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Unity", "proficiency_hint": "INTERMEDIATE" },
+        { "name": ".NET", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Object-Oriented Programming", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [73, 87],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "itsupport-fresher-coverage-snapshot",
+      "target_role": "it_support_helpdesk",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "IT Support / Helpdesk", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "IT Troubleshooting", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Hardware & PC Repair", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Ticketing / Service Desk", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [75, 89],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "netadmin-fresher-coverage-snapshot",
+      "target_role": "network_sysadmin",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Networking", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Linux / Shell", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Virtualization", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Windows Administration", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Active Directory", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "IT Troubleshooting", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [76, 90],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
+    },
+    {
+      "id": "ba-fresher-coverage-snapshot",
+      "target_role": "business_analyst",
+      "target_band": "fresher",
+      "cv_skills": [
+        { "name": "Requirements Analysis", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Technical Documentation", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Business Analysis", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Stakeholder Management", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "expected_overall": [66, 80],
+      "expected_required_coverage": [1.0, 1.0],
+      "rationale": "Full required coverage at fresher band pins the ceiling behavior for this role.",
+      "rebaselined": "2026-07-04 coverage snapshot — pins current deliberate calibration; re-baseline consciously on any weight change"
     }
   ]
 }

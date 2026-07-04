@@ -60,7 +60,7 @@ function buildLedger(c: PatchCase): EvidenceLedger | null {
       ...demo.map(([s, ref]) => ({
         skill_canonical: s,
         display_name: s,
-        sources: [{ kind: 'project' as const, ref, recency_year: 2025 }],
+        sources: [{ kind: 'project' as const, ref, recency_year: 2025, quote: null }],
         strength: 'demonstrated' as const,
         most_recent_year: 2025,
       })),

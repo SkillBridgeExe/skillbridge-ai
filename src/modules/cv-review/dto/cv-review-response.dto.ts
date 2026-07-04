@@ -62,7 +62,8 @@ export interface SkillBreakdownItem {
   skill_type?: 'hard' | 'soft';
 }
 
-/** Deterministic Dimension-2 breakdown vs the role rubric — display-only, does NOT change the score. */
+/** Deterministic Dimension-2 breakdown vs the role rubric. On current responses this also explains
+ *  the routed skills_relevance score; older cached results may have used it display-only. */
 export interface SkillsRelevanceBreakdown {
   matched: SkillBreakdownItem[];
   partial: SkillBreakdownItem[];
@@ -74,6 +75,22 @@ export interface TopSummary {
   headline: string;
   prioritized_actions: string[];
 }
+
+/** Which dimensions this response can carry provenance for (grows as E3/E4 route more dims). */
+export type DimensionKey = 'action_verbs' | 'skills_relevance' | 'experience' | 'education';
+
+/** Where a dimension's score/rationale came from — a deterministic route or the LLM's own read. */
+export interface DimensionProvenanceEntry {
+  source: 'deterministic' | 'llm';
+  confidence: 'high' | 'medium' | 'low';
+  /** Short human-readable signals backing the score (ratios, counts, or the LLM rationale). */
+  evidence: string[];
+}
+
+/** Per-dimension explainability: which scorer owns each dimension's number. Optional/additive —
+ *  older cached ai_results predate this field. E2 populates action_verbs + skills_relevance;
+ *  E3/E4 extend it for experience/education. */
+export type DimensionProvenance = { [K in DimensionKey]?: DimensionProvenanceEntry };
 
 export interface CvReviewParsedResponse {
   /** Detected CV language (ISO 639-1) — feedback is produced in this language. */
@@ -121,6 +138,9 @@ export interface CvReviewParsedResponse {
    *  Reportable signal + low-confidence flag — NEVER blocks scoring, NEVER affects overall_score.
    *  Optional: older cached ai_results predate this field. */
   extraction_quality?: ExtractionQuality;
+  /** Per-dimension explainability: which scorer (deterministic route or LLM) owns each dimension's
+   *  number, plus the evidence behind it. Optional: older cached ai_results predate this field. */
+  dimension_provenance?: DimensionProvenance;
 }
 
 export interface CvReviewResponseDto {

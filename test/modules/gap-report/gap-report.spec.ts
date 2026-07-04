@@ -82,14 +82,14 @@ const ledgerOf = (gap: string[], demonstrated: string[]): EvidenceLedger => ({
     ...gap.map((c) => ({
       skill_canonical: c,
       display_name: c.toUpperCase(),
-      sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null }],
+      sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null, quote: null }],
       strength: 'listed_only' as const,
       most_recent_year: null,
     })),
     ...demonstrated.map((c) => ({
       skill_canonical: c,
       display_name: c.toUpperCase(),
-      sources: [{ kind: 'experience' as const, ref: 'Acme', recency_year: 2026 }],
+      sources: [{ kind: 'experience' as const, ref: 'Acme', recency_year: 2026, quote: null }],
       strength: 'demonstrated' as const,
       most_recent_year: 2026,
     })),
@@ -153,6 +153,49 @@ describe('buildGapReportCore (pure)', () => {
     expect(withCv.seniority.note.length).toBeGreaterThan(0);
     const without = buildGapReportCore(baseMatch({}), null, null, null, 'en');
     expect(without.seniority.cv).toBeNull();
+  });
+
+  // E5: v2-flip — when the match carries an extracted+gradeable seniority jd_dimension, the block
+  // must show the REAL verdict (same one gradeSeniority feeds into jd_intelligence — never contradict).
+  it('E5: seniority block shows the real jd_level + verdict when jd_dimensions grades a seniority gap', () => {
+    const jd_dimensions = [
+      {
+        dimension: 'seniority' as const,
+        value_text: 'Senior level',
+        level_hint: 'SENIOR',
+        min_years: 5,
+        importance: 'REQUIRED' as const,
+        deal_breaker: false,
+        evidence_text: '5+ years senior experience required',
+      },
+    ];
+    const m = baseMatch({ jd_dimensions });
+    const core = buildGapReportCore(m, null, seniority, null, 'en'); // seniority = fresher, high confidence
+    expect(core.seniority.jd_level).toBe('SENIOR');
+    expect(core.seniority.verdict).toBe('stretch'); // fresher vs SENIOR ⇒ same verdict as jd_intelligence
+    expect(core.jd_intelligence?.dimensions[0].verdict).toBe(core.seniority.verdict); // never contradict
+    expect(core.seniority.cv).toEqual(seniority);
+    expect(core.seniority.note).not.toMatch(/no fit verdict|không kết luận/i);
+  });
+
+  it('E5: seniority block keeps byte-identical {null, unknown} fallback when the dim cannot be graded', () => {
+    // Low-confidence CV signal ⇒ gradeSeniority returns null even though a seniority dim is present.
+    const jd_dimensions = [
+      {
+        dimension: 'seniority' as const,
+        value_text: 'Senior level',
+        level_hint: 'SENIOR',
+        min_years: 5,
+        importance: 'REQUIRED' as const,
+        deal_breaker: false,
+        evidence_text: '5+ years senior experience required',
+      },
+    ];
+    const lowConfSeniority: CvSeniority = { ...seniority, confidence: 'low' };
+    const m = baseMatch({ jd_dimensions });
+    const core = buildGapReportCore(m, null, lowConfSeniority, null, 'en');
+    expect(core.seniority.jd_level).toBeNull();
+    expect(core.seniority.verdict).toBe('unknown');
   });
 
   it('ledger null → evidence_gaps [] and demonstrated [] (generated_with_ledger handled by service)', () => {

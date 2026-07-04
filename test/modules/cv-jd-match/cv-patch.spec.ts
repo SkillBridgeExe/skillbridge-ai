@@ -82,14 +82,14 @@ const ledgerOf = (gap: string[], demonstrated: Array<[string, string]>): Evidenc
     ...gap.map((c) => ({
       skill_canonical: c,
       display_name: c.toUpperCase(),
-      sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null }],
+      sources: [{ kind: 'skills_list' as const, ref: 'Skills', recency_year: null, quote: null }],
       strength: 'listed_only' as const,
       most_recent_year: null,
     })),
     ...demonstrated.map(([c, ref]) => ({
       skill_canonical: c,
       display_name: c.toUpperCase(),
-      sources: [{ kind: 'project' as const, ref, recency_year: null }],
+      sources: [{ kind: 'project' as const, ref, recency_year: null, quote: null }],
       strength: 'demonstrated' as const,
       most_recent_year: null,
     })),

@@ -196,13 +196,35 @@ describe('buildGapItems', () => {
     expect(g.recommended_next_action).not.toBe('');
   });
 
+  // E5: severity_factors — additive breakdown of the severityRaw locals (importance/core/market_mult),
+  // so the FE can explain a score instead of just showing the number. Recomputing severity from the
+  // factors must reproduce the emitted severity within rounding tolerance (each factor is round3'd).
+  it('emits severity_factors that recompute to the same severity (±1e-3), on every branch', () => {
+    const items = buildGapItems({
+      match: emptyMatch({
+        missing_skills: [missing()],
+        partial_skills: [partial()],
+        matched_skills: [matched()],
+      }),
+    });
+    expect(items.length).toBe(3);
+    for (const g of items) {
+      expect(g.severity_factors).toBeDefined();
+      const { importance, core, market_mult } = g.severity_factors!;
+      const recomputed = Math.round(importance * core * market_mult * 1000) / 1000;
+      expect(Math.abs(recomputed - g.severity)).toBeLessThanOrEqual(1e-3);
+    }
+  });
+
   it('partial WITH demonstrated evidence → rewrite; WITHOUT → learn', () => {
     const ledger: EvidenceLedger = {
       items: [
         {
           skill_canonical: 'sql',
           display_name: 'SQL',
-          sources: [{ kind: 'experience', ref: 'FPT — BE', recency_year: 2024 }],
+          sources: [
+            { kind: 'experience', ref: 'FPT — BE', recency_year: 2024, quote: 'Wrote SQL queries' },
+          ],
           strength: 'demonstrated',
           most_recent_year: 2024,
         },
@@ -216,6 +238,54 @@ describe('buildGapItems', () => {
     const noEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }) })[0];
     expect(noEv.fixability).toBe('learn');
     expect(noEv.evidence_refs).toEqual([]);
+  });
+
+  // E1: GapItem carries the real quote (additive `evidence`, existing `evidence_refs` byte-identical).
+  it('emits evidence [{kind, ref, quote}] from the ledger sources; absent (not []) when there is none', () => {
+    const ledger: EvidenceLedger = {
+      items: [
+        {
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          sources: [
+            { kind: 'experience', ref: 'FPT — BE', recency_year: 2024, quote: 'Wrote SQL queries' },
+          ],
+          strength: 'demonstrated',
+          most_recent_year: 2024,
+        },
+      ],
+      evidence_gap: [],
+    };
+    const withEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }), ledger })[0];
+    expect(withEv.evidence).toEqual([
+      { kind: 'experience', ref: 'FPT — BE', quote: 'Wrote SQL queries' },
+    ]);
+    expect(withEv.evidence_refs).toEqual(['FPT — BE']); // unchanged, byte-identical
+
+    const noEv = buildGapItems({ match: emptyMatch({ partial_skills: [partial()] }) })[0];
+    expect(noEv.evidence).toBeUndefined();
+  });
+
+  it('normalizes legacy persisted ledger sources that predate quote to quote:null', () => {
+    const legacyLedger = {
+      items: [
+        {
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          sources: [{ kind: 'experience', ref: 'FPT — BE', recency_year: 2024 }],
+          strength: 'demonstrated',
+          most_recent_year: 2024,
+        },
+      ],
+      evidence_gap: [],
+    } as unknown as EvidenceLedger;
+
+    const [withLegacyEv] = buildGapItems({
+      match: emptyMatch({ partial_skills: [partial()] }),
+      ledger: legacyLedger,
+    });
+
+    expect(withLegacyEv.evidence).toEqual([{ kind: 'experience', ref: 'FPT — BE', quote: null }]);
   });
 
   it('matched skill listed-only (in evidence_gap) → unproven / add_evidence', () => {
@@ -318,7 +388,9 @@ describe('buildGapItems', () => {
         {
           skill_canonical: 'react',
           display_name: 'React',
-          sources: [{ kind: 'project', ref: 'Portfolio', recency_year: 2025 }],
+          sources: [
+            { kind: 'project', ref: 'Portfolio', recency_year: 2025, quote: 'Shipped React app' },
+          ],
           strength: 'demonstrated',
           most_recent_year: 2025,
         },

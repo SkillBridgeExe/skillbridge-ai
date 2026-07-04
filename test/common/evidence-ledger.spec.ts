@@ -3,12 +3,21 @@ import { emptyCanonicalCv, CanonicalCvDocument } from '../../src/common/types/ca
 import { SkillTaxonomyService } from '../../src/common/services/skill-taxonomy.service';
 import { SkillTextScannerService } from '../../src/common/services/skill-text-scanner.service';
 
-// Controlled stub: emits a canonical when its name appears (case-insensitive) in the text.
+// Controlled stub: emits a canonical when its needle appears (case-insensitive) in the text.
+const SKILL_NEEDLES: Array<{ canonical: string; needle: string }> = [
+  { canonical: 'react', needle: 'react' },
+  { canonical: 'docker', needle: 'docker' },
+  { canonical: 'python', needle: 'python' },
+  { canonical: 'communication', needle: 'communication' },
+  { canonical: 'nodejs', needle: 'node.js' },
+];
 const stubScan = (text: string) => {
   const t = text.toLowerCase();
-  return ['react', 'docker', 'python', 'communication']
-    .filter((c) => t.includes(c))
-    .map((c) => ({ canonical_name: c, matched_text: c, occurrences: 1 }));
+  return SKILL_NEEDLES.filter((s) => t.includes(s.needle)).map((s) => ({
+    canonical_name: s.canonical,
+    matched_text: s.needle,
+    occurrences: 1,
+  }));
 };
 const id = (c: string) => c;
 
@@ -94,6 +103,89 @@ describe('buildEvidenceLedger (pure)', () => {
       items: [],
       evidence_gap: [],
     });
+  });
+
+  // E1: real quote spans (evidence-ledger.ts:106-109 used to discard the matched section text —
+  // this captures the actual bullet/sentence so the ledger can SHOW proof, not just cite a name).
+  it('captures the real bullet as the quote for a skill demonstrated in experience', () => {
+    const doc = docWith({
+      experience: [
+        {
+          org: 'Acme',
+          role: 'Backend Dev',
+          start: '2022',
+          end: '2024',
+          location: null,
+          bullets: ['Built REST APIs with Node.js for booking'],
+        },
+      ],
+    });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const nodejs = led.items.find((i) => i.skill_canonical === 'nodejs')!;
+    expect(nodejs.sources[0]).toEqual({
+      kind: 'experience',
+      ref: 'Acme — Backend Dev',
+      recency_year: 2024,
+      quote: 'Built REST APIs with Node.js for booking',
+    });
+  });
+
+  it('a skill only in the Skills section (a bare listing, not a sentence) gets quote: null', () => {
+    const doc = docWith({ skills: { technical: ['Docker'], soft: [], languages: [], tools: [] } });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const docker = led.items.find((i) => i.skill_canonical === 'docker')!;
+    expect(docker.sources[0].quote).toBeNull();
+  });
+
+  it('trims a long matching bullet to 200 chars for the quote', () => {
+    const longBullet = `Led a cross-functional team to design and ship a React-based dashboard that reduced manual reporting time by an enormous amount across every department in the company over several fiscal quarters, well past two hundred characters`;
+    const doc = docWith({
+      experience: [
+        {
+          org: 'Acme',
+          role: null,
+          start: null,
+          end: null,
+          location: null,
+          bullets: [longBullet],
+        },
+      ],
+    });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const react = led.items.find((i) => i.skill_canonical === 'react')!;
+    expect(react.sources[0].quote).toHaveLength(200);
+    expect(react.sources[0].quote).toBe(longBullet.slice(0, 200));
+  });
+
+  it('summary quote is the sentence containing the match, not the whole paragraph', () => {
+    const doc = docWith({
+      summary:
+        'Backend engineer with 3 years of experience.  Strong in Python and distributed systems.  Enjoys mentoring juniors.',
+    });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const python = led.items.find((i) => i.skill_canonical === 'python')!;
+    expect(python.sources[0].quote).toBe('Strong in Python and distributed systems.');
+  });
+
+  // Fix 1: within a section, a label unit (project tech line, quote:null) used to be scanned
+  // before the bullet units, so a shared `seen` dedup let the label claim the skill first and the
+  // real bullet quote was lost. Quotable units must win when both match the same skill.
+  it('a bullet quote wins over a project tech-line label for the same skill', () => {
+    const doc = docWith({
+      projects: [
+        {
+          name: 'Checkout Revamp',
+          role: null,
+          tech: ['React', 'Node.js'],
+          bullets: ['Built the checkout UI with React'],
+          link: null,
+        },
+      ],
+    });
+    const led = buildEvidenceLedger(doc, stubScan, id, 2026);
+    const react = led.items.find((i) => i.skill_canonical === 'react')!;
+    expect(react.sources).toHaveLength(1); // dedup within the section still holds
+    expect(react.sources[0].quote).toBe('Built the checkout UI with React');
   });
 
   it('integration: real scanner finds a demonstrated skill in a bullet', async () => {

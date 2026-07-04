@@ -115,6 +115,54 @@ describe('buildJobRecommendation', () => {
     expect(rec.severe_stretch).toBe(true);
     expect(rec.salary_min).toBeNull();
     expect(rec.salary_max).toBeNull();
+    // E5: surface the policy factor + level_gap so the FE can explain WHY recommendation_score
+    // was demoted (fresher CV vs SENIOR job → severe stretch → factor 0.4).
+    expect(rec.seniority_factor).toBe(0.4);
+    expect(rec.level_gap).toBeGreaterThanOrEqual(3);
+  });
+
+  it('E5: seniority_factor is 1 and level_gap matches policy when the candidate fits', async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    const diffSvc = new SkillDiffService(normalizer, rubrics);
+
+    const diff = diffSvc.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'BEGINNER' }],
+      jd_requirements_raw: [
+        { name: 'React', importance_hint: 'REQUIRED', required_level_hint: 'ADVANCED' },
+      ],
+    });
+
+    const job = {
+      id: 'job-1',
+      slug: 'fe-dev-job-1',
+      application_mode: 'NATIVE' as const,
+      saved: true,
+      title: 'FE Dev',
+      company_name: 'Acme',
+      location: 'HCMC',
+      role_code: 'frontend_developer',
+      experience_level: 'JUNIOR',
+      salary_min: '1000',
+      salary_max: '2000',
+      salary_visible: true,
+      currency: 'VND',
+      source_url: 'https://x',
+      posted_at: '2026-06-01',
+      skills: [],
+    };
+
+    const rec = buildJobRecommendation(job, diff, 1, 0.5, {
+      cv_seniority: 'junior',
+      job_level: 'JUNIOR',
+      verdict: 'fits',
+      confidence: 'high',
+    });
+    expect(rec.seniority_factor).toBe(1);
+    expect(rec.level_gap).toBe(0);
   });
 });
 
