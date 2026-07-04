@@ -27,14 +27,20 @@ const CAP = 20;
  *  the parser dropped a real section — score deterministically to 4 ONLY when absent. */
 const EDU_TOKEN_RE = /đại học|cao đẳng|university|college|bachelor|b\.?s\.?|kỹ sư/i;
 
-/** IT-relatedness of a field-of-study string. `classifyDegree` is reused defensively (a field can
- *  embed a degree-shaped keyword like "kỹ sư"); the explicit keyword list covers the common
- *  IT/CS/SE/CNTT spellings (accented + unaccented) that classifyDegree does not classify. */
+/** IT-relatedness of a field-of-study string. `classifyDegree` answers "does this text contain
+ *  degree vocabulary" (e.g. "kỹ sư" = engineer, "thạc sĩ" = master) — NOT "is this IT" (a
+ *  mechanical engineer or a finance master both contain degree words but aren't IT). So this is a
+ *  keyword-only check against the actual IT/CS/SE/CNTT spellings (accented + unaccented). */
 const IT_FIELD_RE =
-  /\b(cs|se|it)\b|cntt|công nghệ thông tin|cong nghe thong tin|khoa học máy tính|khoa hoc may tinh/iu;
+  /\b(cs|se|it)\b|cntt|công nghệ thông tin|cong nghe thong tin|khoa học máy tính|khoa hoc may tinh|computer science|information technology|\bcomputer\b|\bsoftware\b|phần mềm|phan mem/iu;
 
-/** First numeric token in a free-text GPA string, e.g. "3.4/4.0" → 3.4, "8.2/10" → 8.2. */
+/** First numeric token in a free-text GPA string, e.g. "8.2" → 8.2. Used only when no explicit
+ *  "<num>/<den>" fraction is present (see GPA_FRAC_RE). */
 const GPA_NUM_RE = /(\d+(?:[.,]\d+)?)/;
+
+/** Explicit "<num>/<den>" fraction, e.g. "3.8/10" → num=3.8, den=10. Comma-decimal numerator is
+ *  supported ("8,5/10"). */
+const GPA_FRAC_RE = /(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/;
 
 export type EducationScoreConfidence = 'high' | 'medium' | 'low';
 
@@ -48,15 +54,26 @@ export interface EducationScoreResult {
 
 function isItField(field: string | null): boolean {
   if (!field?.trim()) return false;
-  if (classifyDegree(field) !== null) return true;
   return IT_FIELD_RE.test(field);
 }
 
-/** GPA bonus is granted at >=3.0 on a /4 scale or >=7.5 on a /10 scale. Scale is inferred from the
- *  parsed number's own magnitude (<=4 → /4, else /10) per the brief — no denominator parsing needed.
- *  Anything unparseable (missing, non-numeric, or off both scales) yields no bonus and never throws. */
+/** GPA bonus is granted at >=3.0 on a /4 scale or >=7.5 on a /10 scale. When the string carries an
+ *  explicit "<num>/<den>" denominator, that denominator picks the scale (4 or 10); any other/absent
+ *  denominator falls back to the magnitude heuristic (<=4 → /4, else /10). Anything unparseable
+ *  (missing, non-numeric, or off both scales) yields no bonus and never throws. */
 function gpaBonusEligible(gpa: string | null): boolean {
   if (!gpa) return false;
+  const frac = GPA_FRAC_RE.exec(gpa);
+  if (frac) {
+    const num = parseFloat(frac[1].replace(',', '.'));
+    const den = parseFloat(frac[2].replace(',', '.'));
+    if (Number.isNaN(num) || Number.isNaN(den)) return false;
+    if (den === 4) return num >= 3.0;
+    if (den === 10) return num >= 7.5;
+    if (num <= 4) return num >= 3.0;
+    if (num <= 10) return num >= 7.5;
+    return false;
+  }
   const m = GPA_NUM_RE.exec(gpa);
   if (!m) return false;
   const num = parseFloat(m[1].replace(',', '.'));

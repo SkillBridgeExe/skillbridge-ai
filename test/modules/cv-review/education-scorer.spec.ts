@@ -120,4 +120,101 @@ describe('scoreEducation (Dim-4 deterministic scorer)', () => {
     expect(result!.score20).toBe(20);
     expect(result!.evidence).toContain('2 education entries');
   });
+
+  describe('isItField (finding 1: degree vocabulary in field string must not fake an IT match)', () => {
+    it('bachelor + field "Kỹ sư Cơ khí" (mechanical engineer, contains degree word "kỹ sư") → no IT bonus (14, not 18)', () => {
+      const document = doc({
+        education: [edu({ school: 'ABC University', degree: 'Bachelor', field: 'Kỹ sư Cơ khí' })],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(14);
+      expect(result!.evidence).not.toContain('field=IT-related');
+    });
+
+    it('master + field "Tài chính" with degree text "Thạc sĩ Tài chính" (finance master) → no IT bonus', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'ABC University', degree: 'Thạc sĩ Tài chính', field: 'Tài chính' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      // 8 base + 6 bachelor+ bonus (master ranks above bachelor), no IT bonus
+      expect(result!.score20).toBe(14);
+      expect(result!.evidence).not.toContain('field=IT-related');
+    });
+
+    it('field "Khoa học máy tính" (Vietnamese for computer science) → IT bonus applies', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'ABC University', degree: 'Bachelor', field: 'Khoa học máy tính' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(18);
+      expect(result!.evidence).toContain('field=IT-related');
+    });
+
+    it('field "Computer Science" spelled out in English → IT bonus applies', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'ABC University', degree: 'Bachelor', field: 'Computer Science' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(18);
+      expect(result!.evidence).toContain('field=IT-related');
+    });
+  });
+
+  describe('gpaBonusEligible (finding 2: explicit denominator must be honored over magnitude guess)', () => {
+    it('"3.8/10" (low score on a /10 scale) → no bonus even though numerator magnitude looks like a /4 score', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'X University', degree: 'Bachelor', field: 'Business', gpa: '3.8/10' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(14); // 8 + 6, no gpa bonus
+    });
+
+    it('"3.8/4" (above /4 threshold) → bonus applies', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'X University', degree: 'Bachelor', field: 'Business', gpa: '3.8/4' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(16); // 8 + 6 + 2 gpa bonus
+    });
+
+    it('"8,5/10" comma-decimal above /10 threshold → bonus applies', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'X University', degree: 'Bachelor', field: 'Business', gpa: '8,5/10' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(16); // 8 + 6 + 2 gpa bonus
+    });
+
+    it('bare "7.9" (no denominator, magnitude heuristic → /10 scale) → bonus applies', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'X University', degree: 'Bachelor', field: 'Business', gpa: '7.9' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(16); // 8 + 6 + 2 gpa bonus
+    });
+
+    it('bare "2.9" (no denominator, magnitude heuristic → /4 scale) → no bonus', () => {
+      const document = doc({
+        education: [
+          edu({ school: 'X University', degree: 'Bachelor', field: 'Business', gpa: '2.9' }),
+        ],
+      });
+      const result = scoreEducation(document, 'irrelevant raw text');
+      expect(result!.score20).toBe(14); // 8 + 6, no gpa bonus
+    });
+  });
 });
