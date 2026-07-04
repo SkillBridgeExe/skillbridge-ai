@@ -23,10 +23,18 @@ export class TailorChecklistService {
     match: CvJdMatchParsedResponse;
     review: CvReviewParsedResponse | null;
     lang?: 'vi' | 'en';
+    /** A2: canonical → gap_items severity (from the SAME gap_items the caller already built —
+     *  gap-report.service). Ranks the checklist by gap severity instead of the old bucket order. */
+    severityByCanonical?: Map<string, number> | null;
   }): TailorChecklistResponseDto {
     const ledger = input.review?.evidence_ledger ?? null;
     return {
-      actions: buildTailorChecklist(input.match, ledger, input.lang ?? 'vi'),
+      actions: buildTailorChecklist(
+        input.match,
+        ledger,
+        input.lang ?? 'vi',
+        input.severityByCanonical,
+      ),
       generated_with_ledger: ledger !== null,
       source_of_requirements: input.match.source_of_requirements,
       overall_score: input.match.overall_score,

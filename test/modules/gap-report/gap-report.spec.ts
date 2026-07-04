@@ -366,6 +366,95 @@ describe('buildGapReportCore (pure)', () => {
   });
 });
 
+describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_intelligence', () => {
+  it('v1 path (no jd_dimensions): fit is present with unmet_deal_breakers=[]', () => {
+    const m = baseMatch({ overall_score: 61, required_coverage: 0.5 });
+    const core = buildGapReportCore(m, null, null, null, 'vi');
+    expect(core.fit).toBeDefined();
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
+    // score 61 < 65 and coverage 0.5 < 0.7 → not safe_apply.
+    expect(core.fit!.verdict).toBe('stretch');
+  });
+
+  it('a REQUIRED+deal_breaker seniority dim graded "stretch" → unmet deal breaker → not_recommended', () => {
+    const jd_dimensions = [
+      {
+        dimension: 'seniority' as const,
+        value_text: 'Senior level',
+        level_hint: 'SENIOR',
+        min_years: 5,
+        importance: 'REQUIRED' as const,
+        deal_breaker: true,
+        evidence_text: '5+ years senior experience required, non-negotiable',
+      },
+    ];
+    const m = baseMatch({ jd_dimensions, overall_score: 95, required_coverage: 1 });
+    const core = buildGapReportCore(m, null, seniority, null, 'en'); // seniority = fresher ⇒ stretch vs SENIOR
+    expect(core.seniority.verdict).toBe('stretch');
+    expect(core.fit!.verdict).toBe('not_recommended');
+    expect(core.fit!.reasons).toContain('DEAL_BREAKER_UNMET');
+    // a REAL graded-unmet verdict ('stretch', non-null) is NOT the same bucket as an ungraded/null one.
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNVERIFIED');
+  });
+
+  it('a deal_breaker dim with a graded "over_qualified" seniority verdict counts as MET (not unmet)', () => {
+    const jd_dimensions = [
+      {
+        dimension: 'seniority' as const,
+        value_text: 'Fresher level',
+        level_hint: 'FRESHER',
+        min_years: 0,
+        importance: 'REQUIRED' as const,
+        deal_breaker: true,
+        evidence_text: 'Fresher role, must be entry-level',
+      },
+    ];
+    const seniorCv: CvSeniority = { ...seniority, bucket: 'senior' };
+    const m = baseMatch({ jd_dimensions, overall_score: 90, required_coverage: 1 });
+    const core = buildGapReportCore(m, null, seniorCv, null, 'en'); // senior CV vs FRESHER ⇒ over_qualified
+    expect(core.seniority.verdict).toBe('over_qualified');
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
+  });
+
+  it('a deal_breaker dim on an ungraded dimension (language) is UNVERIFIED (not fabricated unmet) — capped at stretch, never safe_apply', () => {
+    const jd_dimensions = [
+      {
+        dimension: 'language' as const,
+        value_text: 'English C1',
+        level_hint: 'C1',
+        min_years: null,
+        importance: 'REQUIRED' as const,
+        deal_breaker: true,
+        evidence_text: 'English C1 mandatory, non-negotiable',
+      },
+    ];
+    const m = baseMatch({ jd_dimensions, overall_score: 90, required_coverage: 1 });
+    // Even with a CV signal that plainly meets C1, the dim's `verdict` field stays null (only
+    // seniority carries an ExperienceVerdict today) — "cannot verify" must not read as "unmet":
+    // it is capped at stretch, never fabricated into not_recommended, and never lets a perfect
+    // score/coverage combo slip through to safe_apply either.
+    const signals: CvProfileSignals = {
+      english: { cefr: 'C1', source_kind: 'ielts', raw: '', confidence: 'high', signals: [] },
+      education: null,
+      domain: null,
+      work_mode: null,
+    };
+    const core = buildGapReportCore(m, null, null, signals, 'en');
+    expect(core.jd_intelligence?.dimensions[0].verdict).toBeNull();
+    expect(core.fit!.verdict).toBe('stretch');
+    expect(core.fit!.verdict).not.toBe('safe_apply');
+    expect(core.fit!.reasons).toContain('DEAL_BREAKER_UNVERIFIED');
+    expect(core.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
+  });
+
+  it('required_coverage flows through verbatim (no re-scoring) — low coverage blocks safe_apply', () => {
+    const m = baseMatch({ overall_score: 80, required_coverage: 0.4 });
+    const core = buildGapReportCore(m, null, null, null, 'en');
+    expect(core.fit!.reasons).toContain('LOW_COVERAGE');
+    expect(core.fit!.verdict).not.toBe('safe_apply');
+  });
+});
+
 describe('toRoadmapSkillRequirements (the P0 roadmap-trust fix)', () => {
   it('maps explicit→missing (current_level 0) and proficiency→partial (current_level=cv_level) in the exact DTO shape', () => {
     const m = baseMatch({

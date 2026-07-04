@@ -1,6 +1,7 @@
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
 import { SkillBridgeGapReport } from '../gap-report/gap-report.service';
 import { ProgressReport } from '../gap-report/gap-progress';
+import { Fixability } from '../gap-engine/gap-item';
 
 /**
  * Anti-fabrication core of the CV-diagnosis advisor (PURE — no LLM, no IO). The LLM only PHRASES an
@@ -44,6 +45,8 @@ export interface DiagnosisGapFact {
   /** pct_of_postings (0-100) or null. */
   market_demand: number | null;
   recommended_next_action: string;
+  /** How this gap can be closed (learn/rewrite/add_evidence/not_fixable_now) — deterministic, from GapItem. */
+  fixability: Fixability;
 }
 
 export interface DiagnosisOtherMatchInput {
@@ -269,6 +272,7 @@ export function buildDiagnosisFacts(
       severity: g.severity,
       market_demand: g.market_demand ?? null,
       recommended_next_action: g.recommended_next_action,
+      fixability: g.fixability,
     }));
 
   const facts: DiagnosisFacts = {

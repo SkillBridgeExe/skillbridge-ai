@@ -62,7 +62,6 @@ export class GapReportService {
       : null;
 
     const core = buildGapReportCore(input.match, ledger, cvSeniority, cvProfileSignals, lang);
-    const checklist = this.tailor.build({ match: input.match, review: input.review, lang });
     const marketDto = await this.market.build({ match: input.match, lang });
 
     // PR1: per-requirement market demand (pct_of_postings) when a snapshot exists — else the
@@ -73,8 +72,8 @@ export class GapReportService {
 
     // PR3/PR3c: feed extracted JD dimensions + CV seniority + CV profile signals — seniority/language/
     // education/domain grade into GapItems (work_mode is disclosure-only); absent (v1 path) ⇒
-    // byte-identical to before. Built ONCE here and reused for BOTH gap_items and the PR4 patch
-    // decorator (no recomputation).
+    // byte-identical to before. Built ONCE here and reused for gap_items, the checklist ranking
+    // below (A2), and the PR4 patch decorator (no recomputation).
     const gapItems = buildGapItems({
       match: input.match,
       ledger,
@@ -82,6 +81,17 @@ export class GapReportService {
       jdDimensions: input.match.jd_dimensions ?? null,
       cvSeniority,
       cvProfileSignals,
+    });
+
+    // A2: rank recommended_actions by the SAME severity as gap_items (fixes B3 — action #1 could
+    // contradict gap #1). Built from gapItems (already computed here) and passed INTO the checklist
+    // builder rather than re-derived/joined downstream.
+    const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
+    const checklist = this.tailor.build({
+      match: input.match,
+      review: input.review,
+      lang,
+      severityByCanonical,
     });
 
     return {

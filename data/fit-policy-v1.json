@@ -1,0 +1,8 @@
+{
+  "version": "fit-policy-v1",
+  "description": "Thresholds for classifyFit() (Wave ACTION A1) — a deterministic safe_apply/stretch/not_recommended verdict layered on top of scores already computed elsewhere (match overall_score / job-rec recommendation_score). No re-scoring here, only classification. Externalized so thresholds are versioned + tunable without touching classifyFit code.",
+  "not_recommended_score_below": 40,
+  "safe_apply_score_at_least": 65,
+  "safe_apply_coverage_at_least": 0.7,
+  "overqualified_severe_level_gap_at_least": 3
+}

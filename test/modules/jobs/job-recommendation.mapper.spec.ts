@@ -65,6 +65,8 @@ describe('buildJobRecommendation', () => {
       display_name: expect.any(String),
       gap_levels: expect.any(Number),
     });
+    // A1: job-rec fit always carries unmet_deal_breakers=[] (asymmetry — pool jobs have no jd_dimensions).
+    expect(rec.fit!.reasons).not.toContain('DEAL_BREAKER_UNMET');
   });
 
   it('includes experience_fit on the recommendation', async () => {
@@ -119,6 +121,12 @@ describe('buildJobRecommendation', () => {
     // was demoted (fresher CV vs SENIOR job → severe stretch → factor 0.4).
     expect(rec.seniority_factor).toBe(0.4);
     expect(rec.level_gap).toBeGreaterThanOrEqual(3);
+    // A1: severe stretch (fresher → SENIOR, demoted score) → not_recommended via SEVERE_STRETCH,
+    // fed by recommendationSeniorityPolicy().severe_stretch — not a hand-rolled threshold here.
+    expect(rec.fit!.verdict).toBe('not_recommended');
+    expect(rec.fit!.reasons).toEqual(
+      expect.arrayContaining(['SEVERE_STRETCH', 'SENIORITY_STRETCH']),
+    );
   });
 
   it('E5: seniority_factor is 1 and level_gap matches policy when the candidate fits', async () => {
@@ -163,6 +171,10 @@ describe('buildJobRecommendation', () => {
     });
     expect(rec.seniority_factor).toBe(1);
     expect(rec.level_gap).toBe(0);
+    // A1: recommendation_score (= match_score here, factor 1) feeds fit.score — a real match with no
+    // seniority penalty, so fit is at least not severely blocked (exact bucket depends on coverage).
+    expect(rec.fit!.reasons).not.toContain('SEVERE_STRETCH');
+    expect(rec.fit!.reasons).not.toContain('SENIORITY_OVERQUALIFIED');
   });
 });
 
