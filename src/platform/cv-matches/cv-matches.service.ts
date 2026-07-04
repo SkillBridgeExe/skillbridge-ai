@@ -343,6 +343,7 @@ export class CvMatchesService {
         sessionId: null,
         gapItems: report.gap_items,
         interviewItems: [],
+        actions: report.recommended_actions,
       });
       const preferences = await this.learningPreferences?.findOne({ where: { userId } });
       const budget = {

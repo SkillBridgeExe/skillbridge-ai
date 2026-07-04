@@ -15,6 +15,7 @@
 import { TailorAction } from './tailor-checklist';
 import { Fixability, GapItem } from '../gap-engine/gap-item';
 import { CanonicalCvDocument } from '../../common/types/canonical-cv';
+import { ExpectedImpact } from '../gap-report/impact-simulator';
 
 export type AnchorConfidence = 'high' | 'low' | null;
 
@@ -38,6 +39,11 @@ export interface PatchedTailorAction extends TailorAction {
   target_section: string | null;
   /** emphasize only: a deterministic, localized hint on how to surface the skill (no rewrite). */
   insertion_hint: string | null;
+  /** I1 (Wave IMPACT): deterministic what-if score/severity payoff of DOING this action — merged
+   *  in by gap-report.service.ts AFTER decorateWithPatch (via simulateActionImpact), so it lives
+   *  here rather than being computed inline. Absent when the action has no matching gap_item/
+   *  match-array entry to simulate against (never a fabricated 0-0). */
+  expected_impact?: ExpectedImpact;
 }
 
 type Lang = 'vi' | 'en';
