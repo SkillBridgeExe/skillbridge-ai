@@ -20,6 +20,7 @@ import { CvParserService } from './cv-parser.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
 import { ExperienceScoreResult, scoreExperience } from './experience-scorer';
+import { EducationScoreResult, scoreEducation } from './education-scorer';
 import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { buildEvidenceLedger } from '../../common/services/evidence-ledger';
@@ -250,9 +251,18 @@ export class CvReviewService {
       // own experience estimate is kept, mirroring the Dim-1/Dim-2 fallback behavior.
       const bulletFeedback = this.bulletAnalyzer.analyzeBullets(document);
       const experienceScore = scoreExperience(document, bulletFeedback);
-      const routed = experienceScore
+      const routed3 = experienceScore
         ? this.routeDimension3(routed2, experienceScore, document.language)
         : routed2;
+
+      // ─── Routed-Evidence: Dimension-4 (education) is scored deterministically too ───────────
+      // scoreEducation is a pure function over the structured document + the raw CV text (used
+      // ONLY to guard against a parser miss: education[] empty but the raw text still mentions a
+      // degree/school keyword). Null means "keep the LLM's own estimate", mirroring Dim-1/2/3.
+      const educationScore = scoreEducation(document, input.parsed_text ?? '');
+      const routed = educationScore
+        ? this.routeDimension4(routed3, educationScore, document.language)
+        : routed3;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
       const llm_normalized = Math.round((routed.llm_total / 80) * 100);
@@ -309,6 +319,7 @@ export class CvReviewService {
         bulletAnalysis,
         skillBreakdown,
         experienceScore,
+        educationScore,
         rationale: routed.rationale,
       });
 
@@ -712,16 +723,63 @@ export class CvReviewService {
   }
 
   /**
-   * Per-dimension explainability, built AFTER both routes settle. `action_verbs`/`skills_relevance`/
-   * `experience` are 'deterministic' when their route actually applied; otherwise (unsupported
-   * language / no rubric / signal too thin) they stay 'llm', same as `education` which has no
-   * deterministic route yet.
+   * Routed-Evidence: overlay the deterministic Dimension-4 (education) result onto the LLM
+   * output — same pattern as routeDimension1/2/3. `educationScore` is already null-checked by the
+   * caller (null = parser likely missed a real education section, LLM estimate is kept untouched).
+   */
+  private routeDimension4(
+    llmParsed: CvReviewLlmRawOutput,
+    educationScore: EducationScoreResult,
+    language: string,
+  ): CvReviewLlmRawOutput {
+    const scores = { ...llmParsed.scores, education: educationScore.score20 };
+    const llm_total =
+      scores.action_verbs + scores.skills_relevance + scores.experience + scores.education;
+    const vi = language === 'vi';
+    const rationale = {
+      ...llmParsed.rationale,
+      education: vi ? educationScore.rationale_vi : educationScore.rationale_en,
+    };
+
+    const dim4Section = {
+      name: 'Education',
+      score: Math.round((educationScore.score20 / 20) * 100),
+      issues: [
+        {
+          severity: 'info' as const,
+          text: vi ? educationScore.rationale_vi : educationScore.rationale_en,
+        },
+      ],
+    };
+    let replaced = false;
+    const sections = llmParsed.sections.map((s) => {
+      if (!replaced && this.isDim4Section(s.name)) {
+        replaced = true;
+        return { ...dim4Section, name: s.name };
+      }
+      return s;
+    });
+    if (!replaced) sections.unshift(dim4Section);
+
+    return { ...llmParsed, scores, llm_total, rationale, sections };
+  }
+
+  /** Match the Education section regardless of the exact label the prompt used. */
+  private isDim4Section(name: string): boolean {
+    return /education|học vấn|hoc van/i.test(name);
+  }
+
+  /**
+   * Per-dimension explainability, built AFTER both routes settle. All four dimensions are now
+   * 'deterministic' when their route actually applied; otherwise (unsupported language / no rubric
+   * / signal too thin / parser-miss guard) they stay 'llm'.
    */
   private buildDimensionProvenance(ctx: {
     dim1Supported: boolean;
     bulletAnalysis: BulletAnalysis;
     skillBreakdown: SkillBreakdownResult | null;
     experienceScore: ExperienceScoreResult | null;
+    educationScore: EducationScoreResult | null;
     rationale: CvReviewLlmRawOutput['rationale'];
   }): DimensionProvenance {
     return {
@@ -753,7 +811,13 @@ export class CvReviewService {
             evidence: ctx.experienceScore.evidence,
           }
         : { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.experience] },
-      education: { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.education] },
+      education: ctx.educationScore
+        ? {
+            source: 'deterministic',
+            confidence: ctx.educationScore.confidence,
+            evidence: ctx.educationScore.evidence,
+          }
+        : { source: 'llm', confidence: 'medium', evidence: [ctx.rationale.education] },
     };
   }
 
