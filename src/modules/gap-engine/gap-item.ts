@@ -91,6 +91,13 @@ export interface BuildGapItemsInput {
   /** CV-side profile signals (PR3b) — the CV-side input for language/education/domain grading (PR3c).
    *  Optional — absent ⇒ only seniority can grade; work_mode is never graded (disclosure-only). */
   cvProfileSignals?: CvProfileSignals | null;
+  /** I3 (Wave IMPACT): canonical_name → github citation for skills the platform corroborated via
+   *  GithubEvidenceService (opt-in username+consent, fetched BEFORE this call). A plain Map, not the
+   *  service itself — this module stays pure/sync and never depends on GithubEvidenceModule (avoids a
+   *  DI cycle; the platform layer fetches and converts `corroborated[]` → this Map). Optional — absent
+   *  on every pre-I3 caller (and whenever the user supplied no github params), so output stays
+   *  byte-identical. */
+  corroborated?: Map<string, { ref: string }> | null;
 }
 
 const importanceWeight = (importance: GapImportance): number =>
@@ -190,6 +197,43 @@ const ACTION_LABEL: Record<CvStatus, string> = {
   overclaimed: 'Bổ sung bằng chứng cho mức đã khai',
   matched: '',
 };
+
+// ── GitHub corroboration overlay (I3, Wave IMPACT) ──────────────────────────────────────────────
+// A public repo proves the candidate USED a skill; it can never prove the CLAIMED LEVEL — so
+// corroboration only ever moves evidence_risk down ONE notch (never touches cv_status/fixability/
+// gap_levels), and severity is simply recomputed from that new evidence_risk (no formula edits).
+const CORROBORATION_DOWNGRADE: Record<EvidenceRisk, EvidenceRisk> = {
+  listed_only: 'none',
+  unproven: 'listed_only',
+  none: 'none',
+};
+
+/** PURE: overlay github corroboration onto already-built items. No-op (same array) when
+ *  `corroborated` is absent/empty — the byte-identical guarantee for every pre-I3 caller. */
+function applyGithubCorroboration(
+  items: GapItem[],
+  corroborated: Map<string, { ref: string }>,
+): GapItem[] {
+  return items.map((item) => {
+    const hit = corroborated.get(item.canonical_name);
+    if (!hit) return item;
+    const evidence_risk = CORROBORATION_DOWNGRADE[item.evidence_risk];
+    const sevInput: SeverityInput = {
+      importance: item.importance,
+      gap_levels: item.gap_levels,
+      evidence_risk,
+      cv_status: item.cv_status,
+      market_demand: item.market_demand,
+    };
+    return {
+      ...item,
+      evidence_risk,
+      evidence: [...(item.evidence ?? []), { kind: 'github', ref: hit.ref, quote: null }],
+      severity: computeSeverity(sevInput),
+      severity_factors: severityFactors(sevInput),
+    };
+  });
+}
 
 const typeOf = (skillType?: 'hard' | 'soft'): GapType =>
   skillType === 'soft' ? 'soft_skill' : 'hard_skill';
@@ -323,7 +367,8 @@ export function gradeJdDimensions(input: {
  * every gap type.
  */
 export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
-  const { match, ledger, marketDemand, jdDimensions, cvSeniority, cvProfileSignals } = input;
+  const { match, ledger, marketDemand, jdDimensions, cvSeniority, cvProfileSignals, corroborated } =
+    input;
   const source: GapSource = match.source_of_requirements === 'jd_extraction' ? 'jd' : 'role_rubric';
 
   const evidenceGap = new Set(ledger?.evidence_gap ?? []);
@@ -480,11 +525,15 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     );
   }
 
+  // I3: overlay github corroboration (evidence_risk downgrade + citation) BEFORE ranking, so the
+  // sort below sees the corrected severity. No-op (same items) when corroborated is absent/empty.
+  const overlaid = corroborated?.size ? applyGithubCorroboration(items, corroborated) : items;
+
   // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
   // so two gaps that round to the same 3dp value still order by their true magnitude — e.g. a
   // market_demand 53 gap outranks an otherwise-identical 50 gap though both publish as 0.063. The
   // public GapItem.severity stays round3. Stable tiebreak by canonical keeps output reproducible.
-  return items
+  return overlaid
     .map((item) => ({ item, raw: severityRaw(item) }))
     .sort((a, b) => b.raw - a.raw || a.item.canonical_name.localeCompare(b.item.canonical_name))
     .map((entry) => entry.item);
