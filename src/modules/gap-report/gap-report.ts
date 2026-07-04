@@ -33,11 +33,13 @@ export interface EmphasisGapItem {
 export interface SeniorityBlock {
   /** Evidence-based CV seniority (#34). null when the review/document is unavailable. */
   cv: CvSeniority | null;
-  /** HONEST v1: pasted JDs carry no extracted level yet — ALWAYS null until JD-intelligence (P1).
-   *  PR3 keeps this null (the extracted JD level lives in jd_intelligence, not here) so the FE
-   *  contract (shared/api.ts GapSeniorityBlock.jd_level: null) is unchanged until the v2-flip PR. */
-  jd_level: null;
-  verdict: 'unknown';
+  /** E5 (v2-flip): the JD level_hint of the graded seniority dimension (SAME gradeSeniority() decision
+   *  jd_intelligence uses — never contradicts). null on the v1 path / when ungradeable, byte-identical
+   *  to the old always-null contract. */
+  jd_level: string | null;
+  /** E5: the real ExperienceVerdict when gradeSeniority() could grade the dim; 'unknown' otherwise
+   *  (byte-identical fallback — no dims, no/low-confidence CV seniority, no valid level_hint). */
+  verdict: ExperienceVerdict | 'unknown';
   note: string;
 }
 
@@ -224,6 +226,11 @@ export function buildGapReportCore(
     ? buildJdIntelligence(jdDims, cvSeniority, cvSignals, lang)
     : undefined;
 
+  // E5 (v2-flip): reuse the SAME gradeSeniority() decision jd_intelligence.dimensions[].verdict
+  // already carries, so the two blocks can never disagree. null/'unknown' when ungradeable —
+  // byte-identical to the pre-E5 hardcoded fallback.
+  const seniorityGrade = gradeSeniority(jdDims, cvSeniority);
+
   return {
     target_role: match.target_role,
     overall_score: match.overall_score,
@@ -231,7 +238,12 @@ export function buildGapReportCore(
     explicit_gaps: match.missing_skills,
     proficiency_gaps: match.partial_skills,
     evidence_gaps,
-    seniority: { cv: cvSeniority, jd_level: null, verdict: 'unknown', note: SENIORITY_NOTE[lang] },
+    seniority: {
+      cv: cvSeniority,
+      jd_level: seniorityGrade?.dim.level_hint ?? null,
+      verdict: seniorityGrade?.verdict ?? 'unknown',
+      note: SENIORITY_NOTE[lang],
+    },
     jd_emphasis_gaps,
     strengths: { matched: match.matched_skills, demonstrated, bonus: match.bonus_skills },
     ...(jd_intelligence ? { jd_intelligence } : {}),
