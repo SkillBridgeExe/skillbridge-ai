@@ -122,6 +122,7 @@ describe('buildDiagnosisFacts', () => {
         severity: 0.5,
         market_demand: 60,
         recommended_next_action: 'Học & bổ sung kỹ năng này',
+        fixability: 'learn',
       },
     ]);
   });
