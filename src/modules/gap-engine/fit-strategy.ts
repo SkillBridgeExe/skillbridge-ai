@@ -25,7 +25,8 @@ export type FitReasonCode =
   | 'SENIORITY_OVERQUALIFIED'
   | 'DEAL_BREAKER_UNMET'
   | 'SEVERE_STRETCH'
-  | 'DEAL_BREAKER_UNVERIFIED';
+  | 'DEAL_BREAKER_UNVERIFIED'
+  | 'MID_SCORE';
 
 export interface FitInput {
   score: number;
@@ -91,6 +92,11 @@ export function classifyFit(input: FitInput): FitVerdict {
   const dealBreaker = input.unmet_deal_breakers.length > 0;
   const severeStretch = input.severe_stretch === true;
   const unverifiedDealBreaker = (input.unverified_deal_breakers?.length ?? 0) > 0;
+  // Mid-band score (not low enough for LOW_SCORE, not high enough for STRONG_SCORE) — makes every
+  // mid-score stretch explainable even when coverage is null and seniority is unknown (no other
+  // reason would otherwise fire). Reuses the already-policy-derived low/strong flags instead of a
+  // third literal threshold pair.
+  const midScore = !lowScore && !strongScore;
 
   if (strongScore) reasons.push('STRONG_SCORE');
   if (strongCoverage) reasons.push('STRONG_COVERAGE');
@@ -102,6 +108,7 @@ export function classifyFit(input: FitInput): FitVerdict {
   if (dealBreaker) reasons.push('DEAL_BREAKER_UNMET');
   if (severeStretch) reasons.push('SEVERE_STRETCH');
   if (unverifiedDealBreaker) reasons.push('DEAL_BREAKER_UNVERIFIED');
+  if (midScore) reasons.push('MID_SCORE');
 
   if (dealBreaker || lowScore || severeOverQualified || severeStretch) {
     return { verdict: 'not_recommended', reasons };

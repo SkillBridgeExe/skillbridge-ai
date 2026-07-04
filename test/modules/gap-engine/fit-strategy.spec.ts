@@ -146,4 +146,13 @@ describe('classifyFit', () => {
       expect.arrayContaining(['DEAL_BREAKER_UNMET', 'DEAL_BREAKER_UNVERIFIED']),
     );
   });
+
+  // A2 fix: score in [40,65) always gets an explaining reason code, even with no other signal.
+  it('mid-score (coverage null, seniority unknown) → stretch with only MID_SCORE', () => {
+    const result = classifyFit(
+      base({ score: 50, required_coverage: null, seniority_verdict: 'unknown' }),
+    );
+    expect(result.verdict).toBe('stretch');
+    expect(result.reasons).toEqual(['MID_SCORE']);
+  });
 });
