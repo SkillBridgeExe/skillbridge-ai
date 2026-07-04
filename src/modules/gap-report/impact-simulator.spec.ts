@@ -99,6 +99,43 @@ describe('impact-simulator', () => {
       });
       expect(mirrored).toBe(res.overall_score);
     });
+
+    it('cap-bound (raw > cap): many REQUIRED missing + abundant PREFERRED matched', () => {
+      // 2 REQUIRED (Docker/Kubernetes, both missing) + 3 PREFERRED (React/SQL/Git, all matched at
+      // the bar) -- 5 equal-weight hard skills -> weight 0.2 each. weightSum = 0.2*1.0*2 (REQUIRED)
+      // + 0.2*0.6*3 (PREFERRED) = 0.76; achieved = 0.2*0.6*3 = 0.36 (only the matched trio);
+      // raw = 0.36/0.76*100 = 47.37; required_coverage = 0/2 = 0 (both REQUIRED still missing) ->
+      // cap = 45. raw(47.37) > cap(45) -> the cap BINDS -> overall_score = round(min(47.37,45)) = 45,
+      // strictly less than round(raw) = 47 -- this is what closes the mirror-proof gap the earlier
+      // 3 fixtures (mixed / all-matched / all-missing) never exercised through the REAL diff().
+      const res = realDiff(
+        [
+          { name: 'React', proficiency_hint: 'ADVANCED' },
+          { name: 'SQL', proficiency_hint: 'ADVANCED' },
+          { name: 'Git', proficiency_hint: 'ADVANCED' },
+        ],
+        [
+          { name: 'Docker', importance_hint: 'REQUIRED', required_level_hint: 'EXPERT' },
+          { name: 'Kubernetes', importance_hint: 'REQUIRED', required_level_hint: 'EXPERT' },
+          { name: 'React', importance_hint: 'PREFERRED', required_level_hint: 'ADVANCED' },
+          { name: 'SQL', importance_hint: 'PREFERRED', required_level_hint: 'ADVANCED' },
+          { name: 'Git', importance_hint: 'PREFERRED', required_level_hint: 'ADVANCED' },
+        ],
+      );
+      expect(res.missing_skills.length).toBe(2);
+      expect(res.matched_skills.length).toBe(3);
+      expect(res.required_coverage).toBe(0);
+      // Proves the cap actually binds here (not a coincidental equality): round(raw) alone would be
+      // 47, strictly above the capped overall_score.
+      expect(res.overall_score).toBe(45);
+
+      const mirrored = recomputeOverall({
+        matched_skills: res.matched_skills,
+        partial_skills: res.partial_skills,
+        missing_skills: res.missing_skills,
+      });
+      expect(mirrored).toBe(res.overall_score);
+    });
   });
 
   // ── simulateActionImpact: score-moving actions (missing_required / deepen_wording) ───────────
