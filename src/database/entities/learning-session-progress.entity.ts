@@ -32,6 +32,9 @@ export class LearningSessionProgressEntity {
   @Column({ type: 'jsonb', name: 'exercise_proofs', default: () => "'{}'::jsonb" })
   exerciseProofs!: Record<string, string>;
 
+  @Column({ type: 'jsonb', name: 'quiz_attempts', default: () => "'{}'::jsonb" })
+  quizAttempts!: Record<string, unknown>;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
 

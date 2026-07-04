@@ -30,6 +30,13 @@ export interface ResourceSkill {
   teaches_level: number;
 }
 
+export interface VideoChapter {
+  id: string;
+  title: string;
+  start_seconds: number;
+  objective_id?: string;
+}
+
 export interface LearningResource {
   id: string;
   source_type: ResourceSourceType;
@@ -46,6 +53,7 @@ export interface LearningResource {
   outcome_type: OutcomeType;
   proof_of_completion?: string;
   addresses?: WeaknessAddress[];
+  video_chapters?: VideoChapter[];
   description?: string; // curated summary — RAG source (future)
   quality_score: number; // 0-100
   freshness_score: number; // 0-100 (stored; offline job recomputes)
@@ -256,6 +264,27 @@ function coerceSkills(v: unknown): ResourceSkill[] | null {
   return out;
 }
 
+function coerceVideoChapters(v: unknown): VideoChapter[] | undefined | null {
+  if (v === undefined) return undefined;
+  if (!Array.isArray(v)) return null;
+  const out: VideoChapter[] = [];
+  for (const c of v) {
+    if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+    const o = c as Record<string, unknown>;
+    if (!isNonEmptyStr(o.id) || !isNonEmptyStr(o.title) || !isFiniteNum(o.start_seconds)) {
+      return null;
+    }
+    if (o.start_seconds < 0) return null;
+    out.push({
+      id: o.id,
+      title: o.title,
+      start_seconds: Math.floor(o.start_seconds),
+      objective_id: isNonEmptyStr(o.objective_id) ? o.objective_id : undefined,
+    });
+  }
+  return out;
+}
+
 /**
  * Validate + coerce the EXPLICIT learning-resource-catalog.json `resources` array (untrusted hand-curated
  * JSON). Drops any entry that isn't a well-formed LearningResource — invalid enum, non-number metric,
@@ -331,6 +360,11 @@ export function coerceLearningResources(
       drop(`resource '${id}': invalid skills array`);
       continue;
     }
+    const videoChapters = coerceVideoChapters(o.video_chapters);
+    if (videoChapters === null) {
+      drop(`resource '${id}': invalid video_chapters`);
+      continue;
+    }
     out.push({
       id,
       source_type: o.source_type as ResourceSourceType,
@@ -351,6 +385,7 @@ export function coerceLearningResources(
       addresses: Array.isArray(o.addresses)
         ? o.addresses.filter((a): a is WeaknessAddress => ADDRESSES.has(a as WeaknessAddress))
         : undefined,
+      video_chapters: videoChapters,
       description: typeof o.description === 'string' ? o.description : undefined,
       quality_score: o.quality_score,
       freshness_score: o.freshness_score,

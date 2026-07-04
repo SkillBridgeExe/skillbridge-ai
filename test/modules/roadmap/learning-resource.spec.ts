@@ -267,6 +267,31 @@ describe('coerceLearningResources', () => {
     expect(out[0].id).toBe('v1');
   });
 
+  it('keeps valid video chapters on explicit YouTube resources', () => {
+    const out = coerceLearningResources([
+      {
+        ...valid,
+        video_chapters: [
+          {
+            id: 'react-state-events',
+            title: 'State and events',
+            start_seconds: 720,
+            objective_id: 'react-state-events',
+          },
+        ],
+      },
+    ]);
+
+    expect(out[0].video_chapters).toEqual([
+      {
+        id: 'react-state-events',
+        title: 'State and events',
+        start_seconds: 720,
+        objective_id: 'react-state-events',
+      },
+    ]);
+  });
+
   it('drops resources with an invalid enum (source_type/validation_status/outcome_type/difficulty/language) + warns each', () => {
     const dropped: string[] = [];
     const out = coerceLearningResources(
@@ -300,6 +325,17 @@ describe('coerceLearningResources', () => {
     expect(
       coerceLearningResources([
         { ...valid, skills: [{ skill_canonical_name: 'go', teaches_level: 'x' }] },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('drops malformed video chapters instead of accepting unsafe chapter metadata', () => {
+    expect(
+      coerceLearningResources([
+        {
+          ...valid,
+          video_chapters: [{ id: 'bad', title: 'Bad', start_seconds: -1 }],
+        },
       ]),
     ).toEqual([]);
   });
