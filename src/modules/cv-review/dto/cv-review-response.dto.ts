@@ -62,7 +62,8 @@ export interface SkillBreakdownItem {
   skill_type?: 'hard' | 'soft';
 }
 
-/** Deterministic Dimension-2 breakdown vs the role rubric — display-only, does NOT change the score. */
+/** Deterministic Dimension-2 breakdown vs the role rubric. On current responses this also explains
+ *  the routed skills_relevance score; older cached results may have used it display-only. */
 export interface SkillsRelevanceBreakdown {
   matched: SkillBreakdownItem[];
   partial: SkillBreakdownItem[];

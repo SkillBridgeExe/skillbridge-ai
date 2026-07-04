@@ -89,6 +89,10 @@ const SENIORITY_NOTE = {
   vi: 'Cấp độ JD chưa trích xuất được từ JD dán (sẽ bổ sung) — chỉ hiển thị ước lượng phía CV, không kết luận hợp/lệch.',
   en: 'The pasted JD carries no extracted level yet — only the CV-side estimate is shown; no fit verdict is made.',
 } as const;
+const SENIORITY_GRADED_NOTE = {
+  vi: 'Đã trích xuất cấp độ JD và so sánh với ước lượng kinh nghiệm phía CV.',
+  en: 'The JD level was extracted and compared with the CV-side experience estimate.',
+} as const;
 
 const JD_INTEL_NOTE = {
   vi: 'Đã chấm gap cho cấp độ/kinh nghiệm, ngôn ngữ, học vấn và lĩnh vực khi CV có tín hiệu tương ứng. Hình thức làm việc chỉ hiển thị (không chấm gap). Các mục không đủ tín hiệu phía CV được bỏ qua một cách trung thực.',
@@ -242,7 +246,7 @@ export function buildGapReportCore(
       cv: cvSeniority,
       jd_level: seniorityGrade?.dim.level_hint ?? null,
       verdict: seniorityGrade?.verdict ?? 'unknown',
-      note: SENIORITY_NOTE[lang],
+      note: seniorityGrade ? SENIORITY_GRADED_NOTE[lang] : SENIORITY_NOTE[lang],
     },
     jd_emphasis_gaps,
     strengths: { matched: match.matched_skills, demonstrated, bonus: match.bonus_skills },

@@ -175,6 +175,7 @@ describe('buildGapReportCore (pure)', () => {
     expect(core.seniority.verdict).toBe('stretch'); // fresher vs SENIOR ⇒ same verdict as jd_intelligence
     expect(core.jd_intelligence?.dimensions[0].verdict).toBe(core.seniority.verdict); // never contradict
     expect(core.seniority.cv).toEqual(seniority);
+    expect(core.seniority.note).not.toMatch(/no fit verdict|không kết luận/i);
   });
 
   it('E5: seniority block keeps byte-identical {null, unknown} fallback when the dim cannot be graded', () => {

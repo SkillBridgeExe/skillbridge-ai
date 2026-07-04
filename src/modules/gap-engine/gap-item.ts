@@ -339,7 +339,7 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       (i) =>
         [
           i.skill_canonical,
-          i.sources.map((s) => ({ kind: s.kind, ref: s.ref, quote: s.quote })),
+          i.sources.map((s) => ({ kind: s.kind, ref: s.ref, quote: s.quote ?? null })),
         ] as const,
     ),
   );

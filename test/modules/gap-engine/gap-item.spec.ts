@@ -266,6 +266,28 @@ describe('buildGapItems', () => {
     expect(noEv.evidence).toBeUndefined();
   });
 
+  it('normalizes legacy persisted ledger sources that predate quote to quote:null', () => {
+    const legacyLedger = {
+      items: [
+        {
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          sources: [{ kind: 'experience', ref: 'FPT — BE', recency_year: 2024 }],
+          strength: 'demonstrated',
+          most_recent_year: 2024,
+        },
+      ],
+      evidence_gap: [],
+    } as unknown as EvidenceLedger;
+
+    const [withLegacyEv] = buildGapItems({
+      match: emptyMatch({ partial_skills: [partial()] }),
+      ledger: legacyLedger,
+    });
+
+    expect(withLegacyEv.evidence).toEqual([{ kind: 'experience', ref: 'FPT — BE', quote: null }]);
+  });
+
   it('matched skill listed-only (in evidence_gap) → unproven / add_evidence', () => {
     const ledger: EvidenceLedger = {
       items: [

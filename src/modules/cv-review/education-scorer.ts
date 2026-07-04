@@ -25,7 +25,8 @@ const CAP = 20;
 
 /** Parser-miss guard: an empty education[] with one of these tokens in the raw text likely means
  *  the parser dropped a real section — score deterministically to 4 ONLY when absent. */
-const EDU_TOKEN_RE = /đại học|cao đẳng|university|college|bachelor|b\.?s\.?|kỹ sư/i;
+const EDU_TOKEN_RE =
+  /đại học|dai hoc|cao đẳng|cao dang|university|college|bachelor|b\.?s\.?|cử nhân|cu nhan|kỹ sư|ky su|tốt nghiệp|tot nghiep/i;
 
 /** IT-relatedness of a field-of-study string. `classifyDegree` answers "does this text contain
  *  degree vocabulary" (e.g. "kỹ sư" = engineer, "thạc sĩ" = master) — NOT "is this IT" (a

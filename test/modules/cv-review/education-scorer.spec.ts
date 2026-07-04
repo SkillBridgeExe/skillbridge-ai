@@ -64,6 +64,15 @@ describe('scoreEducation (Dim-4 deterministic scorer)', () => {
     expect(result).toBeNull();
   });
 
+  it('education empty + unaccented Vietnamese rawText mentions "Dai hoc" → null (parser likely missed it)', () => {
+    const document = doc({ education: [] });
+    const result = scoreEducation(
+      document,
+      'Tot nghiep Dai hoc Bach Khoa Ha Noi, chuyen nganh CNTT.',
+    );
+    expect(result).toBeNull();
+  });
+
   it('bachelor economics (non-IT field, no GPA) → 14 (8 + 6, no field/GPA bonus)', () => {
     const document = doc({
       education: [edu({ school: 'Đại học Kinh tế', degree: 'Cử nhân', field: 'Kinh tế' })],
