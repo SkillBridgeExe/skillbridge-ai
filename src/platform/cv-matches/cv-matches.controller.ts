@@ -183,12 +183,25 @@ export class CvMatchReportsController {
   @ApiOperation({ summary: 'Get the unified gap report for a persisted CV/JD match' })
   @ApiParam({ name: 'matchId', format: 'uuid' })
   @ApiQuery({ name: 'lang', required: false, enum: ['vi', 'en'] })
+  @ApiQuery({
+    name: 'github_username',
+    required: false,
+    description:
+      'I3: opt-in github handle (needs github_consent=true) — corroborated skills get evidence_risk lowered one notch plus a github citation.',
+  })
+  @ApiQuery({ name: 'github_consent', required: false, enum: ['true', 'false'] })
   gapReport(
     @CurrentUser() user: JwtUser,
     @Param('matchId') matchId: string,
     @Query('lang') lang?: string,
+    @Query('github_username') githubUsername?: string,
+    @Query('github_consent') githubConsent?: string,
   ) {
-    return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang));
+    const github =
+      githubUsername && githubConsent === 'true'
+        ? { username: githubUsername, consent: true }
+        : undefined;
+    return this.matches.getGapReport(user.userId, matchId, normalizeLang(lang), github);
   }
 
   @Get(':matchId/next-steps')

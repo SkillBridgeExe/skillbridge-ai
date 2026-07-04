@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   PayloadTooLargeException,
@@ -42,6 +43,7 @@ import {
 import { buildNextSteps, NextStep } from '../../modules/gap-advisor/gap-advisor';
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
+import { GithubEvidenceService } from '../../modules/github-evidence/github-evidence.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
@@ -63,6 +65,8 @@ export interface OtherMatchSummary {
 
 @Injectable()
 export class CvMatchesService {
+  private readonly logger = new Logger(CvMatchesService.name);
+
   constructor(
     @InjectRepository(CvEntity) private readonly cvs: Repository<CvEntity>,
     @InjectRepository(JobDescriptionEntity)
@@ -92,6 +96,10 @@ export class CvMatchesService {
     @Optional()
     @InjectRepository(UserLearningPreferenceEntity)
     private readonly learningPreferences?: Repository<UserLearningPreferenceEntity>,
+    // I3 (Wave IMPACT): optional for positional unit-test construction; Nest injects it via
+    // GithubEvidenceModule. Used ONLY by getGapReport's opt-in github corroboration pre-pass —
+    // never by the sub-report callers (progress/roadmap/interview/next-steps).
+    private readonly githubEvidence?: GithubEvidenceService,
   ) {}
 
   async createMatch(
@@ -242,13 +250,57 @@ export class CvMatchesService {
     return this.toResponse(match, jd, await this.resolveParsedResponse(match));
   }
 
+  /**
+   * I3 (Wave IMPACT): `github` is additive + opt-in (query params on the ONE main gap-report route
+   * only — see CvMatchReportsController.gapReport). Every internal caller of this method (next-steps,
+   * interview-plan-from-match, interview-focus-areas) omits it, so they never fetch github and stay
+   * byte-identical to before this change.
+   */
   async getGapReport(
     userId: string,
     matchId: string,
     lang: 'vi' | 'en' = 'vi',
+    github?: { username: string; consent: boolean },
   ): Promise<SkillBridgeGapReport> {
     const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
-    return this.buildGapReportFromParsed(userId, match, parsed, lang);
+    const corroborated = github
+      ? await this.fetchGithubCorroboration(userId, match.cvId, github, lang)
+      : undefined;
+    return this.buildGapReportFromParsed(userId, match, parsed, lang, corroborated);
+  }
+
+  /**
+   * Never-throw: any failure (invalid username, rate-limited, no review yet, unexpected error) just
+   * degrades to "no corroboration" — the gap report still builds normally, it simply skips the
+   * evidence_risk downgrade + github citation for this request.
+   */
+  private async fetchGithubCorroboration(
+    userId: string,
+    cvId: string,
+    github: { username: string; consent: boolean },
+    lang: 'vi' | 'en',
+  ): Promise<Map<string, { ref: string }> | undefined> {
+    if (!this.githubEvidence || !this.platformCvs) return undefined;
+    try {
+      const review = await this.platformCvs.getLatestReview(userId, cvId);
+      const dto = await this.githubEvidence.build({
+        username: github.username,
+        consent: github.consent,
+        review,
+        lang,
+      });
+      if (!dto.available) return undefined;
+      const map = new Map<string, { ref: string }>();
+      for (const c of dto.corroborated) {
+        map.set(c.skill_canonical, { ref: c.repos[0]?.name ?? c.skill_canonical });
+      }
+      return map;
+    } catch (err) {
+      this.logger.warn(
+        `github corroboration fetch failed for gap-report (cv ${cvId}): ${String(err)}`,
+      );
+      return undefined;
+    }
   }
 
   async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
@@ -507,6 +559,7 @@ export class CvMatchesService {
     match: CvMatchEntity,
     parsed: CvJdMatchParsedResponse,
     lang: 'vi' | 'en' = 'vi',
+    corroborated?: Map<string, { ref: string }>,
   ): Promise<SkillBridgeGapReport> {
     if (!this.gapReport || !this.platformCvs) {
       throw new Error('Gap report dependencies are not configured');
@@ -515,6 +568,7 @@ export class CvMatchesService {
       match: parsed,
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
+      corroborated,
     });
   }
 

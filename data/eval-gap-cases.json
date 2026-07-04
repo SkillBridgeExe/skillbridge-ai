@@ -311,6 +311,25 @@
       "rationale": "PR3c: work_mode is disclosure-only — even a deal-breaker onsite JD vs a remote CV produces NO GapItem.",
       "expect": [{ "canonical": "git", "cv_status": "matched" }],
       "expect_absent": ["work_mode"]
+    },
+    {
+      "id": "github-corroboration-lowers-evidence-risk",
+      "target_role": "frontend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_listed_only": ["react", "sql"],
+      "corroborated": { "react": "acme/react-dashboard", "sql": "acme/sql-reports" },
+      "rationale": "I3 (Wave IMPACT): platform-fetched github corroboration overlay. React ADVANCED+listed_only → overclaimed/unproven pre-overlay; a corroborating repo downgrades evidence_risk to listed_only (cv_status stays overclaimed — repo proves USAGE, not the claimed LEVEL). SQL listed_only/partial downgrades to none. Both get a github evidence citation.",
+      "expect": [
+        { "canonical": "react", "cv_status": "overclaimed", "evidence_risk": "listed_only", "evidence_kind": "github" },
+        { "canonical": "sql", "cv_status": "partial", "evidence_risk": "none", "evidence_kind": "github" }
+      ]
     }
   ]
 }

@@ -50,6 +50,10 @@ export class GapReportService {
     match: CvJdMatchParsedResponse;
     review: CvReviewParsedResponse | null;
     lang?: 'vi' | 'en';
+    /** I3 (Wave IMPACT): platform-fetched github corroboration (opt-in username+consent), converted
+     *  to a plain Map BEFORE this call — see CvMatchesService.fetchGithubCorroboration. Optional;
+     *  absent on every non-opted-in request ⇒ passed through as a no-op to buildGapItems. */
+    corroborated?: Map<string, { ref: string }> | null;
   }): Promise<SkillBridgeGapReport> {
     const lang = input.lang ?? 'vi';
     const ledger = input.review?.evidence_ledger ?? null;
@@ -82,6 +86,7 @@ export class GapReportService {
       jdDimensions: input.match.jd_dimensions ?? null,
       cvSeniority,
       cvProfileSignals,
+      corroborated: input.corroborated ?? null,
     });
 
     // A2: rank recommended_actions by the SAME severity as gap_items (fixes B3 — action #1 could

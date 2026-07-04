@@ -10,6 +10,7 @@ import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
 import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
 import { InterviewModule } from '../../modules/interview/interview.module';
+import { GithubEvidenceModule } from '../../modules/github-evidence/github-evidence.module';
 import { BillingModule } from '../billing/billing.module';
 import { CvsModule } from '../cvs/cvs.module';
 import { InterviewsModule } from '../interviews/interviews.module';
@@ -35,6 +36,9 @@ import { UnifiedPlanService } from './unified-plan.service';
     InterviewModule,
     forwardRef(() => InterviewsModule),
     CvsModule,
+    // I3 (Wave IMPACT): GithubEvidenceModule is a leaf module (no imports of its own — CvsModule
+    // already depends on it directly), so importing it here too is cycle-free.
+    GithubEvidenceModule,
   ],
   controllers: [CvMatchesController, CvMatchReportsController],
   providers: [CvMatchesService, JdTextExtractorService, UnifiedPlanService],
