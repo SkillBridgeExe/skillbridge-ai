@@ -16,6 +16,7 @@ import {
   ExperienceFit,
   CvSeniority,
 } from '../../../common/services/seniority';
+import { classifyFit, FitVerdict } from '../../gap-engine/fit-strategy';
 
 export interface JobRecommendation {
   job_id: string;
@@ -59,6 +60,12 @@ export interface JobRecommendation {
   /** Same breakdown the score was computed from — lets the FE detail match the card exactly. */
   scoring_breakdown: DiffResult['scoring_breakdown'];
   experience_fit: ExperienceFit;
+  /** Wave ACTION (A1): deterministic safe_apply/stretch/not_recommended verdict, input score =
+   *  recommendation_score (the seniority-adjusted ranking score, not the raw skill match_score).
+   *  `fit.reasons[]` never includes DEAL_BREAKER_UNMET here — see the asymmetry note below.
+   *  Optional (additive, same convention as jd_dimensions?/inferred_skills? elsewhere) — always
+   *  populated on the live path, only absent for pre-A1 reconstructed/cached rows. */
+  fit?: FitVerdict;
 }
 
 export interface JobRecommendationResponse {
@@ -354,6 +361,19 @@ export function buildJobRecommendation(
   experienceFit: ExperienceFit,
 ): JobRecommendation {
   const policy = recommendationSeniorityPolicy(experienceFit);
+  const recommendation_score = Math.round(diff.overall_score * policy.factor);
+  // ponytail: unmet_deal_breakers is always [] here — pool jobs only carry job_skills (SkillDiffService
+  // requirements), never the jd_dimensions block (deal_breaker/verdict) that only a pasted-JD match
+  // extracts. Asymmetric vs. the gap-report path on purpose (see PR body); revisit if pool jobs ever
+  // gain JD-derived dimensions.
+  const fit = classifyFit({
+    score: recommendation_score,
+    required_coverage: diff.required_coverage,
+    seniority_verdict: experienceFit.verdict,
+    unmet_deal_breakers: [],
+    level_gap: policy.level_gap,
+    severe_stretch: policy.severe_stretch,
+  });
   return {
     job_id: job.id,
     slug: job.slug,
@@ -371,7 +391,7 @@ export function buildJobRecommendation(
     source_url: job.application_mode === 'EXTERNAL' ? job.source_url : null,
     posted_at: job.posted_at,
     match_score: diff.overall_score,
-    recommendation_score: Math.round(diff.overall_score * policy.factor),
+    recommendation_score,
     severe_stretch: policy.severe_stretch,
     seniority_factor: policy.factor,
     level_gap: policy.level_gap,
@@ -389,5 +409,6 @@ export function buildJobRecommendation(
     })),
     scoring_breakdown: diff.scoring_breakdown,
     experience_fit: experienceFit,
+    fit,
   };
 }

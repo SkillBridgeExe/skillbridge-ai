@@ -15,6 +15,7 @@ import {
 } from '../gap-engine/jd-dimensions';
 import { CvProfileSignals } from '../../common/services/cv-profile-signals';
 import { GapItem } from '../gap-engine/gap-item';
+import { classifyFit, FitVerdict } from '../gap-engine/fit-strategy';
 
 export interface EvidenceGapItem {
   skill_canonical: string;
@@ -83,6 +84,10 @@ export interface GapReportCore {
    *  is byte-identical. Present only when cv_jd_match_v2 extracted dimensions. */
   jd_intelligence?: JdIntelligenceBlock;
   language: 'vi' | 'en';
+  /** Wave ACTION (A1): deterministic safe_apply/stretch/not_recommended verdict, input score =
+   *  overall_score (the match score, not re-scored). unmet_deal_breakers is derived from
+   *  jd_intelligence dims (see buildGapReportCore) — always [] on the v1 path (no jd_intelligence). */
+  fit?: FitVerdict;
 }
 
 const SENIORITY_NOTE = {
@@ -176,6 +181,15 @@ function buildJdIntelligence(
 const EMPHASIS_JD_MIN = 2;
 const EMPHASIS_CV_MAX = 1;
 
+/** A JD-Intelligence dim's requirement counts as MET when the graded seniority verdict says the CV
+ *  fits or exceeds it (`fits`/`over_qualified`). `stretch`, `unknown`, and null (ungraded — language/
+ *  education/domain/work_mode never carry an ExperienceVerdict today, only seniority does — see
+ *  buildJdIntelligence above) are all treated as UNMET: this codebase's honesty rule is to never
+ *  claim a deal-breaker is satisfied without a positive, graded confirmation. */
+function isDimVerdictMet(verdict: ExperienceVerdict | null): boolean {
+  return verdict === 'fits' || verdict === 'over_qualified';
+}
+
 /**
  * Gap Engine v1 — the deterministic core of SkillBridgeGapReport. Pure composition over data
  * the eval-gated stack already computed: NOTHING here is rescored, reweighted, or invented.
@@ -234,6 +248,20 @@ export function buildGapReportCore(
   // already carries, so the two blocks can never disagree. null/'unknown' when ungradeable —
   // byte-identical to the pre-E5 hardcoded fallback.
   const seniorityGrade = gradeSeniority(jdDims, cvSeniority);
+  const seniorityVerdict = seniorityGrade?.verdict ?? 'unknown';
+
+  // A1 (Wave ACTION): deal-breaker dims that are NOT confirmed met — see isDimVerdictMet above.
+  // [] on the v1 path (no jd_intelligence extracted at all, same as the byte-identical fallback).
+  const unmetDealBreakers = (jd_intelligence?.dimensions ?? [])
+    .filter((d) => d.deal_breaker && !isDimVerdictMet(d.verdict))
+    .map((d) => d.value_text);
+
+  const fit = classifyFit({
+    score: match.overall_score,
+    required_coverage: match.required_coverage,
+    seniority_verdict: seniorityVerdict,
+    unmet_deal_breakers: unmetDealBreakers,
+  });
 
   return {
     target_role: match.target_role,
@@ -245,13 +273,14 @@ export function buildGapReportCore(
     seniority: {
       cv: cvSeniority,
       jd_level: seniorityGrade?.dim.level_hint ?? null,
-      verdict: seniorityGrade?.verdict ?? 'unknown',
+      verdict: seniorityVerdict,
       note: seniorityGrade ? SENIORITY_GRADED_NOTE[lang] : SENIORITY_NOTE[lang],
     },
     jd_emphasis_gaps,
     strengths: { matched: match.matched_skills, demonstrated, bonus: match.bonus_skills },
     ...(jd_intelligence ? { jd_intelligence } : {}),
     language: lang,
+    fit,
   };
 }
 
