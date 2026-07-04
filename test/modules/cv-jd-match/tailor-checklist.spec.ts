@@ -230,4 +230,42 @@ describe('buildTailorChecklist — severity ranking (A2, fixes B3)', () => {
     expect(ranked[0].gap_severity).toBe(0.9);
     expect(ranked[1]).not.toHaveProperty('gap_severity');
   });
+
+  it('FIX: buckets 1-3 alone fill all 8 slots — a highest-severity bucket-4 (deepen_wording) action must still make the top-8 and lead', () => {
+    const m8 = baseMatch({
+      missing_skills: [missing('m0', 0.3), missing('m1', 0.25), missing('m2', 0.2)], // bucket 1: 3
+      matched_skills: [
+        matched('ae0', 0.3), // bucket 2 (add_evidence): 2
+        matched('ae1', 0.25),
+        matched('em0', 0.1), // bucket 3 (emphasize): 3
+        matched('em1', 0.1),
+        matched('em2', 0.1),
+      ],
+      partial_skills: [partial('deep0', 0.1, 2, 4)], // bucket 4 (deepen_wording): 1 — the one that matters
+      keyword_frequency: [kf('em0', 0, 3), kf('em1', 1, 2), kf('em2', 0, 2)],
+    });
+    const ledger8 = ledgerOf(['ae0', 'ae1'], [['deep0', 'Dự án X']]);
+
+    // Sanity: buckets 1-3 alone already saturate MAX_TOTAL=8 before deepen_wording is considered.
+    const unranked = buildTailorChecklist(m8, ledger8, 'vi');
+    expect(unranked).toHaveLength(8);
+    expect(unranked.some((x) => x.skill_canonical === 'deep0')).toBe(false); // old bug: sliced out
+
+    const severityByCanonical = new Map<string, number>([
+      ['m0', 0.3],
+      ['m1', 0.2],
+      ['m2', 0.1], // lowest severity in the whole pool → must be the one capped out
+      ['ae0', 0.5],
+      ['ae1', 0.4],
+      ['em0', 0.6],
+      ['em1', 0.55],
+      ['em2', 0.5],
+      ['deep0', 0.99], // highest severity in the whole pool, but lives in bucket 4
+    ]);
+    const ranked = buildTailorChecklist(m8, ledger8, 'vi', severityByCanonical);
+    expect(ranked.length).toBeLessThanOrEqual(8);
+    expect(ranked[0].skill_canonical).toBe('deep0'); // top severity → top of the list
+    expect(ranked[0].action_type).toBe('deepen_wording');
+    expect(ranked.some((x) => x.skill_canonical === 'm2')).toBe(false); // lowest severity capped out instead
+  });
 });
