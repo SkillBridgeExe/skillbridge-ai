@@ -6,10 +6,13 @@ import { ChatConversationEntity } from '../../database/entities/chat-conversatio
 import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
 import { ChatService } from '../../modules/learning-chat/learning-chat.service';
 import { buildChatFacts } from '../../modules/learning-chat/chat-grounding';
+import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import { LearningChatRequestDto } from './dto/learning-chat.dto';
+import { LearningSessionProgressService } from './session-progress.service';
+import { computeObjectiveMastery } from './quiz-mastery';
 
 const MAX_HISTORY = 10;
 const LEARNING_CHAT_REQUEST_TYPE = 'learning_chat';
@@ -44,6 +47,7 @@ export class LearningChatPlatformService {
     private readonly chat: ChatService,
     private readonly cvMatches: CvMatchesService,
     private readonly tracing: TracingService,
+    private readonly sessionProgress: LearningSessionProgressService,
   ) {}
 
   async turn(userId: string, dto: LearningChatRequestDto): Promise<LearningChatTurnResponse> {
@@ -53,6 +57,10 @@ export class LearningChatPlatformService {
     const facts = matchId
       ? buildChatFacts({ gapItems: (await this.cvMatches.getGapReport(userId, matchId)).gap_items })
       : { open_gaps: [] };
+    const learningContext = await this.buildLearningContext(userId, dto);
+    if (learningContext) {
+      Object.assign(facts, { learning_context: learningContext });
+    }
     const history = await this.loadHistory(conversation.id);
 
     const aiRequestId = await this.tracing.startAiRequest({
@@ -192,5 +200,46 @@ export class LearningChatPlatformService {
       take: MAX_HISTORY,
     });
     return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
+  }
+
+  private async buildLearningContext(userId: string, dto: LearningChatRequestDto) {
+    if (!dto.session_id || !dto.skill_canonical) return null;
+    const lesson = getSkillBridgeLessonContent(dto.skill_canonical);
+    if (!lesson) return null;
+    const progress = await this.sessionProgress.getProgress(userId, dto.session_id);
+    const attempts = progress.quiz_attempts as Record<string, unknown>;
+    const questionResults = lesson.quiz_bank
+      .filter((question) => attempts[question.id])
+      .map((question) => {
+        const attempt = attempts[question.id] as { is_correct?: unknown };
+        return {
+          questionId: question.id,
+          objectiveId: question.objective_id,
+          isCorrect: attempt.is_correct === true,
+        };
+      });
+    const weakObjectives = Array.from(new Set(questionResults.map((item) => item.objectiveId)))
+      .map((objectiveId) => computeObjectiveMastery(objectiveId, questionResults))
+      .filter((mastery) => !mastery.mastered)
+      .map((mastery) => mastery.objective_id);
+    const recentWrongQuestions = lesson.quiz_bank
+      .filter((question) => {
+        const attempt = attempts[question.id] as { is_correct?: unknown } | undefined;
+        return attempt?.is_correct === false;
+      })
+      .slice(-3)
+      .map((question) => ({
+        question_id: question.id,
+        objective_id: question.objective_id,
+        section_id: question.section_id,
+      }));
+
+    return {
+      session_id: dto.session_id,
+      skill_canonical: dto.skill_canonical,
+      current_lesson: lesson.title,
+      weak_objectives: weakObjectives,
+      recent_wrong_questions: recentWrongQuestions,
+    };
   }
 }

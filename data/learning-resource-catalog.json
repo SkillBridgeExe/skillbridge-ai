@@ -2,6 +2,62 @@
   "_note": "Explicit LearningResource entries (docs/videos/exercises/mini-projects/drills/cv-fix-tasks). Merged on top of the course-catalog.json seed; duplicate id overrides the seed. Empty until curation adds non-course resources.",
   "resources": [
     {
+      "id": "skillbridge-react-mastery-youtube",
+      "title": "React Tutorial for Beginners",
+      "provider": "YouTube - Programming with Mosh",
+      "url": "https://www.youtube.com/watch?v=SqcY0GlETPk",
+      "source_type": "video",
+      "is_internal": false,
+      "language": "en",
+      "duration_minutes": 81,
+      "is_free": true,
+      "skills": [
+        {
+          "skill_canonical_name": "react",
+          "teaches_level": 3
+        }
+      ],
+      "outcome_type": "understand",
+      "quality_score": 90,
+      "freshness_score": 100,
+      "last_verified_at": "2026-06-24",
+      "validation_status": "verified",
+      "difficulty": "BEGINNER",
+      "video_chapters": [
+        {
+          "id": "react-components",
+          "title": "Components",
+          "start_seconds": 360,
+          "objective_id": "react-components"
+        },
+        {
+          "id": "react-props",
+          "title": "Props",
+          "start_seconds": 900,
+          "objective_id": "react-props"
+        },
+        {
+          "id": "react-state-events",
+          "title": "State and events",
+          "start_seconds": 1500,
+          "objective_id": "react-state-events"
+        },
+        {
+          "id": "react-lists-keys",
+          "title": "Lists and keys",
+          "start_seconds": 2160,
+          "objective_id": "react-lists-keys"
+        },
+        {
+          "id": "react-effects",
+          "title": "Effects",
+          "start_seconds": 3000,
+          "objective_id": "react-effects"
+        }
+      ],
+      "description": "Curated React video with SkillBridge chapter markers for component, props, state, list, and effect remediation."
+    },
+    {
       "id": "deeplearningai-langchain-short-course",
       "title": "LangChain for LLM Application Development",
       "provider": "DeepLearning.AI",
@@ -1927,6 +1983,20 @@
       "last_verified_at": "2026-06-24",
       "validation_status": "verified",
       "difficulty": "BEGINNER",
+      "video_chapters": [
+        {
+          "id": "select-filter",
+          "title": "Select and filter",
+          "start_seconds": 0,
+          "objective_id": "select-filter"
+        },
+        {
+          "id": "join-related",
+          "title": "Join related tables",
+          "start_seconds": 576,
+          "objective_id": "join-related"
+        }
+      ],
       "description": "Master SQL – an essential skill for AI, machine learning, data analysis, and more! This beginner-friendly course teaches you ..."
     },
     {
@@ -3511,6 +3581,38 @@
       "last_verified_at": "2026-06-24",
       "validation_status": "verified",
       "difficulty": "BEGINNER",
+      "video_chapters": [
+        {
+          "id": "opencv-setup",
+          "title": "Introduction and OpenCV setup",
+          "start_seconds": 0,
+          "objective_id": "opencv-setup"
+        },
+        {
+          "id": "opencv-read-media",
+          "title": "Reading images and video",
+          "start_seconds": 515,
+          "objective_id": "opencv-read-media"
+        },
+        {
+          "id": "opencv-draw-resize",
+          "title": "Resizing, drawing, and text overlays",
+          "start_seconds": 1214,
+          "objective_id": "opencv-draw-resize"
+        },
+        {
+          "id": "opencv-transform-contours",
+          "title": "Image transforms, edges, and contours",
+          "start_seconds": 2646,
+          "objective_id": "opencv-transform-contours"
+        },
+        {
+          "id": "opencv-face-detection",
+          "title": "Face detection and recognition basics",
+          "start_seconds": 10582,
+          "objective_id": "opencv-face-detection"
+        }
+      ],
       "description": "Learn everything you need to know about OpenCV in this full course for beginners. You will learn the very basics (reading images ..."
     },
     {

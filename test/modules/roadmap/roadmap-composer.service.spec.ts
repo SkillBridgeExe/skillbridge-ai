@@ -186,6 +186,108 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.steps[0].recommended_courses?.at(-1)?.id).toBe('react-30');
   });
 
+  it('keeps only one primary video resource per skill step', () => {
+    matcher.matchResources.mockReturnValueOnce({
+      per_skill: [
+        {
+          skill_canonical_name: 'react',
+          required_level: 4,
+          resources: [
+            {
+              id: 'react-video-best',
+              source_type: 'video',
+              title: 'Best React Video',
+              provider: 'YouTube',
+              url: 'https://u/best',
+              is_internal: false,
+              language: 'en',
+              duration_minutes: 80,
+              difficulty: 'BEGINNER',
+              is_free: true,
+              skills: [{ skill_canonical_name: 'react', teaches_level: 4 }],
+              outcome_type: 'understand',
+              match_score: 95,
+              match_breakdown: {
+                quality_pts: 30,
+                language_pts: 20,
+                free_pts: 15,
+                level_fit_pts: 20,
+                multi_skill_pts: 10,
+              },
+              quality_score: 100,
+              freshness_score: 100,
+              low_confidence: false,
+            },
+            {
+              id: 'react-video-second',
+              source_type: 'video',
+              title: 'Second React Video',
+              provider: 'YouTube',
+              url: 'https://u/second',
+              is_internal: false,
+              language: 'en',
+              duration_minutes: 90,
+              difficulty: 'BEGINNER',
+              is_free: true,
+              skills: [{ skill_canonical_name: 'react', teaches_level: 4 }],
+              outcome_type: 'understand',
+              match_score: 90,
+              match_breakdown: {
+                quality_pts: 25,
+                language_pts: 20,
+                free_pts: 15,
+                level_fit_pts: 20,
+                multi_skill_pts: 10,
+              },
+              quality_score: 92,
+              freshness_score: 100,
+              low_confidence: false,
+            },
+            {
+              id: 'react-course',
+              source_type: 'course',
+              title: 'React Course',
+              provider: 'Coursera',
+              url: 'https://u/course',
+              is_internal: false,
+              language: 'en',
+              duration_minutes: 180,
+              difficulty: 'INTERMEDIATE',
+              is_free: true,
+              skills: [{ skill_canonical_name: 'react', teaches_level: 4 }],
+              outcome_type: 'practice',
+              proof_of_completion: 'cert',
+              match_score: 80,
+              match_breakdown: {
+                quality_pts: 20,
+                language_pts: 20,
+                free_pts: 15,
+                level_fit_pts: 20,
+                multi_skill_pts: 5,
+              },
+              quality_score: 80,
+              freshness_score: 100,
+              low_confidence: false,
+            },
+          ],
+        },
+      ],
+      uncovered_skills: [],
+    });
+
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react')],
+      budget: { available_days: 30, hours_per_week: 7 },
+    });
+
+    expect(out.steps[0].resources.filter((resource) => resource.source_type === 'video')).toEqual([
+      expect.objectContaining({ id: 'react-video-best' }),
+    ]);
+    expect(out.steps[0].resources.map((resource) => resource.id)).toContain('react-course');
+  });
+
   it('uses the primary matched resource duration as feasibility floor before selecting steps', () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [

@@ -42,14 +42,31 @@ describe('LearningChatPlatformService', () => {
       completeAiRequest: jest.fn(async () => undefined),
       markFailed: jest.fn(async () => undefined),
     };
+    const sessionProgress = {
+      getProgress: jest.fn(async () => ({
+        session_id: 'roadmap-react',
+        checked_checklist_items: {},
+        exercise_proofs: {},
+        quiz_attempts: {
+          'state-purpose': {
+            selected_option_index: 1,
+            is_correct: false,
+            attempts: 1,
+            answered_at: '2026-07-03T00:00:00.000Z',
+          },
+        },
+        updated_at: null,
+      })),
+    };
     const svc = new LearningChatPlatformService(
       conversations as never,
       messages as never,
       chat as never,
       cvMatches as never,
       tracing as never,
+      sessionProgress as never,
     );
-    return { svc, conversations, messages, chat, cvMatches, tracing };
+    return { svc, conversations, messages, chat, cvMatches, tracing, sessionProgress };
   }
 
   it('creates an owned conversation, builds facts, calls ChatService, and persists both messages', async () => {
@@ -60,13 +77,33 @@ describe('LearningChatPlatformService', () => {
       matchId: 'match-1',
     });
 
-    const out = await svc.turn('user-1', { message: 'toi hoc docker sao?', matchId: 'match-1' });
+    const out = await svc.turn('user-1', {
+      message: 'toi hoc docker sao?',
+      matchId: 'match-1',
+      session_id: 'roadmap-react',
+      skill_canonical: 'react',
+    });
 
     expect(cvMatches.getGapReport).toHaveBeenCalledWith('user-1', 'match-1');
     expect(chat.turn).toHaveBeenCalledWith(
       expect.objectContaining({
         question: 'toi hoc docker sao?',
-        facts: { open_gaps: [{ skill: 'docker', severity: 0.8, status: 'missing' }] },
+        facts: {
+          open_gaps: [{ skill: 'docker', severity: 0.8, status: 'missing' }],
+          learning_context: {
+            session_id: 'roadmap-react',
+            skill_canonical: 'react',
+            current_lesson: 'React component fundamentals',
+            weak_objectives: ['react-state-events'],
+            recent_wrong_questions: [
+              {
+                question_id: 'state-purpose',
+                objective_id: 'react-state-events',
+                section_id: 'state-events',
+              },
+            ],
+          },
+        },
       }),
     );
     expect(messages.save).toHaveBeenCalledTimes(2);

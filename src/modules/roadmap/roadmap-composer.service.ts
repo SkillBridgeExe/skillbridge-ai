@@ -87,7 +87,10 @@ export class RoadmapComposerService {
           skillResources.push(scoredVideo);
         }
       }
-      const boundedSkillResources = skillResources.slice(0, MAX_RESOURCES_PER_STEP);
+      const boundedSkillResources = keepOnePrimaryVideo(skillResources).slice(
+        0,
+        MAX_RESOURCES_PER_STEP,
+      );
       const resources = boundedSkillResources.map((resource) => ({
         id: resource.id,
         source_type: resource.source_type,
@@ -135,6 +138,16 @@ export class RoadmapComposerService {
 function primaryResourceHours(resources: ScoredResource[]): number | null {
   const primaryMinutes = resources[0]?.duration_minutes;
   return Number.isFinite(primaryMinutes) && primaryMinutes > 0 ? primaryMinutes / 60 : null;
+}
+
+function keepOnePrimaryVideo(resources: ScoredResource[]): ScoredResource[] {
+  let hasVideo = false;
+  return resources.filter((resource) => {
+    if (resource.source_type !== 'video') return true;
+    if (hasVideo) return false;
+    hasVideo = true;
+    return true;
+  });
 }
 
 function _fallbackFor(

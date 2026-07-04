@@ -2,11 +2,26 @@ export type LessonContentLicenseType = 'skillbridge_original' | 'official_refere
 
 export type LessonContentReusePolicy = 'full_reuse_allowed' | 'summary_only' | 'link_only';
 
+export type LessonQuizKind = 'concept' | 'scenario' | 'debug' | 'mini_case';
+
+export interface LessonObjectiveContent {
+  id: string;
+  title: string;
+  description: string;
+}
+
+export interface LessonChecklistItemContent {
+  id: string;
+  label: string;
+  objective_id?: string;
+}
+
 export interface LessonSectionContent {
   id: string;
   title: string;
   body: string;
-  checklist: string[];
+  objective_id: string;
+  checklist: LessonChecklistItemContent[];
 }
 
 export interface LessonQuizQuestion {
@@ -15,6 +30,15 @@ export interface LessonQuizQuestion {
   options: string[];
   correct_option_index: number;
   explanation: string;
+  kind: LessonQuizKind;
+  objective_id: string;
+  section_id: string;
+  remediation?: {
+    section_id: string;
+    video_resource_id?: string;
+    video_chapter_id?: string;
+    start_seconds?: number;
+  };
 }
 
 export interface LessonExerciseContent {
@@ -32,7 +56,13 @@ export interface SkillBridgeLessonContent {
   license_type: LessonContentLicenseType;
   reuse_policy: LessonContentReusePolicy;
   source_resource_ids: string[];
+  learning_objectives: LessonObjectiveContent[];
   sections: LessonSectionContent[];
+  quiz_bank: LessonQuizQuestion[];
+  pass_policy: {
+    min_correct_per_objective: number;
+    min_accuracy: number;
+  };
   quiz: LessonQuizQuestion[];
   exercises: LessonExerciseContent[];
 }
@@ -122,6 +152,7 @@ interface LessonSectionBlueprint {
   title: string;
   body: string;
   checklist: string[];
+  objective_id?: string;
 }
 
 interface LessonQuizBlueprint {
@@ -130,6 +161,9 @@ interface LessonQuizBlueprint {
   options: string[];
   correct_option_index: number;
   explanation: string;
+  kind?: LessonQuizKind;
+  objective_id?: string;
+  section_id?: string;
 }
 
 interface LessonExerciseBlueprint {
@@ -143,21 +177,53 @@ interface LessonExerciseBlueprint {
 interface LessonBlueprint {
   title: string;
   summary: string;
-  sections: [LessonSectionBlueprint, LessonSectionBlueprint];
-  quiz: [LessonQuizBlueprint, LessonQuizBlueprint];
+  learning_objectives?: LessonObjectiveContent[];
+  sections: LessonSectionBlueprint[];
+  quiz: LessonQuizBlueprint[];
   exercise: LessonExerciseBlueprint;
 }
+
+const MIN_QUIZ_QUESTIONS_PER_LESSON = 20;
+const MIN_QUIZ_QUESTIONS_PER_OBJECTIVE = 2;
 
 const LESSON_BLUEPRINTS = {
   react: {
     title: 'React component fundamentals',
     summary:
       'Build a reliable React foundation by splitting UI into components, passing data with props, and managing local state only where interaction requires it.',
+    learning_objectives: [
+      {
+        id: 'react-components',
+        title: 'Model UI as components',
+        description: 'Split a screen into focused components with clear rendering responsibility.',
+      },
+      {
+        id: 'react-props',
+        title: 'Pass data with props',
+        description: 'Use one-way parent-to-child data flow without hidden global reads.',
+      },
+      {
+        id: 'react-state-events',
+        title: 'Manage local state and events',
+        description: 'Store interaction-driven values close to the component that owns them.',
+      },
+      {
+        id: 'react-lists-keys',
+        title: 'Render lists safely',
+        description: 'Map arrays to elements with stable keys and predictable empty states.',
+      },
+      {
+        id: 'react-effects',
+        title: 'Use effects deliberately',
+        description: 'Reserve effects for synchronization with systems outside React rendering.',
+      },
+    ],
     sections: [
       {
         id: 'components-props',
         title: 'Components and props',
         body: 'A React component should represent one focused part of the interface. Props carry data from a parent to a child so each component can render predictably without reaching into global state.',
+        objective_id: 'react-components',
         checklist: [
           'Create one parent component and two child components.',
           'Pass at least two props into a child component.',
@@ -165,17 +231,106 @@ const LESSON_BLUEPRINTS = {
         ],
       },
       {
+        id: 'props-data-flow',
+        title: 'One-way data flow',
+        body: 'Props should make data dependencies visible. A child component receives values and callbacks from the parent instead of mutating parent state directly or reading unrelated global values.',
+        objective_id: 'react-props',
+        checklist: [
+          'Pass display data from parent to child through props.',
+          'Pass one callback prop for a child interaction.',
+          'Avoid mutating a prop inside the child component.',
+        ],
+      },
+      {
         id: 'state-events',
         title: 'Local state and events',
         body: 'Use local state for values that change because a user interacts with the page. Keep state close to the component that owns the interaction and update arrays or objects immutably.',
+        objective_id: 'react-state-events',
         checklist: [
           'Add a click or form event handler.',
           'Update state without mutating the existing value.',
           'Render a different UI state after the update.',
         ],
       },
+      {
+        id: 'lists-keys',
+        title: 'Lists and keys',
+        body: 'When rendering a collection, transform the array into elements with map and give each repeated element a stable key from the data. Stable keys help React preserve state correctly between renders.',
+        objective_id: 'react-lists-keys',
+        checklist: [
+          'Render a list from an array with map.',
+          'Use a stable item id as the key.',
+          'Render a clear empty state when the list has no items.',
+        ],
+      },
+      {
+        id: 'effects-sync',
+        title: 'Effects for synchronization',
+        body: 'Effects are for synchronizing React with something outside rendering, such as a browser API, subscription, timer, or network request. Derived display values usually belong in render logic, not in an effect.',
+        objective_id: 'react-effects',
+        checklist: [
+          'Use an effect only for an external synchronization task.',
+          'List every reactive value used by the effect in its dependency array.',
+          'Return cleanup when the effect creates a subscription or timer.',
+        ],
+      },
     ],
     quiz: [
+      {
+        id: 'component-responsibility',
+        question: 'What is a good sign that a React component has a focused responsibility?',
+        options: [
+          'It renders one meaningful part of the UI',
+          'It owns every feature on the page',
+          'It reads all app data from global variables',
+          'It changes the DOM outside React',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-components',
+        section_id: 'components-props',
+        explanation:
+          'A focused component renders one meaningful part of the interface and is easier to test and reuse.',
+      },
+      {
+        id: 'component-boundary',
+        question: 'Why split a large screen into smaller React components?',
+        options: [
+          'To make responsibilities and data flow easier to reason about',
+          'To make the bundle automatically smaller',
+          'To avoid using JavaScript',
+          'To force every component to use state',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-components',
+        section_id: 'components-props',
+        explanation:
+          'Smaller components make ownership clearer and reduce the amount of UI you must understand at once.',
+      },
+      {
+        id: 'props-purpose',
+        question: 'What is the safest way to pass display data from a parent to a child component?',
+        options: ['Global variables', 'Props', 'Mutating the DOM', 'Local storage'],
+        correct_option_index: 1,
+        objective_id: 'react-props',
+        section_id: 'props-data-flow',
+        explanation:
+          'Props keep parent-to-child data flow explicit and make components easier to test.',
+      },
+      {
+        id: 'props-callback',
+        question: 'How should a child component usually tell its parent that a button was clicked?',
+        options: [
+          'Call a callback prop supplied by the parent',
+          'Mutate the parent state object directly',
+          'Reload the page',
+          'Write to a random global variable',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-props',
+        section_id: 'props-data-flow',
+        explanation:
+          'Callback props keep the child decoupled while letting the parent decide how state changes.',
+      },
       {
         id: 'state-purpose',
         question: 'When should a React value usually be stored in local state?',
@@ -186,16 +341,84 @@ const LESSON_BLUEPRINTS = {
           'Only when it comes from a server',
         ],
         correct_option_index: 0,
+        objective_id: 'react-state-events',
+        section_id: 'state-events',
         explanation:
           'Local state is for UI data owned by the component, especially values changed by user interaction.',
       },
       {
-        id: 'props-purpose',
-        question: 'What is the safest way to pass display data from a parent to a child component?',
-        options: ['Global variables', 'Props', 'Mutating the DOM', 'Local storage'],
-        correct_option_index: 1,
+        id: 'immutable-state',
+        question: 'What should you do when updating an array in React state?',
+        options: [
+          'Create a new array instead of mutating the existing one',
+          'Push into the existing array and return it',
+          'Store it in a component name',
+          'Update it only through CSS',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-state-events',
+        section_id: 'state-events',
         explanation:
-          'Props keep parent-to-child data flow explicit and make components easier to test.',
+          'React state updates should be immutable so React can detect the new value and render predictably.',
+      },
+      {
+        id: 'list-key-purpose',
+        question: 'Why does React need a key when rendering repeated list items?',
+        options: [
+          'To identify which item each element represents across renders',
+          'To make every item bold',
+          'To sort the array automatically',
+          'To fetch the list from a server',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-lists-keys',
+        section_id: 'lists-keys',
+        explanation: 'Stable keys help React match elements to data items when the list changes.',
+      },
+      {
+        id: 'stable-key-choice',
+        question: 'Which value is usually the best key for a rendered list item?',
+        options: [
+          'A stable id from the item data',
+          'The current array index for every list',
+          'A random number on each render',
+          'The same string for every item',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-lists-keys',
+        section_id: 'lists-keys',
+        explanation:
+          'A stable data id keeps item identity consistent when items are inserted, removed, or reordered.',
+      },
+      {
+        id: 'effect-purpose',
+        question: 'When is useEffect most appropriate?',
+        options: [
+          'When synchronizing with something outside React rendering',
+          'Whenever you calculate a label from props',
+          'For every button click',
+          'To replace component props',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-effects',
+        section_id: 'effects-sync',
+        explanation:
+          'Effects are best for external synchronization, not ordinary render-time derived values.',
+      },
+      {
+        id: 'effect-cleanup',
+        question: 'What should an effect return when it creates a timer or subscription?',
+        options: [
+          'A cleanup function',
+          'A JSX element',
+          'A new component type',
+          'The same dependency array',
+        ],
+        correct_option_index: 0,
+        objective_id: 'react-effects',
+        section_id: 'effects-sync',
+        explanation:
+          'Cleanup prevents subscriptions, timers, or listeners from continuing after the component no longer needs them.',
       },
     ],
     exercise: {
@@ -1732,6 +1955,255 @@ const LESSON_BLUEPRINTS = {
       proof_of_completion: 'Save the hosting diagram or written specification in your notes.',
     },
   },
+  computer_vision: {
+    title: 'OpenCV computer vision fundamentals',
+    summary:
+      'Learn the OpenCV workflow behind the selected video: set up Python image processing, read images and video, transform frames, detect contours, and apply face detection or recognition basics.',
+    learning_objectives: [
+      {
+        id: 'opencv-setup',
+        title: 'Prepare an OpenCV workspace',
+        description:
+          'Install OpenCV/Caer dependencies and explain the image/video processing workflow used in the course.',
+      },
+      {
+        id: 'opencv-read-media',
+        title: 'Read images and video',
+        description:
+          'Load image files, video files, and camera frames with OpenCV and inspect their shape safely.',
+      },
+      {
+        id: 'opencv-draw-resize',
+        title: 'Resize, rescale, draw, and annotate',
+        description:
+          'Rescale frames and draw lines, rectangles, circles, and text overlays on image arrays.',
+      },
+      {
+        id: 'opencv-transform-contours',
+        title: 'Transform images and detect contours',
+        description:
+          'Use grayscale, blur, edge detection, thresholding, and contour extraction to find image structure.',
+      },
+      {
+        id: 'opencv-face-detection',
+        title: 'Apply face detection and recognition basics',
+        description:
+          'Use Haar cascades and a simple recognizer workflow while understanding limits and evaluation needs.',
+      },
+    ],
+    sections: [
+      {
+        id: 'opencv-setup',
+        title: 'Introduction and OpenCV setup',
+        body: 'Start by understanding what OpenCV is used for, how images and videos become arrays, and why the Python environment must include OpenCV and the helper packages used by the course.',
+        objective_id: 'opencv-setup',
+        checklist: [
+          'Install OpenCV in a Python environment.',
+          'Explain why an image is represented as height, width, and channels.',
+          'Create a small project folder for images, videos, and scripts.',
+        ],
+      },
+      {
+        id: 'opencv-read-media',
+        title: 'Reading images and video',
+        body: 'Use cv2.imread for images and cv2.VideoCapture for video or camera streams. Always check whether a frame was read before processing it.',
+        objective_id: 'opencv-read-media',
+        checklist: [
+          'Load one image and print its shape.',
+          'Read frames from a video loop.',
+          'Handle the end of a video stream without crashing.',
+        ],
+      },
+      {
+        id: 'opencv-draw-resize',
+        title: 'Resizing, drawing, and text overlays',
+        body: 'Resize or rescale frames before display, then practice drawing primitives and labels so later detections can be visualized on top of the original image.',
+        objective_id: 'opencv-draw-resize',
+        checklist: [
+          'Resize an image while keeping a predictable aspect ratio.',
+          'Draw at least two shapes on an image copy.',
+          'Add readable text with cv2.putText.',
+        ],
+      },
+      {
+        id: 'opencv-transform-contours',
+        title: 'Image transforms, edges, and contours',
+        body: 'Convert images through grayscale, blur, threshold, and edge-detection steps before finding contours. Each transform changes what later detection code can see.',
+        objective_id: 'opencv-transform-contours',
+        checklist: [
+          'Create grayscale and blurred versions of the same image.',
+          'Compare thresholding and edge detection outputs.',
+          'Find contours and draw them on a copy of the image.',
+        ],
+      },
+      {
+        id: 'opencv-face-detection',
+        title: 'Face detection and recognition basics',
+        body: 'Use Haar cascades for basic face detection, then review how a recognition workflow uses labeled training images and why real systems need careful validation.',
+        objective_id: 'opencv-face-detection',
+        checklist: [
+          'Run a Haar cascade face detector on an image.',
+          'Draw bounding boxes around detected faces.',
+          'Describe one limitation or false-positive risk.',
+        ],
+      },
+    ],
+    quiz: [
+      {
+        id: 'opencv-array-shape',
+        question: 'In OpenCV, what does an image array shape usually describe?',
+        options: [
+          'Height, width, and color channels',
+          'Only the file name and extension',
+          'The number of installed Python packages',
+          'The URL where the image was downloaded',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-setup',
+        section_id: 'opencv-setup',
+        explanation:
+          'OpenCV images are NumPy arrays, commonly organized by rows, columns, and channels.',
+      },
+      {
+        id: 'opencv-env-purpose',
+        question: 'Why should OpenCV practice use a controlled Python environment?',
+        options: [
+          'To keep image-processing dependencies reproducible',
+          'To make images smaller automatically',
+          'To remove the need for test images',
+          'To convert Python into JavaScript',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-setup',
+        section_id: 'opencv-setup',
+        explanation:
+          'A controlled environment makes package versions and examples easier to reproduce.',
+      },
+      {
+        id: 'opencv-videocapture',
+        question: 'Which OpenCV API is commonly used to read frames from a video file or webcam?',
+        options: ['cv2.VideoCapture', 'cv2.putText', 'cv2.rectangle', 'cv2.imwrite'],
+        correct_option_index: 0,
+        objective_id: 'opencv-read-media',
+        section_id: 'opencv-read-media',
+        explanation: 'cv2.VideoCapture opens a video source and returns frames in a loop.',
+      },
+      {
+        id: 'opencv-frame-read-check',
+        question: 'Why should code check whether a frame was read successfully?',
+        options: [
+          'The video may end or the camera may fail to provide a frame',
+          'OpenCV requires every frame to be redrawn by hand',
+          'Frames are never NumPy arrays',
+          'Checking frames disables color channels',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-read-media',
+        section_id: 'opencv-read-media',
+        explanation: 'Video loops should stop or recover when no valid frame is returned.',
+      },
+      {
+        id: 'opencv-rescale-reason',
+        question: 'Why rescale frames before displaying or processing them?',
+        options: [
+          'To control size, performance, and layout',
+          'To change Python syntax',
+          'To delete color information permanently',
+          'To force face detection to always succeed',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-draw-resize',
+        section_id: 'opencv-draw-resize',
+        explanation: 'Rescaling helps manage memory, speed, and display dimensions.',
+      },
+      {
+        id: 'opencv-overlay-use',
+        question: 'What is a common use of rectangles and text overlays in OpenCV?',
+        options: [
+          'Visualizing detections or labels on an image',
+          'Installing dependencies',
+          'Opening a database connection',
+          'Training a language model',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-draw-resize',
+        section_id: 'opencv-draw-resize',
+        explanation: 'Drawing functions make model outputs or detected regions visible to users.',
+      },
+      {
+        id: 'opencv-grayscale-blur',
+        question: 'Why might an image be converted to grayscale and blurred before edge detection?',
+        options: [
+          'To simplify intensity information and reduce noise',
+          'To make the image file encrypted',
+          'To add random colors before detection',
+          'To remove the need for contours',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-transform-contours',
+        section_id: 'opencv-transform-contours',
+        explanation:
+          'Many detection steps work better when noise is reduced and intensity changes are clearer.',
+      },
+      {
+        id: 'opencv-contours-purpose',
+        question: 'What do contours help identify in an image?',
+        options: [
+          'Boundaries of visible shapes or objects',
+          'The original camera password',
+          'The Python package manager',
+          'The exact internet speed',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-transform-contours',
+        section_id: 'opencv-transform-contours',
+        explanation: 'Contours represent detected boundaries and can be drawn or counted.',
+      },
+      {
+        id: 'opencv-haar-cascade',
+        question: 'What is a Haar cascade commonly used for in beginner OpenCV workflows?',
+        options: [
+          'Detecting faces or face-like regions',
+          'Compressing JavaScript bundles',
+          'Creating SQL indexes',
+          'Replacing all image preprocessing',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-face-detection',
+        section_id: 'opencv-face-detection',
+        explanation:
+          'Haar cascades are a classic OpenCV approach for simple object detection such as faces.',
+      },
+      {
+        id: 'opencv-face-risk',
+        question: 'Why should face detection results be validated carefully?',
+        options: [
+          'Detectors can miss faces or produce false positives',
+          'Bounding boxes always prove identity',
+          'Recognition never needs labeled examples',
+          'OpenCV cannot process images',
+        ],
+        correct_option_index: 0,
+        objective_id: 'opencv-face-detection',
+        section_id: 'opencv-face-detection',
+        explanation:
+          'Real vision systems need evaluation because detection and recognition can be wrong.',
+      },
+    ],
+    exercise: {
+      id: 'opencv-mini-pipeline',
+      title: 'Build a small OpenCV processing pipeline',
+      prompt:
+        'Create a short Python script that loads an image or video frame, resizes it, applies one transform, and draws a visible annotation on the output.',
+      acceptance_criteria: [
+        'The script reads a real image or frame with OpenCV.',
+        'The output includes at least one transform such as grayscale, blur, threshold, or edge detection.',
+        'The output image or frame includes a drawn shape or text annotation.',
+      ],
+      proof_of_completion:
+        'Save the script plus a screenshot or output image showing the transformed and annotated result.',
+    },
+  },
   backend_development: {
     title: 'Backend system design and logic',
     summary:
@@ -1809,6 +2281,155 @@ function startCase(str: string): string {
     .join(' ');
 }
 
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
+function reactVideoChapterForObjective(
+  objectiveId: string,
+): { id: string; start_seconds: number } | null {
+  const chapters: Record<string, { id: string; start_seconds: number }> = {
+    'react-components': { id: 'react-components', start_seconds: 360 },
+    'react-props': { id: 'react-props', start_seconds: 900 },
+    'react-state-events': { id: 'react-state-events', start_seconds: 1500 },
+    'react-lists-keys': { id: 'react-lists-keys', start_seconds: 2160 },
+    'react-effects': { id: 'react-effects', start_seconds: 3000 },
+  };
+  return chapters[objectiveId] ?? null;
+}
+
+function computerVisionVideoChapterForObjective(
+  objectiveId: string,
+): { id: string; start_seconds: number } | null {
+  const chapters: Record<string, { id: string; start_seconds: number }> = {
+    'opencv-setup': { id: 'opencv-setup', start_seconds: 0 },
+    'opencv-read-media': { id: 'opencv-read-media', start_seconds: 515 },
+    'opencv-draw-resize': { id: 'opencv-draw-resize', start_seconds: 1214 },
+    'opencv-transform-contours': { id: 'opencv-transform-contours', start_seconds: 2646 },
+    'opencv-face-detection': { id: 'opencv-face-detection', start_seconds: 10582 },
+  };
+  return chapters[objectiveId] ?? null;
+}
+
+function lessonVideoResourceIdForSkill(skill: string): string | null {
+  if (skill === 'react') return 'skillbridge-react-mastery-youtube';
+  if (skill === 'computer_vision') return 'youtube-course-computer_vision-oXlwWbU8l2o';
+  return null;
+}
+
+function lessonVideoChapterForObjective(
+  skill: string,
+  objectiveId: string,
+): { id: string; start_seconds: number } | null {
+  if (skill === 'react') return reactVideoChapterForObjective(objectiveId);
+  if (skill === 'computer_vision') return computerVisionVideoChapterForObjective(objectiveId);
+  return null;
+}
+
+function buildQuestionRemediation(
+  skill: string,
+  objectiveId: string | undefined,
+  sectionId: string,
+): LessonQuizQuestion['remediation'] {
+  const videoResourceId = lessonVideoResourceIdForSkill(skill);
+  const videoChapter = objectiveId ? lessonVideoChapterForObjective(skill, objectiveId) : null;
+  return {
+    section_id: sectionId,
+    ...(videoResourceId && videoChapter
+      ? {
+          video_resource_id: videoResourceId,
+          video_chapter_id: videoChapter.id,
+          start_seconds: videoChapter.start_seconds,
+        }
+      : {}),
+  };
+}
+
+function inferLessonQuizKind(id: string, question: string): LessonQuizKind {
+  const normalized = `${id} ${question}`.toLowerCase();
+  if (/\b(debug|bug|error|wrong|fix|mistake|fails|failure)\b/.test(normalized)) return 'debug';
+  if (/\b(case|evidence|portfolio|show|prove)\b/.test(normalized)) return 'mini_case';
+  if (/\b(scenario|learner|working|best next action|when should|what should)\b/.test(normalized)) {
+    return 'scenario';
+  }
+  return 'concept';
+}
+
+function generatedQuizTemplates(
+  skill: string,
+  objective: LessonObjectiveContent,
+  section: LessonSectionContent,
+): LessonQuizBlueprint[] {
+  const displayName = startCase(skill);
+  const focus = objective.title.toLowerCase();
+  return [
+    {
+      id: `${objective.id}-concept-check`,
+      question: `What is the main learning target for ${objective.title}?`,
+      options: [
+        objective.description,
+        `Memorize unrelated trivia about ${displayName}.`,
+        `Skip practice and only watch a video about ${displayName}.`,
+        `Avoid explaining how ${displayName} is used in real work.`,
+      ],
+      correct_option_index: 0,
+      explanation: objective.description,
+      kind: 'concept',
+      objective_id: objective.id,
+      section_id: section.id,
+    },
+    {
+      id: `${objective.id}-work-scenario`,
+      question: `A learner is working on ${section.title}. What is the best next action?`,
+      options: [
+        section.checklist[0]?.label ?? `Apply ${displayName} to a small realistic task.`,
+        `Move to another skill before trying ${displayName}.`,
+        `Choose answers by guessing instead of checking evidence.`,
+        `Ignore the workflow and only collect course links.`,
+      ],
+      correct_option_index: 0,
+      explanation: `The best next action is to practice the concrete behavior from ${section.title}.`,
+      kind: 'scenario',
+      objective_id: objective.id,
+      section_id: section.id,
+    },
+    {
+      id: `${objective.id}-common-mistake`,
+      question: `Which habit most often blocks progress on ${focus}?`,
+      options: [
+        `Using ${displayName} without checking whether the result matches the goal.`,
+        `Practicing with a small example before scaling up.`,
+        `Writing down what worked and what failed.`,
+        `Connecting the concept to a real project task.`,
+      ],
+      correct_option_index: 0,
+      explanation: `Progress on ${objective.title} requires checking outcomes, not only completing steps.`,
+      kind: 'debug',
+      objective_id: objective.id,
+      section_id: section.id,
+    },
+    {
+      id: `${objective.id}-evidence-check`,
+      question: `What evidence best shows understanding of ${objective.title}?`,
+      options: [
+        `A short explanation plus a working example related to ${section.title}.`,
+        `A screenshot of an unopened course page.`,
+        `A copied definition with no example.`,
+        `A claim that the topic was watched once.`,
+      ],
+      correct_option_index: 0,
+      explanation: `SkillBridge treats real explanation and applied output as stronger learning evidence than passive watching.`,
+      kind: 'mini_case',
+      objective_id: objective.id,
+      section_id: section.id,
+    },
+  ];
+}
+
 function generateFallbackBlueprint(skill: string): LessonBlueprint {
   const displayName = startCase(skill);
   return {
@@ -1848,6 +2469,7 @@ function generateFallbackBlueprint(skill: string): LessonBlueprint {
         ],
         correct_option_index: 0,
         explanation: `${displayName} provides structured practices that help teams build and maintain robust software systems.`,
+        kind: 'concept',
       },
       {
         id: 'when-recommended',
@@ -1860,6 +2482,7 @@ function generateFallbackBlueprint(skill: string): LessonBlueprint {
         ],
         correct_option_index: 0,
         explanation: `${displayName} is widely used to streamline development lifecycle stages.`,
+        kind: 'scenario',
       },
     ],
     exercise: {
@@ -1881,14 +2504,126 @@ function buildLesson(
   blueprint: LessonBlueprint | undefined,
 ): Omit<SkillBridgeLessonContent, 'source_resource_ids'> {
   const actualBlueprint = blueprint || generateFallbackBlueprint(skill);
+  const learningObjectives =
+    actualBlueprint.learning_objectives ??
+    actualBlueprint.sections.map((section) => ({
+      id: section.objective_id ?? section.id,
+      title: section.title,
+      description: section.body,
+    }));
+  const sectionObjectives = new Map(
+    actualBlueprint.sections.map((section, index) => [
+      section.id,
+      section.objective_id ??
+        learningObjectives[index]?.id ??
+        learningObjectives[0]?.id ??
+        section.id,
+    ]),
+  );
+  const sections = actualBlueprint.sections.map((section) => {
+    const objectiveId = section.objective_id ?? sectionObjectives.get(section.id) ?? section.id;
+    return {
+      id: section.id,
+      title: section.title,
+      body: section.body,
+      objective_id: objectiveId,
+      checklist: section.checklist.map((label, index) => ({
+        id: `${section.id}-${slugify(label) || `item-${index + 1}`}`,
+        label,
+        objective_id: objectiveId,
+      })),
+    };
+  });
+  const quizBank = actualBlueprint.quiz.map((question, index) => {
+    const section =
+      sections.find((item) => item.id === question.section_id) ?? sections[index % sections.length];
+    const objectiveId =
+      question.objective_id ??
+      section?.objective_id ??
+      learningObjectives[index % learningObjectives.length]?.id;
+    const sectionId = question.section_id ?? section?.id ?? 'lesson';
+    return {
+      id: question.id,
+      question: question.question,
+      options: question.options,
+      correct_option_index: question.correct_option_index,
+      explanation: question.explanation,
+      kind: question.kind ?? inferLessonQuizKind(question.id, question.question),
+      objective_id: objectiveId ?? sectionId,
+      section_id: sectionId,
+      remediation: buildQuestionRemediation(skill, objectiveId, sectionId),
+    };
+  });
+  const existingQuestionIds = new Set(quizBank.map((question) => question.id));
+  const countQuestionsForObjective = (objectiveId: string) =>
+    quizBank.filter((question) => question.objective_id === objectiveId).length;
+
+  for (const objective of learningObjectives) {
+    const section = sections.find((item) => item.objective_id === objective.id) ?? sections[0];
+    for (const generated of generatedQuizTemplates(skill, objective, section)) {
+      if (
+        quizBank.length >= MIN_QUIZ_QUESTIONS_PER_LESSON &&
+        countQuestionsForObjective(objective.id) >= MIN_QUIZ_QUESTIONS_PER_OBJECTIVE
+      ) {
+        break;
+      }
+      if (existingQuestionIds.has(generated.id)) continue;
+      existingQuestionIds.add(generated.id);
+      quizBank.push({
+        id: generated.id,
+        question: generated.question,
+        options: generated.options,
+        correct_option_index: generated.correct_option_index,
+        explanation: generated.explanation,
+        kind: generated.kind ?? inferLessonQuizKind(generated.id, generated.question),
+        objective_id: generated.objective_id ?? objective.id,
+        section_id: generated.section_id ?? section.id,
+        remediation: buildQuestionRemediation(
+          skill,
+          generated.objective_id ?? objective.id,
+          generated.section_id ?? section.id,
+        ),
+      });
+    }
+  }
+
+  let fillIndex = 0;
+  while (quizBank.length < MIN_QUIZ_QUESTIONS_PER_LESSON && learningObjectives.length > 0) {
+    const objective = learningObjectives[fillIndex % learningObjectives.length];
+    const section = sections.find((item) => item.objective_id === objective.id) ?? sections[0];
+    const template = generatedQuizTemplates(skill, objective, section)[
+      fillIndex % generatedQuizTemplates(skill, objective, section).length
+    ];
+    const generatedId = `${template.id}-${Math.floor(fillIndex / learningObjectives.length) + 1}`;
+    fillIndex += 1;
+    if (existingQuestionIds.has(generatedId)) continue;
+    existingQuestionIds.add(generatedId);
+    quizBank.push({
+      id: generatedId,
+      question: template.question,
+      options: template.options,
+      correct_option_index: template.correct_option_index,
+      explanation: template.explanation,
+      kind: template.kind ?? inferLessonQuizKind(template.id, template.question),
+      objective_id: objective.id,
+      section_id: section.id,
+      remediation: buildQuestionRemediation(skill, objective.id, section.id),
+    });
+  }
   return {
     skill_canonical: skill,
     title: actualBlueprint.title,
     summary: actualBlueprint.summary,
     license_type: 'skillbridge_original',
     reuse_policy: 'full_reuse_allowed',
-    sections: actualBlueprint.sections,
-    quiz: actualBlueprint.quiz,
+    learning_objectives: learningObjectives,
+    sections,
+    quiz_bank: quizBank,
+    pass_policy: {
+      min_correct_per_objective: 2,
+      min_accuracy: 0.7,
+    },
+    quiz: quizBank,
     exercises: [actualBlueprint.exercise],
   };
 }

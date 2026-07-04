@@ -18,4 +18,14 @@ export class LearningChatRequestDto {
   @IsString()
   @MaxLength(8)
   language?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  session_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  skill_canonical?: string;
 }

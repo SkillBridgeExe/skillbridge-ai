@@ -96,14 +96,78 @@ describe('SkillBridge lesson content catalog', () => {
         source_resource_ids: [`resource-${skill}`],
       });
       expect(lesson?.summary.length).toBeGreaterThan(40);
-      expect(lesson?.sections).toHaveLength(2);
+      expect(lesson?.sections.length).toBeGreaterThanOrEqual(2);
+      expect(lesson?.learning_objectives.length).toBeGreaterThanOrEqual(2);
       expect(lesson?.sections.every((section) => section.body.length > 60)).toBe(true);
       expect(lesson?.sections.every((section) => section.checklist.length >= 3)).toBe(true);
-      expect(lesson?.quiz).toHaveLength(2);
+      expect(
+        lesson?.sections.every((section) =>
+          section.checklist.every((item) => item.id.length > 0 && item.label.length > 0),
+        ),
+      ).toBe(true);
+      expect(lesson?.quiz.length).toBeGreaterThanOrEqual(20);
+      expect(lesson?.quiz_bank).toEqual(lesson?.quiz);
       expect(lesson?.quiz.every((question) => question.options.length === 4)).toBe(true);
+      expect(new Set(lesson?.quiz.map((question) => question.kind))).toEqual(
+        new Set(['concept', 'scenario', 'debug', 'mini_case']),
+      );
+      expect(
+        lesson?.quiz.every(
+          (question) => question.objective_id.length > 0 && question.section_id.length > 0,
+        ),
+      ).toBe(true);
+      const questionsByObjective = new Map<string, number>();
+      for (const question of lesson?.quiz ?? []) {
+        questionsByObjective.set(
+          question.objective_id,
+          (questionsByObjective.get(question.objective_id) ?? 0) + 1,
+        );
+      }
+      for (const objective of lesson?.learning_objectives ?? []) {
+        expect(questionsByObjective.get(objective.id) ?? 0).toBeGreaterThanOrEqual(2);
+      }
+      expect(lesson?.pass_policy).toEqual({
+        min_correct_per_objective: 2,
+        min_accuracy: 0.7,
+      });
       expect(lesson?.exercises).toHaveLength(1);
       expect(lesson?.exercises[0].acceptance_criteria.length).toBeGreaterThanOrEqual(3);
       expect(lesson?.exercises[0].proof_of_completion.length).toBeGreaterThan(20);
+    }
+  });
+
+  it('ships a React pilot lesson with objective-level quiz coverage', () => {
+    const lesson = getSkillBridgeLessonContent('react');
+
+    expect(lesson?.learning_objectives).toHaveLength(5);
+    expect(lesson?.sections).toHaveLength(5);
+    expect(lesson?.quiz_bank).toHaveLength(20);
+
+    const objectiveIds = new Set(lesson?.learning_objectives.map((objective) => objective.id));
+    for (const question of lesson?.quiz_bank ?? []) {
+      expect(objectiveIds.has(question.objective_id)).toBe(true);
+      expect(question.remediation?.video_resource_id).toBe('skillbridge-react-mastery-youtube');
+      expect(question.remediation?.video_chapter_id).toBe(question.objective_id);
+      expect(question.remediation?.start_seconds).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('ships a Computer Vision lesson aligned to the OpenCV video resource', () => {
+    const lesson = getSkillBridgeLessonContent('computer_vision');
+
+    expect(lesson?.title).toContain('OpenCV');
+    expect(lesson?.learning_objectives).toHaveLength(5);
+    expect(lesson?.sections).toHaveLength(5);
+    expect(lesson?.quiz_bank).toHaveLength(20);
+
+    const objectiveIds = new Set(lesson?.learning_objectives.map((objective) => objective.id));
+    for (const question of lesson?.quiz_bank ?? []) {
+      expect(objectiveIds.has(question.objective_id)).toBe(true);
+      expect(question.remediation?.video_resource_id).toBe(
+        'youtube-course-computer_vision-oXlwWbU8l2o',
+      );
+      expect(question.remediation?.video_chapter_id).toBe(question.objective_id);
+      expect(question.remediation?.start_seconds).toBeGreaterThanOrEqual(0);
     }
   });
 });
