@@ -73,6 +73,7 @@
     "eval:cv-parse": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-parse.ts",
     "eval:jd-extract": "ts-node -r tsconfig-paths/register src/calibration/eval-jd-extract.ts",
     "eval:patch": "ts-node -r tsconfig-paths/register src/calibration/eval-patch.ts",
+    "eval:action": "ts-node -r tsconfig-paths/register src/calibration/eval-action.ts",
     "eval:proficiency": "ts-node -r tsconfig-paths/register src/calibration/eval-proficiency.ts",
     "eval:cv-signals": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-signals.ts",
     "eval:cv-input-quality": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-input-quality.ts",

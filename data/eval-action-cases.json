@@ -1,0 +1,126 @@
+{
+  "cases": [
+    {
+      "id": "align-two-missing-severity-order",
+      "target_role": "backend_developer",
+      "cv_skills": [],
+      "jd_requirements": [
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" }
+      ],
+      "note": "Hand-authored. Both missing/learn, same importance (REQUIRED) and weight (0.5/0.5 tie), so WITHOUT severity ranking the bucket order would tie-break alphabetically (git before kubernetes). Kubernetes' gap_levels=5 (EXPERT) vs Git's gap_levels=2 (NOVICE) gives it higher severity (severityRaw: kubernetes 0.6675 > git 0.2775) — proving A2 ranks by severity, not alphabetical tiebreak.",
+      "expect": [
+        { "canonical": "kubernetes", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "git", "cv_status": "missing", "fixability": "learn" }
+      ],
+      "expect_actions_order": ["kubernetes", "git"]
+    },
+    {
+      "id": "align-deepen-outranks-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Docker", "proficiency_hint": "NOVICE" }],
+      "jd_requirements": [
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" }
+      ],
+      "ledger_demonstrated": ["docker"],
+      "note": "Hand-authored, the core A2 regression pin. Docker is a PARTIAL/demonstrated skill (bucket 4: deepen_wording); Git is a MISSING skill (bucket 1: missing_required). Bucket order alone would ALWAYS put missing_required first — this case proves severity overrides bucket order: Docker's gap_levels=3 (NOVICE->EXPERT) gives severityRaw 0.469 (partial's higher interview-risk base) vs Git's gap_levels=2 giving 0.278, so Docker's rewrite action must rank #1 despite being bucket 4.",
+      "expect": [
+        { "canonical": "docker", "cv_status": "partial", "fixability": "rewrite" },
+        { "canonical": "git", "cv_status": "missing", "fixability": "learn" }
+      ],
+      "expect_actions_order": ["docker", "git"]
+    },
+    {
+      "id": "fit-safe-apply-full-coverage",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "note": "Hand-authored fit-policy boundary. Single REQUIRED skill fully matched: weight=1, achieved_weight=1 -> raw=100, required_coverage=1 (1/1 REQUIRED met) -> cap=45+55*1=100 -> overall_score=100. score>=65 (STRONG_SCORE) and coverage>=0.7 (STRONG_COVERAGE), no seniority dims (verdict stays 'unknown', satisfies seniorityOk), no deal-breakers -> safe_apply.",
+      "expect_fit": { "verdict": "safe_apply", "reasons": ["STRONG_SCORE", "STRONG_COVERAGE"] }
+    },
+    {
+      "id": "fit-not-recommended-low-score",
+      "target_role": "backend_developer",
+      "cv_skills": [],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "note": "Hand-authored fit-policy boundary. Single REQUIRED skill entirely missing: achieved_weight=0 -> raw=0, required_coverage=0 -> cap=45 -> overall_score=min(0,45)=0. score<40 (not_recommended_score_below) triggers LOW_SCORE, which alone forces not_recommended regardless of any other input (classifyFit's not_recommended OR-gate) -- also LOW_COVERAGE since coverage(0)<0.7.",
+      "expect_fit": { "verdict": "not_recommended", "reasons": ["LOW_SCORE", "LOW_COVERAGE"] }
+    },
+    {
+      "id": "fit-stretch-mid-score-partial-coverage",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "note": "Hand-authored fit-policy boundary -- pins MID_SCORE (the reason with no dedicated score threshold: fires whenever score is neither <40 nor >=65). Two equal-weight REQUIRED skills (0.5 effective weight each), Git matched (achieved 0.5) and Docker missing (achieved 0) -> raw=50, required_coverage=0.5 (1/2 REQUIRED met) -> cap=45+55*0.5=72.5 -> overall_score=min(50,72.5)=50. 40<=50<65 -> neither LOW_SCORE nor STRONG_SCORE -> MID_SCORE. coverage 0.5<0.7 -> LOW_COVERAGE. Not low enough for not_recommended, not strong enough for safe_apply (coverage fails STRONG_COVERAGE) -> stretch.",
+      "expect_fit": { "verdict": "stretch", "reasons": ["LOW_COVERAGE", "MID_SCORE"] }
+    },
+    {
+      "id": "fit-deal-breaker-unverified-work-mode",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "jd_dimensions": [
+        {
+          "dimension": "work_mode",
+          "value_text": "On-site HCMC",
+          "deal_breaker": true,
+          "evidence_text": "Must work on-site in HCMC full time"
+        }
+      ],
+      "note": "Hand-authored fit-policy boundary -- pins DEAL_BREAKER_UNVERIFIED. work_mode is NEVER graded (gradeNonSkillDimensions only grades language/education/domain; seniority has its own grader) so its jd_intelligence verdict is always null -> lands in unverified_deal_breakers, not unmet. Score/coverage stay strong (same single-skill setup as fit-safe-apply), but 'cannot verify' caps the ceiling at stretch (never fabricates not_recommended, never reaches safe_apply).",
+      "expect_fit": { "verdict": "stretch", "reasons": ["STRONG_SCORE", "STRONG_COVERAGE", "DEAL_BREAKER_UNVERIFIED"] }
+    },
+    {
+      "id": "fit-deal-breaker-unmet-seniority",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Git", "proficiency_hint": "ADVANCED" }],
+      "jd_requirements": [{ "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "jd_dimensions": [
+        {
+          "dimension": "seniority",
+          "value_text": "Senior",
+          "level_hint": "SENIOR",
+          "min_years": 5,
+          "importance_hint": "REQUIRED",
+          "deal_breaker": true,
+          "evidence_text": "Looking for a Senior Backend Engineer with 5+ years"
+        }
+      ],
+      "cv_seniority": { "bucket": "fresher", "est_years": null, "confidence": "high" },
+      "note": "Hand-authored fit-policy boundary -- pins DEAL_BREAKER_UNMET overriding an otherwise-strong score/coverage. JD wants SENIOR (rank 4), CV is fresher (rank 1): diff=-3 < -1 -> gradeSeniority verdict='stretch' (a real, GRADED gap, not unverifiable) -> lands in unmet_deal_breakers (confirmed). classifyFit's not_recommended OR-gate fires on unmet_deal_breakers alone, regardless of the strong score/coverage from the single matched Git skill.",
+      "expect_fit": {
+        "verdict": "not_recommended",
+        "reasons": ["STRONG_SCORE", "STRONG_COVERAGE", "SENIORITY_STRETCH", "DEAL_BREAKER_UNMET"]
+      }
+    },
+    {
+      "id": "realistic-mixed-fixability-no-contradiction",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "Docker", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_listed_only": ["react"],
+      "ledger_demonstrated": ["docker"],
+      "note": "Hand-authored realistic multi-canonical mix exercising all 4 fixability values at once: kubernetes=missing/learn, sql=partial/learn, react=overclaimed(listed-only, cv_level 4)/add_evidence, docker=matched+demonstrated/not_fixable_now. Docker (not_fixable_now, the 'nothing to fix' strength) must never appear in recommended_actions (NO-CONTRADICTION a/b) despite being the CV's strongest skill. Both kubernetes and sql are learn-class -> both must surface in the roadmap's learn_items input set (NO-CONTRADICTION d).",
+      "expect": [
+        { "canonical": "kubernetes", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "sql", "cv_status": "partial", "fixability": "learn" },
+        { "canonical": "react", "cv_status": "overclaimed", "fixability": "add_evidence" },
+        { "canonical": "docker", "cv_status": "matched", "fixability": "not_fixable_now" }
+      ],
+      "expect_actions_order": ["kubernetes", "react"]
+    }
+  ]
+}
