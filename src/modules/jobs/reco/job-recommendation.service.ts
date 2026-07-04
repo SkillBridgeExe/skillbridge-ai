@@ -43,6 +43,12 @@ export interface JobRecommendation {
   /** True when the job sits ≥ 3 seniority levels above the candidate (e.g. fresher → LEAD) — a severe
    *  stretch the FE can badge / filter from the default list. */
   severe_stretch: boolean;
+  /** E5: the recommendationSeniorityPolicy() multiplier applied to match_score → recommendation_score
+   *  (1 = no demotion). Additive — lets the FE explain a demoted score instead of just showing it. */
+  seniority_factor: number;
+  /** E5: job_level rank − cv rank (positive = job sits above the candidate); 0 when seniority is
+   *  unknown/neutral. Same value recommendationSeniorityPolicy() derived the factor from. */
+  level_gap: number;
   /** Cosine similarity of skill-set embeddings (null when the job has no vector). */
   semantic_similarity: number | null;
   /** RRF-fused rank position (1 = best). */
@@ -367,6 +373,8 @@ export function buildJobRecommendation(
     match_score: diff.overall_score,
     recommendation_score: Math.round(diff.overall_score * policy.factor),
     severe_stretch: policy.severe_stretch,
+    seniority_factor: policy.factor,
+    level_gap: policy.level_gap,
     semantic_similarity: semanticSimilarity,
     rank,
     matched_skills: diff.matched_skills.map((s) => s.display_name),
