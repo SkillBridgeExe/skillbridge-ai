@@ -52,6 +52,7 @@ jobs:
           pnpm eval:gap
           pnpm eval:match
           pnpm eval:rubric
+          pnpm eval:action
           pnpm eval:progress
           pnpm eval:chat-tools
 
