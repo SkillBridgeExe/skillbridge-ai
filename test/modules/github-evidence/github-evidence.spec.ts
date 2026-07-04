@@ -121,4 +121,49 @@ describe('buildGithubEvidence (pure)', () => {
     expect(corroborated).toEqual([]);
     expect(github_only).toHaveLength(5); // GITHUB_ONLY_CAP enforced, 2 dropped
   });
+
+  it('actually enforces the corroborated cap of 10 with 12 distinct skills, dropping the oldest by recency', () => {
+    // Local skill universe just for this case — the shared KNOWN set only has 7 entries.
+    const skills = Array.from({ length: 12 }, (_, i) => `skill${i}`);
+    const known2 = new Set(skills);
+    const normalize2 = (raw: string) => (known2.has(raw.toLowerCase()) ? raw.toLowerCase() : null);
+    const scan2 = () => [];
+    const display2 = (c: string) => c.toUpperCase();
+    const repos = skills.map(
+      (s, i) => repo({ name: `r${i}`, language: s, pushed_at: `20${10 + i}-01-01T00:00:00Z` }), // 2010..2021
+    );
+    const { corroborated } = buildGithubEvidence(
+      repos,
+      new Set(skills),
+      normalize2,
+      scan2,
+      display2,
+      'vi',
+    );
+    const canonicals = corroborated.map((s) => s.skill_canonical);
+    expect(canonicals).toHaveLength(10); // CORROBORATED_CAP enforced, 2 dropped
+    // all tied at repo_count=1 → tie-break is most_recent_year desc, so the two oldest drop.
+    expect(canonicals).not.toContain('skill0'); // 2010, oldest
+    expect(canonicals).not.toContain('skill1'); // 2011, 2nd oldest
+    expect(canonicals[0]).toBe('skill11'); // 2021, most recent, sorts first
+  });
+
+  it('a repo with no detectable skill contributes nothing to either list', () => {
+    const repos = [
+      repo({ name: 'blank', language: null, topics: [], description: null }),
+      repo({ name: 'react-app', language: 'React', pushed_at: '2026-01-01T00:00:00Z' }),
+    ];
+    const { corroborated, github_only, analyzed_repo_count } = buildGithubEvidence(
+      repos,
+      null,
+      normalize,
+      scan,
+      display,
+      'vi',
+    );
+    expect(analyzed_repo_count).toBe(2); // both non-fork repos still counted as analyzed
+    expect(corroborated).toEqual([]);
+    expect(github_only.map((s) => s.skill_canonical)).toEqual(['react']);
+    expect(github_only[0].repos.map((r) => r.name)).not.toContain('blank');
+  });
 });
