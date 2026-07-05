@@ -12,6 +12,7 @@ import { deriveCvSeniority } from '../../common/services/seniority';
 import { deriveCvProfileSignals } from '../../common/services/cv-profile-signals';
 import { buildGapReportCore, GapReportCore } from './gap-report';
 import { buildGapItems, GapItem } from '../gap-engine/gap-item';
+import { simulateActionImpact } from './impact-simulator';
 
 export interface SkillBridgeGapReport extends GapReportCore {
   /** Distilled trend GAPS (implied & not covered) — the downstream signal (roadmap/interview). */
@@ -49,6 +50,10 @@ export class GapReportService {
     match: CvJdMatchParsedResponse;
     review: CvReviewParsedResponse | null;
     lang?: 'vi' | 'en';
+    /** I3 (Wave IMPACT): platform-fetched github corroboration (opt-in username+consent), converted
+     *  to a plain Map BEFORE this call — see CvMatchesService.fetchGithubCorroboration. Optional;
+     *  absent on every non-opted-in request ⇒ passed through as a no-op to buildGapItems. */
+    corroborated?: Map<string, { ref: string }> | null;
   }): Promise<SkillBridgeGapReport> {
     const lang = input.lang ?? 'vi';
     const ledger = input.review?.evidence_ledger ?? null;
@@ -81,6 +86,7 @@ export class GapReportService {
       jdDimensions: input.match.jd_dimensions ?? null,
       cvSeniority,
       cvProfileSignals,
+      corroborated: input.corroborated ?? null,
     });
 
     // A2: rank recommended_actions by the SAME severity as gap_items (fixes B3 — action #1 could
@@ -94,15 +100,37 @@ export class GapReportService {
       severityByCanonical,
     });
 
+    // PR4: enrich the checklist into a deterministic patch plan (joins gap_items by skill_canonical).
+    const patched = decorateWithPatch({
+      actions: checklist.actions,
+      gapItems,
+      document: input.review?.document ?? null,
+      lang,
+    });
+
+    // I1 (Wave IMPACT): deterministic what-if score/severity impact per action, computed AFTER
+    // decorateWithPatch (never re-runs diff() — recomputes from the SAME persisted match arrays).
+    // Absent join (no gap_item, or no matching missing/partial entry for a score-moving action) ⇒
+    // NO expected_impact field — never a fabricated 0-0.
+    const gapByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g]));
+    const missingCanonicals = new Set(input.match.missing_skills.map((m) => m.canonical_name));
+    const partialCanonicals = new Set(input.match.partial_skills.map((p) => p.canonical_name));
+    const recommendedActions = patched.map((a) => {
+      const gi = gapByCanonical.get(a.skill_canonical);
+      if (!gi) return a;
+      const joined =
+        a.action_type === 'missing_required'
+          ? missingCanonicals.has(a.skill_canonical)
+          : a.action_type === 'deepen_wording'
+            ? partialCanonicals.has(a.skill_canonical)
+            : true; // add_evidence/emphasize only need the gap_item — score is always 0-0
+      if (!joined) return a;
+      return { ...a, expected_impact: simulateActionImpact(input.match, gi, a) };
+    });
+
     return {
       ...core,
-      // PR4: enrich the checklist into a deterministic patch plan (joins gap_items by skill_canonical).
-      recommended_actions: decorateWithPatch({
-        actions: checklist.actions,
-        gapItems,
-        document: input.review?.document ?? null,
-        lang,
-      }),
+      recommended_actions: recommendedActions,
       generated_with_ledger: checklist.generated_with_ledger,
       market_trend_gaps: marketDto.available ? marketDto.implied.filter((i) => !i.covered) : null,
       market: marketDto.available

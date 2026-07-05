@@ -3,14 +3,15 @@
  * anything. Fully OFFLINE (no LLM, no DB): cv_skills + jd_requirements flow through the REAL
  * SkillNormalizer → SkillDiffService (real score/coverage), a fixture ledger/jd_dimensions/cv_seniority
  * overlay lands on top, then buildGapItems → buildTailorChecklist(+severityByCanonical, A2) →
- * decorateWithPatch produce recommended_actions, buildGapReportCore produces the A1 fit verdict, and
- * buildUnifiedPlan produces the roadmap input set — the SAME call graph gap-report.service.ts and
+ * decorateWithPatch → merge expected_impact (simulateActionImpact, Wave IMPACT I1/I2) produce
+ * recommended_actions, buildGapReportCore produces the A1 fit verdict, and buildUnifiedPlan produces
+ * the roadmap input set — the SAME call graph gap-report.service.ts and
  * cv-matches.service.ts#generateRoadmapFromMatch use (verified by reading both). Mirrors eval-gap /
  * eval-patch.
  *
  *   pnpm eval:action
  *
- * Gates (binding, task-A4-brief.md):
+ * Gates (binding, task-A4-brief.md + task-I2-brief.md):
  *   1. Stability      — same input built twice → gap_items + recommended_actions byte-identical.
  *   2. Alignment      — recommended_actions[0] is the highest-severity gap among gaps with
  *                        fixability !== 'not_fixable_now' that actually produced an action (post-A2
@@ -27,6 +28,16 @@
  *            cv-matches.service.ts#generateRoadmapFromMatch → buildUnifiedPlan({ gapItems:
  *            report.gap_items }) at unified-plan.ts's gapTrack()); it does not re-derive gaps
  *            independently, so this gate has real teeth (see task-A4-report.md discovery notes).
+ *   5. Impact sign        — every expected_impact has 0 <= score_min <= score_max (task-I2-brief.md).
+ *   6. Impact honest-zero — add_evidence/emphasize actions always carry score {0, 0}, and
+ *                           severity_drop > 0 whenever the joined gap_item's evidence_risk is
+ *                           droppable (i.e. not already 'none').
+ *   7. Impact monotonic   — within a case, a missing_required action on a higher-weight REQUIRED
+ *                           skill (match.missing_skills[].weight) never scores score_max BELOW a
+ *                           lower-weight sibling.
+ *   8. Recompute-mirror   — recomputeOverall(match) (the impact simulator's diff() mirror) equals
+ *                           the REAL SkillDiffService.diff() overall_score, for every case (not just
+ *                           impact-simulator.spec.ts's dedicated pure-function fixtures).
  *
  * data/eval-action-cases.json case shape: see ActionCase below (mirrors GapCase in eval-gap.ts,
  * plus expect_fit for the classifyFit boundary gate).
@@ -48,6 +59,7 @@ import { buildTailorChecklist } from '../modules/cv-jd-match/tailor-checklist';
 import { decorateWithPatch, PatchedTailorAction } from '../modules/cv-jd-match/cv-patch';
 import { buildGapReportCore } from '../modules/gap-report/gap-report';
 import { buildUnifiedPlan } from '../modules/gap-report/unified-plan';
+import { simulateActionImpact, recomputeOverall } from '../modules/gap-report/impact-simulator';
 import { normalizeJdDimensions, RawJdDimension } from '../modules/gap-engine/jd-dimensions';
 import { CvSeniority, Confidence, SeniorityBucket } from '../common/services/seniority';
 import { FitReasonCode } from '../modules/gap-engine/fit-strategy';
@@ -161,7 +173,27 @@ async function main(): Promise<void> {
     const gapItems = buildGapItems({ match, ledger, jdDimensions, cvSeniority });
     const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
     const checklist = buildTailorChecklist(match, ledger, 'vi', severityByCanonical);
-    const actions = decorateWithPatch({ actions: checklist, gapItems, document: null, lang: 'vi' });
+    const patched = decorateWithPatch({ actions: checklist, gapItems, document: null, lang: 'vi' });
+
+    // I2 (Wave IMPACT): merge deterministic what-if impact onto each action AFTER decorateWithPatch —
+    // the SAME join gap-report.service.ts performs (gapByCanonical + missing/partial canonical sets
+    // from the persisted match arrays) — an unjoined action gets NO expected_impact, never a
+    // fabricated 0-0.
+    const gapByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g]));
+    const missingCanonicals = new Set(match.missing_skills.map((m) => m.canonical_name));
+    const partialCanonicals = new Set(match.partial_skills.map((p) => p.canonical_name));
+    const actions: PatchedTailorAction[] = patched.map((a) => {
+      const gi = gapByCanonical.get(a.skill_canonical);
+      if (!gi) return a;
+      const joined =
+        a.action_type === 'missing_required'
+          ? missingCanonicals.has(a.skill_canonical)
+          : a.action_type === 'deepen_wording'
+            ? partialCanonicals.has(a.skill_canonical)
+            : true; // add_evidence/emphasize only need the gap_item — score is always 0-0
+      if (!joined) return a;
+      return { ...a, expected_impact: simulateActionImpact(match, gi, a) };
+    });
 
     // Real fit path (A1): buildGapReportCore is the SAME pure function gap-report.service.ts calls.
     const core = buildGapReportCore(match, ledger, cvSeniority, null, 'vi');
@@ -209,6 +241,16 @@ async function main(): Promise<void> {
       required_coverage: res.required_coverage,
       ...(c.jd_dimensions ? { jd_dimensions: normalizeJdDimensions(c.jd_dimensions) } : {}),
     } as unknown as CvJdMatchParsedResponse;
+
+    // Gate 8 — RECOMPUTE-MIRROR: the impact simulator's diff() mirror must reproduce the REAL
+    // SkillDiffService.diff() overall_score for every case (not just impact-simulator.spec.ts's
+    // hand-picked fixtures) — this is what lets simulateActionImpact skip re-running diff() safely.
+    const mirroredBaseline = recomputeOverall(match);
+    if (mirroredBaseline !== res.overall_score) {
+      misses.push(
+        `  ${c.id}: RECOMPUTE-MIRROR — recomputeOverall(match) = ${mirroredBaseline}, expected diff().overall_score = ${res.overall_score}`,
+      );
+    }
 
     const first = build(c, res, match);
     // Gate 1 — STABILITY: same input, independently rebuilt, must be byte-identical.
@@ -333,6 +375,62 @@ async function main(): Promise<void> {
       if (!learnRequirementIds.has(topLearn.requirement_id)) {
         misses.push(
           `  ${c.id}: NO-CONTRADICTION(d) — top learn-class gap "${topLearn.canonical_name}" missing from roadmap learn_items input set`,
+        );
+      }
+    }
+
+    // Gate 5 — IMPACT SIGN: every expected_impact carries 0 <= score_min <= score_max.
+    for (const a of actions) {
+      if (!a.expected_impact) continue;
+      const { score_min, score_max } = a.expected_impact;
+      if (!(score_min >= 0 && score_max >= score_min)) {
+        misses.push(
+          `  ${c.id}: IMPACT-SIGN — "${a.skill_canonical}" expected_impact = {score_min:${score_min}, score_max:${score_max}}, expected 0 <= score_min <= score_max`,
+        );
+      }
+    }
+
+    // Gate 6 — IMPACT HONEST-ZERO: add_evidence/emphasize never move the score (0-0 by
+    // construction — they don't change cv_level); their real payoff is severity_drop, which must be
+    // > 0 whenever the joined gap_item's evidence_risk still has headroom to drop (not already
+    // 'none').
+    for (const a of actions) {
+      if (!a.expected_impact) continue;
+      if (a.action_type !== 'add_evidence' && a.action_type !== 'emphasize') continue;
+      const { score_min, score_max, severity_drop } = a.expected_impact;
+      if (score_min !== 0 || score_max !== 0) {
+        misses.push(
+          `  ${c.id}: IMPACT-HONEST-ZERO — "${a.skill_canonical}" (${a.action_type}) expected_impact score = {${score_min}, ${score_max}}, expected {0, 0}`,
+        );
+      }
+      const gi = byCanonical.get(a.skill_canonical);
+      if (gi && gi.evidence_risk !== 'none' && !(severity_drop !== null && severity_drop > 0)) {
+        misses.push(
+          `  ${c.id}: IMPACT-HONEST-ZERO — "${a.skill_canonical}" (${a.action_type}) evidence_risk="${gi.evidence_risk}" is droppable but severity_drop = ${severity_drop}, expected > 0`,
+        );
+      }
+    }
+
+    // Gate 7 — IMPACT MONOTONIC: within this case, a missing_required action on a higher-weight
+    // REQUIRED skill (match.missing_skills[].weight) must never score_max BELOW a lower-weight
+    // sibling — effective_weight = weight × importance_multiplier is monotone in weight when the
+    // multiplier (REQUIRED, always 1.0 for this bucket) is held equal.
+    const weightByCanonical = new Map(
+      match.missing_skills.map((m) => [m.canonical_name, m.weight]),
+    );
+    const missingRequiredWithImpact = actions
+      .filter((a) => a.action_type === 'missing_required' && a.expected_impact)
+      .map((a) => ({ a, weight: weightByCanonical.get(a.skill_canonical) ?? 0 }))
+      .sort((x, y) => y.weight - x.weight);
+    for (let i = 1; i < missingRequiredWithImpact.length; i++) {
+      const prev = missingRequiredWithImpact[i - 1];
+      const cur = missingRequiredWithImpact[i];
+      if (
+        prev.weight > cur.weight &&
+        cur.a.expected_impact!.score_max > prev.a.expected_impact!.score_max
+      ) {
+        misses.push(
+          `  ${c.id}: IMPACT-MONOTONIC — "${cur.a.skill_canonical}" (weight ${cur.weight}) score_max ${cur.a.expected_impact!.score_max} exceeds higher-weight "${prev.a.skill_canonical}" (weight ${prev.weight}) score_max ${prev.a.expected_impact!.score_max}`,
         );
       }
     }

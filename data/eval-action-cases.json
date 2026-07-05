@@ -121,6 +121,65 @@
         { "canonical": "docker", "cv_status": "matched", "fixability": "not_fixable_now" }
       ],
       "expect_actions_order": ["kubernetes", "react"]
+    },
+    {
+      "id": "impact-monotonic-required-weight-hard-vs-soft",
+      "target_role": "backend_developer",
+      "cv_skills": [],
+      "jd_requirements": [
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "Communication", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" }
+      ],
+      "note": "Hand-authored for IMPACT-MONOTONIC (gate 7, task-I2-brief.md). Both skills missing/REQUIRED but skill-type weighting differs (normalizeJdRequirements: hard=1 base, soft=0.5 base) -- Docker (hard) normalizes to weight 0.667, Communication (soft) to 0.333 (0.5/1.5). required_level_hint is DELIBERATELY different (Docker EXPERT/5, Communication NOVICE/2) so their severities don't tie (avoids the ALIGNMENT gate's alpha tie-break ambiguity) -- this is safe for the monotonic proof because the score_max what-if always awards a missing skill's FULL effective_weight once it clears its OWN bar, regardless of what that bar's level actually is: baseline (both missing) has weightSum=1.0, achieved=0, overall=0. Docker's max (moved to matched at its bar): achieved=0.667, raw=66.7, required_coverage=1/2=0.5 -> cap=72.5 -> overall=round(min(66.7,72.5))=67 -> score_max=67. Communication's max (moved to matched at ITS bar): achieved=0.333, raw=33.3, same cap=72.5 -> overall=33 -> score_max=33. 67>33 proves higher-weight REQUIRED-missing scores a bigger score_max purely from weight, independent of required_level.",
+      "expect": [
+        { "canonical": "docker", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "communication", "cv_status": "missing", "fixability": "learn" }
+      ],
+      "expect_actions_order": ["docker", "communication"]
+    },
+    {
+      "id": "impact-honest-zero-add-evidence-unproven",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "SQL", "proficiency_hint": "INTERMEDIATE" }],
+      "jd_requirements": [{ "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }],
+      "ledger_listed_only": ["sql"],
+      "note": "Hand-authored for IMPACT-HONEST-ZERO (gate 6, task-I2-brief.md). SQL matched exactly at the bar (cv_level=3=required_level) but listed_only in the ledger and cv_level<4 -> cv_status='unproven' (not overclaimed), evidence_risk='listed_only' -- droppable one notch to 'none' (constraints fact #4). add_evidence never changes cv_level by construction, so expected_impact.score = {0,0}; the real payoff is severity_drop = computeSeverity(evidence_risk='listed_only') - computeSeverity(evidence_risk='none') with importance/gap_levels/cv_status held constant, which must be > 0 because EVIDENCE_RISK_W is a real, non-zero severity factor (constraints fact #4 -- EVIDENCE_RISK_W unchanged).",
+      "expect": [
+        { "canonical": "sql", "cv_status": "unproven", "fixability": "add_evidence" }
+      ]
+    },
+    {
+      "id": "impact-sign-deepen-wording-min-equals-max",
+      "target_role": "backend_developer",
+      "cv_skills": [{ "name": "Kubernetes", "proficiency_hint": "INTERMEDIATE" }],
+      "jd_requirements": [{ "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }],
+      "ledger_demonstrated": ["kubernetes"],
+      "note": "Hand-authored boundary case for IMPACT-SIGN (gate 5, task-I2-brief.md) -- proves the gate holds even at the score_min===score_max equality edge, not just the strict-inequality common case already unit-tested in impact-simulator.spec.ts. Kubernetes is the ONLY requirement (weight=1), partial at cv_level=3 (INTERMEDIATE) vs required_level=4 (ADVANCED), gap_levels=1, demonstrated -> fixability='rewrite'. Baseline: achieved=1.0*(3/4)^1.6=0.6313, raw=63.13, required_coverage=0 (partial doesn't count as met) -> cap=45 -> baseline overall=round(min(63.13,45))=45 (cap already binds at baseline). Because gap_levels=1, minLevel=cv_level+1=4 equals required_level=4 -- MIN and MAX what-if levels COINCIDE (both fully clear the bar): achieved=1.0, raw=100, required_coverage=1/1=1 -> cap=100 -> overall=100 for both. score_min=score_max=100-45=55, a legitimate equality boundary (0<=score_min<=score_max holds via equality, both firmly >0).",
+      "expect": [
+        { "canonical": "kubernetes", "cv_status": "partial", "fixability": "rewrite" }
+      ]
+    },
+    {
+      "id": "impact-recompute-mirror-cap-bound",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "SQL", "proficiency_hint": "ADVANCED" },
+        { "name": "Git", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Git", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" }
+      ],
+      "note": "Hand-authored for RECOMPUTE-MIRROR (gate 8, task-I2-brief.md), extending impact-simulator.spec.ts's dedicated pure-function cap-bound fixture into the full eval-action pipeline (gap_items/actions/fit built on top of the SAME scenario, not just recomputeOverall in isolation). 2 REQUIRED (Docker/Kubernetes, both missing) + 3 PREFERRED (React/SQL/Git, all matched at the bar) -- 5 equal-weight hard skills -> weight=0.2 each. weightSum=0.2*1.0*2 + 0.2*0.6*3=0.4+0.36=0.76; achieved=0.2*0.6*3=0.36 (only the matched PREFERRED trio); raw=0.36/0.76*100=47.37; required_coverage=0/2=0 (both REQUIRED still missing) -> cap=45. raw(47.37) > cap(45) -> the cap BINDS -> overall_score=round(min(47.37,45))=45, strictly less than round(raw)=47 -- the gate proves recomputeOverall(match) reproduces this exact capped 45 from the REAL SkillDiffService.diff(), not a naive raw rounding.",
+      "expect": [
+        { "canonical": "docker", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "kubernetes", "cv_status": "missing", "fixability": "learn" }
+      ],
+      "expect_actions_order": ["docker", "kubernetes"]
     }
   ]
 }

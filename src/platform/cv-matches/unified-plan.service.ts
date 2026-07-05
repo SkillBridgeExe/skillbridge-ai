@@ -36,6 +36,7 @@ export class UnifiedPlanService {
       sessionId: resolvedSessionId,
       gapItems: report.gap_items,
       interviewItems,
+      actions: report.recommended_actions,
     });
   }
 }

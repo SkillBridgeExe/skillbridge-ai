@@ -50,6 +50,9 @@ interface GapCase {
   jd_requirements?: Array<{ name: string; importance_hint?: string; required_level_hint?: string }>;
   ledger_listed_only?: string[];
   ledger_demonstrated?: string[];
+  /** I3 (Wave IMPACT): canonical → repo name, the platform-fetched github corroboration overlay
+   *  (a plain Map by the time it reaches buildGapItems — see gap-item.ts's BuildGapItemsInput). */
+  corroborated?: Record<string, string>;
   /** canonical → pct_of_postings (0-100), overlaid as the market-demand input. Optional; when present
    *  it drives severity ranking (lets a case test market-tilt — e.g. two equal gaps ordered by demand). */
   market_demand?: Record<string, number>;
@@ -74,6 +77,9 @@ interface GapCase {
     /** E1: exact expected quote on the produced GapItem's first `evidence` entry — gates the real
      *  quote span flowing ledger → GapItem end-to-end (buildFixtureLedger below fabricates it). */
     evidence_quote?: string;
+    /** I3: expected `kind` on the produced GapItem's first `evidence` entry (e.g. 'github') — gates
+     *  the corroboration overlay actually appending a citation. */
+    evidence_kind?: string;
   }>;
   /** Canonicals that must NOT appear in the emitted items[] — the honest-omission gate (e.g. a
    *  seniority dim with no/low-confidence CV signal must produce NO gap, never a fabricated one). */
@@ -247,6 +253,9 @@ async function main(): Promise<void> {
       jdDimensions,
       cvSeniority,
       cvProfileSignals,
+      corroborated: c.corroborated
+        ? new Map(Object.entries(c.corroborated).map(([canon, ref]) => [canon, { ref }]))
+        : null,
     });
     const byCanonical = new Map(items.map((g) => [g.canonical_name, g]));
 
@@ -262,6 +271,7 @@ async function main(): Promise<void> {
         ['fixability', e.fixability, g.fixability],
         ['evidence_risk', e.evidence_risk, g.evidence_risk],
         ['evidence_quote', e.evidence_quote, g.evidence?.[0]?.quote ?? undefined],
+        ['evidence_kind', e.evidence_kind, g.evidence?.[0]?.kind ?? undefined],
       ];
       for (const [field, want, got] of checks) {
         if (want !== undefined && want !== got) {
