@@ -161,6 +161,16 @@ export class CvRewriteService {
         section: req.section ?? null,
         target_lang: req.target_lang ?? null,
         text_length: text.length,
+        // ME1: trace WHICH verified action a tailor rewrite served (calibration ground truth).
+        // ids/enums only — never CV/JD text. Non-tailor modes get no new keys (not even undefined).
+        ...(req.mode === 'tailor' && verifiedAction
+          ? {
+              action_id: verifiedAction.action_id,
+              match_id: req.match_id ?? null,
+              skill_canonical: verifiedAction.skill_canonical,
+              action_type: verifiedAction.action_type,
+            }
+          : {}),
       },
     });
 
