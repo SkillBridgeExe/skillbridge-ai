@@ -80,7 +80,10 @@ export class AnswerInsightService {
           responseSchema: ANSWER_INSIGHT_SCHEMA,
           temperature: 0,
           maxOutputTokens: 300,
-          model: process.env.ANSWER_INSIGHT_MODEL || undefined,
+          // Pinned to a non-reasoning model: the global default (gpt-5.x family) makes
+          // buildChatParams DROP the temperature:0 this judge's determinism claim rests on,
+          // and forces max_completion_tokens ≥ 8192. Env still overrides.
+          model: process.env.ANSWER_INSIGHT_MODEL || 'gpt-4o-mini',
         },
       );
 

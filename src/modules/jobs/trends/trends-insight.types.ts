@@ -72,6 +72,10 @@ export interface TrendsInsightResponse {
   /** Insight sâu v1 (có thể rỗng khi pool/LLM không có cặp đáng nói). */
   skill_pairs: SkillPairInsight[];
   cached: boolean;
+  /** True when the underlying snapshot period is older than the disclosure threshold (3 days) —
+   *  the external trends:refresh cron has not run; numbers are real but not current. Computed at
+   *  RESPONSE time (never cached), so a stale cache row still discloses. Additive. */
+  stale?: boolean;
 }
 
 /** Shape requested from the LLM — PROSE ONLY (skill keys + text; any numbers are ignored). */

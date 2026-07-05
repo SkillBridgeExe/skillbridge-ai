@@ -37,6 +37,19 @@ export function buildFacts(
   };
 }
 
+
+/**
+ * LLM prose is FORBIDDEN to carry quantitative claims (prompt contract): every displayed number
+ * is re-attached from FACTS, so a STANDALONE number in free text is an unverifiable claim standing
+ * next to verified ones ('React tăng 45%' beside the real +2). Enforcement, not a soft ask:
+ * prose containing a standalone number is dropped (comment → '', summary → deterministic
+ * fallback). Digits embedded in tech names (K8s, ES6, Vue3) are not claims and pass through.
+ */
+const STANDALONE_NUMBER = /(?<![A-Za-z0-9])\d+(?:[.,]\d+)?(?![A-Za-z0-9])/;
+function digitFree(text: string): string {
+  return STANDALONE_NUMBER.test(text) ? '' : text;
+}
+
 const TOP_N_FALLBACK = 3;
 const MAX_INSIGHTS = 5;
 const MAX_RECOMMENDED = 5;
@@ -110,7 +123,7 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
       pct_of_postings: f.pct_of_postings,
       trend_delta: f.trend_delta,
       covered: f.covered,
-      comment: typeof item?.comment === 'string' ? item.comment.slice(0, 280) : '',
+      comment: typeof item?.comment === 'string' ? digitFree(item.comment.slice(0, 280)) : '',
     });
   }
 
@@ -148,14 +161,13 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
     pairSeen.add(pairKey(a, b));
     skill_pairs.push({
       ...f,
-      comment: typeof item?.comment === 'string' ? item.comment.slice(0, 280) : '',
+      comment: typeof item?.comment === 'string' ? digitFree(item.comment.slice(0, 280)) : '',
     });
   }
 
-  const summary =
-    typeof raw.summary === 'string' && raw.summary.trim()
-      ? raw.summary.slice(0, 600)
-      : fallbackSummary(facts);
+  const llmSummary =
+    typeof raw.summary === 'string' && raw.summary.trim() ? digitFree(raw.summary.slice(0, 600)) : '';
+  const summary = llmSummary || fallbackSummary(facts);
 
   return {
     role_code: facts.role_code,

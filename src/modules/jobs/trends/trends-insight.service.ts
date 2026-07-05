@@ -35,7 +35,7 @@ export class TrendsInsightService {
     const trends = await this.demand.getTrends(role, limit);
 
     const cached = await this.readCache(cvKey, role, trends.period);
-    if (cached) return { ...cached, cached: true };
+    if (cached) return this.withStale({ ...cached, cached: true });
 
     // Personalized: resolve the CV's covered skill set (getSkillGap also enforces CV ownership → 404).
     let coveredCanonicals: Set<string> | null = null;
@@ -73,7 +73,10 @@ export class TrendsInsightService {
           jsonMode: true,
           temperature: 0.3,
           maxOutputTokens: 700,
-          model: process.env.TRENDS_INSIGHT_MODEL || undefined,
+          // Pinned to a non-reasoning model: the global default (gpt-5.x family) makes
+          // buildChatParams DROP temperature and force max_completion_tokens ≥ 8192, silently
+          // voiding the temp-0.3/700-token design of this call. Env still overrides.
+          model: process.env.TRENDS_INSIGHT_MODEL || 'gpt-4o-mini',
         },
       );
 
@@ -98,12 +101,24 @@ export class TrendsInsightService {
       });
 
       await this.writeCache(cvKey, role, trends.period, grounded, llmResult.modelCode);
-      return grounded;
+      return this.withStale(grounded);
     } catch (err) {
       await this.tracing.markFailed(aiRequestId, startedAt, err);
       this.logger.warn(`trends_insight degraded to fallback: ${(err as Error).message}`);
-      return groundInsight(null, facts);
+      return this.withStale(groundInsight(null, facts));
     }
+  }
+
+  /** Snapshot cadence is nightly (external cron); a period older than this = the cron is not
+   *  running and the narrative must disclose it. Computed at response time — never cached. */
+  private static readonly STALE_AFTER_DAYS = 3;
+
+  private withStale(r: TrendsInsightResponse): TrendsInsightResponse {
+    const periodMs = Date.parse(r.period);
+    const stale = Number.isFinite(periodMs)
+      ? Date.now() - periodMs > TrendsInsightService.STALE_AFTER_DAYS * 86_400_000
+      : true; // unparseable period = cannot prove freshness → disclose
+    return { ...r, stale };
   }
 
   private async readCache(
