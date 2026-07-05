@@ -894,12 +894,12 @@ export class CvMatchesService {
   ): Promise<Set<string>> {
     if (!this.aiRequests || actionIds.length === 0) return new Set();
     const rows = await this.aiRequests.manager.query<Array<{ action_id: string }>>(
-      `SELECT DISTINCT request_payload ->> 'action_id' AS action_id
+      `SELECT DISTINCT request_payload -> 'payload' ->> 'action_id' AS action_id
          FROM ai_requests
         WHERE user_id = $1
           AND request_type = 'cv_rewrite'
           AND created_at BETWEEN $2 AND $3
-          AND request_payload ->> 'action_id' = ANY($4::text[])`,
+          AND request_payload -> 'payload' ->> 'action_id' = ANY($4::text[])`,
       [userId, from, to, actionIds],
     );
     return new Set(rows.map((r) => r.action_id));

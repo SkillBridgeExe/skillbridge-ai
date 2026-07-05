@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { TransitionKind } from '../../modules/gap-report/gap-progress';
 
 /**
@@ -9,6 +9,7 @@ import { TransitionKind } from '../../modules/gap-report/gap-progress';
  */
 @Entity('impact_calibrations')
 @Index(['userId', 'createdAt'])
+@Unique(['priorMatchId', 'currentMatchId', 'canonicalName'])
 export class ImpactCalibrationEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

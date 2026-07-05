@@ -59,8 +59,9 @@ jobs:
           # Wave MEASURE (ME3): remaining offline harnesses promoted to the gate. All run
           # deterministically with no OPENAI_API_KEY and no DB (NODE_ENV=test above also forces
           # eval:cv-builder's live GATE 2 to skip, same as it would with no key at all in CI).
-          # eval:mentions and eval:semantic are deliberately NOT here — both currently FAIL on
-          # stale goldens (see task-ME3-report.md); left as findings, not papered over.
+          # eval:mentions and eval:semantic are deliberately NOT here: eval:mentions fails on
+          # stale golden/alias drift ("Oracle"), eval:semantic fails on a stale precondition
+          # golden. Both pending an owner calibration decision — do NOT re-add by editing goldens.
           pnpm eval:role-infer
           pnpm eval:interview
           pnpm eval:answer-signals

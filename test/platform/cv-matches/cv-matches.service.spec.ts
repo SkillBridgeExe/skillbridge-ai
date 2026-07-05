@@ -764,6 +764,12 @@ describe('CvMatchesService', () => {
           [actionReact.action_id, actionSql.action_id, actionAws.action_id],
         ],
       );
+      // Pins the read to go through TracingService's payload wrapper
+      // (request_payload.payload.action_id) — a plain request_payload ->> 'action_id'
+      // would never match a real row and silently always return attempted=false.
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][0]).toEqual(
+        expect.stringContaining("-> 'payload' ->> 'action_id'"),
+      );
 
       const insert = env.impactCalibrationsRepo.manager.query;
       expect(insert).toHaveBeenCalledTimes(3); // react, sql, aws — node has no expected_impact
