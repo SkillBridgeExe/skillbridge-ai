@@ -57,6 +57,8 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
     const createdAt = new Date('2026-07-02T08:00:00.000Z');
     const { service, matchesRepo, queryBuilder } = build([
       {
+        matchId: 'match-other-1',
+        cvId: 'cv-other-1',
         jdTitle: 'Frontend Developer',
         overallScore: '72.50',
         suggestions: {
@@ -70,6 +72,8 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
         createdAt,
       },
       {
+        matchId: 'match-other-2',
+        cvId: 'cv-other-2',
         jdTitle: null,
         overallScore: null,
         suggestions: {
@@ -103,6 +107,8 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
     expect(queryBuilder.orderBy).toHaveBeenCalledWith('m.createdAt', 'DESC');
     expect(queryBuilder.take).toHaveBeenCalledWith(2);
     expect(queryBuilder.select).toHaveBeenCalledWith([
+      'm.id AS "matchId"',
+      'cv.id AS "cvId"',
       'jd.title AS "jdTitle"',
       'm.overallScore AS "overallScore"',
       'm.suggestions AS "suggestions"',
@@ -110,12 +116,16 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
     ]);
     expect(out).toEqual([
       {
+        match_id: 'match-other-1',
+        cv_id: 'cv-other-1',
         jd_title: 'Frontend Developer',
         overall_score: 72.5,
         top_gaps: ['React', 'TypeScript'],
         created_at: '2026-07-02T08:00:00.000Z',
       },
       {
+        match_id: 'match-other-2',
+        cv_id: 'cv-other-2',
         jd_title: null,
         overall_score: null,
         top_gaps: ['Docker'],
@@ -127,6 +137,8 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
   it('degrades malformed persisted suggestions to an empty top_gaps list', async () => {
     const { service } = build([
       {
+        matchId: 'match-other-3',
+        cvId: 'cv-other-3',
         jdTitle: 'Backend Developer',
         overallScore: 81,
         suggestions: {
@@ -141,6 +153,8 @@ describe('CvMatchesService.listRecentMatchSummariesForUser', () => {
       service.listRecentMatchSummariesForUser('user-1', 'match-current'),
     ).resolves.toEqual([
       {
+        match_id: 'match-other-3',
+        cv_id: 'cv-other-3',
         jd_title: 'Backend Developer',
         overall_score: 81,
         top_gaps: [],

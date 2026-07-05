@@ -96,6 +96,13 @@ export interface DiagnosisChatResult {
   answer: string;
   cited_dimension?: DiagnosisDimensionKey;
   cited_gap_id?: string;
+  /** Validated 1-based index into facts.other_matches (mirrors the LLM's cited_other_match_index) —
+   *  present ONLY when it resolved to a real entry; an out-of-range/absent index is undefined. The
+   *  platform layer maps this back to the real match_id/cv_id for the wire's cited_match. */
+  cited_other_match_index?: number;
+  /** Validated tool name (e.g. 'github.enrich') — present ONLY when it matched a real facts.tool_results
+   *  key. Forwarded verbatim to the wire so the FE can render its tool-citation chip. */
+  cited_tool?: string;
   suggested_next_step?: string | null;
   trace?: {
     promptTokens: number;
@@ -388,5 +395,19 @@ export function groundDiagnosis(
 
   if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
 
-  return renderGroundedAnswer({ dimension, gap, otherMatch, toolResult, facts, language });
+  const rendered = renderGroundedAnswer({
+    dimension,
+    gap,
+    otherMatch,
+    toolResult,
+    facts,
+    language,
+  });
+  return {
+    ...rendered,
+    // otherIndex is always the validated 0-based slot when otherMatch was found — recover the
+    // original 1-based value so the platform layer can map it back to facts.other_matches[i-1].
+    ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
+    ...(toolResult ? { cited_tool: citedTool as string } : {}),
+  };
 }

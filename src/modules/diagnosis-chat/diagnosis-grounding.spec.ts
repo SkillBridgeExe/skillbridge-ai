@@ -187,6 +187,32 @@ describe('buildDiagnosisFacts', () => {
     );
   });
 
+  it('never leaks match_id/cv_id into facts.other_matches even when the platform-supplied input carries them (LLM must never see ids)', () => {
+    const otherMatchesFromPlatform = [
+      {
+        match_id: 'match-abc',
+        cv_id: 'cv-abc',
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ];
+
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      null,
+      otherMatchesFromPlatform,
+    );
+
+    expect(facts.other_matches).toEqual([
+      { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] },
+    ]);
+    expect(JSON.stringify(facts)).not.toContain('match-abc');
+    expect(JSON.stringify(facts)).not.toContain('cv-abc');
+  });
+
   it('missing/empty review dimension fields degrade to empty arrays, never throw', () => {
     const facts = buildDiagnosisFacts({} as unknown as CvReviewParsedResponse, null);
     expect(facts.dimensions).toEqual([]);
@@ -376,6 +402,33 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.answer).not.toContain('JD 99');
   });
 
+  it('exposes the validated 1-based cited_other_match_index on the result — LIVE BUG: this was computed for grounding but never forwarded to the wire (out-of-range → undefined)', () => {
+    const factsWithOtherMatches = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([makeGapItem()]),
+      null,
+      [
+        { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] },
+        { jd_title: 'Backend Developer', overall_score: 64, top_gaps: ['Docker'] },
+      ],
+    );
+
+    const valid = groundDiagnosis(
+      { message: 'The backend JD looks better for you.', cited_other_match_index: 2 },
+      factsWithOtherMatches,
+    );
+    expect(valid.cited_other_match_index).toBe(2);
+
+    const outOfRange = groundDiagnosis(
+      { message: 'JD 99 is great.', cited_other_match_index: 99 },
+      factsWithOtherMatches,
+    );
+    expect(outOfRange.cited_other_match_index).toBeUndefined();
+
+    const absent = groundDiagnosis({ message: 'ok' }, factsWithOtherMatches);
+    expect(absent.cited_other_match_index).toBeUndefined();
+  });
+
   it('empty / parse-failed model output → deterministic grounded fallback built from top_summary (never a 500)', () => {
     const fallback = groundDiagnosis(null, facts);
     expect(typeof fallback.answer).toBe('string');
@@ -502,5 +555,23 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
       'vi',
     );
     expect(result.answer).not.toContain('GitHub');
+  });
+
+  it('exposes cited_tool on the result when it matches a present tool_results key — LIVE BUG: was computed for grounding but never forwarded to the wire', () => {
+    const result = groundDiagnosis(
+      { message: 'ok', cited_tool: 'github.enrich' },
+      factsWithTool,
+      'vi',
+    );
+    expect(result.cited_tool).toBe('github.enrich');
+  });
+
+  it('cited_tool is absent from the result when it does not match any tool_results key', () => {
+    const result = groundDiagnosis(
+      { message: 'ok', cited_tool: 'github.enrich' },
+      { ...facts }, // no tool_results at all
+      'vi',
+    );
+    expect(result.cited_tool).toBeUndefined();
   });
 });

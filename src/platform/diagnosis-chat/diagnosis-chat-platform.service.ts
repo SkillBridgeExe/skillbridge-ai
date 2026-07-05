@@ -12,7 +12,7 @@ import {
 } from '../../modules/diagnosis-chat/diagnosis-grounding';
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
-import { CvMatchesService } from '../cv-matches/cv-matches.service';
+import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.service';
 import { CvsService } from '../cvs/cvs.service';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
@@ -25,6 +25,11 @@ export interface DiagnosisChatTurnResponse {
   cited_dimension?: string;
   cited_gap_id?: string;
   suggested_next_step?: string | null;
+  /** Deep-linkable ids for the other-JD-match the model cited (M1) — real match_id/cv_id resolved
+   *  server-side from the validated cited_other_match_index; absent when no valid index was cited. */
+  cited_match?: { match_id: string; cv_id: string; jd_title: string | null };
+  /** Tool-call citation forwarded verbatim from grounding (M1 fix — was previously dropped here). */
+  cited_tool?: string;
 }
 
 export interface DiagnosisChatThreadResponse {
@@ -63,9 +68,9 @@ export class DiagnosisChatPlatformService {
     matchId: string,
     dto: DiagnosisChatRequestDto,
   ): Promise<DiagnosisChatTurnResponse> {
-    const facts = await this.buildFactsForMatch(userId, matchId);
+    const { facts, otherMatches } = await this.buildFactsForMatch(userId, matchId);
     const conversation = await this.resolveConversation(userId, matchId);
-    return this.runTurn(userId, conversation, facts, dto, { match_id: matchId });
+    return this.runTurn(userId, conversation, facts, dto, { match_id: matchId }, otherMatches);
   }
 
   async getThread(userId: string, matchId: string): Promise<DiagnosisChatThreadResponse> {
@@ -127,6 +132,9 @@ export class DiagnosisChatPlatformService {
     facts: DiagnosisFacts,
     dto: DiagnosisChatRequestDto | DiagnosisChatCvOnlyRequestDto,
     subject: { match_id: string } | { cv_id: string },
+    // Only the JD-match route has other-match summaries to map cited_other_match_index back to real
+    // ids; the CV-only route has none, so it defaults to an empty list (cited_match never appears there).
+    otherMatches: OtherMatchSummary[] = [],
   ): Promise<DiagnosisChatTurnResponse> {
     await this.assertQuota(userId);
     const history = await this.loadHistory(conversation.id);
@@ -193,7 +201,7 @@ export class DiagnosisChatPlatformService {
         })
         .catch(() => undefined);
 
-      return this.toResponse(answer);
+      return this.toResponse(answer, otherMatches);
     } catch (err) {
       await this.tracing.markFailed(aiRequestId, Date.now(), err).catch(() => undefined);
       throw err;
@@ -205,7 +213,10 @@ export class DiagnosisChatPlatformService {
    * the gap report and the CV review. Do not use caller-supplied cvId here, otherwise a client could
    * mix gaps from one match with score dimensions from another CV.
    */
-  private async buildFactsForMatch(userId: string, matchId: string): Promise<DiagnosisFacts> {
+  private async buildFactsForMatch(
+    userId: string,
+    matchId: string,
+  ): Promise<{ facts: DiagnosisFacts; otherMatches: OtherMatchSummary[] }> {
     const report = await this.cvMatches.getGapReport(userId, matchId);
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
     // Best-effort: a progress-lookup failure must never break the chat itself, but a silently
@@ -217,7 +228,8 @@ export class DiagnosisChatPlatformService {
       return null;
     });
     // Best-effort: cross-match summaries add comparison context, but lookup failures must never
-    // break the diagnosis chat — still logged so a degraded-facts pattern is visible.
+    // break the diagnosis chat — still logged so a degraded-facts pattern is visible. Kept in scope
+    // (not just fed into facts) so a later cited_other_match_index can be mapped back to real ids (M1).
     const otherMatches = await this.cvMatches
       .listRecentMatchSummariesForUser(userId, matchId)
       .catch((err: unknown) => {
@@ -226,7 +238,7 @@ export class DiagnosisChatPlatformService {
         );
         return [];
       });
-    return buildDiagnosisFacts(review, report, progress, otherMatches);
+    return { facts: buildDiagnosisFacts(review, report, progress, otherMatches), otherMatches };
   }
 
   private async assertQuota(userId: string): Promise<void> {
@@ -284,13 +296,29 @@ export class DiagnosisChatPlatformService {
     return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
   }
 
-  private toResponse(answer: DiagnosisChatResult): DiagnosisChatTurnResponse {
+  private toResponse(
+    answer: DiagnosisChatResult,
+    otherMatches: OtherMatchSummary[],
+  ): DiagnosisChatTurnResponse {
     const out: DiagnosisChatTurnResponse = { answer: answer.answer };
     if (answer.cited_dimension) out.cited_dimension = answer.cited_dimension;
     if (answer.cited_gap_id) out.cited_gap_id = answer.cited_gap_id;
     if (answer.suggested_next_step !== undefined) {
       out.suggested_next_step = answer.suggested_next_step;
     }
+    // cited_other_match_index is 1-based (mirrors the LLM schema); map back to the real ids kept in
+    // scope from listRecentMatchSummariesForUser — never leaked into the LLM-facing facts (M1).
+    if (answer.cited_other_match_index !== undefined) {
+      const match = otherMatches[answer.cited_other_match_index - 1];
+      if (match) {
+        out.cited_match = {
+          match_id: match.match_id,
+          cv_id: match.cv_id,
+          jd_title: match.jd_title,
+        };
+      }
+    }
+    if (answer.cited_tool) out.cited_tool = answer.cited_tool;
     return out;
   }
 }

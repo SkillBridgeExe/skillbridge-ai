@@ -57,6 +57,10 @@ const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_JD_TEXT_LENGTH = 60_000;
 
 export interface OtherMatchSummary {
+  /** Real ids for FE deep-linking (M1) — NEVER forwarded into the LLM-facing facts, only into the
+   *  wire response's cited_match after the platform maps a validated citation index back to this list. */
+  match_id: string;
+  cv_id: string;
   jd_title: string | null;
   overall_score: number | null;
   top_gaps: string[];
@@ -519,12 +523,16 @@ export class CvMatchesService {
       .orderBy('m.createdAt', 'DESC')
       .take(limit)
       .select([
+        'm.id AS "matchId"',
+        'cv.id AS "cvId"',
         'jd.title AS "jdTitle"',
         'm.overallScore AS "overallScore"',
         'm.suggestions AS "suggestions"',
         'm.createdAt AS "createdAt"',
       ])
       .getRawMany<{
+        matchId: string;
+        cvId: string;
         jdTitle: string | null;
         overallScore: string | number | null;
         suggestions: unknown;
@@ -532,6 +540,8 @@ export class CvMatchesService {
       }>();
 
     return rows.map((row) => ({
+      match_id: row.matchId,
+      cv_id: row.cvId,
       jd_title: row.jdTitle,
       overall_score: this.numberOrNull(row.overallScore),
       top_gaps: this.topPersistedGaps(row.suggestions),
