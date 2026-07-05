@@ -56,6 +56,26 @@ jobs:
           pnpm eval:progress
           pnpm eval:chat-tools
 
+          # Wave MEASURE (ME3): remaining offline harnesses promoted to the gate. All run
+          # deterministically with no OPENAI_API_KEY and no DB (NODE_ENV=test above also forces
+          # eval:cv-builder's live GATE 2 to skip, same as it would with no key at all in CI).
+          # eval:mentions and eval:semantic are deliberately NOT here — both currently FAIL on
+          # stale goldens (see task-ME3-report.md); left as findings, not papered over.
+          pnpm eval:role-infer
+          pnpm eval:interview
+          pnpm eval:answer-signals
+          pnpm eval:answer-insight
+          pnpm eval:interview-gaps
+          pnpm eval:interview-coaching
+          pnpm eval:learning
+          pnpm eval:curation
+          pnpm eval:cv-assistant
+          pnpm eval:cv-intake
+          pnpm eval:cv-builder
+          pnpm eval:patch
+          pnpm eval:proficiency
+          pnpm eval:cv-signals
+
       # The real OCR pipeline (pdfium WASM render + Tesseract) can't run under jest's CJS VM
       # (ESM dynamic import), so jest green does NOT prove production OCR works. Gate it here on the
       # committed synthetic scanned fixture. Cache eng+vie traineddata so reruns don't re-download.
