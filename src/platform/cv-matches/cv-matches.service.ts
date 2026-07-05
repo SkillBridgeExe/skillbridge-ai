@@ -820,6 +820,7 @@ export class CvMatchesService {
         input.userId,
         input.prior.createdAt,
         input.current.createdAt,
+        input.prior.id,
         actions.map((a) => a.action_id),
       );
 
@@ -881,15 +882,18 @@ export class CvMatchesService {
   /**
    * ME1 join: which of these action_ids have a cv_rewrite tailor trace between the two scans.
    * ONE query (batched by actionIds, no N+1). requestPayload is jsonb; ->> is a plain text
-   * projection. No composite (user_id, request_type, created_at) index exists yet — relies on the
-   * individual indexes on each column (ai-request.entity.ts) to bound the scan; acceptable given
-   * per-user cv_rewrite volume between two scans is small. Revisit with a composite index if this
-   * ever shows up in a slow-query report.
+   * projection. Match id is required because action_id is only canonical/action-type stable
+   * (e.g. "missing_required:react"), not globally unique across the user's matches. No composite
+   * (user_id, request_type, created_at) index exists yet — relies on the individual indexes on each
+   * column (ai-request.entity.ts) to bound the scan; acceptable given per-user cv_rewrite volume
+   * between two scans is small. Revisit with a composite index if this ever shows up in a slow-query
+   * report.
    */
   private async attemptedActionIds(
     userId: string,
     from: Date,
     to: Date,
+    matchId: string,
     actionIds: string[],
   ): Promise<Set<string>> {
     if (!this.aiRequests || actionIds.length === 0) return new Set();
@@ -899,8 +903,9 @@ export class CvMatchesService {
         WHERE user_id = $1
           AND request_type = 'cv_rewrite'
           AND created_at BETWEEN $2 AND $3
-          AND request_payload -> 'payload' ->> 'action_id' = ANY($4::text[])`,
-      [userId, from, to, actionIds],
+          AND request_payload -> 'payload' ->> 'match_id' = $4
+          AND request_payload -> 'payload' ->> 'action_id' = ANY($5::text[])`,
+      [userId, from, to, matchId, actionIds],
     );
     return new Set(rows.map((r) => r.action_id));
   }

@@ -761,6 +761,7 @@ describe('CvMatchesService', () => {
           'user-1',
           prior.createdAt,
           current.createdAt,
+          prior.id,
           [actionReact.action_id, actionSql.action_id, actionAws.action_id],
         ],
       );
@@ -911,6 +912,24 @@ describe('CvMatchesService', () => {
       );
       const params = env.impactCalibrationsRepo.manager.query.mock.calls[0][1] as unknown[];
       expect(params[params.length - 1]).toBe(false);
+    });
+
+    it('scopes attempted traces to the prior match_id so the same action_id from another match cannot contaminate calibration', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact] });
+
+      await env.service.getProgress('user-1', 'match-current');
+
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][0]).toEqual(
+        expect.stringContaining("request_payload -> 'payload' ->> 'match_id' = $4"),
+      );
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][1]).toEqual([
+        'user-1',
+        prior.createdAt,
+        current.createdAt,
+        prior.id,
+        [actionReact.action_id],
+      ]);
     });
   });
 });
