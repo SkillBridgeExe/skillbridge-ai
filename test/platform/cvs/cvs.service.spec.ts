@@ -447,6 +447,61 @@ describe('CvsService R1 completion behavior', () => {
     );
   });
 
+  it('builder autosave re-syncs cv_skills from the edited document (job-rec reads them)', async () => {
+    const { service, cvsRepo, skillNormalizer } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'draft-1',
+      userId: 'u1',
+      title: 'Draft',
+      parsedJson: null,
+      cvKind: 'BUILT',
+      language: 'en',
+      targetRole: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await service.updateBuilderDraft('u1', 'draft-1', {
+      parsedJson: {
+        ...parsedReview.document,
+        skills: { technical: ['React', 'Docker'], soft: ['Teamwork'], languages: [], tools: ['Git'] },
+      },
+    });
+
+    // The same normalize→persist path reviewCv uses — builder edits must not leave
+    // job-recommendation scoring on a stale skill set.
+    expect(skillNormalizer.normalizeManyAsync).toHaveBeenCalledWith([
+      'React',
+      'Docker',
+      'Teamwork',
+      'Git',
+    ]);
+  });
+
+  it('builder autosave still succeeds when skill sync fails (sync is secondary, save is not)', async () => {
+    const { service, cvsRepo, skillNormalizer } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'draft-1',
+      userId: 'u1',
+      title: 'Draft',
+      parsedJson: null,
+      cvKind: 'BUILT',
+      language: 'en',
+      targetRole: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    skillNormalizer.normalizeManyAsync.mockRejectedValueOnce(new Error('embedding tier down'));
+
+    const res = await service.updateBuilderDraft('u1', 'draft-1', {
+      parsedJson: {
+        ...parsedReview.document,
+        skills: { technical: ['React'], soft: [], languages: [], tools: [] },
+      },
+    });
+    expect(res.id).toBe('draft-1');
+  });
+
   it('rejects autosave for an uploaded CV', async () => {
     const { service, cvsRepo } = build();
     cvsRepo.findOne.mockResolvedValue({
