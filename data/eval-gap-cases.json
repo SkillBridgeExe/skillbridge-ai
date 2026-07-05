@@ -330,6 +330,25 @@
         { "canonical": "react", "cv_status": "overclaimed", "evidence_risk": "listed_only", "evidence_kind": "github" },
         { "canonical": "sql", "cv_status": "partial", "evidence_risk": "none", "evidence_kind": "github" }
       ]
+    },
+    {
+      "id": "interview-signal-raises-interview-risk",
+      "target_role": "frontend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "interview_signals": { "sql": 0.9 },
+      "rationale": "V1 (Wave VALUE_CHAIN): platform-fetched real interview outcome overlay. Two byte-identical REQUIRED partials would tie and order alphabetically (react first); a real interview that exposed SQL weakness (risk 0.9 > derived) must RAISE sql's interview_risk (max semantics), re-rank it first, and add an interview evidence citation. cv_status/evidence_risk stay untouched — the interview probes weakness, it is not CV evidence.",
+      "expect": [
+        { "canonical": "sql", "cv_status": "partial", "evidence_risk": "none", "evidence_kind": "interview" },
+        { "canonical": "react", "cv_status": "partial", "evidence_risk": "none" }
+      ],
+      "expect_severity_order": ["sql", "react"]
     }
   ]
 }

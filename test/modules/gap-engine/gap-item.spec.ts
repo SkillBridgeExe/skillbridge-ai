@@ -118,6 +118,35 @@ describe('computeSeverity (PR2)', () => {
 });
 
 /**
+ * V1 (Wave VALUE_CHAIN) — a REAL interview outcome may only RAISE interview_risk (max semantics):
+ * a bad real interview is direct evidence of weakness; a good one does not erase missing CV
+ * evidence (evidence_risk owns that channel). Absent signal ⇒ formula byte-identical to PR2.
+ */
+describe('computeSeverity — real interview signal (V1)', () => {
+  // REQUIRED partial, gap_levels 1, listed_only, no market: need = max(0.2, 0.45) = 0.45,
+  // derived iv = 0.45×(0.5+0.5×0.45) = 0.32625 → core = 0.65×0.45 + 0.35×0.32625 → sev 0.407.
+  const sev = (o: Record<string, unknown>) =>
+    computeSeverity({
+      importance: 'REQUIRED',
+      gap_levels: 1,
+      evidence_risk: 'listed_only',
+      cv_status: 'partial',
+      market_demand: null,
+      ...o,
+    } as never);
+
+  it('a HIGHER real interview risk raises severity (hand-recomputed golden)', () => {
+    expect(sev({})).toBe(0.407);
+    // signal 0.95 > derived 0.32625 → iv = 0.95 → core = 0.2925 + 0.3325 = 0.625.
+    expect(sev({ interview_risk_signal: 0.95 })).toBe(0.625);
+  });
+
+  it('a LOWER signal never lowers severity (max — a good interview is not CV evidence)', () => {
+    expect(sev({ interview_risk_signal: 0.1 })).toBe(0.407);
+  });
+});
+
+/**
  * PR1 — pure GapItem builder. No DB, no LLM: feed a parsed match (+ optional ledger / market map)
  * and assert the deterministic unification rules.
  */
@@ -433,6 +462,27 @@ describe('buildGapItems', () => {
     });
     expect(items[0].cv_status).toBe('missing');
     expect(items[items.length - 1].cv_status).toBe('matched');
+  });
+
+  it('interview signal folds into the RANKING, not just the public severity (V1)', () => {
+    // Two byte-identical REQUIRED partials (no ledger → evidence_risk 'none', raw sev 0.20875 each);
+    // without a signal the alphabetical tiebreak puts react first. A real interview signal on sql
+    // must both RAISE its public severity (iv max(0.225, 0.9) → core 0.13+0.315 → 0.445) AND move it
+    // ahead of react — this fails if the sort recomputes raw severity without re-supplying the signal.
+    const items = buildGapItems({
+      match: emptyMatch({
+        partial_skills: [
+          partial({ skill_id: 'react', canonical_name: 'react', display_name: 'React' }),
+          partial(), // sql — identical shape
+        ],
+      }),
+      interviewSignals: new Map([['sql', { risk: 0.9, ref: 'sess-abcd' }]]),
+    });
+    expect(items.map((g) => g.canonical_name)).toEqual(['sql', 'react']);
+    expect(items[0].severity).toBe(0.445);
+    expect(items[1].severity).toBe(0.209); // untouched sibling keeps the derived-only severity
+    expect(items[0].evidence).toEqual([{ kind: 'interview', ref: 'sess-abcd', quote: null }]);
+    expect(items[1].evidence).toBeUndefined();
   });
 
   it('near-tie sort ranks by RAW severity, not the rounded public value (market 53 > 50)', () => {

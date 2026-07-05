@@ -98,6 +98,13 @@ export interface BuildGapItemsInput {
    *  on every pre-I3 caller (and whenever the user supplied no github params), so output stays
    *  byte-identical. */
   corroborated?: Map<string, { ref: string }> | null;
+  /** V1 (Wave VALUE_CHAIN): canonical_name → the worst REAL interview outcome for that skill
+   *  (risk = InterviewGapItem.severity of the latest completed session's knowledge/evidence gaps,
+   *  already anti-fabrication-grounded; ref = short session ref for the citation). Same plain-Map
+   *  pattern as `corroborated` above — the platform layer fetches, this module stays pure/sync.
+   *  Optional — absent on every pre-V1 caller (and whenever no interview exists for the match), so
+   *  output stays byte-identical. A signal may only RAISE interview_risk (see interviewRiskRaw). */
+  interviewSignals?: Map<string, { risk: number; ref: string }> | null;
 }
 
 const importanceWeight = (importance: GapImportance): number =>
@@ -135,17 +142,32 @@ const MARKET_SPAN = 0.4;
 
 /** interview_risk (NET-NEW, importance-free, [0,1]) derived ONLY from cv_status + evidence_risk:
  *  P(this gap is probed and the candidate is exposed in the interview). An overclaimed/unproven
- *  claim is the classic "walk me through that" trap; thinner proof raises it. matched+none → 0. */
-export function interviewRiskRaw(item: Pick<GapItem, 'cv_status' | 'evidence_risk'>): number {
+ *  claim is the classic "walk me through that" trap; thinner proof raises it. matched+none → 0.
+ *
+ *  V1 (Wave VALUE_CHAIN): an optional `interview_risk_signal` (a REAL mock-interview outcome) folds
+ *  in as max(derived, signal) — a real signal may only RAISE the risk, never lower it: a bad real
+ *  answer is direct evidence of interview weakness, but one good interview does not erase missing
+ *  CV evidence (evidence_risk owns that channel). Absent signal ⇒ formula unchanged. */
+export function interviewRiskRaw(
+  item: Pick<GapItem, 'cv_status' | 'evidence_risk'> & { interview_risk_signal?: number },
+): number {
   const base = STATUS_BASE_IV[item.cv_status] ?? 0;
   const ev = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
-  return clamp01(base * (0.5 + 0.5 * ev));
+  const derived = clamp01(base * (0.5 + 0.5 * ev));
+  return item.interview_risk_signal != null
+    ? Math.max(derived, clamp01(item.interview_risk_signal))
+    : derived;
 }
 
 type SeverityInput = Pick<
   GapItem,
   'importance' | 'gap_levels' | 'evidence_risk' | 'cv_status' | 'market_demand'
->;
+> & {
+  /** V1: real interview outcome risk (0-1) — raise-only, see interviewRiskRaw. Deliberately NOT a
+   *  GapItem field: it lives in BuildGapItemsInput.interviewSignals and must be re-supplied wherever
+   *  severity recomputes (applyInterviewSignals + the final ranking in buildGapItems). */
+  interview_risk_signal?: number;
+};
 
 /** The three severityRaw() locals, unrounded — shared by severityRaw() and severityFactors() (E5)
  *  so there is exactly ONE formula to keep in sync. */
@@ -229,6 +251,40 @@ function applyGithubCorroboration(
       ...item,
       evidence_risk,
       evidence: [...(item.evidence ?? []), { kind: 'github', ref: hit.ref, quote: null }],
+      severity: computeSeverity(sevInput),
+      severity_factors: severityFactors(sevInput),
+    };
+  });
+}
+
+// ── Interview signal overlay (V1, Wave VALUE_CHAIN) ────────────────────────────────────────────
+// A REAL mock-interview outcome for a skill raises interview_risk via max(derived, signal) — see
+// interviewRiskRaw. It never touches cv_status / evidence_risk / fixability (the interview probes
+// weakness; it neither proves nor disproves CV evidence), and severity is simply recomputed with
+// the signal folded in (no formula edits).
+
+/** PURE: overlay real interview outcomes onto already-built items. Every signalled item gets an
+ *  `{kind:'interview'}` citation (the FE sees the source, mirroring the github cite pattern); the
+ *  severity only moves when the signal beats the derived risk (max). No-op (same array) when
+ *  `interviewSignals` is absent/empty — the byte-identical guarantee for every pre-V1 caller. */
+function applyInterviewSignals(
+  items: GapItem[],
+  interviewSignals: Map<string, { risk: number; ref: string }>,
+): GapItem[] {
+  return items.map((item) => {
+    const hit = interviewSignals.get(item.canonical_name);
+    if (!hit) return item;
+    const sevInput: SeverityInput = {
+      importance: item.importance,
+      gap_levels: item.gap_levels,
+      evidence_risk: item.evidence_risk,
+      cv_status: item.cv_status,
+      market_demand: item.market_demand,
+      interview_risk_signal: hit.risk,
+    };
+    return {
+      ...item,
+      evidence: [...(item.evidence ?? []), { kind: 'interview', ref: hit.ref, quote: null }],
       severity: computeSeverity(sevInput),
       severity_factors: severityFactors(sevInput),
     };
@@ -367,8 +423,16 @@ export function gradeJdDimensions(input: {
  * every gap type.
  */
 export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
-  const { match, ledger, marketDemand, jdDimensions, cvSeniority, cvProfileSignals, corroborated } =
-    input;
+  const {
+    match,
+    ledger,
+    marketDemand,
+    jdDimensions,
+    cvSeniority,
+    cvProfileSignals,
+    corroborated,
+    interviewSignals,
+  } = input;
   const source: GapSource = match.source_of_requirements === 'jd_extraction' ? 'jd' : 'role_rubric';
 
   const evidenceGap = new Set(ledger?.evidence_gap ?? []);
@@ -529,12 +593,26 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
   // sort below sees the corrected severity. No-op (same items) when corroborated is absent/empty.
   const overlaid = corroborated?.size ? applyGithubCorroboration(items, corroborated) : items;
 
+  // V1: overlay real interview outcomes AFTER github (so the raise recomputes from the already-
+  // downgraded evidence_risk), still before ranking. No-op (same items) when absent/empty.
+  const withInterview = interviewSignals?.size
+    ? applyInterviewSignals(overlaid, interviewSignals)
+    : overlaid;
+
   // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
   // so two gaps that round to the same 3dp value still order by their true magnitude — e.g. a
   // market_demand 53 gap outranks an otherwise-identical 50 gap though both publish as 0.063. The
   // public GapItem.severity stays round3. Stable tiebreak by canonical keeps output reproducible.
-  return overlaid
-    .map((item) => ({ item, raw: severityRaw(item) }))
+  // V1: the interview signal is not a GapItem field, so it must be re-supplied here — otherwise a
+  // signal-raised public severity would still rank by the derived-only raw value.
+  return withInterview
+    .map((item) => ({
+      item,
+      raw: severityRaw({
+        ...item,
+        interview_risk_signal: interviewSignals?.get(item.canonical_name)?.risk,
+      }),
+    }))
     .sort((a, b) => b.raw - a.raw || a.item.canonical_name.localeCompare(b.item.canonical_name))
     .map((entry) => entry.item);
 }

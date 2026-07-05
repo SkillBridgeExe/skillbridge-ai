@@ -53,6 +53,9 @@ interface GapCase {
   /** I3 (Wave IMPACT): canonical → repo name, the platform-fetched github corroboration overlay
    *  (a plain Map by the time it reaches buildGapItems — see gap-item.ts's BuildGapItemsInput). */
   corroborated?: Record<string, string>;
+  /** V1 (Wave VALUE_CHAIN): canonical → real interview outcome risk (0-1), the platform-fetched
+   *  interview-signal overlay (raise-only max semantics — see gap-item.ts interviewRiskRaw). */
+  interview_signals?: Record<string, number>;
   /** canonical → pct_of_postings (0-100), overlaid as the market-demand input. Optional; when present
    *  it drives severity ranking (lets a case test market-tilt — e.g. two equal gaps ordered by demand). */
   market_demand?: Record<string, number>;
@@ -255,6 +258,14 @@ async function main(): Promise<void> {
       cvProfileSignals,
       corroborated: c.corroborated
         ? new Map(Object.entries(c.corroborated).map(([canon, ref]) => [canon, { ref }]))
+        : null,
+      interviewSignals: c.interview_signals
+        ? new Map(
+            Object.entries(c.interview_signals).map(([canon, risk]) => [
+              canon,
+              { risk, ref: 'interview-eval' },
+            ]),
+          )
         : null,
     });
     const byCanonical = new Map(items.map((g) => [g.canonical_name, g]));

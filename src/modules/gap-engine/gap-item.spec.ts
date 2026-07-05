@@ -131,4 +131,71 @@ describe('buildGapItems — github corroboration overlay (I3)', () => {
     expect(explicitUndefined).toEqual(withoutField);
     expect(explicitEmptyMap).toEqual(withoutField);
   });
+
+  // V1 (Wave VALUE_CHAIN): real interview outcomes overlay. Same platform-fetched plain-Map pattern
+  // as `corroborated` — buildGapItems never talks to the interview services itself.
+  describe('interview signal overlay (V1, Wave VALUE_CHAIN)', () => {
+    it('a real interview signal RAISES severity and adds an interview evidence citation', () => {
+      const { match, ledger } = buildFixture();
+      const baseline = byCanonical(buildGapItems({ match, ledger })).get('sql')!;
+      const sql = byCanonical(
+        buildGapItems({
+          match,
+          ledger,
+          interviewSignals: new Map([['sql', { risk: 0.95, ref: 'sess-abc1' }]]),
+        }),
+      ).get('sql')!;
+      expect(sql.severity).toBeGreaterThan(baseline.severity);
+      expect(sql.cv_status).toBe(baseline.cv_status); // overlay never touches cv_status
+      expect(sql.evidence_risk).toBe(baseline.evidence_risk); // nor evidence_risk (github owns that)
+      expect(sql.evidence).toEqual(
+        expect.arrayContaining([{ kind: 'interview', ref: 'sess-abc1', quote: null }]),
+      );
+    });
+
+    it('a LOWER signal never lowers severity (max) — the citation still lands', () => {
+      // react is overclaimed/unproven → derived interview risk 1.0×(0.5+0.5×0.7) = 0.85; 0.2 loses.
+      const { match, ledger } = buildFixture();
+      const baseline = byCanonical(buildGapItems({ match, ledger })).get('react')!;
+      const react = byCanonical(
+        buildGapItems({
+          match,
+          ledger,
+          interviewSignals: new Map([['react', { risk: 0.2, ref: 'sess-abc1' }]]),
+        }),
+      ).get('react')!;
+      expect(react.severity).toBe(baseline.severity);
+      expect(react.severity_factors).toEqual(baseline.severity_factors);
+      expect(react.evidence).toEqual(
+        expect.arrayContaining([{ kind: 'interview', ref: 'sess-abc1', quote: null }]),
+      );
+    });
+
+    it('absent/empty signals map -> byte-identical output (no completed interview yet)', () => {
+      const { match, ledger } = buildFixture();
+      const withoutField = buildGapItems({ match, ledger });
+      expect(buildGapItems({ match, ledger, interviewSignals: undefined })).toEqual(withoutField);
+      expect(buildGapItems({ match, ledger, interviewSignals: new Map() })).toEqual(withoutField);
+    });
+
+    it('stacks on github corroboration: severity recomputes from the DOWNGRADED evidence_risk', () => {
+      const { match, ledger } = buildFixture();
+      const corroborated = new Map([['sql', { ref: 'my-sql-project' }]]);
+      const githubOnly = byCanonical(buildGapItems({ match, ledger, corroborated })).get('sql')!;
+      const both = byCanonical(
+        buildGapItems({
+          match,
+          ledger,
+          corroborated,
+          interviewSignals: new Map([['sql', { risk: 0.95, ref: 'sess-abc1' }]]),
+        }),
+      ).get('sql')!;
+      expect(both.evidence_risk).toBe('none'); // github downgrade still applied
+      expect(both.evidence).toEqual([
+        { kind: 'github', ref: 'my-sql-project', quote: null },
+        { kind: 'interview', ref: 'sess-abc1', quote: null },
+      ]);
+      expect(both.severity).toBeGreaterThan(githubOnly.severity);
+    });
+  });
 });
