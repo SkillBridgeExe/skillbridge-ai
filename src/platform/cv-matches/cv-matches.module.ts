@@ -6,6 +6,7 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
+import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
@@ -34,6 +35,9 @@ import { UnifiedPlanService } from './unified-plan.service';
       // join over ai_requests (read).
       ImpactCalibrationEntity,
       AiRequestEntity,
+      // V1 (Wave VALUE_CHAIN): read-only lookup of the latest completed interview session's
+      // persisted gap_items (getGapReport's interview-signal pre-pass).
+      InterviewSessionEntity,
     ]),
     CvJdMatchModule,
     BillingModule,

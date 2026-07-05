@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { AiRequestEntity } from '../../database/entities/ai-request.entity';
@@ -17,6 +17,7 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
+import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import {
   LearningLanguagePref,
@@ -48,6 +49,7 @@ import {
 import { buildNextSteps, NextStep } from '../../modules/gap-advisor/gap-advisor';
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
+import { coerceInterviewGapItems } from '../../modules/interview/interview-gap';
 import { GithubEvidenceService } from '../../modules/github-evidence/github-evidence.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
@@ -127,6 +129,13 @@ export class CvMatchesService {
     private readonly impactCalibrations?: Repository<ImpactCalibrationEntity>,
     @InjectRepository(AiRequestEntity)
     private readonly aiRequests?: Repository<AiRequestEntity>,
+    // V1 (Wave VALUE_CHAIN): optional for positional unit-test construction; Nest provides it via
+    // CvMatchesModule's forFeature. Read directly (TailorVerifier precedent) instead of injecting
+    // InterviewGapReportService — that service depends on CvMatchesService (getGapReport), so
+    // injecting it back here would be a DI cycle AND a runtime recursion. Used ONLY by
+    // getGapReport's interview-signal pre-pass (fetchInterviewSignals).
+    @InjectRepository(InterviewSessionEntity)
+    private readonly interviewSessions?: Repository<InterviewSessionEntity>,
   ) {}
 
   async createMatch(
@@ -293,7 +302,18 @@ export class CvMatchesService {
     const corroborated = github
       ? await this.fetchGithubCorroboration(userId, match.cvId, github, lang)
       : undefined;
-    return this.buildGapReportFromParsed(userId, match, parsed, lang, corroborated);
+    // V1 (Wave VALUE_CHAIN): real interview outcomes raise interview_risk on this ONE canonical
+    // report path (and whatever is built on top of it). getProgress/roadmap deliberately bypass
+    // this — see the comment in getProgress.
+    const interviewSignals = await this.fetchInterviewSignals(userId, matchId);
+    return this.buildGapReportFromParsed(
+      userId,
+      match,
+      parsed,
+      lang,
+      corroborated,
+      interviewSignals,
+    );
   }
 
   /**
@@ -330,6 +350,49 @@ export class CvMatchesService {
     }
   }
 
+  /**
+   * V1 (Wave VALUE_CHAIN): canonical → worst REAL interview outcome for this match, from the latest
+   * COMPLETED session's persisted gap_items (already anti-fabrication-grounded at finalize — see
+   * InterviewsService.finalize → groundInterviewGaps). Only skill-anchored weaknesses count
+   * (knowledge_gap/evidence_gap with a canonical); max severity wins per canonical.
+   *
+   * Never-throw: any failure just degrades to "no signals" — the gap report builds normally.
+   * ponytail: sessions WITHOUT persisted gap_items (legacy, pre-persist finalize) are skipped rather
+   * than re-derived from ai_results — re-deriving lives in InterviewGapReportService, which calls
+   * getGapReport back (recursion). Revisit only if legacy sessions ever matter here.
+   */
+  private async fetchInterviewSignals(
+    userId: string,
+    matchId: string,
+  ): Promise<Map<string, { risk: number; ref: string }> | undefined> {
+    if (!this.interviewSessions) return undefined;
+    try {
+      const session = await this.interviewSessions.findOne({
+        where: { userId, cvMatchId: matchId, status: 'COMPLETED', gapItems: Not(IsNull()) },
+        order: { endedAt: 'DESC', createdAt: 'DESC' },
+      });
+      if (!session) return undefined;
+      const ref = session.id.slice(0, 8);
+      const map = new Map<string, { risk: number; ref: string }>();
+      for (const item of coerceInterviewGapItems(session.gapItems)) {
+        if (item.weakness_type !== 'knowledge_gap' && item.weakness_type !== 'evidence_gap') {
+          continue;
+        }
+        if (!item.skill_canonical) continue;
+        const prev = map.get(item.skill_canonical);
+        if (!prev || item.severity > prev.risk) {
+          map.set(item.skill_canonical, { risk: item.severity, ref });
+        }
+      }
+      return map.size ? map : undefined;
+    } catch (err) {
+      this.logger.warn(
+        `interview signal fetch failed for gap-report (match ${matchId}): ${String(err)}`,
+      );
+      return undefined;
+    }
+  }
+
   async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
     const match = await this.matches.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('CV match not found');
@@ -345,6 +408,11 @@ export class CvMatchesService {
       userId,
       matchId,
     );
+    // V1 (Wave VALUE_CHAIN): this path deliberately does NOT fetch interview signals (neither for
+    // prior nor current): the ME2 calibration piggyback below compares prior-vs-current severity,
+    // and injecting a real-interview raise into only the current side would contaminate
+    // actual_severity_delta with a non-CV signal. Progress gets interview signals in a later wave,
+    // once calibration has a clean baseline.
     const currReport = await this.buildGapReportFromParsed(userId, current, currParsed);
     const currGaps = currReport.gap_items;
     const currScore = this.numberOrNull(current.overallScore);
@@ -606,6 +674,7 @@ export class CvMatchesService {
     parsed: CvJdMatchParsedResponse,
     lang: 'vi' | 'en' = 'vi',
     corroborated?: Map<string, { ref: string }>,
+    interviewSignals?: Map<string, { risk: number; ref: string }>,
   ): Promise<SkillBridgeGapReport> {
     if (!this.gapReport || !this.platformCvs) {
       throw new Error('Gap report dependencies are not configured');
@@ -615,6 +684,7 @@ export class CvMatchesService {
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
       corroborated,
+      interviewSignals,
     });
   }
 

@@ -54,6 +54,11 @@ export class GapReportService {
      *  to a plain Map BEFORE this call — see CvMatchesService.fetchGithubCorroboration. Optional;
      *  absent on every non-opted-in request ⇒ passed through as a no-op to buildGapItems. */
     corroborated?: Map<string, { ref: string }> | null;
+    /** V1 (Wave VALUE_CHAIN): platform-fetched real interview outcomes for this match (latest
+     *  completed session), converted to a plain Map BEFORE this call — see
+     *  CvMatchesService.fetchInterviewSignals. Optional; absent whenever no interview exists ⇒
+     *  passed through as a no-op to buildGapItems. */
+    interviewSignals?: Map<string, { risk: number; ref: string }> | null;
   }): Promise<SkillBridgeGapReport> {
     const lang = input.lang ?? 'vi';
     const ledger = input.review?.evidence_ledger ?? null;
@@ -87,6 +92,7 @@ export class GapReportService {
       cvSeniority,
       cvProfileSignals,
       corroborated: input.corroborated ?? null,
+      interviewSignals: input.interviewSignals ?? null,
     });
 
     // A2: rank recommended_actions by the SAME severity as gap_items (fixes B3 — action #1 could

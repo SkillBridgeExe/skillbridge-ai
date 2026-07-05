@@ -21,7 +21,9 @@ function repo<T extends object>(): RepoMock<T> {
   } as unknown as RepoMock<T>;
 }
 
-function setup(opts: { githubEvidence?: unknown } = {}) {
+function setup(
+  opts: { githubEvidence?: unknown; interviewSessions?: { findOne: jest.Mock } } = {},
+) {
   const cvs = repo<CvEntity>();
   const jobDescriptions = repo<JobDescriptionEntity>();
   const matches = repo<CvMatchEntity>();
@@ -63,6 +65,9 @@ function setup(opts: { githubEvidence?: unknown } = {}) {
     roadmapComposer as never,
     undefined,
     opts.githubEvidence as never,
+    undefined, // impactCalibrations (ME2)
+    undefined, // aiRequests (ME2)
+    opts.interviewSessions as never,
   );
 
   matches.findOne.mockResolvedValue({
@@ -243,6 +248,87 @@ describe('CvMatchesService github corroboration (I3, Wave IMPACT)', () => {
     expect(githubEvidence.build).not.toHaveBeenCalled();
     expect(gapReport.build).toHaveBeenCalledWith(
       expect.objectContaining({ corroborated: undefined }),
+    );
+  });
+});
+
+describe('CvMatchesService interview signals (V1, Wave VALUE_CHAIN)', () => {
+  it('threads the latest completed interview outcome as an interviewSignals Map into the gap-report build', async () => {
+    const interviewSessions = { findOne: jest.fn() };
+    interviewSessions.findOne.mockResolvedValue({
+      id: 'sess-abcd-1234',
+      gapItems: [
+        // knowledge/evidence gaps with a canonical → signal; max severity wins per canonical.
+        {
+          weakness_type: 'knowledge_gap',
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          severity: 0.5,
+        },
+        {
+          weakness_type: 'evidence_gap',
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          severity: 0.8,
+        },
+        // not skill-anchored / no canonical → excluded from the signal map.
+        {
+          weakness_type: 'communication_gap',
+          skill_canonical: null,
+          display_name: 'Trình bày',
+          severity: 0.9,
+        },
+        {
+          weakness_type: 'knowledge_gap',
+          skill_canonical: null,
+          display_name: 'General',
+          severity: 0.9,
+        },
+      ],
+    });
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(interviewSessions.findOne).toHaveBeenCalledTimes(1);
+    const call = gapReport.build.mock.calls[0][0];
+    expect(call.interviewSignals).toBeInstanceOf(Map);
+    expect(call.interviewSignals.get('sql')).toEqual({ risk: 0.8, ref: 'sess-abc' });
+    expect(call.interviewSignals.size).toBe(1);
+  });
+
+  it('no completed interview session for the match → interviewSignals undefined (byte-identical)', async () => {
+    const interviewSessions = { findOne: jest.fn().mockResolvedValue(null) };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
+    );
+  });
+
+  it('never-throws: interview lookup failure degrades to no signals', async () => {
+    const interviewSessions = { findOne: jest.fn().mockRejectedValue(new Error('db down')) };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    const result = await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(result).toEqual(expect.objectContaining({ target_role: 'frontend_developer' }));
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
+    );
+  });
+
+  it('getProgress does NOT fetch interview signals (ME2 calibration must compare prior-vs-current severity apples-to-apples)', async () => {
+    const interviewSessions = { findOne: jest.fn() };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getProgress('user-1', 'match-1');
+
+    expect(interviewSessions.findOne).not.toHaveBeenCalled();
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
     );
   });
 });
