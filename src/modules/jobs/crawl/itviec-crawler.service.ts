@@ -93,10 +93,17 @@ export class ItviecCrawlerService {
     //    sub-sitemaps inventory EVERY active posting (~870 URLs, verified 2026-06-05).
     //    That is an official URL inventory — both more complete and more polite than
     //    sweeping listing pages (whose static HTML exposes only a handful of slugs).
-    let slugs = await this.discoverSlugsFromSitemap(robots);
+    const sitemap = await this.discoverSlugsFromSitemap(robots);
+    let slugs = sitemap.slugs;
+    // Expiry is only safe on a COMPLETE inventory. 2026-07 incident: the sitemap chain became
+    // unreachable from the cron runner, discovery silently fell back to the listing sweep
+    // (~6 newest slugs) and expireStale() emptied the pool (1,387 jobs) — absence from a
+    // partial view is NOT evidence a job died.
+    let fullInventory = sitemap.complete && slugs.length > 0;
     if (slugs.length === 0) {
       summary.discovery = 'listing';
       slugs = await this.discoverSlugsFromListings();
+      fullInventory = false;
     }
     summary.slugsDiscovered = slugs.length;
 
@@ -168,7 +175,20 @@ export class ItviecCrawlerService {
       };
     }
 
-    // 4. Ghost-job hygiene: anything not re-seen for N days is no longer live.
+    // 4. Ghost-job hygiene: anything not re-seen for N days is no longer live — but ONLY when
+    //    this run saw the complete sitemap inventory (see incident note above). A degraded run
+    //    still refreshes/ingests what it can; it just must not judge absence.
+    if (!fullInventory) {
+      this.logger.warn(
+        `expiry SKIPPED: discovery=${summary.discovery} complete=${sitemap.complete} — ` +
+          `partial inventory cannot prove job death`,
+      );
+      this.logger.log(
+        `itviec crawl [${summary.discovery}]: ${summary.slugsDiscovered} slugs · refreshed ${summary.refreshed} · ` +
+          `${summary.parsed}/${summary.detailsFetched} new parsed → +${summary.ingested.inserted} (expiry skipped)`,
+      );
+      return summary;
+    }
     const cutoff = new Date(Date.now() - ItviecCrawlerService.EXPIRE_AFTER_DAYS * 86_400_000);
     summary.expired = await this.ingest.expireStale('itviec', cutoff);
     // Persist the expiry count into the audit row ingestBatch just finalized (was always 0).
@@ -194,27 +214,47 @@ export class ItviecCrawlerService {
    * jobs_desc sub-sitemaps → /it-jobs/<slug> URLs. Resilient to the index being renamed
    * (ITviec uses a custom name) because we always start from robots.txt.
    */
-  private async discoverSlugsFromSitemap(robots: string): Promise<string[]> {
+  private async discoverSlugsFromSitemap(
+    robots: string,
+  ): Promise<{ slugs: string[]; complete: boolean }> {
     try {
       const sitemapUrl = robots
         .split(/\r?\n/)
         .map((l) => l.trim())
         .find((l) => /^sitemap:/i.test(l))
         ?.replace(/^sitemap:\s*/i, '');
-      if (!sitemapUrl) return [];
+      if (!sitemapUrl) {
+        this.logger.warn('sitemap discovery: robots.txt has no Sitemap line');
+        return { slugs: [], complete: false };
+      }
 
       const indexRes = await this.politeFetch(sitemapUrl);
-      if (!indexRes.ok) return [];
+      if (!indexRes.ok) {
+        // HTTP status matters operationally: 403 here = the runner's IP is being challenged
+        // (Cloudflare) while the site works fine from residential IPs — move the cron, don't
+        // "fix" the parser.
+        this.logger.warn(`sitemap index fetch failed: HTTP ${indexRes.status} ${sitemapUrl}`);
+        return { slugs: [], complete: false };
+      }
       const index = await indexRes.text();
       const subSitemaps = [...index.matchAll(/<loc>([^<]+)<\/loc>/g)]
         .map((m) => m[1])
         .filter((u) => /jobs_desc/i.test(u));
+      if (subSitemaps.length === 0) {
+        this.logger.warn('sitemap index has no jobs_desc sub-sitemaps — format changed?');
+        return { slugs: [], complete: false };
+      }
 
       const seen = new Set<string>();
       const slugs: string[] = [];
+      let complete = true;
       for (const sub of subSitemaps) {
         const res = await this.politeFetch(sub);
-        if (!res.ok) continue;
+        if (!res.ok) {
+          this.logger.warn(`sub-sitemap fetch failed: HTTP ${res.status} ${sub}`);
+          complete = false; // half-blind inventory — downstream expiry must not trust it
+          continue;
+        }
         for (const slug of extractSitemapSlugs(await res.text())) {
           if (!seen.has(slug)) {
             seen.add(slug);
@@ -222,10 +262,10 @@ export class ItviecCrawlerService {
           }
         }
       }
-      return slugs;
+      return { slugs, complete };
     } catch (err) {
       this.logger.warn(`sitemap discovery failed: ${(err as Error).message}`);
-      return [];
+      return { slugs: [], complete: false };
     }
   }
 
