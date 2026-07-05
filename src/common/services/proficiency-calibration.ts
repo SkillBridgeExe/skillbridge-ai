@@ -24,6 +24,15 @@ export const PROFICIENCY_TO_LEVEL: Record<Proficiency, number> = {
   EXPERT: 5,
 };
 
+/** Inverse of PROFICIENCY_TO_LEVEL: numeric level (1-5, clamped) → enum hint; null/0 → undefined
+ *  (caller lets the engine apply its own default). Used by job-recommendation to honor employer
+ *  `job_skills.min_level`; business-jobs keeps its own identical copy (different lane). */
+export function proficiencyHintForLevel(level: number | null): Proficiency | undefined {
+  if (!level) return undefined;
+  const keys = Object.keys(PROFICIENCY_TO_LEVEL) as Proficiency[];
+  return keys[Math.min(Math.max(Math.trunc(level), 1), 5) - 1];
+}
+
 /** INTERMEDIATE numeric level — the cap ceiling for non-demonstrated evidence. */
 const INTERMEDIATE_LEVEL = PROFICIENCY_TO_LEVEL.INTERMEDIATE;
 

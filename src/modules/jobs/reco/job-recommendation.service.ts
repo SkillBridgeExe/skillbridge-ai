@@ -4,6 +4,7 @@ import { DatabaseService } from '../../../infrastructure/database/database.servi
 import { LlmService } from '../../../infrastructure/llm/llm.service';
 import { SkillDiffService, DiffResult, RawCvSkill } from '../../cv-jd-match/skill-diff.service';
 import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.service';
+import { proficiencyHintForLevel } from '../../../common/services/proficiency-calibration';
 import { rrfFuse } from './rrf';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
 import { CvReviewParsedResponse } from '../../cv-review/dto/cv-review-response.dto';
@@ -97,7 +98,7 @@ interface CandidateJobRow {
   currency: string;
   source_url: string | null;
   posted_at: string | null;
-  skills: Array<{ canonical: string; importance: string }>;
+  skills: Array<{ canonical: string; importance: string; min_level: number | null }>;
 }
 
 /**
@@ -187,7 +188,7 @@ export class JobRecommendationService {
               j.experience_level, j.salary_min, j.salary_max, j.salary_visible, j.currency, j.source_url,
               j.posted_at::text AS posted_at,
               COALESCE(
-                json_agg(json_build_object('canonical', s.canonical_name, 'importance', js.importance))
+                json_agg(json_build_object('canonical', s.canonical_name, 'importance', js.importance, 'min_level', js.min_level))
                   FILTER (WHERE s.id IS NOT NULL),
                 '[]'
               ) AS skills
@@ -238,6 +239,11 @@ export class JobRecommendationService {
         jd_requirements_raw: job.skills.map((s) => ({
           name: s.canonical,
           importance_hint: s.importance,
+          // Employer-posted jobs carry a REAL min_level (HR-entered, 1-5); honor it instead of
+          // letting every requirement collapse to the engine's INTERMEDIATE default (which made
+          // 'matched' trivially true for any listed skill). Scraped/manual jobs have no
+          // min_level → undefined → engine default, unchanged behavior.
+          required_level_hint: proficiencyHintForLevel(s.min_level),
         })),
       });
       diffByJob.set(job.id, diff);
