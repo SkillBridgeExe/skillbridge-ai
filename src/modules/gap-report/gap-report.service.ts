@@ -56,7 +56,7 @@ export class GapReportService {
     corroborated?: Map<string, { ref: string }> | null;
     /** V1 (Wave VALUE_CHAIN): platform-fetched real interview outcomes for this match (latest
      *  completed session), converted to a plain Map BEFORE this call — see
-     *  CvMatchesService.fetchInterviewSignals. Optional; absent whenever no interview exists ⇒
+     *  fetchInterviewSignals (src/platform/interviews/interview-signals.ts, shared with TailorVerifier). Optional; absent whenever no interview exists ⇒
      *  passed through as a no-op to buildGapItems. */
     interviewSignals?: Map<string, { risk: number; ref: string }> | null;
   }): Promise<SkillBridgeGapReport> {
