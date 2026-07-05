@@ -84,6 +84,12 @@ export interface DiagnosisFacts {
     /** curr_score - prev_score rounded; null when either score is unknown (never a fabricated delta). */
     score_delta: number | null;
   };
+  /** V2 (Wave VALUE_CHAIN): canonicals of STILL-OPEN gaps whose learning content the user fully
+   *  completed — PENDING VERIFICATION only (mascot: "đã học xong X — sẽ kiểm chứng ở lần quét tới").
+   *  The honest framing travels in the key name (prompts untouched); never treated as CV evidence.
+   *  Top-level (not under progress) because BASELINE first-scan reports carry it too — the
+   *  learn-then-rescan window is exactly when this line matters. Absent when nothing is completed. */
+  learning_completed_pending_verification?: string[];
   /** Other recent JD matches for THIS user, present only when available. Used only for explicit
    *  cross-JD comparison questions; excludes timestamps to avoid irrelevant prompt noise. */
   other_matches?: DiagnosisOtherMatchFact[];
@@ -313,6 +319,13 @@ export function buildDiagnosisFacts(
           ? Math.round(progress.curr_score - progress.prev_score)
           : null,
     };
+  }
+
+  if (progress?.learning_completed?.length) {
+    facts.learning_completed_pending_verification = progress.learning_completed.slice(
+      0,
+      MAX_GAP_ITEMS,
+    );
   }
 
   if (otherMatches && otherMatches.length > 0) {

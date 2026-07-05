@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -6,6 +6,7 @@ import { ERROR_CODES } from '../../common/constants/error-codes';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
+import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
 import { GapReportService } from '../../modules/gap-report/gap-report.service';
@@ -13,6 +14,7 @@ import {
   VerifiedTailorAction,
   verifyTailorAction,
 } from '../../modules/cv-builder/tailor-verification';
+import { fetchInterviewSignals } from '../interviews/interview-signals';
 
 /**
  * PR4.5 — the platform-side LOADER for the server-verified tailor rewrite. Standalone provider
@@ -34,6 +36,13 @@ export class TailorVerifierService {
     @InjectRepository(AiResultEntity) private readonly aiResults: Repository<AiResultEntity>,
     @InjectRepository(CvEntity) private readonly cvs: Repository<CvEntity>,
     private readonly gapReport: GapReportService,
+    // C1 (Wave VALUE_CHAIN): optional for positional unit-test construction; Nest provides it via
+    // TailorVerifierModule's forFeature. Repo-based on purpose (same reason as CvMatchesService):
+    // InterviewGapReportService depends on CvMatchesService, so injecting a service here would
+    // re-create a cycle. Used ONLY by the shared fetchInterviewSignals pre-pass in verify().
+    @Optional()
+    @InjectRepository(InterviewSessionEntity)
+    private readonly interviewSessions?: Repository<InterviewSessionEntity>,
   ) {}
 
   async verify(input: {
@@ -84,10 +93,19 @@ export class TailorVerifierService {
     }
 
     // Rebuild the SAME deterministic gap report the FE rendered, then verify the action against it.
+    // C1: getGapReport threads real interview outcomes into its build, and severity decides top-8
+    // recommended_actions membership — so the rebuild MUST use the same signals (shared helper,
+    // never-throw: fetch failure degrades to no-signals and verification proceeds as before).
+    const interviewSignals = await fetchInterviewSignals(
+      this.interviewSessions,
+      input.userId,
+      input.matchId,
+    );
     const report = await this.gapReport.build({
       match: parsed as CvJdMatchParsedResponse,
       review,
       lang,
+      interviewSignals,
     });
     return verifyTailorAction(
       report.recommended_actions,
@@ -101,7 +119,9 @@ export class TailorVerifierService {
    * duplicated (not imported) on purpose so this provider depends on NEITHER CvsService nor
    * CvMatchesService, keeping the module graph acyclic. It MUST match that query (no role/prompt
    * predicate) so the rebuilt gap report is byte-identical to the one getGapReport produced — the
-   * report the FE rendered the action_id from. Keep the two in sync if either changes.
+   * report the FE rendered the action_id from. Keep the two in sync if either changes. (Interview
+   * signals are NOT duplicated: both callers share fetchInterviewSignals in
+   * platform/interviews/interview-signals.ts, so that half cannot drift.)
    */
   private async getLatestReview(
     userId: string,

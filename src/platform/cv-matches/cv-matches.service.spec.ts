@@ -5,6 +5,7 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import { CvMatchesService } from './cv-matches.service';
 
 type RepoMock<T extends object> = Pick<Repository<T>, 'create' | 'findOne' | 'save'> & {
@@ -21,7 +22,13 @@ function repo<T extends object>(): RepoMock<T> {
   } as unknown as RepoMock<T>;
 }
 
-function setup(opts: { githubEvidence?: unknown } = {}) {
+function setup(
+  opts: {
+    githubEvidence?: unknown;
+    interviewSessions?: { findOne: jest.Mock };
+    learningProgress?: { find: jest.Mock };
+  } = {},
+) {
   const cvs = repo<CvEntity>();
   const jobDescriptions = repo<JobDescriptionEntity>();
   const matches = repo<CvMatchEntity>();
@@ -63,6 +70,10 @@ function setup(opts: { githubEvidence?: unknown } = {}) {
     roadmapComposer as never,
     undefined,
     opts.githubEvidence as never,
+    undefined, // impactCalibrations (ME2)
+    undefined, // aiRequests (ME2)
+    opts.interviewSessions as never,
+    opts.learningProgress as never,
   );
 
   matches.findOne.mockResolvedValue({
@@ -244,5 +255,218 @@ describe('CvMatchesService github corroboration (I3, Wave IMPACT)', () => {
     expect(gapReport.build).toHaveBeenCalledWith(
       expect.objectContaining({ corroborated: undefined }),
     );
+  });
+});
+
+describe('CvMatchesService interview signals (V1, Wave VALUE_CHAIN)', () => {
+  it('threads the latest completed interview outcome as an interviewSignals Map into the gap-report build', async () => {
+    const interviewSessions = { findOne: jest.fn() };
+    interviewSessions.findOne.mockResolvedValue({
+      id: 'sess-abcd-1234',
+      gapItems: [
+        // knowledge/evidence gaps with a canonical → signal; max severity wins per canonical.
+        {
+          weakness_type: 'knowledge_gap',
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          severity: 0.5,
+        },
+        {
+          weakness_type: 'evidence_gap',
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          severity: 0.8,
+        },
+        // not skill-anchored / no canonical → excluded from the signal map.
+        {
+          weakness_type: 'communication_gap',
+          skill_canonical: null,
+          display_name: 'Trình bày',
+          severity: 0.9,
+        },
+        {
+          weakness_type: 'knowledge_gap',
+          skill_canonical: null,
+          display_name: 'General',
+          severity: 0.9,
+        },
+      ],
+    });
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(interviewSessions.findOne).toHaveBeenCalledTimes(1);
+    const call = gapReport.build.mock.calls[0][0];
+    expect(call.interviewSignals).toBeInstanceOf(Map);
+    expect(call.interviewSignals.get('sql')).toEqual({ risk: 0.8, ref: 'sess-abc' });
+    expect(call.interviewSignals.size).toBe(1);
+  });
+
+  it('no completed interview session for the match → interviewSignals undefined (byte-identical)', async () => {
+    const interviewSessions = { findOne: jest.fn().mockResolvedValue(null) };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
+    );
+  });
+
+  it('never-throws: interview lookup failure degrades to no signals', async () => {
+    const interviewSessions = { findOne: jest.fn().mockRejectedValue(new Error('db down')) };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    const result = await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(result).toEqual(expect.objectContaining({ target_role: 'frontend_developer' }));
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
+    );
+  });
+
+  it('getProgress does NOT fetch interview signals (ME2 calibration must compare prior-vs-current severity apples-to-apples)', async () => {
+    const interviewSessions = { findOne: jest.fn() };
+    const { service, gapReport } = setup({ interviewSessions });
+
+    await service.getProgress('user-1', 'match-1');
+
+    expect(interviewSessions.findOne).not.toHaveBeenCalled();
+    expect(gapReport.build).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewSignals: undefined }),
+    );
+  });
+});
+
+describe('CvMatchesService mastered learning → learning_completed (V2, Wave VALUE_CHAIN)', () => {
+  // Real lesson content (Khoa's, read-only) drives the fixtures: the aggregation must judge mastery
+  // with the REAL per-objective predicate over the REAL react quiz bank, not a hand-rolled copy.
+  const lesson = getSkillBridgeLessonContent('react');
+  if (!lesson) throw new Error('react lesson content missing — fixture precondition');
+
+  const attempt = (q: { id: string; correct_option_index: number }, isCorrect: boolean) => [
+    q.id,
+    {
+      selected_option_index: isCorrect ? q.correct_option_index : q.correct_option_index + 1,
+      is_correct: isCorrect,
+      attempts: 1,
+      answered_at: '2026-07-01T00:00:00.000Z',
+    },
+  ];
+
+  /** Every quiz-bank question answered correctly → every objective mastered. */
+  const allCorrectAttempts = Object.fromEntries(lesson.quiz_bank.map((q) => attempt(q, true)));
+
+  const openReactGap = {
+    requirement_id: 'jd:hard_skill:react',
+    canonical_name: 'react',
+    display_name: 'React',
+    cv_status: 'missing',
+    severity: 0.5,
+    evidence_risk: 'none',
+  };
+
+  function gapReportWithOpenReact(gapReport: { build: jest.Mock }) {
+    gapReport.build.mockResolvedValue({
+      target_role: 'frontend_developer',
+      gap_items: [openReactGap],
+    });
+  }
+
+  it('fully-mastered lesson ∩ open gap → progress carries learning_completed (pending verification)', async () => {
+    const learningProgress = {
+      find: jest
+        .fn()
+        .mockResolvedValue([{ sessionId: 'roadmap-react', quizAttempts: allCorrectAttempts }]),
+    };
+    const { service, gapReport } = setup({ learningProgress });
+    gapReportWithOpenReact(gapReport);
+
+    const result = await service.getProgress('user-1', 'match-1');
+
+    expect(learningProgress.find).toHaveBeenCalledTimes(1);
+    expect(learningProgress.find).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+    expect(result.learning_completed).toEqual(['react']);
+  });
+
+  it('partially-mastered lesson (only one objective answered) → NOT counted, field absent', async () => {
+    // Precondition: the aggregate is only meaningful when the lesson has >1 objective.
+    expect(lesson.learning_objectives.length).toBeGreaterThan(1);
+    const firstObjectiveId = lesson.learning_objectives[0].id;
+    const partialAttempts = Object.fromEntries(
+      lesson.quiz_bank
+        .filter((q) => q.objective_id === firstObjectiveId)
+        .map((q) => attempt(q, true)),
+    );
+    const learningProgress = {
+      find: jest
+        .fn()
+        .mockResolvedValue([{ sessionId: 'roadmap-react', quizAttempts: partialAttempts }]),
+    };
+    const { service, gapReport } = setup({ learningProgress });
+    gapReportWithOpenReact(gapReport);
+
+    const result = await service.getProgress('user-1', 'match-1');
+
+    expect(result).not.toHaveProperty('learning_completed');
+  });
+
+  it('unknown session ids (not roadmap-<skill>) are skipped, not crashed on', async () => {
+    const learningProgress = {
+      find: jest
+        .fn()
+        .mockResolvedValue([{ sessionId: 'custom-session-42', quizAttempts: allCorrectAttempts }]),
+    };
+    const { service, gapReport } = setup({ learningProgress });
+    gapReportWithOpenReact(gapReport);
+
+    const result = await service.getProgress('user-1', 'match-1');
+
+    expect(result).not.toHaveProperty('learning_completed');
+  });
+
+  it('no learning rows → progress output byte-identical to a service without the dependency', async () => {
+    const learningProgress = { find: jest.fn().mockResolvedValue([]) };
+    const withDep = setup({ learningProgress });
+    const withoutDep = setup();
+    gapReportWithOpenReact(withDep.gapReport);
+    gapReportWithOpenReact(withoutDep.gapReport);
+
+    const a = await withDep.service.getProgress('user-1', 'match-1');
+    const b = await withoutDep.service.getProgress('user-1', 'match-1');
+
+    expect(a).not.toHaveProperty('learning_completed');
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('never-throws: learning-progress lookup failure degrades to no learning_completed', async () => {
+    const learningProgress = { find: jest.fn().mockRejectedValue(new Error('db down')) };
+    const { service, gapReport } = setup({ learningProgress });
+    gapReportWithOpenReact(gapReport);
+
+    const result = await service.getProgress('user-1', 'match-1');
+
+    expect(result).toEqual(expect.objectContaining({ baseline: true }));
+    expect(result).not.toHaveProperty('learning_completed');
+  });
+
+  it('absent dependency (positional construction) → getProgress still works, field absent', async () => {
+    const { service, gapReport } = setup();
+    gapReportWithOpenReact(gapReport);
+
+    const result = await service.getProgress('user-1', 'match-1');
+
+    expect(result).toEqual(expect.objectContaining({ baseline: true }));
+    expect(result).not.toHaveProperty('learning_completed');
+  });
+
+  it('getGapReport does NOT fetch learning progress (progress-only presentation pre-pass)', async () => {
+    const learningProgress = { find: jest.fn() };
+    const { service } = setup({ learningProgress });
+
+    await service.getGapReport('user-1', 'match-1', 'vi');
+
+    expect(learningProgress.find).not.toHaveBeenCalled();
   });
 });

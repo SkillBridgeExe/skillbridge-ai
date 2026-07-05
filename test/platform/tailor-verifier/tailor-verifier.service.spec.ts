@@ -46,7 +46,7 @@ describe('TailorVerifierService', () => {
     insertion_hint: null,
   };
 
-  function build() {
+  function build(opts: { interviewSessions?: { findOne: jest.Mock } } = {}) {
     const matches = {
       findOne: jest.fn().mockResolvedValue({ id: 'match-1', cvId: 'cv-1', aiResultId: 'ai-1' }),
     };
@@ -65,6 +65,7 @@ describe('TailorVerifierService', () => {
       aiResults as never,
       cvs as never,
       gapReport as never,
+      opts.interviewSessions as never,
     );
     return { service, matches, aiResults, cvs, gapReport };
   }
@@ -147,5 +148,72 @@ describe('TailorVerifierService', () => {
     await expect(
       service.verify({ ...input, text: 'totally unrelated fabricated text' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  /**
+   * C1 (Wave VALUE_CHAIN) — getGapReport now feeds real interview outcomes (interviewSignals) into
+   * the gap-report build, and severity decides top-8 recommended_actions MEMBERSHIP (sort-then-slice
+   * in tailor-checklist). The verifier's rebuild MUST use the SAME signals, or an action the FE
+   * rendered gets rejected with ACTION_NOT_FOUND after a completed interview.
+   */
+  describe('interview signals parity with getGapReport', () => {
+    const completedSession = {
+      id: 'sess-abc-full-id',
+      gapItems: [
+        {
+          weakness_type: 'knowledge_gap',
+          skill_canonical: 'sql',
+          display_name: 'SQL',
+          severity: 0.8,
+          evidence_from_answer: 'struggled with indexing question',
+          recommended_action: 'review indexing',
+          linked_question_id: 'q1',
+          target_type: 'skill',
+          requirement_id: null,
+        },
+      ],
+    };
+
+    it('rebuilds the gap report WITH the latest completed interview signals (same query, same map)', async () => {
+      const interviewSessions = { findOne: jest.fn().mockResolvedValue(completedSession) };
+      const { service, gapReport } = build({ interviewSessions });
+      // Simulate the severity→top-8 membership effect: the action the FE rendered only exists in
+      // the report when the interview signals are threaded into the build (as getGapReport did).
+      gapReport.build.mockImplementation(({ interviewSignals }: never) =>
+        Promise.resolve({
+          recommended_actions: interviewSignals ? [recommendedAction] : [],
+        }),
+      );
+
+      const v = await service.verify(input);
+      expect(v.action_id).toBe('deepen_wording:sql');
+
+      // Same query semantics as CvMatchesService.fetchInterviewSignals.
+      expect(interviewSessions.findOne).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          cvMatchId: 'match-1',
+          status: 'COMPLETED',
+        }),
+        order: { endedAt: 'DESC', createdAt: 'DESC' },
+      });
+
+      // Same map shape getGapReport passes: canonical → { risk, ref: sessionId.slice(0, 8) }.
+      const call = gapReport.build.mock.calls[0][0] as {
+        interviewSignals?: Map<string, { risk: number; ref: string }>;
+      };
+      expect(call.interviewSignals).toBeInstanceOf(Map);
+      expect(call.interviewSignals?.get('sql')).toEqual({ risk: 0.8, ref: 'sess-abc' });
+    });
+
+    it('never-throws: signal fetch failure degrades to no-signals (verification still runs)', async () => {
+      const interviewSessions = { findOne: jest.fn().mockRejectedValue(new Error('db down')) };
+      const { service, gapReport } = build({ interviewSessions });
+      const v = await service.verify(input);
+      expect(v.action_id).toBe('deepen_wording:sql');
+      expect(gapReport.build).toHaveBeenCalledWith(
+        expect.objectContaining({ interviewSignals: undefined }),
+      );
+    });
   });
 });

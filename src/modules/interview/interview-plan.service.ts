@@ -32,6 +32,14 @@ export class InterviewPlanService {
     private readonly skillDiff: SkillDiffService,
   ) {}
 
+  /**
+   * CV-only interview plan (re-derived from the review's extracted skills). This deliberately
+   * coexists with the from-match planner (CvMatchesService.generateInterviewPlanFromMatch, which
+   * builds gap_items on demand from the persisted match): a gap report only exists once a CV↔JD
+   * match exists, so
+   * this re-derive path is the only valid source for the CV-without-JD flow
+   * (FE `CV.INTERVIEW_PLAN(cvId)`). Do NOT unify the two — audited 2026-07-05, both are used.
+   */
   async generatePlan(
     userId: string,
     input: InterviewPlanRequestDto,

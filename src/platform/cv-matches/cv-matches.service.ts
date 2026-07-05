@@ -17,7 +17,9 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
+import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import {
   LearningLanguagePref,
   UserLearningPreferenceEntity,
@@ -49,7 +51,9 @@ import { buildNextSteps, NextStep } from '../../modules/gap-advisor/gap-advisor'
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { GithubEvidenceService } from '../../modules/github-evidence/github-evidence.service';
+import { fetchInterviewSignals } from '../interviews/interview-signals';
 import { EntitlementsService } from '../billing/entitlements.service';
+import { masteredSkillCanonicals } from '../learning/mastered-skills';
 import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.dto';
@@ -127,6 +131,18 @@ export class CvMatchesService {
     private readonly impactCalibrations?: Repository<ImpactCalibrationEntity>,
     @InjectRepository(AiRequestEntity)
     private readonly aiRequests?: Repository<AiRequestEntity>,
+    // V1 (Wave VALUE_CHAIN): optional for positional unit-test construction; Nest provides it via
+    // CvMatchesModule's forFeature. Read directly (TailorVerifier precedent) instead of injecting
+    // InterviewGapReportService — that service depends on CvMatchesService (getGapReport), so
+    // injecting it back here would be a DI cycle AND a runtime recursion. Used ONLY by
+    // getGapReport's interview-signal pre-pass (fetchInterviewSignals).
+    @InjectRepository(InterviewSessionEntity)
+    private readonly interviewSessions?: Repository<InterviewSessionEntity>,
+    // V2 (Wave VALUE_CHAIN): optional for positional unit-test construction; Nest provides it via
+    // CvMatchesModule's forFeature. READ-ONLY view over Khoa's learning_session_progress rows —
+    // used ONLY by getProgress's mastered-learning pre-pass (fetchMasteredCanonicals).
+    @InjectRepository(LearningSessionProgressEntity)
+    private readonly learningProgress?: Repository<LearningSessionProgressEntity>,
   ) {}
 
   async createMatch(
@@ -293,7 +309,19 @@ export class CvMatchesService {
     const corroborated = github
       ? await this.fetchGithubCorroboration(userId, match.cvId, github, lang)
       : undefined;
-    return this.buildGapReportFromParsed(userId, match, parsed, lang, corroborated);
+    // V1 (Wave VALUE_CHAIN): real interview outcomes raise interview_risk on this ONE canonical
+    // report path (and whatever is built on top of it). getProgress/roadmap deliberately bypass
+    // this — see the comment in getProgress. Shared with TailorVerifierService.verify (C1): both
+    // MUST build from the same signals or the verifier rejects actions the FE rendered.
+    const interviewSignals = await fetchInterviewSignals(this.interviewSessions, userId, matchId);
+    return this.buildGapReportFromParsed(
+      userId,
+      match,
+      parsed,
+      lang,
+      corroborated,
+      interviewSignals,
+    );
   }
 
   /**
@@ -330,6 +358,30 @@ export class CvMatchesService {
     }
   }
 
+  /**
+   * V2 (Wave VALUE_CHAIN): skill canonicals whose SkillBridge lesson this user FULLY mastered
+   * (Khoa's per-objective quiz predicate aggregated over every objective — see
+   * masteredSkillCanonicals for the session→skill join and its trade-off). Surfaced as
+   * pending-verification presentation data only (ProgressReport.learning_completed) — it NEVER
+   * lowers evidence_risk or severity: finishing a course is not CV evidence until a re-scan proves it.
+   *
+   * Never-throw: any failure degrades to "no mastered learning" — progress builds normally.
+   * ONE batched query (all of the user's rows) + in-memory aggregation, no per-skill N+1.
+   */
+  private async fetchMasteredCanonicals(userId: string): Promise<Set<string> | undefined> {
+    if (!this.learningProgress) return undefined;
+    try {
+      const rows = await this.learningProgress.find({ where: { userId } });
+      const mastered = masteredSkillCanonicals(rows);
+      return mastered.size ? mastered : undefined;
+    } catch (err) {
+      this.logger.warn(
+        `mastered-learning fetch failed for progress (user ${userId}): ${String(err)}`,
+      );
+      return undefined;
+    }
+  }
+
   async getReviewForMatch(userId: string, matchId: string): Promise<CvReviewParsedResponse | null> {
     const match = await this.matches.findOne({ where: { id: matchId } });
     if (!match) throw new NotFoundException('CV match not found');
@@ -345,16 +397,25 @@ export class CvMatchesService {
       userId,
       matchId,
     );
+    // V1 (Wave VALUE_CHAIN): this path deliberately does NOT fetch interview signals (neither for
+    // prior nor current): the ME2 calibration piggyback below compares prior-vs-current severity,
+    // and injecting a real-interview raise into only the current side would contaminate
+    // actual_severity_delta with a non-CV signal. Progress gets interview signals in a later wave,
+    // once calibration has a clean baseline.
     const currReport = await this.buildGapReportFromParsed(userId, current, currParsed);
     const currGaps = currReport.gap_items;
     const currScore = this.numberOrNull(current.overallScore);
+    // V2 (Wave VALUE_CHAIN): mastered learning is PRESENTATION data (learning_completed, pending
+    // verification) — unlike interview signals above, it never touches severity, so it cannot
+    // contaminate the ME2 calibration and is safe on every exit path, baseline included.
+    const mastered = await this.fetchMasteredCanonicals(userId);
 
-    if (!current.jobDescriptionId) return baselineReport(currGaps, currScore);
+    if (!current.jobDescriptionId) return baselineReport(currGaps, currScore, mastered);
 
     const currentJd = await this.jobDescriptions.findOne({
       where: { id: current.jobDescriptionId },
     });
-    if (!currentJd?.contentHash) return baselineReport(currGaps, currScore);
+    if (!currentJd?.contentHash) return baselineReport(currGaps, currScore, mastered);
 
     // Lineage = same USER + same JD CONTENT (hash), any cvId: an edited re-uploaded CV gets a
     // new cv row, and every match saves a new jd row — the old (cvId, jobDescriptionId) key
@@ -368,13 +429,13 @@ export class CvMatchesService {
       .andWhere('m.createdAt < :createdAt', { createdAt: current.createdAt })
       .orderBy('m.createdAt', 'DESC')
       .getOne();
-    if (!prior) return baselineReport(currGaps, currScore);
+    if (!prior) return baselineReport(currGaps, currScore, mastered);
 
     // Prior was found via a query already scoped to cv.userId = :userId, so ownership is
     // established — read its parsed response directly rather than re-checking via
     // loadOwnedMatchParsedResponse (which is scoped to the CALLER's cvId, not prior's).
     const prevParsed = await this.resolveParsedResponse(prior);
-    if (!prevParsed) return baselineReport(currGaps, currScore);
+    if (!prevParsed) return baselineReport(currGaps, currScore, mastered);
 
     try {
       const prevReport = await this.buildGapReportFromParsed(userId, prior, prevParsed);
@@ -390,6 +451,7 @@ export class CvMatchesService {
         prevJdIntel: prevReport.jd_intelligence?.dimensions ?? null,
         currJdIntel: currReport.jd_intelligence?.dimensions ?? null,
         templateChanged,
+        masteredCanonicals: mastered,
       });
       // ME2 (Wave MEASURE): best-effort calibration piggyback — reuses prevReport (scan-N's
       // recommended_actions + expected_impact) and progress (scan-N vs N+1 transitions) that this
@@ -409,7 +471,7 @@ export class CvMatchesService {
       // baseline reading rather than fabricate a diff. We intentionally do NOT surface
       // prior.overallScore here — without the prior gaps there is no honest comparison,
       // so the FE shows "first measurement" instead of a misleading partial delta.
-      return baselineReport(currGaps, currScore);
+      return baselineReport(currGaps, currScore, mastered);
     }
   }
 
@@ -606,6 +668,7 @@ export class CvMatchesService {
     parsed: CvJdMatchParsedResponse,
     lang: 'vi' | 'en' = 'vi',
     corroborated?: Map<string, { ref: string }>,
+    interviewSignals?: Map<string, { risk: number; ref: string }>,
   ): Promise<SkillBridgeGapReport> {
     if (!this.gapReport || !this.platformCvs) {
       throw new Error('Gap report dependencies are not configured');
@@ -615,6 +678,7 @@ export class CvMatchesService {
       review: await this.platformCvs.getLatestReview(userId, match.cvId),
       lang,
       corroborated,
+      interviewSignals,
     });
   }
 

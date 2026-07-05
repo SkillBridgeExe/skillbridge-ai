@@ -293,6 +293,52 @@ describe('buildDiagnosisFacts — progress (B6)', () => {
   });
 });
 
+describe('buildDiagnosisFacts — learning completed pending verification (V2, Wave VALUE_CHAIN)', () => {
+  it('progress.learning_completed → facts field the LLM can phrase as "đã học xong X — sẽ kiểm chứng ở lần quét tới"', () => {
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ learning_completed: ['react', 'sql'] }),
+    );
+    expect(facts.learning_completed_pending_verification).toEqual(['react', 'sql']);
+    // Serialized verbatim into the LLM-bound facts JSON — the honest framing travels in the key name
+    // itself (prompts/*.md untouched).
+    expect(JSON.stringify(facts)).toContain('learning_completed_pending_verification');
+  });
+
+  it('BASELINE progress still surfaces it (learn-then-rescan window: facts.progress absent, field present)', () => {
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ baseline: true, learning_completed: ['react'] }),
+    );
+    expect(facts).not.toHaveProperty('progress');
+    expect(facts.learning_completed_pending_verification).toEqual(['react']);
+  });
+
+  it('no learning_completed → key absent + facts byte-identical to today', () => {
+    const base = buildDiagnosisFacts(makeReview(), makeGapReport([]), makeProgress());
+    expect(base).not.toHaveProperty('learning_completed_pending_verification');
+    const withEmpty = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ learning_completed: [] }),
+    );
+    expect(JSON.stringify(withEmpty)).toBe(JSON.stringify(base));
+  });
+
+  it('capped at 8 entries for the prompt (mirrors the other facts lists)', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `skill_${i}`);
+    const facts = buildDiagnosisFacts(
+      makeReview(),
+      makeGapReport([]),
+      makeProgress({ learning_completed: many }),
+    );
+    expect(facts.learning_completed_pending_verification).toHaveLength(8);
+    expect(facts.learning_completed_pending_verification?.[0]).toBe('skill_0');
+  });
+});
+
 describe('groundDiagnosis (anti-fabrication boundary)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
