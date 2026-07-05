@@ -57,6 +57,7 @@
     "semantic:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-semantic.ts",
     "jobs:import": "ts-node -r tsconfig-paths/register src/tools/import-jobs.ts",
     "reco:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-reco.ts",
+    "diagnosis:smoke": "ts-node -r tsconfig-paths/register src/tools/smoke-diagnosis.ts",
     "trends:refresh": "ts-node -r tsconfig-paths/register src/tools/refresh-trends.ts",
     "jobs:crawl": "ts-node -r tsconfig-paths/register src/tools/crawl-jobs.ts",
     "curate:resources": "ts-node -r tsconfig-paths/register src/tools/curate-resources.ts",

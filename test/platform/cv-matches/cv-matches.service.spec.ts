@@ -640,4 +640,296 @@ describe('CvMatchesService', () => {
       expect(out.steps[0].action).toMatch(/Learn this skill/);
     });
   });
+
+  describe('impact calibration piggyback (ME2)', () => {
+    const prior = {
+      id: 'match-prior',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-1',
+      aiResultId: 'ai-result-prior',
+      overallScore: '60.00',
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    };
+    const current = {
+      id: 'match-current',
+      cvId: 'cv-1',
+      jobDescriptionId: 'jd-2',
+      overallScore: '75.00',
+      createdAt: new Date('2026-06-10T00:00:00.000Z'),
+    };
+    const actionReact = {
+      action_id: 'missing_required:react',
+      action_type: 'missing_required',
+      skill_canonical: 'react',
+      expected_impact: { score_min: 5, score_max: 10, severity_drop: null },
+    };
+    const actionSql = {
+      action_id: 'add_evidence:sql',
+      action_type: 'add_evidence',
+      skill_canonical: 'sql',
+      expected_impact: { score_min: 0, score_max: 0, severity_drop: 0.2 },
+    };
+    const actionAws = {
+      action_id: 'missing_required:aws',
+      action_type: 'missing_required',
+      skill_canonical: 'aws',
+      expected_impact: { score_min: 3, score_max: 6, severity_drop: null },
+    };
+    // No expected_impact — unjoined action; must never produce a fabricated row.
+    const actionNode = {
+      action_id: 'emphasize:node',
+      action_type: 'emphasize',
+      skill_canonical: 'node',
+    };
+    const prevGapItems = [
+      { canonical_name: 'react', cv_status: 'missing', severity: 0.8, display_name: 'React' },
+      { canonical_name: 'sql', cv_status: 'unproven', severity: 0.5, display_name: 'SQL' },
+      { canonical_name: 'aws', cv_status: 'missing', severity: 0.6, display_name: 'AWS' },
+    ];
+    // 'aws' is entirely absent from curr — the "gone from curr, was open at prior" closed case
+    // (gap-progress semantics: it lands in gaps_closed with no per-canonical transition entry).
+    const currGapItems = [
+      { canonical_name: 'react', cv_status: 'matched', severity: 0, display_name: 'React' },
+      { canonical_name: 'sql', cv_status: 'partial', severity: 0.3, display_name: 'SQL' },
+    ];
+
+    function buildWithCalibration() {
+      const base = build();
+      const impactCalibrationsRepo = { manager: { query: jest.fn().mockResolvedValue(undefined) } };
+      const aiRequestsRepo = { manager: { query: jest.fn().mockResolvedValue([]) } };
+      const service = new CvMatchesService(
+        base.cvsRepo as never,
+        base.jobDescriptionsRepo as never,
+        base.matchesRepo as never,
+        base.scoresRepo as never,
+        base.aiResultsRepo as never,
+        base.extractor as never,
+        base.matcher as never,
+        base.entitlements as never,
+        base.gapReport as never,
+        base.platformCvs as never,
+        base.config as never,
+        undefined, // roadmap
+        undefined, // interviewPlan
+        undefined, // roadmapComposer
+        undefined, // learningPreferences
+        undefined, // githubEvidence
+        impactCalibrationsRepo as never,
+        aiRequestsRepo as never,
+      );
+      return { ...base, service, impactCalibrationsRepo, aiRequestsRepo };
+    }
+
+    function stubRealPrior(
+      env: ReturnType<typeof buildWithCalibration>,
+      opts: { prevActions: unknown[] },
+    ) {
+      jest.spyOn(env.service as never, 'loadOwnedMatchParsedResponse').mockResolvedValue({
+        match: current,
+        parsed: { required_coverage: 0.7 },
+      } as never);
+      const buildGapReportFromParsed = jest.spyOn(env.service as never, 'buildGapReportFromParsed');
+      buildGapReportFromParsed.mockResolvedValueOnce({ gap_items: currGapItems } as never); // curr
+      buildGapReportFromParsed.mockResolvedValueOnce({
+        gap_items: prevGapItems,
+        recommended_actions: opts.prevActions,
+      } as never); // prior
+      jest
+        .spyOn(env.service as never, 'resolveParsedResponse')
+        .mockResolvedValue({ required_coverage: 0.5 } as never);
+      env.matchesQueryBuilder.getOne.mockResolvedValueOnce(prior);
+      // Real (non-lossy) ai_results row for the prior match.
+      env.aiResultsRepo.findOne.mockResolvedValue({
+        id: 'ai-result-prior',
+        parsedResponse: { some: 'thing' },
+      });
+      return buildGapReportFromParsed;
+    }
+
+    it('writes one row per scan-N action with expected_impact, with predicted/actual/transition and attempted joined; skips unjoined actions', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact, actionSql, actionAws, actionNode] });
+      env.aiRequestsRepo.manager.query.mockResolvedValue([{ action_id: 'missing_required:react' }]);
+
+      const out = await env.service.getProgress('user-1', 'match-current');
+
+      expect(out.baseline).toBe(false);
+      expect(env.aiRequestsRepo.manager.query).toHaveBeenCalledTimes(1);
+      expect(env.aiRequestsRepo.manager.query).toHaveBeenCalledWith(
+        expect.stringContaining("request_type = 'cv_rewrite'"),
+        [
+          'user-1',
+          prior.createdAt,
+          current.createdAt,
+          prior.id,
+          [actionReact.action_id, actionSql.action_id, actionAws.action_id],
+        ],
+      );
+      // Pins the read to go through TracingService's payload wrapper
+      // (request_payload.payload.action_id) — a plain request_payload ->> 'action_id'
+      // would never match a real row and silently always return attempted=false.
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][0]).toEqual(
+        expect.stringContaining("-> 'payload' ->> 'action_id'"),
+      );
+
+      const insert = env.impactCalibrationsRepo.manager.query;
+      expect(insert).toHaveBeenCalledTimes(3); // react, sql, aws — node has no expected_impact
+      expect(insert).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('ON CONFLICT (prior_match_id, current_match_id, canonical_name)'),
+        [
+          'user-1',
+          'match-prior',
+          'match-current',
+          'hash-1',
+          'react',
+          'missing_required',
+          5,
+          10,
+          null,
+          15,
+          -0.8,
+          'closed',
+          true,
+        ],
+      );
+      expect(insert).toHaveBeenNthCalledWith(2, expect.any(String), [
+        'user-1',
+        'match-prior',
+        'match-current',
+        'hash-1',
+        'sql',
+        'add_evidence',
+        0,
+        0,
+        0.2,
+        15,
+        -0.2,
+        'improved',
+        false,
+      ]);
+      expect(insert).toHaveBeenNthCalledWith(3, expect.any(String), [
+        'user-1',
+        'match-prior',
+        'match-current',
+        'hash-1',
+        'aws',
+        'missing_required',
+        3,
+        6,
+        null,
+        15,
+        null,
+        'closed',
+        false,
+      ]);
+    });
+
+    it('is idempotent-by-construction: a second getProgress call for the same scan pair issues the same ON CONFLICT DO NOTHING insert', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact] });
+
+      await env.service.getProgress('user-1', 'match-current');
+      const firstCallSql = env.impactCalibrationsRepo.manager.query.mock.calls[0][0];
+      expect(firstCallSql).toContain('DO NOTHING');
+
+      // Re-stub for a second identical call (mockResolvedValueOnce chains were consumed).
+      stubRealPrior(env, { prevActions: [actionReact] });
+      await env.service.getProgress('user-1', 'match-current');
+
+      expect(env.impactCalibrationsRepo.manager.query).toHaveBeenCalledTimes(2);
+      expect(env.impactCalibrationsRepo.manager.query.mock.calls[1][0]).toContain('DO NOTHING');
+    });
+
+    it('skips entirely (no rows, warns) when the prior parsed_response was reconstructed via the lossy fallback', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact] });
+      env.aiResultsRepo.findOne.mockResolvedValue(null); // no aiResultId row → lossy reconstruction
+      const logger = (env.service as unknown as { logger: { warn: jest.Mock } }).logger;
+      jest.spyOn(logger, 'warn');
+
+      const out = await env.service.getProgress('user-1', 'match-current');
+
+      expect(out.baseline).toBe(false); // progress itself is unaffected
+      expect(env.impactCalibrationsRepo.manager.query).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('lossy'));
+    });
+
+    it('skips entirely (no rows, warns) when the scoring template changed between scans', async () => {
+      const env = buildWithCalibration();
+      jest.spyOn(env.service as never, 'loadOwnedMatchParsedResponse').mockResolvedValue({
+        match: current,
+        parsed: { required_coverage: 0.7, jd_dimensions: [] }, // curr is v2
+      } as never);
+      const buildGapReportFromParsed = jest.spyOn(env.service as never, 'buildGapReportFromParsed');
+      buildGapReportFromParsed.mockResolvedValueOnce({ gap_items: currGapItems } as never);
+      buildGapReportFromParsed.mockResolvedValueOnce({
+        gap_items: prevGapItems,
+        recommended_actions: [actionReact],
+      } as never);
+      jest
+        .spyOn(env.service as never, 'resolveParsedResponse')
+        .mockResolvedValue({ required_coverage: 0.5 } as never); // prior predates jd_dimensions (v1)
+      env.matchesQueryBuilder.getOne.mockResolvedValueOnce(prior);
+      env.aiResultsRepo.findOne.mockResolvedValue({
+        id: 'ai-result-prior',
+        parsedResponse: { some: 'thing' },
+      });
+      const logger = (env.service as unknown as { logger: { warn: jest.Mock } }).logger;
+      jest.spyOn(logger, 'warn');
+
+      const out = await env.service.getProgress('user-1', 'match-current');
+
+      expect(out.template_changed).toBe(true);
+      expect(env.impactCalibrationsRepo.manager.query).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('template changed'));
+    });
+
+    it('never throws when the calibration insert fails — the real diff progress is still returned', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact, actionSql] });
+      env.impactCalibrationsRepo.manager.query.mockRejectedValue(new Error('db down'));
+      const logger = (env.service as unknown as { logger: { warn: jest.Mock } }).logger;
+      jest.spyOn(logger, 'warn');
+
+      const out = await env.service.getProgress('user-1', 'match-current');
+
+      expect(out.baseline).toBe(false);
+      expect(out.gaps_closed).toContain('react');
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('write failed'));
+    });
+
+    it('marks attempted=false when no matching cv_rewrite trace exists in the scan window', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact] });
+      env.aiRequestsRepo.manager.query.mockResolvedValue([]); // no trace at all
+
+      await env.service.getProgress('user-1', 'match-current');
+
+      expect(env.impactCalibrationsRepo.manager.query).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining([false]),
+      );
+      const params = env.impactCalibrationsRepo.manager.query.mock.calls[0][1] as unknown[];
+      expect(params[params.length - 1]).toBe(false);
+    });
+
+    it('scopes attempted traces to the prior match_id so the same action_id from another match cannot contaminate calibration', async () => {
+      const env = buildWithCalibration();
+      stubRealPrior(env, { prevActions: [actionReact] });
+
+      await env.service.getProgress('user-1', 'match-current');
+
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][0]).toEqual(
+        expect.stringContaining("request_payload -> 'payload' ->> 'match_id' = $4"),
+      );
+      expect(env.aiRequestsRepo.manager.query.mock.calls[0][1]).toEqual([
+        'user-1',
+        prior.createdAt,
+        current.createdAt,
+        prior.id,
+        [actionReact.action_id],
+      ]);
+    });
+  });
 });

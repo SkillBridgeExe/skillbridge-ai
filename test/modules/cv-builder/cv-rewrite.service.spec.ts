@@ -427,6 +427,77 @@ describe('CvRewriteService (mocked LLM)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // requestPayload action identity (ME1 — trace attempts, ids/enums only, no CV text). Calibration
+  // (ME2) needs ground truth on WHICH action a tailor rewrite served; today's payload dropped it.
+  // ---------------------------------------------------------------------------
+  describe('requestPayload action identity (ME1)', () => {
+    const verifiedEmphasizeReact = {
+      action_id: 'emphasize:react',
+      action_type: 'emphasize' as const,
+      skill_canonical: 'react',
+      skill_display: 'React',
+      cv_level: 3,
+      required_level: 4,
+    };
+
+    it('tailor rewrite: startAiRequest payload carries action_id, match_id, skill_canonical, action_type', async () => {
+      const { svc, tracing } = build('Built React dashboards for ops teams');
+      await svc.rewrite(
+        {
+          text: 'built dashboards for internal ops teams',
+          mode: 'tailor',
+          match_id: 'match-123',
+        } as never,
+        'user-1',
+        verifiedEmphasizeReact,
+      );
+      const payload = tracing.startAiRequest.mock.calls[0][0].requestPayload as Record<
+        string,
+        unknown
+      >;
+      expect(payload).toMatchObject({
+        action_id: 'emphasize:react',
+        match_id: 'match-123',
+        skill_canonical: 'react',
+        action_type: 'emphasize',
+      });
+      // ids/enums only — never the CV bullet text itself.
+      expect(JSON.stringify(payload)).not.toMatch(/dashboards|internal ops/i);
+    });
+
+    it('harvard/translate/custom: payload is byte-identical to before — no new keys, not even undefined', async () => {
+      const cases = [
+        { text: 'worked on the system with real details', mode: 'harvard' as const },
+        {
+          text: 'worked on the system with real details',
+          mode: 'translate' as const,
+          target_lang: 'en' as const,
+        },
+        {
+          text: 'worked on the system with real details',
+          mode: 'custom' as const,
+          instruction: 'polish it',
+        },
+      ];
+      for (const req of cases) {
+        const { svc, tracing } = build('Improved the system.');
+        await svc.rewrite(req);
+        const payload = tracing.startAiRequest.mock.calls[0][0].requestPayload as Record<
+          string,
+          unknown
+        >;
+        expect(Object.keys(payload).sort()).toEqual(
+          ['mode', 'section', 'target_lang', 'text_length'].sort(),
+        );
+        expect('action_id' in payload).toBe(false);
+        expect('match_id' in payload).toBe(false);
+        expect('skill_canonical' in payload).toBe(false);
+        expect('action_type' in payload).toBe(false);
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // fabricated-skill guard (TRUST T3) — a rewrite must not INTRODUCE a technology/skill absent
   // from the input, mirroring the invented-number guard for a fabricated stack instead of a
   // fabricated metric. Gazetteer-based (mocked scanner here — see task brief).

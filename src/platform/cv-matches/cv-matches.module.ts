@@ -1,9 +1,11 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiRequestEntity } from '../../database/entities/ai-request.entity';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
+import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
@@ -28,6 +30,10 @@ import { UnifiedPlanService } from './unified-plan.service';
       CvMatchScoreEntity,
       AiResultEntity,
       UserLearningPreferenceEntity,
+      // ME2 (Wave MEASURE): calibration piggyback in getProgress (write) + the ME1 attempted-flag
+      // join over ai_requests (read).
+      ImpactCalibrationEntity,
+      AiRequestEntity,
     ]),
     CvJdMatchModule,
     BillingModule,
