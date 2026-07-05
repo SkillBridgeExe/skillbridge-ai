@@ -86,6 +86,41 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
     );
   });
 
+  it('honors employer min_level as required_level_hint (null min_level → no hint, engine default)', async () => {
+    const row = {
+      ...CANDIDATE_ROW,
+      skills: [
+        { canonical: 'postgresql', importance: 'REQUIRED', min_level: 5 },
+        { canonical: 'git', importance: 'PREFERRED', min_level: null },
+      ],
+    };
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }])
+      .mockResolvedValueOnce([{ canonical_name: 'react' }])
+      .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([]);
+    const service = new JobRecommendationService(
+      { query } as never,
+      { get: jest.fn().mockReturnValue(undefined) } as never,
+      { embed: jest.fn().mockRejectedValue(new Error('no vectors in test')) } as never,
+      { diff: jest.fn().mockReturnValue(DIFF_STUB) } as never,
+      { getByCanonical: jest.fn().mockReturnValue(undefined) } as never,
+    );
+    const diff = (service as unknown as { skillDiff: { diff: jest.Mock } }).skillDiff.diff;
+
+    await service.recommendForCv(USER_ID, CV_ID, {});
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jd_requirements_raw: [
+          { name: 'postgresql', importance_hint: 'REQUIRED', required_level_hint: 'EXPERT' },
+          { name: 'git', importance_hint: 'PREFERRED', required_level_hint: undefined },
+        ],
+      }),
+    );
+  });
+
   it('falls back to presence-only cv_skills_raw when no review exists', async () => {
     const { service, diff } = makeService({ reviewRows: [] });
 

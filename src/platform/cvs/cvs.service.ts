@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
@@ -98,6 +99,8 @@ const SUPPORTED_MIME_TYPES = new Set([
 
 @Injectable()
 export class CvsService {
+  private readonly logger = new Logger(CvsService.name);
+
   constructor(
     @InjectRepository(CvEntity) private readonly cvs: Repository<CvEntity>,
     @InjectRepository(CvSkillEntity) private readonly cvSkills: Repository<CvSkillEntity>,
@@ -373,6 +376,26 @@ export class CvsService {
     if (dto.targetRole !== undefined) cv.targetRole = this.normalizeTargetRole(dto.targetRole);
 
     const saved = await this.cvs.save(cv);
+
+    // Re-sync cv_skills from the edited document (same normalize→persist path reviewCv uses):
+    // job-recommendation reads cv_skills, so a builder edit that adds/removes skills must not
+    // leave scoring on the pre-edit set until the next review. Secondary to the save itself —
+    // a sync failure degrades to the previous skill set (warn), it must not fail the autosave.
+    try {
+      const doc = dto.parsedJson;
+      const rawSkills = [
+        ...(doc.skills?.technical ?? []),
+        ...(doc.skills?.soft ?? []),
+        ...(doc.skills?.languages ?? []),
+        ...(doc.skills?.tools ?? []),
+      ];
+      await this.persistExtractedSkills(saved.id, rawSkills);
+    } catch (err) {
+      this.logger.warn(
+        `builder skill sync failed for cv ${saved.id} — job-rec will read the previous set: ${(err as Error).message}`,
+      );
+    }
+
     return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
   }
 

@@ -126,3 +126,42 @@ describe('TrendsInsightService', () => {
     expect(factsArg).toContain('"sample_size": 8');
   });
 });
+
+describe('staleness disclosure (2026-07-06 hardening)', () => {
+  it('period older than 3 days → stale:true on every path, incl. cache HIT (computed at response time)', async () => {
+    const { svc, db } = deps();
+    // fixture period 2026-06-07 is far in the past relative to the test run → stale
+    db.query.mockResolvedValueOnce([
+      {
+        payload: {
+          role_code: 'backend_developer',
+          period: '2026-06-07',
+          personalized: false,
+          summary: 's',
+          insights: [],
+          recommended_skills: [],
+          cached: false,
+        },
+      },
+    ]);
+    const out = await svc.generate({ role_code: 'backend_developer', user_id: 'u1' });
+    expect(out.cached).toBe(true);
+    expect(out.stale).toBe(true);
+  });
+
+  it('fresh period → stale:false on the LLM path', async () => {
+    const { svc, demand, db } = deps();
+    demand.getTrends.mockResolvedValue({
+      role_code: 'backend_developer',
+      period: new Date().toISOString().slice(0, 10), // today
+      total_active_jobs: 200,
+      sample_size: 200,
+      data_confidence: 'high',
+      skills: [],
+    });
+    db.query.mockResolvedValueOnce([]); // readCache miss
+    db.query.mockResolvedValueOnce([]); // writeCache
+    const out = await svc.generate({ role_code: 'backend_developer', user_id: 'u1' });
+    expect(out.stale).toBe(false);
+  });
+});

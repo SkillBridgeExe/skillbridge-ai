@@ -160,3 +160,43 @@ describe('insight sâu v1 — co-occurrence FACTS + skill_pairs guard', () => {
     expect(out.skill_pairs).toEqual([]);
   });
 });
+
+describe('digit scrub — LLM prose may not carry numbers (2026-07-06 hardening)', () => {
+  it('insight comment containing a digit is dropped to empty; clean prose kept', () => {
+    const r = groundInsight(
+      {
+        insights: [
+          { skill: 'security', comment: 'Nhu cầu tăng khoảng 45% quý này' }, // fabricated number
+          { skill: 'python', comment: 'Kỹ năng nền tảng cho backend' }, // clean
+        ],
+      },
+      FACTS,
+    );
+    expect(r.insights.find((i) => i.skill === 'security')?.comment).toBe('');
+    expect(r.insights.find((i) => i.skill === 'python')?.comment).toBe(
+      'Kỹ năng nền tảng cho backend',
+    );
+    // the REAL numbers are still re-attached from FACTS regardless of prose scrubbing
+    expect(r.insights.find((i) => i.skill === 'security')?.trend_delta).toBe(2);
+  });
+
+  it('summary containing a digit falls back to the deterministic FACTS summary', () => {
+    const r = groundInsight({ summary: 'React đang tăng 45% nhu cầu trong quý' }, FACTS);
+    // fallback summary is built from FACTS (numbers allowed there — they are verified)
+    expect(r.summary).toContain('Security');
+    expect(r.summary).not.toContain('45%');
+  });
+
+  it('digits embedded in tech names (K8s, ES6) are NOT claims — prose kept', () => {
+    const r = groundInsight(
+      { insights: [{ skill: 'python', comment: 'Hay đi cùng K8s và ES6 trong stack hiện đại' }] },
+      FACTS,
+    );
+    expect(r.insights[0].comment).toContain('K8s');
+  });
+
+  it('digit-free summary from the LLM is kept', () => {
+    const r = groundInsight({ summary: 'Bảo mật đang là kỹ năng được săn đón nhất.' }, FACTS);
+    expect(r.summary).toBe('Bảo mật đang là kỹ năng được săn đón nhất.');
+  });
+});
