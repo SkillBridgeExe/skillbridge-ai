@@ -11,15 +11,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { AiRequestEntity } from '../../database/entities/ai-request.entity';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
+import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import {
   LearningLanguagePref,
   UserLearningPreferenceEntity,
 } from '../../database/entities/user-learning-preference.entity';
+import { PatchedTailorAction } from '../../modules/cv-jd-match/cv-patch';
 import { CvJdMatchService } from '../../modules/cv-jd-match/cv-jd-match.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { CvReviewParsedResponse } from '../../modules/cv-review/dto/cv-review-response.dto';
@@ -27,11 +30,13 @@ import {
   GapReportService,
   SkillBridgeGapReport,
 } from '../../modules/gap-report/gap-report.service';
+import { ExpectedImpact } from '../../modules/gap-report/impact-simulator';
 import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
 import {
   baselineReport,
   buildProgressReport,
   ProgressReport,
+  TransitionKind,
 } from '../../modules/gap-report/gap-progress';
 import { RoadmapService } from '../../modules/roadmap/roadmap.service';
 import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
@@ -55,6 +60,17 @@ import { jdContentHash } from './jd-content-hash';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_JD_TEXT_LENGTH = 60_000;
+
+// ME2 (Wave MEASURE): idempotent via the table's UNIQUE(prior_match_id, current_match_id,
+// canonical_name) — repeated getProgress calls for the same scan pair are no-ops after the first.
+const INSERT_IMPACT_CALIBRATION_SQL = `
+  INSERT INTO impact_calibrations
+    (user_id, prior_match_id, current_match_id, jd_content_hash, canonical_name, action_type,
+     predicted_score_min, predicted_score_max, predicted_severity_drop,
+     actual_score_delta, actual_severity_delta, status_transition, attempted)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+  ON CONFLICT (prior_match_id, current_match_id, canonical_name) DO NOTHING
+`;
 
 export interface OtherMatchSummary {
   /** Real ids for FE deep-linking (M1) — NEVER forwarded into the LLM-facing facts, only into the
@@ -104,6 +120,13 @@ export class CvMatchesService {
     // GithubEvidenceModule. Used ONLY by getGapReport's opt-in github corroboration pre-pass —
     // never by the sub-report callers (progress/roadmap/interview/next-steps).
     private readonly githubEvidence?: GithubEvidenceService,
+    // ME2 (Wave MEASURE): optional for positional unit-test construction; Nest always provides both
+    // via CvMatchesModule's forFeature. Used ONLY by getProgress's best-effort calibration piggyback
+    // (writeImpactCalibrations) — every other flow is byte-identical without them.
+    @InjectRepository(ImpactCalibrationEntity)
+    private readonly impactCalibrations?: Repository<ImpactCalibrationEntity>,
+    @InjectRepository(AiRequestEntity)
+    private readonly aiRequests?: Repository<AiRequestEntity>,
   ) {}
 
   async createMatch(
@@ -359,7 +382,7 @@ export class CvMatchesService {
       // only the v2 (jd_intelligence) prompt template ever emits jd_dimensions.
       const isV2 = (p: CvJdMatchParsedResponse) => p.jd_dimensions !== undefined;
       const templateChanged = isV2(prevParsed) !== isV2(currParsed);
-      return buildProgressReport(prevReport.gap_items, currGaps, {
+      const progress = buildProgressReport(prevReport.gap_items, currGaps, {
         prevScore: this.numberOrNull(prior.overallScore),
         currScore,
         prevCoverage: prevParsed.required_coverage ?? null,
@@ -368,6 +391,19 @@ export class CvMatchesService {
         currJdIntel: currReport.jd_intelligence?.dimensions ?? null,
         templateChanged,
       });
+      // ME2 (Wave MEASURE): best-effort calibration piggyback — reuses prevReport (scan-N's
+      // recommended_actions + expected_impact) and progress (scan-N vs N+1 transitions) that this
+      // call already built; never re-derives, never throws (see writeImpactCalibrations).
+      await this.writeImpactCalibrations({
+        userId,
+        prior,
+        current,
+        jdContentHash: currentJd.contentHash,
+        prevReport,
+        progress,
+        templateChanged,
+      });
+      return progress;
     } catch {
       // Prior gap-report unavailable (e.g. legacy/empty ai_results): degrade to a
       // baseline reading rather than fabricate a diff. We intentionally do NOT surface
@@ -731,6 +767,147 @@ export class CvMatchesService {
       source_of_requirements: 'jd_extraction',
       target_role: null,
     };
+  }
+
+  /**
+   * ME2 (Wave MEASURE): best-effort calibration write, piggybacked on a successful getProgress
+   * build with a REAL prior. NEVER throws — any failure (lossy prior, template drift, DB error)
+   * degrades to a logger.warn; the progress response the caller already computed is unaffected.
+   */
+  private async writeImpactCalibrations(input: {
+    userId: string;
+    prior: CvMatchEntity;
+    current: CvMatchEntity;
+    jdContentHash: string;
+    prevReport: SkillBridgeGapReport;
+    progress: ProgressReport;
+    templateChanged: boolean;
+  }): Promise<void> {
+    if (!this.impactCalibrations || !this.aiRequests) return;
+    try {
+      if (input.templateChanged) {
+        this.logger.warn(
+          `impact calibration skipped for match ${input.current.id}: scoring template changed between scans`,
+        );
+        return;
+      }
+      if (await this.isLossyParsedResponse(input.prior)) {
+        this.logger.warn(
+          `impact calibration skipped for match ${input.current.id}: prior parsed_response was reconstructed (lossy) — gap_items not comparable`,
+        );
+        return;
+      }
+
+      const actions = input.prevReport.recommended_actions.filter(
+        (a): a is PatchedTailorAction & { expected_impact: ExpectedImpact } =>
+          a.expected_impact !== undefined,
+      );
+      if (actions.length === 0) return;
+
+      // Attribution-noise policy (approved): the whole-match score delta is copied onto every
+      // action row from this scan pair — we cannot isolate which action moved the score, only
+      // that these actions were the ones recommended when the score was priorScore.
+      const priorScore = this.numberOrNull(input.prior.overallScore);
+      const currScore = this.numberOrNull(input.current.overallScore);
+      const actualScoreDelta =
+        priorScore === null || currScore === null ? null : this.roundTo(currScore - priorScore, 2);
+
+      const transitionByCanonical = new Map(
+        input.progress.transitions.map((t) => [t.canonical_name, t] as const),
+      );
+      const closedSet = new Set(input.progress.gaps_closed);
+      const attempted = await this.attemptedActionIds(
+        input.userId,
+        input.prior.createdAt,
+        input.current.createdAt,
+        actions.map((a) => a.action_id),
+      );
+
+      for (const action of actions) {
+        const transition = transitionByCanonical.get(action.skill_canonical);
+        let statusTransition: TransitionKind | null = null;
+        let actualSeverityDelta: number | null = null;
+        if (transition) {
+          statusTransition = transition.kind;
+          actualSeverityDelta =
+            transition.prev_severity === null
+              ? null
+              : this.roundTo(transition.curr_severity - transition.prev_severity, 3);
+        } else if (closedSet.has(action.skill_canonical)) {
+          // Gap-progress semantics: the canonical dropped out of curr's gap_items entirely (no
+          // transition entry emitted for it) but WAS in prevOpen — i.e. gone + was-fixable, the
+          // same definition diffGapProgress uses for gaps_closed. No curr severity to diff.
+          statusTransition = 'closed';
+        }
+        // Neither map has this canonical: never fabricate a transition — skip this action's row.
+        if (!statusTransition) continue;
+
+        await this.impactCalibrations.manager.query(INSERT_IMPACT_CALIBRATION_SQL, [
+          input.userId,
+          input.prior.id,
+          input.current.id,
+          input.jdContentHash,
+          action.skill_canonical,
+          action.action_type,
+          action.expected_impact.score_min,
+          action.expected_impact.score_max,
+          action.expected_impact.severity_drop,
+          actualScoreDelta,
+          actualSeverityDelta,
+          statusTransition,
+          attempted.has(action.action_id),
+        ]);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `impact calibration write failed for match ${input.current.id}: ${String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Whether resolveParsedResponse's read for this match fell back to the LOSSY
+   * reconstructParsedResponse path (:691) rather than the full-fidelity ai_results row. Re-reads
+   * aiResults by id rather than widening resolveParsedResponse's return contract — that method has
+   * two other call sites (getMatch, loadOwnedMatchParsedResponse) that only ever want the parsed
+   * value. ponytail: one extra findOne by pk; getProgress is not a hot path.
+   */
+  private async isLossyParsedResponse(match: CvMatchEntity): Promise<boolean> {
+    if (!match.aiResultId) return true;
+    const row = await this.aiResults.findOne({ where: { id: match.aiResultId } });
+    return !(row?.parsedResponse && typeof row.parsedResponse === 'object');
+  }
+
+  /**
+   * ME1 join: which of these action_ids have a cv_rewrite tailor trace between the two scans.
+   * ONE query (batched by actionIds, no N+1). requestPayload is jsonb; ->> is a plain text
+   * projection. No composite (user_id, request_type, created_at) index exists yet — relies on the
+   * individual indexes on each column (ai-request.entity.ts) to bound the scan; acceptable given
+   * per-user cv_rewrite volume between two scans is small. Revisit with a composite index if this
+   * ever shows up in a slow-query report.
+   */
+  private async attemptedActionIds(
+    userId: string,
+    from: Date,
+    to: Date,
+    actionIds: string[],
+  ): Promise<Set<string>> {
+    if (!this.aiRequests || actionIds.length === 0) return new Set();
+    const rows = await this.aiRequests.manager.query<Array<{ action_id: string }>>(
+      `SELECT DISTINCT request_payload ->> 'action_id' AS action_id
+         FROM ai_requests
+        WHERE user_id = $1
+          AND request_type = 'cv_rewrite'
+          AND created_at BETWEEN $2 AND $3
+          AND request_payload ->> 'action_id' = ANY($4::text[])`,
+      [userId, from, to, actionIds],
+    );
+    return new Set(rows.map((r) => r.action_id));
+  }
+
+  private roundTo(value: number, decimals: number): number {
+    const factor = 10 ** decimals;
+    return Math.round(value * factor) / factor;
   }
 
   private trimOrNull(value: string | null | undefined): string | null {
