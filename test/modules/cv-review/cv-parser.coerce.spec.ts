@@ -156,3 +156,42 @@ describe('CvParserService.coerce', () => {
     expect(doc.contact.name).toBe('ANONYMIZED CANDIDATE');
   });
 });
+
+describe('deterministic VI/EN language reconciliation (code overrides the LLM hint)', () => {
+  const svc2 = new CvParserService(null as never, null as never);
+  const VI_TEXT =
+    'Nguyễn Văn An — Lập trình viên Backend. Kinh nghiệm: xây dựng hệ thống quản lý đơn hàng, ' +
+    'tối ưu truy vấn cơ sở dữ liệu, triển khai dịch vụ thanh toán trực tuyến cho hơn một nghìn người dùng.';
+  const EN_TEXT =
+    'John Smith — Backend Developer. Experience: built an order management system, ' +
+    'optimized database queries, deployed an online payment service used by thousands of customers. ' +
+    'Skills: PostgreSQL, Docker, Kubernetes, distributed systems, message queues and event streaming.';
+
+  it('LLM says "en" but the raw text is clearly Vietnamese (diacritics) → vi', () => {
+    expect(svc2.coerce({ language: 'en' }, VI_TEXT).language).toBe('vi');
+  });
+
+  it('LLM says "vi" but a long raw text has ZERO Vietnamese-specific marks → en', () => {
+    expect(svc2.coerce({ language: 'vi' }, EN_TEXT).language).toBe('en');
+  });
+
+  it('LLM correct on both → unchanged', () => {
+    expect(svc2.coerce({ language: 'vi' }, VI_TEXT).language).toBe('vi');
+    expect(svc2.coerce({ language: 'en' }, EN_TEXT).language).toBe('en');
+  });
+
+  it('non-VI claims are not touched by the zero-diacritics rule (ja stays ja)', () => {
+    expect(svc2.coerce({ language: 'japanese' }, EN_TEXT).language).toBe('ja');
+  });
+
+  it('shared European accents (é, à) do not count as Vietnamese evidence', () => {
+    const FR = 'Développeur backend expérimenté — déploiement de systèmes à grande échelle, ' +
+      'optimisation des requêtes et création de services de paiement en ligne très utilisés.';
+    expect(svc2.coerce({ language: 'en' }, FR).language).toBe('en');
+  });
+
+  it('without rawText the LLM hint stands (backward compatible)', () => {
+    expect(svc2.coerce({ language: 'en' }).language).toBe('en');
+    expect(svc2.coerce({ language: 'vi' }).language).toBe('vi');
+  });
+});

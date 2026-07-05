@@ -98,7 +98,7 @@ export class CvParserService {
     const contact = this.asObj(o.contact);
 
     const document: CanonicalCvDocument = {
-      language: this.normalizeLang(o.language),
+      language: this.reconcileLang(this.normalizeLang(o.language), extractedText),
       contact: {
         name: this.asStrOrNull(contact.name),
         email: this.asStrOrNull(contact.email),
@@ -285,6 +285,31 @@ export class CvParserService {
     if (s === 'vi' || s.startsWith('vie') || s === 'vn' || s.includes('việt')) return 'vi';
     if (s === 'en' || s.startsWith('eng')) return 'en';
     return s.slice(0, 2) || 'en'; // best-effort ISO 639-1 prefix for other languages
+  }
+
+  /** Vietnamese-SPECIFIC letters: horn (ơ ư), breve (ă), đ, and hook-above/dot-below/tilde vowel
+   *  forms. Deliberately EXCLUDES â ê ô é à è í ó ú — shared with French/Portuguese/Spanish —
+   *  so European accents are never mistaken for Vietnamese evidence. */
+  private static readonly VI_SPECIFIC =
+    /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệịỉĩọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/gi;
+
+  /**
+   * VI/EN language gate is DETERMINISTIC, the LLM's detection is only a hint. Every downstream
+   * locale switch (bullet lexicons, rationale/tips/top_summary language, the review prompt's
+   * feedback language) keys off document.language — a mis-detection sends a Vietnamese user
+   * English feedback. Vietnamese is cheaply verifiable from its script:
+   *  - text carries ≥ 3 VI-specific marks → 'vi', whatever the LLM said;
+   *  - the LLM claimed 'vi' but a long text has ZERO VI-specific marks → 'en' (real Vietnamese
+   *    prose always carries diacritics; only a false-'vi' claim is corrected — 'ja'/'fr'/… are
+   *    left alone).
+   */
+  private reconcileLang(llmLang: string, extractedText?: string): string {
+    const text = extractedText ?? '';
+    if (!text) return llmLang;
+    const viMarks = (text.match(CvParserService.VI_SPECIFIC) ?? []).length;
+    if (viMarks >= 3) return 'vi';
+    if (llmLang === 'vi' && viMarks === 0 && text.length >= 120) return 'en';
+    return llmLang;
   }
 
   private asStrOrNull(v: unknown): string | null {
