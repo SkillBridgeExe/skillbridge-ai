@@ -464,7 +464,12 @@ describe('CvsService R1 completion behavior', () => {
     await service.updateBuilderDraft('u1', 'draft-1', {
       parsedJson: {
         ...parsedReview.document,
-        skills: { technical: ['React', 'Docker'], soft: ['Teamwork'], languages: [], tools: ['Git'] },
+        skills: {
+          technical: ['React', 'Docker'],
+          soft: ['Teamwork'],
+          languages: [],
+          tools: ['Git'],
+        },
       },
     });
 

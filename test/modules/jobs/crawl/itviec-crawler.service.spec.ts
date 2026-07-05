@@ -30,11 +30,7 @@ describe('ItviecCrawlerService expiry guard', () => {
       expireStale: jest.fn().mockResolvedValue(0),
     };
     const db = { query: jest.fn().mockResolvedValue([]) };
-    const service = new ItviecCrawlerService(
-      config as never,
-      ingest as never,
-      db as never,
-    );
+    const service = new ItviecCrawlerService(config as never, ingest as never, db as never);
     // politeFetch is rate-limited real fetch — stub it per-URL in each test.
     const fetchMock = jest.fn();
     (service as unknown as { politeFetch: unknown }).politeFetch = fetchMock;

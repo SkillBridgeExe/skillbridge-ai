@@ -181,10 +181,7 @@ describe('digit scrub — LLM prose may not carry numbers (2026-07-06 hardening)
   });
 
   it('summary containing a digit falls back to the deterministic FACTS summary', () => {
-    const r = groundInsight(
-      { summary: 'React đang tăng 45% nhu cầu trong quý' },
-      FACTS,
-    );
+    const r = groundInsight({ summary: 'React đang tăng 45% nhu cầu trong quý' }, FACTS);
     // fallback summary is built from FACTS (numbers allowed there — they are verified)
     expect(r.summary).toContain('Security');
     expect(r.summary).not.toContain('45%');

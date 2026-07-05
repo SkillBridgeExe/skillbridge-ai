@@ -290,8 +290,7 @@ export class CvParserService {
   /** Vietnamese-SPECIFIC letters: horn (ơ ư), breve (ă), đ, and hook-above/dot-below/tilde vowel
    *  forms. Deliberately EXCLUDES â ê ô é à è í ó ú — shared with French/Portuguese/Spanish —
    *  so European accents are never mistaken for Vietnamese evidence. */
-  private static readonly VI_SPECIFIC =
-    /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệịỉĩọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/gi;
+  private static readonly VI_SPECIFIC = /[ăđơưạảấầẩẫậắằẳẵặẹẻẽếềểễệịỉĩọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/gi;
 
   /**
    * VI/EN language gate is DETERMINISTIC, the LLM's detection is only a hint. Every downstream

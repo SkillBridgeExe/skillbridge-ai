@@ -37,7 +37,6 @@ export function buildFacts(
   };
 }
 
-
 /**
  * LLM prose is FORBIDDEN to carry quantitative claims (prompt contract): every displayed number
  * is re-attached from FACTS, so a STANDALONE number in free text is an unverifiable claim standing
@@ -166,7 +165,9 @@ export function groundInsight(llmRaw: unknown, facts: TrendsInsightFacts): Trend
   }
 
   const llmSummary =
-    typeof raw.summary === 'string' && raw.summary.trim() ? digitFree(raw.summary.slice(0, 600)) : '';
+    typeof raw.summary === 'string' && raw.summary.trim()
+      ? digitFree(raw.summary.slice(0, 600))
+      : '';
   const summary = llmSummary || fallbackSummary(facts);
 
   return {

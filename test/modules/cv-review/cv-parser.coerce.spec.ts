@@ -185,7 +185,8 @@ describe('deterministic VI/EN language reconciliation (code overrides the LLM hi
   });
 
   it('shared European accents (é, à) do not count as Vietnamese evidence', () => {
-    const FR = 'Développeur backend expérimenté — déploiement de systèmes à grande échelle, ' +
+    const FR =
+      'Développeur backend expérimenté — déploiement de systèmes à grande échelle, ' +
       'optimisation des requêtes et création de services de paiement en ligne très utilisés.';
     expect(svc2.coerce({ language: 'en' }, FR).language).toBe('en');
   });
