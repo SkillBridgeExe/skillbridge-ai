@@ -95,8 +95,17 @@ export function deriveCvSeniority(
 
   let bucket: SeniorityBucket;
   if (parsed === 0) {
-    bucket = exp.length >= 3 ? 'senior' : exp.length === 2 ? 'mid' : 'junior';
-    signals.push('dates unparseable — count fallback');
+    // Entry COUNT is not evidence of tenure: 3 undated club/internship lines must not read as
+    // "senior" (a false-senior disables the job-rec seniority guard for the exact users it protects,
+    // and flags intern jobs over_qualified). Without dates the ceiling is junior; all-internship
+    // entries fall through to the same fresher/intern rule as the dated short-internship case.
+    if (internshipEntries === exp.length) {
+      bucket = (doc.projects ?? []).length > 0 ? 'fresher' : 'intern';
+      signals.push('dates unparseable — all internships');
+    } else {
+      bucket = 'junior';
+      signals.push('dates unparseable — capped at junior');
+    }
   } else {
     signals.push(`~${years}y parsed`);
     if (years === 0 && internshipEntries === exp.length) {
