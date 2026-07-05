@@ -99,6 +99,11 @@ export interface ProgressReport extends ProgressDelta {
   strengths_kept: string[]; // display_name
   required_coverage_delta: number | null;
   template_changed: boolean;
+  /** V2 (Wave VALUE_CHAIN): canonicals of STILL-OPEN gaps whose SkillBridge lesson the user has
+   *  fully mastered — PENDING VERIFICATION only ("đã học xong X — sẽ kiểm chứng ở lần quét tới").
+   *  Presentation data: it never lowers evidence_risk/severity (finishing a course ≠ CV evidence).
+   *  Absent (never []) when there is nothing mastered, keeping prior outputs byte-identical. */
+  learning_completed?: string[];
 }
 
 const STATUS_RANK: Record<GapItem['cv_status'], number> = {
@@ -116,6 +121,19 @@ const EVIDENCE_RECOGNIZED_CURR_STATUS = new Set<GapItem['cv_status']>(['matched'
 const verdictOf = (item: JdIntelligenceItem): string =>
   item.verdict ?? (item.graded ? 'gap' : 'ok');
 
+/** Mastered ∩ still-open gap canonicals (deduped — one canonical may back several requirements).
+ *  Closed/matched gaps are deliberately NOT listed: nothing is pending verification for them. */
+const learningCompleted = (curr: GapItem[], mastered?: ReadonlySet<string> | null): string[] =>
+  mastered?.size
+    ? [
+        ...new Set(
+          openGaps(curr)
+            .filter((item) => mastered.has(item.canonical_name))
+            .map((item) => item.canonical_name),
+        ),
+      ]
+    : [];
+
 export function buildProgressReport(
   prev: GapItem[],
   curr: GapItem[],
@@ -127,6 +145,9 @@ export function buildProgressReport(
     prevJdIntel?: JdIntelligenceItem[] | null;
     currJdIntel?: JdIntelligenceItem[] | null;
     templateChanged: boolean;
+    /** V2: skills whose learning content the user fully mastered (platform-fetched). Absent/empty ⇒
+     *  output byte-identical (same guard style as interviewSignals/corroborated). */
+    masteredCanonicals?: ReadonlySet<string> | null;
   },
 ): ProgressReport {
   const base = diffGapProgress(
@@ -203,6 +224,8 @@ export function buildProgressReport(
       ? null
       : round3(opts.currCoverage - opts.prevCoverage);
 
+  const learning_completed = learningCompleted(curr, opts.masteredCanonicals);
+
   return {
     ...base,
     transitions,
@@ -211,10 +234,18 @@ export function buildProgressReport(
     strengths_kept,
     required_coverage_delta,
     template_changed: opts.templateChanged,
+    ...(learning_completed.length ? { learning_completed } : {}),
   };
 }
 
-export function baselineReport(curr: GapItem[], currScore: number | null): ProgressReport {
+export function baselineReport(
+  curr: GapItem[],
+  currScore: number | null,
+  // V2: baseline carries learning_completed too — the learn-then-rescan window (scan once → learn →
+  // chat before re-scanning) is exactly when "sẽ kiểm chứng ở lần quét tới" matters most.
+  masteredCanonicals?: ReadonlySet<string> | null,
+): ProgressReport {
+  const learning_completed = learningCompleted(curr, masteredCanonicals);
   return {
     ...baselineProgress(curr, currScore),
     transitions: [],
@@ -223,5 +254,6 @@ export function baselineReport(curr: GapItem[], currScore: number | null): Progr
     strengths_kept: [],
     required_coverage_delta: null,
     template_changed: false,
+    ...(learning_completed.length ? { learning_completed } : {}),
   };
 }

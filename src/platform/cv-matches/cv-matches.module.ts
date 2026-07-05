@@ -8,6 +8,7 @@ import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entit
 import { ImpactCalibrationEntity } from '../../database/entities/impact-calibration.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
@@ -38,6 +39,9 @@ import { UnifiedPlanService } from './unified-plan.service';
       // V1 (Wave VALUE_CHAIN): read-only lookup of the latest completed interview session's
       // persisted gap_items (getGapReport's interview-signal pre-pass).
       InterviewSessionEntity,
+      // V2 (Wave VALUE_CHAIN): read-only lookup of the user's learning progress rows
+      // (getProgress's mastered-learning pre-pass → ProgressReport.learning_completed).
+      LearningSessionProgressEntity,
     ]),
     CvJdMatchModule,
     BillingModule,
