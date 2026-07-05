@@ -68,6 +68,8 @@ export interface SkillsRelevanceBreakdown {
   matched: SkillBreakdownItem[];
   partial: SkillBreakdownItem[];
   missing: SkillBreakdownItem[];
+  /** Yardstick this breakdown was judged against (absent on older cached responses = 'mid'). */
+  rubric_band?: 'intern' | 'fresher' | 'mid';
 }
 
 /** Deterministic top-of-page verdict + highest-impact fixes (no extra LLM call). */

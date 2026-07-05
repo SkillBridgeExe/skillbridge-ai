@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 export class CvReviewRequestDto {
   @ApiProperty({
@@ -55,6 +55,20 @@ export class CvReviewRequestDto {
   // forbid newlines / braces that could break out of the data context.
   @Matches(/^[^\n\r{}]*$/, { message: 'target_role contains invalid characters' })
   target_role?: string;
+
+  /**
+   * Optional rubric band the CV is judged against. Defaults to 'fresher' — the SAME product
+   * default as CV-JD match's rubric path (cv-jd-match.service.ts) — so the review's
+   * skills_relevance and a role-only match read from ONE yardstick instead of two
+   * (review used to hardcode the stricter 'mid').
+   */
+  @ApiPropertyOptional({
+    description: "Rubric band for role-specific scoring (default 'fresher').",
+    enum: ['intern', 'fresher', 'mid'],
+  })
+  @IsOptional()
+  @IsIn(['intern', 'fresher', 'mid'])
+  target_band?: 'intern' | 'fresher' | 'mid';
 
   /**
    * Optional MIME type hint, used by AtsRuleCheckerService to verify file_format_acceptable.

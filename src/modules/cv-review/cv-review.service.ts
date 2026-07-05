@@ -17,7 +17,7 @@ import { CvReviewLlmRawOutput, CvReviewParser } from './cv-review.parser';
 import { AtsCheckResult, AtsRuleCheckerService } from './ats-rule-checker.service';
 import { SkillDiffService } from '../cv-jd-match/skill-diff.service';
 import { CvParserService } from './cv-parser.service';
-import { RoleRubricService } from '../../common/services/role-rubric.service';
+import { RoleRubricService, RubricBand } from '../../common/services/role-rubric.service';
 import { BulletAnalysis, BulletAnalyzerService } from './bullet-analyzer.service';
 import { ExperienceScoreResult, scoreExperience } from './experience-scorer';
 import { EducationScoreResult, scoreEducation } from './education-scorer';
@@ -172,9 +172,13 @@ export class CvReviewService {
 
     // ─── Step 3: LLM rubric scoring ─────────────────────────────────────────
     const template = this.prompts.get(input.prompt_template_code);
+    // Band sync: default 'fresher' — the SAME yardstick as CV-JD match's rubric path, so the
+    // review's skills_relevance and a role-only match are comparable (was hardcoded 'mid',
+    // which produced a third, stricter relevance number nobody could reconcile).
+    const targetBand = input.target_band ?? 'fresher';
     // #7: feed the authoritative role rubric (seeded skills + required level + weight) so
     // skills_relevance is scored against ground truth, not the model's own idea of the role.
-    const rubricText = this.buildRubricText(input.target_role);
+    const rubricText = this.buildRubricText(input.target_role, targetBand);
     const userPrompt = this.prompts.render(input.prompt_template_code, {
       // Gap fix (deterministic-first): feed the STRUCTURED document as the primary CV
       // representation so the rubric scores from pre-extracted fields (lower variance),
@@ -233,6 +237,7 @@ export class CvReviewService {
       const skillBreakdown = this.buildSkillBreakdown(
         routed1.ats_extracted.skills_extracted,
         input.target_role,
+        targetBand,
       );
       const routed2 = skillBreakdown
         ? this.routeDimension2(
@@ -485,9 +490,10 @@ export class CvReviewService {
     return a.notes.map((text) => ({ severity, text }));
   }
 
-  /** #7: render the authoritative required-skill list for the target role (if seeded). */
-  private buildRubricText(targetRole?: string): string {
-    const rubric = targetRole ? this.roleRubric.getRubric(targetRole) : null;
+  /** #7: render the authoritative required-skill list for the target role (if seeded),
+   *  band-adjusted so the prompt's yardstick matches the deterministic Dim-2 override. */
+  private buildRubricText(targetRole?: string, band: RubricBand = 'fresher'): string {
+    const rubric = targetRole ? this.roleRubric.getRubric(targetRole, band) : null;
     if (!rubric) {
       return `(No seeded rubric for "${targetRole ?? '(none)'}". Score skills_relevance against generic tech-industry expectations for this role.)`;
     }
@@ -557,8 +563,9 @@ export class CvReviewService {
   private buildSkillBreakdown(
     skills: CvSkillExtracted[],
     targetRole?: string,
+    band: RubricBand = 'fresher',
   ): SkillBreakdownResult | null {
-    if (!targetRole || !this.roleRubric.getRubric(targetRole)) return null;
+    if (!targetRole || !this.roleRubric.getRubric(targetRole, band)) return null;
     const diff = this.skillDiff.diff({
       cv_skills_raw: skills.map((s) => ({
         name: s.name,
@@ -566,6 +573,7 @@ export class CvReviewService {
         evidence_text: s.evidence_text ?? undefined,
       })),
       target_role: targetRole,
+      target_band: band,
     });
     const item = (s: {
       display_name: string;
@@ -585,6 +593,7 @@ export class CvReviewService {
         matched: diff.matched_skills.map(item),
         partial: diff.partial_skills.map(item),
         missing: diff.missing_skills.map(item),
+        rubric_band: band,
       },
       diffOverallScore: diff.overall_score,
     };

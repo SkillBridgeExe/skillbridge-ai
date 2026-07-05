@@ -459,6 +459,55 @@ describe('CvReviewService', () => {
     });
   });
 
+  // ─── Band sync: CV-only review judges against the SAME default yardstick as CV-JD match ────
+
+  const bandFixture = (parser: { parse: jest.Mock }, skillDiff: { diff: jest.Mock }) => {
+    parser.parse.mockReturnValue({
+      scores: { action_verbs: 15, skills_relevance: 5, experience: 15, education: 15 },
+      llm_total: 50,
+      rationale: {},
+      sections: [],
+      ats_extracted: {
+        name: null,
+        email: null,
+        phone: null,
+        skills_raw: ['React'],
+        skills_extracted: [{ name: 'React', proficiency_hint: 'advanced', evidence_text: null }],
+      },
+    });
+    skillDiff.diff.mockReturnValue({
+      matched_skills: [],
+      partial_skills: [],
+      missing_skills: [],
+      overall_score: 50,
+    });
+  };
+
+  it('band sync: rubric diff and prompt rubric use target_band fresher by default (not mid)', async () => {
+    const { service, roleRubric, skillDiff, parser } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    bandFixture(parser, skillDiff);
+    const res = await service.review('u1', input);
+    expect(skillDiff.diff).toHaveBeenCalledWith(
+      expect.objectContaining({ target_band: 'fresher' }),
+    );
+    expect(roleRubric.getRubric).toHaveBeenCalledWith('Frontend', 'fresher');
+    expect(res.parsed_response.skills_relevance_breakdown?.rubric_band).toBe('fresher');
+  });
+
+  it('band sync: explicit target_band is honored end-to-end and surfaced on the breakdown', async () => {
+    const { service, roleRubric, skillDiff, parser } = build();
+    roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
+    bandFixture(parser, skillDiff);
+    const res = await service.review('u1', {
+      ...(input as Record<string, unknown>),
+      target_band: 'mid',
+    } as never);
+    expect(skillDiff.diff).toHaveBeenCalledWith(expect.objectContaining({ target_band: 'mid' }));
+    expect(roleRubric.getRubric).toHaveBeenCalledWith('Frontend', 'mid');
+    expect(res.parsed_response.skills_relevance_breakdown?.rubric_band).toBe('mid');
+  });
+
   it('SE-1a edge: diff.overall_score=0 → score20=0, rationale adapts when nothing is missing', async () => {
     const { service, roleRubric, skillDiff, parser } = build();
     roleRubric.getRubric.mockReturnValue({ role_code: 'frontend', skills: [] });
