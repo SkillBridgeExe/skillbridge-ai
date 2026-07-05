@@ -129,6 +129,16 @@ describe('CvsService — Companion assistant endpoints', () => {
       expect(reservation.refund).toHaveBeenCalledTimes(1);
     });
 
+    it('passes tone through to the rewrite engine when the caller asks for a softer rewrite', async () => {
+      const { service, cvAssistant } = build();
+      const softerDto: AssistantRewriteRequestDto = { ...rewriteDto, tone: 'softer' };
+      await service.assistantRewrite('u1', 'cv1', softerDto);
+      expect(cvAssistant.rewrite).toHaveBeenCalledWith(
+        expect.objectContaining({ tone: 'softer' }),
+        'u1',
+      );
+    });
+
     it('does NOT gate quota on a re-ask (bare answer) — free even for an out-of-quota user', async () => {
       const { service, entitlements, reservation } = build({
         rewriteResult: { ok: false, reason: 'NEEDS_DETAIL', message: 'which tech?' },

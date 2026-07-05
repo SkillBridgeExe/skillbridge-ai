@@ -17,6 +17,7 @@ Rewrite the CV professional summary below to be clear and compelling, in {{langu
 - Write 2-3 concise sentences (a professional summary, NOT a bullet list). Lead with the role/strength, keep it specific and confident.
 - Write in {{language}} (match the user's locale).
 - Do NOT coach, do NOT add commentary, do NOT include any URL.
+- Tone: {{tone_instruction}}
 
 ## Output (JSON only)
 { "after": "<the rewritten summary>", "used_facts": ["<each fact from the list above that you actually used>"] }

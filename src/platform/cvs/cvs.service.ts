@@ -683,6 +683,7 @@ export class CvsService {
           language,
           outputLang: dto.output_lang ?? language,
           kind: dto.kind ?? 'bullet',
+          tone: dto.tone,
         },
         userId,
       );

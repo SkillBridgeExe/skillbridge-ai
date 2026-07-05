@@ -16,6 +16,7 @@ const SECTIONS = ['summary', 'projects', 'experience', 'skills', 'education'] as
 const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence'] as const;
 const KINDS = ['bullet', 'summary'] as const;
 const LANGS = ['vi', 'en'] as const;
+const TONES = ['softer'] as const;
 const INTAKE_SECTIONS = ['experience'] as const;
 
 /** Turn-1: ask the engine to analyze one CV field and produce structured questions. */
@@ -103,6 +104,14 @@ export class AssistantRewriteRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   output_lang?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    enum: TONES,
+    description: '"Viết lại nhẹ hơn" — softer phrasing, same facts. Omit for default tone.',
+  })
+  @IsOptional()
+  @IsIn(TONES as unknown as string[])
+  tone?: (typeof TONES)[number];
 }
 
 /**

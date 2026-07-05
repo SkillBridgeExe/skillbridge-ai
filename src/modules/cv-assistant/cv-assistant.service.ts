@@ -39,7 +39,20 @@ export interface CvAssistantRewriteInput {
   outputLang?: Language;
   /** which kind of field is being rewritten — selects the prompt (default 'bullet'). */
   kind?: 'bullet' | 'summary';
+  /** "Viết lại nhẹ hơn" — softer phrasing, same facts. Omitted = default tone. */
+  tone?: 'softer';
 }
+
+/**
+ * The template renderer leaves an unmatched `{{var}}` as literal text when a var is missing
+ * (non-strict mode) — so `tone_instruction` is ALWAYS passed, never omitted, to avoid leaking
+ * raw mustache syntax into the prompt on the (much more common) non-softer path.
+ */
+const TONE_INSTRUCTION: Record<'softer' | 'default', string> = {
+  softer:
+    'Rewrite with a lighter, more modest tone — soften intensity words, keep EVERY fact identical; do not add or remove any fact.',
+  default: '(default)',
+};
 
 export type CvAssistantRewriteResult =
   | { ok: true; field_patch: FieldPatch }
@@ -129,6 +142,7 @@ export class CvAssistantRewriteService {
         language: outputLang,
         before: maskPii(input.before),
         facts: grounded.facts.map((f) => `- ${f}`).join('\n'),
+        tone_instruction: TONE_INSTRUCTION[input.tone ?? 'default'],
       });
 
       const llmResult = await this.llm.complete(
