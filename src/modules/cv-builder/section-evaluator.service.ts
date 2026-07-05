@@ -513,6 +513,9 @@ export class SectionEvaluatorService {
   }
 
   private roleSkillGaps(c: SkillsContent, roleCode: string, lang: Lang): string[] {
+    // Band deliberately omitted: BAND_OFFSET only shifts required_level, and this hint uses
+    // rubric MEMBERSHIP + importance alone (never levels) — every band returns the same skill
+    // list, so the 'mid' default is a no-op here. Audited 2026-07-05 (band-sync PR).
     const rubric = this.rubrics.getRubric(roleCode);
     if (!rubric) return [];
     const have = new Set(

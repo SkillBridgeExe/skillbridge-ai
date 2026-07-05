@@ -85,6 +85,42 @@ describe('deriveCvSeniority', () => {
     expect(s.confidence).toBe('low');
     expect(s.bucket).toBe('junior');
   });
+  it('unparseable dates NEVER infer senior/mid from entry count (3 undated entries → junior)', () => {
+    const undated = (org: string) => ({
+      org,
+      role: 'Member',
+      start: null,
+      end: null,
+      location: null,
+      bullets: [],
+    });
+    const s = deriveCvSeniority(
+      doc({ experience: [undated('Club A'), undated('Club B'), undated('Club C')] }),
+    );
+    expect(s.confidence).toBe('low');
+    expect(s.bucket).toBe('junior');
+    expect(s.signals).toContain('dates unparseable — capped at junior');
+  });
+  it('undated entries that are ALL internships → fresher (with projects), not junior', () => {
+    const s = deriveCvSeniority(
+      doc({
+        experience: [
+          {
+            org: 'FPT',
+            role: 'Intern',
+            start: null,
+            end: null,
+            location: null,
+            bullets: ['thực tập backend'],
+          },
+          { org: 'VNG', role: 'Trainee', start: null, end: null, location: null, bullets: [] },
+        ],
+        projects: [{ name: 'P', role: null, tech: [], bullets: ['x'], link: null }],
+      }),
+    );
+    expect(s.confidence).toBe('low');
+    expect(s.bucket).toBe('fresher');
+  });
 });
 
 describe('computeExperienceFit', () => {
