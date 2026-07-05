@@ -114,6 +114,67 @@ describe('CvAssistantRewriteService.rewrite', () => {
     expect(prompts.render).toHaveBeenCalledWith('cv_summary_rewrite_v1', expect.anything());
   });
 
+  it('passes the softer-tone instruction to render vars when tone=softer', async () => {
+    const complete = llmOk({
+      after: 'Helped build the feature with Node.js.',
+      used_facts: ['built', 'Node.js'],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    await svc.rewrite({
+      before: 'Worked on it.',
+      answers: ANSWERS_OK,
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      tone: 'softer',
+    });
+    const prompts = d.prompts as unknown as { render: jest.Mock };
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_rewrite_v1',
+      expect.objectContaining({
+        tone_instruction: expect.stringContaining('lighter, more modest tone'),
+      }),
+    );
+  });
+
+  it('defaults tone_instruction to a neutral placeholder when no tone is given (render vars stable)', async () => {
+    const complete = llmOk({
+      after: 'Built the feature with Node.js.',
+      used_facts: ['built', 'Node.js'],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    await svc.rewrite({
+      before: 'Worked on it.',
+      answers: ANSWERS_OK,
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+    });
+    const prompts = d.prompts as unknown as { render: jest.Mock };
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_rewrite_v1',
+      expect.objectContaining({ language: 'en', tone_instruction: '(default)' }),
+    );
+  });
+
+  it('still rejects a fabricated fact when tone=softer (grounding unchanged)', async () => {
+    const complete = llmOk({
+      after: 'Helped build with Node.js, cut latency by 50%.',
+      used_facts: ['built', 'Node.js'],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    const out = await svc.rewrite({
+      before: 'Worked on it.',
+      answers: ANSWERS_OK,
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      tone: 'softer',
+    });
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe('UNGROUNDED');
+  });
+
   it('renders the prompt in output_lang while messages stay in locale (output_lang parity)', async () => {
     const complete = llmOk({
       after: 'Xây tính năng bằng Node.js.',

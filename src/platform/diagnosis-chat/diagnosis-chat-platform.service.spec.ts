@@ -249,6 +249,66 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('other-matches lookup failed'));
     warn.mockRestore();
   });
+
+  it('maps a valid cited_other_match_index from grounding into response.cited_match with real deep-linkable ids (M1)', async () => {
+    const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
+      {
+        match_id: 'match-other-1',
+        cv_id: 'cv-other-1',
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React', 'TypeScript'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ]);
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'The frontend JD looks best for you.',
+      cited_other_match_index: 1,
+    });
+    const { service } = makeService({ listRecentMatchSummariesForUser, turn });
+
+    const res = await service.turn(USER_ID, MATCH_ID, {
+      question: 'JD nào hợp tôi hơn?',
+      cvId: CV_ID,
+    });
+
+    expect(res.cited_match).toEqual({
+      match_id: 'match-other-1',
+      cv_id: 'cv-other-1',
+      jd_title: 'Frontend Developer',
+    });
+  });
+
+  it('omits response.cited_match when grounding did not cite a valid other-match index (M1)', async () => {
+    const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
+      {
+        match_id: 'match-other-1',
+        cv_id: 'cv-other-1',
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ]);
+    const turn = jest.fn().mockResolvedValue({ answer: 'ok' }); // no cited_other_match_index
+    const { service } = makeService({ listRecentMatchSummariesForUser, turn });
+
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+
+    expect(res.cited_match).toBeUndefined();
+  });
+
+  it('forwards cited_tool from grounding onto the wire response — LIVE BUG fix: was dropped before this task (M1)', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'Verified via GitHub.',
+      cited_tool: 'github.enrich',
+    });
+    const { service } = makeService({ turn });
+
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+
+    expect(res.cited_tool).toBe('github.enrich');
+  });
 });
 
 describe('DiagnosisChatPlatformService.turnCvOnly — CV-only route (no JD match)', () => {
