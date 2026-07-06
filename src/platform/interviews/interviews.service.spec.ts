@@ -1677,13 +1677,26 @@ describe('InterviewsService', () => {
     const interviewAi = { end: jest.fn() };
     const cvMatches = {
       getGapReport: jest.fn(async () => ({
-        gap_items: [],
+        gap_items: [
+          {
+            requirement_id: 'jd:hard_skill:react',
+            source: 'jd',
+            type: 'hard_skill',
+            canonical_name: 'react',
+            display_name: 'React',
+            importance: 'REQUIRED',
+            cv_status: 'missing',
+            fixability: 'learn',
+            severity: 0.8,
+            recommended_next_action: '',
+          },
+        ],
       })),
     };
     const coaching = {
       summary: 'Strong technical base; add more evidence.',
       strengths: ['technical_depth: outstanding'],
-      priorities: [],
+      priorities: [{ track: 'learn', title: 'Deepen React internals', why: 'Drill re-render' }],
     };
     const coachingService = { coach: jest.fn(async () => coaching) };
     const service = new InterviewsService(
@@ -1704,6 +1717,7 @@ describe('InterviewsService', () => {
     sessions.findOne.mockResolvedValue({
       id: 'session-1',
       userId,
+      cvMatchId: 'match-1',
       targetRole: 'frontend_developer',
       language: 'vi',
       mode: 'HYBRID',
@@ -1764,9 +1778,9 @@ describe('InterviewsService', () => {
         }),
         gaps: [],
         plan: expect.objectContaining({
-          match_id: '',
+          match_id: 'match-1',
           session_id: 'session-1',
-          learn_items: [],
+          learn_items: [expect.objectContaining({ display_name: 'React', track: 'learn' })],
           cv_fix_items: [],
           interview_practice_items: [],
         }),
@@ -1784,7 +1798,16 @@ describe('InterviewsService', () => {
         gapItems: [],
         devPlan: expect.objectContaining({ session_id: 'session-1' }),
         coaching,
-        aiFeedback: expect.objectContaining({ summary: coaching.summary }),
+        // compat panels: deterministic rubric outputs mapped into the legacy FE shape
+        aiFeedback: {
+          summary: coaching.summary,
+          strengths: coaching.strengths,
+          priorities: coaching.priorities,
+          technical_delivery: { technical_depth: 82 },
+          communication_flow: {},
+          recommendations: ['Deepen React internals'],
+          suggested_modules: ['React'],
+        },
       }),
     );
     expect(response.status).toBe('COMPLETED');
