@@ -281,15 +281,46 @@ describe('CvsService R1 completion behavior', () => {
       createdAt: now,
       updatedAt: now,
     });
-    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+    aiResults.manager.query.mockResolvedValue([
+      { parsed_response: parsedReview, confidence_score: '87.50' },
+    ]);
 
     const response = await service.get('u1', 'cv-1');
 
-    expect(response.review).toEqual(parsedReview);
+    expect(response.review).toEqual({ ...parsedReview, confidence_score: 87.5 });
     const [sql, params] = aiResults.manager.query.mock.calls.at(-1) as [string, unknown[]];
     expect(sql).toContain('ai_results');
+    expect(sql).toContain('ar.confidence_score');
     expect(sql).toContain('c.deleted_at IS NULL');
     expect(params).toEqual(['u1', BillingFeatureKey.CV_REVIEW, 'cv-1']);
+  });
+
+  it('keeps confidence_score null when the persisted review row has none', async () => {
+    const { service, cvsRepo, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      title: 'CV',
+      originalFileName: 'sample.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+      parsedText: 'parsed cv text',
+      parsedJson: null,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      isOcrOnly: false,
+      atsReadabilityScore: '80.00',
+      targetRole: 'frontend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([
+      { parsed_response: parsedReview, confidence_score: null },
+    ]);
+
+    const response = await service.get('u1', 'cv-1');
+
+    expect(response.review).toEqual({ ...parsedReview, confidence_score: null });
   });
 
   it('persists each normalized skill only once when multiple raw skills map to the same canonical skill', async () => {
@@ -927,7 +958,7 @@ describe('CvsService R1 completion behavior', () => {
       sourceId: 'cv-1',
     });
     expect(interviewPlan.generatePlan).toHaveBeenCalledWith('u1', {
-      review: parsedReview,
+      review: { ...parsedReview, confidence_score: null },
       target_role: 'frontend_developer',
       lang: 'en',
     });
@@ -974,7 +1005,7 @@ describe('CvsService R1 completion behavior', () => {
     expect(githubEvidence.build).toHaveBeenCalledWith({
       username: 'octo',
       consent: true,
-      review: parsedReview,
+      review: { ...parsedReview, confidence_score: null },
       lang: 'vi',
     });
     expect(response).toEqual({ available: true, username: 'octo' });

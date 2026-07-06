@@ -175,6 +175,13 @@ export function simulateActionImpact(
   match: PersistedMatchArrays,
   gapItem: GapItem,
   action: TailorAction,
+  opts?: {
+    /** The item's real interview-outcome risk (Wave 8). NOT stored on GapItem — like the
+     *  ranking re-supply in gap-item.ts, it must be handed back in wherever severity is
+     *  recomputed. Without it the after-fix severity is computed un-raised and severity_drop
+     *  over-promises: adding CV evidence cannot un-happen a bad interview. */
+    interviewRiskSignal?: number;
+  },
 ): ExpectedImpact {
   if (action.action_type === 'add_evidence' || action.action_type === 'emphasize') {
     const lowered = lowerEvidenceRisk(gapItem.evidence_risk);
@@ -184,6 +191,7 @@ export function simulateActionImpact(
       evidence_risk: lowered,
       cv_status: gapItem.cv_status,
       market_demand: gapItem.market_demand,
+      interview_risk_signal: opts?.interviewRiskSignal,
     });
     return {
       score_min: 0,

@@ -229,6 +229,131 @@ export function filterRecognizedConcepts(
   return concepts.filter((concept) => present(concept) || (aliases[concept] ?? []).some(present));
 }
 
+/**
+ * Assessment filler the model uses to phrase ANY gap ("did not explain…", "vague answer…").
+ * These tokens never anchor a gap to a topic; only what is left after removing them can.
+ * Non-diacritic Vietnamese filler is listed explicitly — diacritic words shatter below the
+ * 3-char gate in tokenizeConcept (ASCII-only) and drop out on their own.
+ */
+const GAP_FILLER: ReadonlySet<string> = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'without',
+  'into',
+  'from',
+  'about',
+  'their',
+  'they',
+  'that',
+  'this',
+  'than',
+  'then',
+  'was',
+  'were',
+  'has',
+  'have',
+  'had',
+  'does',
+  'did',
+  'not',
+  'none',
+  'only',
+  'very',
+  'more',
+  'most',
+  'some',
+  'any',
+  'how',
+  'what',
+  'when',
+  'why',
+  'which',
+  'who',
+  'answer',
+  'answers',
+  'answered',
+  'candidate',
+  'question',
+  'response',
+  'mention',
+  'mentioned',
+  'mentions',
+  'explain',
+  'explains',
+  'explained',
+  'explanation',
+  'describe',
+  'describes',
+  'described',
+  'description',
+  'detail',
+  'details',
+  'detailed',
+  'specific',
+  'specifics',
+  'specifically',
+  'concrete',
+  'example',
+  'examples',
+  'missing',
+  'misses',
+  'lack',
+  'lacks',
+  'lacking',
+  'weak',
+  'unclear',
+  'vague',
+  'shallow',
+  'generic',
+  'deep',
+  'depth',
+  'deeper',
+  'unable',
+  'cannot',
+  'could',
+  'couldnt',
+  'didnt',
+  'doesnt',
+  'give',
+  'gives',
+  'gave',
+  'show',
+  'shows',
+  'showed',
+  'khong',
+  'chua',
+  'thieu',
+  'duoc',
+  'cach',
+  'noi',
+  'nen',
+  'hon',
+]);
+
+/**
+ * Grounds the per-turn `gaps_revealed` narrative the same way filterRecognizedConcepts grounds
+ * recognized_concepts — token match, no semantics. A gap is about what is MISSING from the
+ * answer, so it cannot be required to appear in the answer text; instead each gap phrase must
+ * anchor at least one key term (token >= 3 chars, not assessment filler) in the topic universe
+ * (asked question + agenda topic terms). Same tokenizer and therefore the same honest limits as
+ * the concept filter: ASCII-only, so Vietnamese diacritic words shatter into short fragments and
+ * grounding rides on the ASCII tech terms (react, kafka, sql…) — exactly where a fabricated
+ * off-topic weakness would smuggle a skill in. A phrase with no anchorable key term is dropped:
+ * the assess prompt demands topic-specific gaps, and an unanchorable phrase is unverifiable.
+ * Token overlap is a narrowing filter, not proof — an on-topic-sounding fabrication that reuses
+ * a topic term still passes, exactly like the concept filter's limits.
+ */
+export function filterGroundedGaps(gaps: string[], universeTerms: string[]): string[] {
+  const universeTokens = new Set(universeTerms.flatMap(tokenizeConcept));
+  return gaps.filter((gap) =>
+    tokenizeConcept(gap).some(
+      (token) => token.length >= 3 && !GAP_FILLER.has(token) && universeTokens.has(token),
+    ),
+  );
+}
+
 function tokenizeConcept(value: string): string[] {
   return value.toLowerCase().match(/[a-z0-9+#]+/g) ?? [];
 }

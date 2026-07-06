@@ -46,13 +46,23 @@ export class RoadmapComposerService {
       resource_hours: primaryResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
     }));
     const plan = planFeasibility(withResourceHours, input.budget);
+    const inputsBySkill = new Map(withResourceHours.map((item) => [item.skill_canonical, item]));
 
     const steps: ComposedRoadmapStep[] = [];
     const not_feasible_items: NotFeasibleItem[] = [];
 
-    const shortTimeline = input.budget.available_days <= 7;
-
     for (const item of plan.items) {
+      // Honest feasibility: items the planner could not fit into the hour budget are surfaced
+      // as not_feasible_items (with a fallback track) instead of being promised as steps.
+      if (item.verdict === 'not_feasible_before_deadline') {
+        not_feasible_items.push({
+          skill_canonical: item.skill_canonical,
+          display_name: item.display_name,
+          reason: 'ran_out_of_budget',
+          fallback: fallbackFor(inputsBySkill.get(item.skill_canonical)),
+        });
+        continue;
+      }
       const skillResources = resourcesBySkill.get(item.skill_canonical) ?? [];
       const hasVideo = skillResources.some((r) => r.source_type === 'video');
       if (!hasVideo && typeof this.matcher.allResources === 'function') {
@@ -111,7 +121,7 @@ export class RoadmapComposerService {
       steps.push({
         skill_canonical: item.skill_canonical,
         display_name: item.display_name,
-        strategy: shortTimeline ? 'crash_prep' : 'deep_build',
+        strategy: item.strategy,
         estimated_hours: item.estimated_hours,
         priority: item.priority,
         resources,
@@ -150,7 +160,7 @@ function keepOnePrimaryVideo(resources: ScoredResource[]): ScoredResource[] {
   });
 }
 
-function _fallbackFor(
+function fallbackFor(
   item: ReturnType<typeof toFeasibilityInputs>[number] | undefined,
 ): NotFeasibleItem['fallback'] {
   if (item?.interview_confirmed) return 'interview_practice';
