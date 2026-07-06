@@ -962,7 +962,10 @@ describe('InterviewsService', () => {
         depthSignal: 'adequate',
         claimStatus: 'partial',
         currentThread: 'React Query cache invalidation',
-        gapsRevealed: ['Missing trade-off detail'],
+        gapsRevealed: [
+          'Shallow on React Query cache invalidation triggers',
+          'No mention of Kafka partitioning',
+        ],
         note: 'Mentioned cache invalidation.',
       })),
       ask: jest.fn(async () => ({
@@ -1104,6 +1107,9 @@ describe('InterviewsService', () => {
         userAnswerTranscript: 'Em dùng React Query để cache...',
         perQuestionScore: '76.00',
         depthSignal: 'adequate',
+        strengths: ['React Query'],
+        // the fabricated off-topic Kafka gap is dropped by topic-universe grounding
+        improvements: ['Shallow on React Query cache invalidation triggers'],
         signals: expect.objectContaining({
           jd_term_hits: expect.objectContaining({ hit: expect.arrayContaining(['React Query']) }),
         }),

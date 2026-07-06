@@ -2,6 +2,7 @@ import { InterviewFocusArea } from '../../../src/modules/interview/interview-pla
 import {
   buildInterviewAgenda,
   decideTurn,
+  filterGroundedGaps,
   filterRecognizedConcepts,
 } from '../../../src/modules/interview/interview-agenda';
 
@@ -205,5 +206,48 @@ describe('filterRecognizedConcepts', () => {
 
   it('drops everything when the answer is empty', () => {
     expect(filterRecognizedConcepts(['useEffect', 'closures'], '')).toEqual([]);
+  });
+});
+
+describe('filterGroundedGaps', () => {
+  const universe = [
+    'How does React decide when to re-render a component?',
+    'React',
+    'react',
+    'reconciliation and the virtual DOM',
+  ];
+
+  it('drops a fabricated off-topic gap the topic universe never mentions', () => {
+    expect(
+      filterGroundedGaps(['did not explain Kafka partitioning strategy'], universe),
+    ).toEqual([]);
+  });
+
+  it('keeps a gap anchored to the question or agenda topic terms', () => {
+    expect(
+      filterGroundedGaps(
+        ['did not explain Kafka partitioning strategy', 'shallow on the React reconciliation step'],
+        universe,
+      ),
+    ).toEqual(['shallow on the React reconciliation step']);
+  });
+
+  it('grounds Vietnamese gap phrases on their ASCII tech terms', () => {
+    expect(
+      filterGroundedGaps(
+        ['chưa giải thích được cơ chế re-render của React', 'chưa nắm vững Kafka consumer group'],
+        universe,
+      ),
+    ).toEqual(['chưa giải thích được cơ chế re-render của React']);
+  });
+
+  it('drops assessment filler with no groundable key term', () => {
+    expect(filterGroundedGaps(['did not explain the answer', ''], universe)).toEqual([]);
+  });
+
+  it('is case-insensitive like the concept filter', () => {
+    expect(filterGroundedGaps(['REACT rendering was vague'], universe)).toEqual([
+      'REACT rendering was vague',
+    ]);
   });
 });

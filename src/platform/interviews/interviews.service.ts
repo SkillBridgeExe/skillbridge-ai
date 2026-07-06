@@ -35,6 +35,7 @@ import {
   buildInterviewAgenda,
   decideTurn,
   DepthSignal,
+  filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
@@ -410,7 +411,15 @@ export class InterviewsService {
     current.aiRequestId = assessment.aiRequestId;
     current.perQuestionScore = this.score(assessment.score);
     current.strengths = recognized;
-    current.improvements = assessment.gapsRevealed;
+    // Grounded like `recognized` above: a gap can't be required to appear in the answer
+    // (it names what's missing), so anchor it to the topic universe instead — the asked
+    // question + the agenda topic's JD terms — dropping invented off-topic weaknesses.
+    current.improvements = filterGroundedGaps(assessment.gapsRevealed, [
+      current.interviewerQuestion,
+      ...this.topicTerms(topic),
+      topic.what_to_probe,
+      ...(topic.expected_signals ?? []),
+    ]);
     current.topicPhase = topic.phase;
     current.depthSignal = assessment.depthSignal;
     current.signals = signals;
