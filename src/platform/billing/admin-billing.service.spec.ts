@@ -429,4 +429,62 @@ describe('AdminBillingService', () => {
     );
     expect(result).toEqual(expect.objectContaining({ id: 'booking-1', refundStatus: 'PROCESSED' }));
   });
+
+  it('lists mentor bookings filtered by refund status and includes student goals', async () => {
+    const { service, mentorBookings } = setup();
+    mentorBookings.findAndCount.mockResolvedValue([
+      [
+        {
+          id: 'booking-1',
+          studentId: 'student-1',
+          mentorId: 'mentor-1',
+          planCode: null,
+          status: 'CANCELLED',
+          studentGoal: 'Prepare a backend system design review.',
+          slotStart: new Date('2026-06-23T02:00:00.000Z'),
+          slotEnd: new Date('2026-06-23T03:00:00.000Z'),
+          totalAmountVnd: 500000,
+          depositAmountVnd: 50000,
+          remainingAmountVnd: 450000,
+          depositPaymentOrderId: 'deposit-order-1',
+          remainingPaymentOrderId: null,
+          acceptedAt: null,
+          mentorProfileId: 'profile-1',
+          availabilitySlotId: 'slot-1',
+          remainingDueAt: null,
+          meetingUrl: null,
+          completedAt: null,
+          cancelledAt: new Date('2026-06-21T02:00:00.000Z'),
+          cancelledBy: 'student-1',
+          cancellationReason: 'Schedule changed',
+          refundStatus: 'PENDING',
+          refundNote: null,
+          createdAt: new Date('2026-06-21T00:00:00.000Z'),
+          updatedAt: null,
+        },
+      ],
+      1,
+    ]);
+
+    const result = await service.listMentorBookings({
+      refundStatus: 'PENDING',
+      page: 1,
+      limit: 20,
+    });
+
+    expect(mentorBookings.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { refundStatus: 'PENDING' },
+        skip: 0,
+        take: 20,
+      }),
+    );
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        id: 'booking-1',
+        refundStatus: 'PENDING',
+        studentGoal: 'Prepare a backend system design review.',
+      }),
+    );
+  });
 });

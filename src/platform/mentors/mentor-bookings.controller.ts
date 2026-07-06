@@ -39,6 +39,12 @@ export class MentorBookingsController {
     return this.bookings.getStudentBooking(user.userId, bookingId);
   }
 
+  @Post(':bookingId/pay-deposit')
+  @ApiOperation({ summary: 'Create or resume the 10% deposit payment checkout' })
+  payDeposit(@CurrentUser() user: JwtUser, @Param('bookingId') bookingId: string) {
+    return this.bookings.payDeposit(user.userId, bookingId);
+  }
+
   @Post(':bookingId/pay-remaining')
   @ApiOperation({ summary: 'Create the remaining 90% payment checkout' })
   payRemaining(@CurrentUser() user: JwtUser, @Param('bookingId') bookingId: string) {

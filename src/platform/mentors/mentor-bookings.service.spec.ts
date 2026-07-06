@@ -4,6 +4,7 @@ import { MentorAvailabilitySlotEntity } from '../../database/entities/mentor-ava
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { MentorProfileEntity } from '../../database/entities/mentor-profile.entity';
 import { MentorReviewEntity } from '../../database/entities/mentor-review.entity';
+import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { BillingCheckoutService } from '../billing/services/billing-checkout.service';
 import { MentorBookingsService } from './mentor-bookings.service';
 
@@ -59,11 +60,13 @@ describe('MentorBookingsService', () => {
     const slots = repo<MentorAvailabilitySlotEntity>();
     const bookings = repo<MentorBookingEntity>();
     const reviews = repo<MentorReviewEntity>();
+    const orders = repo<PaymentOrderEntity>();
     const repos = new Map<EntityTarget<unknown>, unknown>([
       [MentorProfileEntity, profiles],
       [MentorAvailabilitySlotEntity, slots],
       [MentorBookingEntity, bookings],
       [MentorReviewEntity, reviews],
+      [PaymentOrderEntity, orders],
     ]);
     const manager = {
       getRepository: jest.fn((entity: EntityTarget<unknown>) => repos.get(entity)),
@@ -98,14 +101,15 @@ describe('MentorBookingsService', () => {
       slots as unknown as Repository<MentorAvailabilitySlotEntity>,
       bookings as unknown as Repository<MentorBookingEntity>,
       reviews as unknown as Repository<MentorReviewEntity>,
+      orders as unknown as Repository<PaymentOrderEntity>,
       dataSource,
       checkout,
       () => now,
     );
-    return { service, profiles, slots, bookings, reviews, checkout, repos };
+    return { service, profiles, slots, bookings, reviews, orders, checkout, repos };
   }
 
-  it('holds an open slot and creates a 10 percent deposit from server-owned mentor pricing', async () => {
+  it('holds an open slot with a student goal and creates a 10 percent deposit from server-owned mentor pricing', async () => {
     const { service, profiles, slots, bookings, checkout } = setup();
     profiles.findOne.mockResolvedValue(profile);
     slots.findOne.mockResolvedValue({
@@ -119,10 +123,12 @@ describe('MentorBookingsService', () => {
     const result = await service.createBooking('student-1', {
       mentorProfileId: 'profile-1',
       slotId: 'slot-1',
+      studentGoal: '  Review my backend architecture plan before launch.  ',
     });
 
     expect(bookings.save).toHaveBeenCalledWith(
       expect.objectContaining({
+        studentGoal: 'Review my backend architecture plan before launch.',
         totalAmountVnd: 500000,
         depositAmountVnd: 50000,
         remainingAmountVnd: 450000,
@@ -141,10 +147,26 @@ describe('MentorBookingsService', () => {
     );
     expect(result).toEqual(
       expect.objectContaining({
-        booking: expect.objectContaining({ id: 'booking-1', status: 'PENDING_DEPOSIT' }),
+        booking: expect.objectContaining({
+          id: 'booking-1',
+          status: 'PENDING_DEPOSIT',
+          studentGoal: 'Review my backend architecture plan before launch.',
+        }),
         checkout: expect.objectContaining({ orderCode: 101 }),
       }),
     );
+  });
+
+  it('rejects a booking goal that is too short for mentor preparation', async () => {
+    const { service } = setup();
+
+    await expect(
+      service.createBooking('student-1', {
+        mentorProfileId: 'profile-1',
+        slotId: 'slot-1',
+        studentGoal: 'Too short',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects booking a slot that is not open for the approved mentor profile', async () => {
@@ -153,8 +175,71 @@ describe('MentorBookingsService', () => {
     slots.findOne.mockResolvedValue({ ...openSlot, status: 'HELD' });
 
     await expect(
-      service.createBooking('student-1', { mentorProfileId: 'profile-1', slotId: 'slot-1' }),
+      service.createBooking('student-1', {
+        mentorProfileId: 'profile-1',
+        slotId: 'slot-1',
+        studentGoal: 'I want to review my project structure and API boundaries.',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('creates a new deposit checkout for an owned pending-deposit booking', async () => {
+    const { service, bookings, checkout } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      status: 'PENDING_DEPOSIT',
+      depositAmountVnd: 50000,
+      depositPaymentOrderId: null,
+      packageSnapshot: { currency: 'VND' },
+      createdAt: new Date(),
+      updatedAt: null,
+    });
+
+    const result = await service.payDeposit('student-1', 'booking-1');
+
+    expect(checkout.createMentorDepositCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 50000 }),
+    );
+    expect(bookings.save).toHaveBeenCalledWith(
+      expect.objectContaining({ depositPaymentOrderId: 'deposit-order-1' }),
+    );
+    expect(result.orderCode).toBe(101);
+  });
+
+  it('returns an existing pending deposit checkout without creating a duplicate order', async () => {
+    const { service, bookings, orders, checkout } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      status: 'PENDING_DEPOSIT',
+      depositAmountVnd: 50000,
+      depositPaymentOrderId: 'deposit-order-1',
+      packageSnapshot: { currency: 'VND' },
+      createdAt: new Date(),
+      updatedAt: null,
+    });
+    orders.findOne.mockResolvedValue({
+      id: 'deposit-order-1',
+      orderCode: '101',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.test/deposit',
+      qrCode: null,
+      paymentLinkId: 'pay-link-1',
+      expiresAt: new Date('2026-06-21T00:15:00.000Z'),
+    });
+
+    const result = await service.payDeposit('student-1', 'booking-1');
+
+    expect(checkout.createMentorDepositCheckout).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        orderId: 'deposit-order-1',
+        orderCode: 101,
+        status: 'PENDING',
+        checkoutUrl: 'https://pay.test/deposit',
+      }),
+    );
   });
 
   it('lets only the owning student create the remaining payment checkout', async () => {
@@ -177,6 +262,39 @@ describe('MentorBookingsService', () => {
       expect.objectContaining({ bookingId: 'booking-1', amountVnd: 450000 }),
     );
     expect(result.orderCode).toBe(102);
+  });
+
+  it('returns an existing pending remaining checkout without creating a duplicate order', async () => {
+    const { service, bookings, orders, checkout } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      status: 'AWAITING_REMAINING',
+      remainingAmountVnd: 450000,
+      remainingPaymentOrderId: 'remaining-order-1',
+      remainingDueAt: new Date('2026-06-22T00:00:00.000Z'),
+      packageSnapshot: { currency: 'VND' },
+    });
+    orders.findOne.mockResolvedValue({
+      id: 'remaining-order-1',
+      orderCode: '102',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.test/remaining',
+      qrCode: null,
+      paymentLinkId: 'pay-link-2',
+      expiresAt: null,
+    });
+
+    const result = await service.payRemaining('student-1', 'booking-1');
+
+    expect(checkout.createMentorRemainingCheckout).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        orderId: 'remaining-order-1',
+        orderCode: 102,
+        status: 'PENDING',
+      }),
+    );
   });
 
   it('allows only the booking mentor to set a meeting URL for a confirmed booking', async () => {
@@ -338,6 +456,7 @@ describe('MentorBookingsService', () => {
       service.createBooking('student-1', {
         mentorProfileId: 'profile-1',
         slotId: 'slot-1',
+        studentGoal: 'Review my deployment plan and API risk areas before release.',
       }),
     ).rejects.toThrow('payOS unavailable');
 

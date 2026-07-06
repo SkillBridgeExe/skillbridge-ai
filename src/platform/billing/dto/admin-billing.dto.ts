@@ -28,7 +28,10 @@ import {
   PaymentOrderPurpose,
   PaymentOrderStatus,
 } from '../../../database/entities/payment-order.entity';
-import { MentorBookingStatus } from '../../../database/entities/mentor-booking.entity';
+import {
+  MentorBookingRefundStatus,
+  MentorBookingStatus,
+} from '../../../database/entities/mentor-booking.entity';
 import { UserSubscriptionStatus } from '../../../database/entities/user-subscription.entity';
 
 const PLAN_CATEGORIES: BillingPlanCategory[] = ['SUBSCRIPTION', 'MENTOR_PACKAGE'];
@@ -58,6 +61,12 @@ const MENTOR_BOOKING_STATUSES: MentorBookingStatus[] = [
   'COMPLETED',
   'CANCELLED',
   'EXPIRED',
+];
+const MENTOR_BOOKING_REFUND_STATUSES: MentorBookingRefundStatus[] = [
+  'NOT_REQUIRED',
+  'PENDING',
+  'PROCESSED',
+  'REJECTED',
 ];
 
 export class AdminBillingPlanFeatureInputDto {
@@ -232,6 +241,10 @@ export class AdminListMentorBookingsQueryDto extends AdminPaginationQueryDto {
   @IsOptional()
   @IsIn(MENTOR_BOOKING_STATUSES)
   status?: MentorBookingStatus;
+
+  @IsOptional()
+  @IsIn(MENTOR_BOOKING_REFUND_STATUSES)
+  refundStatus?: MentorBookingRefundStatus;
 
   @IsOptional()
   @IsUUID()

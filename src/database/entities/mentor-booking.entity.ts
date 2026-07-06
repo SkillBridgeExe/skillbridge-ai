@@ -48,6 +48,9 @@ export class MentorBookingEntity {
   @Column({ type: 'jsonb', name: 'package_snapshot', nullable: true })
   packageSnapshot!: unknown | null;
 
+  @Column({ type: 'text', name: 'student_goal', nullable: true })
+  studentGoal!: string | null;
+
   @Column({ type: 'timestamptz', name: 'slot_start', nullable: true })
   slotStart!: Date | null;
 

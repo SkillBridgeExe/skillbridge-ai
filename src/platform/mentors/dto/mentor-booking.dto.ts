@@ -16,6 +16,11 @@ export class CreateMentorBookingDto {
 
   @IsUUID()
   slotId!: string;
+
+  @IsString()
+  @MinLength(20)
+  @MaxLength(1000)
+  studentGoal!: string;
 }
 
 export class UpdateMeetingUrlDto {
