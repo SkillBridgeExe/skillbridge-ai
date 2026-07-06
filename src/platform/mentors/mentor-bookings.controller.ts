@@ -22,7 +22,7 @@ export class MentorBookingsController {
   constructor(private readonly bookings: MentorBookingsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Hold a mentor slot and create the 10% deposit checkout' })
+  @ApiOperation({ summary: 'Hold a mentor slot and create the full mentor booking checkout' })
   create(@CurrentUser() user: JwtUser, @Body() dto: CreateMentorBookingDto) {
     return this.bookings.createBooking(user.userId, dto);
   }
@@ -39,10 +39,10 @@ export class MentorBookingsController {
     return this.bookings.getStudentBooking(user.userId, bookingId);
   }
 
-  @Post(':bookingId/pay-remaining')
-  @ApiOperation({ summary: 'Create the remaining 90% payment checkout' })
-  payRemaining(@CurrentUser() user: JwtUser, @Param('bookingId') bookingId: string) {
-    return this.bookings.payRemaining(user.userId, bookingId);
+  @Post(':bookingId/pay')
+  @ApiOperation({ summary: 'Create or resume the mentor booking payment checkout' })
+  pay(@CurrentUser() user: JwtUser, @Param('bookingId') bookingId: string) {
+    return this.bookings.pay(user.userId, bookingId);
   }
 
   @Post(':bookingId/cancel')

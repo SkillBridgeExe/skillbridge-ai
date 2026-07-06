@@ -14,6 +14,7 @@ import { MentorAvailabilitySlotEntity } from '../../database/entities/mentor-ava
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { MentorProfileEntity } from '../../database/entities/mentor-profile.entity';
 import { MentorReviewEntity } from '../../database/entities/mentor-review.entity';
+import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { CheckoutResponseDto } from '../billing/dto/billing.dto';
 import { BillingCheckoutService } from '../billing/services/billing-checkout.service';
 import {
@@ -25,8 +26,8 @@ import {
 
 export const MENTOR_BOOKING_CLOCK = Symbol('MENTOR_BOOKING_CLOCK');
 const SLOT_HOLD_MS = 15 * 60 * 1000;
-const REMAINING_PAYMENT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const SESSION_PAYMENT_BUFFER_MS = 12 * 60 * 60 * 1000;
+const STUDENT_GOAL_MIN_LENGTH = 20;
+const STUDENT_GOAL_MAX_LENGTH = 1000;
 
 @Injectable()
 export class MentorBookingsService {
@@ -39,6 +40,8 @@ export class MentorBookingsService {
     private readonly bookings: Repository<MentorBookingEntity>,
     @InjectRepository(MentorReviewEntity)
     private readonly reviews: Repository<MentorReviewEntity>,
+    @InjectRepository(PaymentOrderEntity)
+    private readonly orders: Repository<PaymentOrderEntity>,
     private readonly dataSource: DataSource,
     private readonly checkout: BillingCheckoutService,
     @Optional() @Inject(MENTOR_BOOKING_CLOCK) private readonly clock?: () => Date,
@@ -52,6 +55,7 @@ export class MentorBookingsService {
     checkout: CheckoutResponseDto;
   }> {
     const now = this.now();
+    const studentGoal = this.cleanStudentGoal(dto.studentGoal);
     await this.expireStaleBookings();
     const booking = await this.dataSource.transaction(async (manager) => {
       const profiles = manager.getRepository(MentorProfileEntity);
@@ -77,7 +81,6 @@ export class MentorBookingsService {
         throw this.validationError('Mentor slot is not available');
       }
 
-      const depositAmountVnd = Math.round(profile.sessionPriceVnd * 0.1);
       const saved = await bookings.save(
         bookings.create({
           studentId,
@@ -85,7 +88,8 @@ export class MentorBookingsService {
           mentorProfileId: profile.id,
           availabilitySlotId: slot.id,
           planCode: null,
-          status: 'PENDING_DEPOSIT',
+          status: 'PENDING_PAYMENT',
+          studentGoal,
           packageSnapshot: {
             mentorProfileId: profile.id,
             mentorSlug: profile.slug,
@@ -97,8 +101,9 @@ export class MentorBookingsService {
           slotStart: slot.startsAt,
           slotEnd: slot.endsAt,
           totalAmountVnd: profile.sessionPriceVnd,
-          depositAmountVnd,
-          remainingAmountVnd: profile.sessionPriceVnd - depositAmountVnd,
+          depositAmountVnd: 0,
+          remainingAmountVnd: 0,
+          paymentOrderId: null,
           depositPaymentOrderId: null,
           remainingPaymentOrderId: null,
           acceptedAt: null,
@@ -121,40 +126,38 @@ export class MentorBookingsService {
 
     let payment: CheckoutResponseDto;
     try {
-      payment = await this.checkout.createMentorDepositCheckout({
+      payment = await this.checkout.createMentorBookingCheckout({
         userId: studentId,
         bookingId: booking.id,
-        amountVnd: booking.depositAmountVnd,
+        amountVnd: booking.totalAmountVnd,
         currency: String((booking.packageSnapshot as { currency?: string })?.currency ?? 'VND'),
       });
     } catch (error) {
-      await this.expireFailedDepositBooking(booking.id);
+      await this.expireFailedPaymentBooking(booking.id);
       throw error;
     }
-    booking.depositPaymentOrderId = payment.orderId;
+    booking.paymentOrderId = payment.orderId;
     await this.bookings.save(booking);
     return { booking: this.toBookingDto(booking), checkout: payment };
   }
 
-  async payRemaining(studentId: string, bookingId: string): Promise<CheckoutResponseDto> {
+  async pay(studentId: string, bookingId: string): Promise<CheckoutResponseDto> {
     const booking = await this.requireBooking(bookingId);
     if (booking.studentId !== studentId)
       throw new ForbiddenException('Booking does not belong to user');
-    if (booking.status !== 'AWAITING_REMAINING') {
-      throw this.validationError('Booking is not awaiting remaining payment');
+    if (booking.status !== 'PENDING_PAYMENT') {
+      throw this.validationError('Booking is not awaiting payment');
     }
-    if (booking.remainingDueAt && booking.remainingDueAt.getTime() <= this.now().getTime()) {
-      throw this.validationError('Remaining payment deadline has passed');
-    }
-    if (booking.remainingPaymentOrderId)
-      throw new ConflictException('Remaining payment already created');
-    const payment = await this.checkout.createMentorRemainingCheckout({
+    const existing = await this.findReusableCheckout(booking.paymentOrderId);
+    if (existing) return existing;
+
+    const payment = await this.checkout.createMentorBookingCheckout({
       userId: studentId,
       bookingId: booking.id,
-      amountVnd: booking.remainingAmountVnd,
+      amountVnd: booking.totalAmountVnd,
       currency: String((booking.packageSnapshot as { currency?: string })?.currency ?? 'VND'),
     });
-    booking.remainingPaymentOrderId = payment.orderId;
+    booking.paymentOrderId = payment.orderId;
     await this.bookings.save(booking);
     return payment;
   }
@@ -290,7 +293,7 @@ export class MentorBookingsService {
   async expireStaleBookings(): Promise<{ expired: number }> {
     const now = this.now();
     const candidates = await this.bookings.find({
-      where: { status: In(['PENDING_DEPOSIT', 'AWAITING_REMAINING']) },
+      where: { status: In(['PENDING_PAYMENT', 'AWAITING_REMAINING']) },
     });
     let expired = 0;
     for (const candidate of candidates) {
@@ -302,14 +305,14 @@ export class MentorBookingsService {
           lock: { mode: 'pessimistic_write' },
         });
         if (!booking) return false;
-        const depositHoldExpired =
-          booking.status === 'PENDING_DEPOSIT' &&
+        const paymentHoldExpired =
+          booking.status === 'PENDING_PAYMENT' &&
           booking.createdAt.getTime() + SLOT_HOLD_MS <= now.getTime();
         const remainingExpired =
           booking.status === 'AWAITING_REMAINING' &&
           booking.remainingDueAt !== null &&
           booking.remainingDueAt.getTime() <= now.getTime();
-        if (!depositHoldExpired && !remainingExpired) return false;
+        if (!paymentHoldExpired && !remainingExpired) return false;
         const requiresRefund = booking.status === 'AWAITING_REMAINING';
         booking.status = 'EXPIRED';
         booking.refundStatus = requiresRefund ? 'PENDING' : 'NOT_REQUIRED';
@@ -320,15 +323,6 @@ export class MentorBookingsService {
       if (didExpire) expired += 1;
     }
     return { expired };
-  }
-
-  remainingDueAt(paidAt: Date, slotStart: Date): Date {
-    return new Date(
-      Math.min(
-        paidAt.getTime() + REMAINING_PAYMENT_WINDOW_MS,
-        slotStart.getTime() - SESSION_PAYMENT_BUFFER_MS,
-      ),
-    );
   }
 
   private async cancelLockedBooking(
@@ -349,7 +343,7 @@ export class MentorBookingsService {
       if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(booking.status)) {
         throw this.validationError('Booking cannot be cancelled in its current status');
       }
-      const requiresRefund = booking.status !== 'PENDING_DEPOSIT';
+      const requiresRefund = booking.status !== 'PENDING_PAYMENT';
       booking.status = 'CANCELLED';
       booking.cancelledAt = this.now();
       booking.cancelledBy = actorId;
@@ -376,7 +370,7 @@ export class MentorBookingsService {
     }
   }
 
-  private async expireFailedDepositBooking(bookingId: string): Promise<void> {
+  private async expireFailedPaymentBooking(bookingId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const bookings = manager.getRepository(MentorBookingEntity);
       const slots = manager.getRepository(MentorAvailabilitySlotEntity);
@@ -384,7 +378,7 @@ export class MentorBookingsService {
         where: { id: bookingId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!booking || booking.status !== 'PENDING_DEPOSIT') return;
+      if (!booking || booking.status !== 'PENDING_PAYMENT') return;
       booking.status = 'EXPIRED';
       booking.refundStatus = 'NOT_REQUIRED';
       await this.releaseFutureSlotWith(slots, booking);
@@ -420,12 +414,14 @@ export class MentorBookingsService {
       mentorProfileId: booking.mentorProfileId,
       availabilitySlotId: booking.availabilitySlotId,
       status: booking.status,
+      studentGoal: booking.studentGoal,
       package: booking.packageSnapshot,
       slotStart: booking.slotStart?.toISOString() ?? null,
       slotEnd: booking.slotEnd?.toISOString() ?? null,
       totalAmountVnd: booking.totalAmountVnd,
       depositAmountVnd: booking.depositAmountVnd,
       remainingAmountVnd: booking.remainingAmountVnd,
+      paymentOrderId: booking.paymentOrderId,
       remainingDueAt: booking.remainingDueAt?.toISOString() ?? null,
       meetingUrl: booking.meetingUrl,
       refundStatus: booking.refundStatus,
@@ -442,6 +438,35 @@ export class MentorBookingsService {
 
   private now(): Date {
     return this.clock?.() ?? new Date();
+  }
+
+  private cleanStudentGoal(value: string): string {
+    const cleaned = value.trim();
+    if (cleaned.length < STUDENT_GOAL_MIN_LENGTH || cleaned.length > STUDENT_GOAL_MAX_LENGTH) {
+      throw this.validationError(
+        `Student goal must be between ${STUDENT_GOAL_MIN_LENGTH} and ${STUDENT_GOAL_MAX_LENGTH} characters`,
+      );
+    }
+    return cleaned;
+  }
+
+  private async findReusableCheckout(orderId: string | null): Promise<CheckoutResponseDto | null> {
+    if (!orderId) return null;
+    const order = await this.orders.findOne({ where: { id: orderId } });
+    if (!order || !['PENDING', 'PAID'].includes(order.status)) return null;
+    return this.toCheckoutDto(order);
+  }
+
+  private toCheckoutDto(order: PaymentOrderEntity): CheckoutResponseDto {
+    return {
+      orderId: order.id,
+      orderCode: Number(order.orderCode),
+      status: order.status,
+      checkoutUrl: order.checkoutUrl,
+      qrCode: order.qrCode,
+      paymentLinkId: order.paymentLinkId,
+      expiresAt: order.expiresAt?.toISOString() ?? null,
+    };
   }
 }
 

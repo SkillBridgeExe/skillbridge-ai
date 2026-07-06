@@ -89,6 +89,31 @@ describe('BillingCheckoutService', () => {
     expect(provider.createPaymentLink).not.toHaveBeenCalled();
   });
 
+  it('creates a full mentor booking checkout through the active provider abstraction', async () => {
+    const { service, orders, provider } = setup();
+    orders.save.mockImplementation((input) => Promise.resolve({ id: 'order-1', ...input }));
+
+    const result = await service.createMentorBookingCheckout({
+      userId: 'student-1',
+      bookingId: 'booking-1',
+      amountVnd: 500000,
+      currency: 'VND',
+    });
+
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'MENTOR_BOOKING',
+        targetType: 'MENTOR_BOOKING',
+        targetId: 'booking-1',
+        amountVnd: 500000,
+      }),
+    );
+    expect(provider.createPaymentLink).toHaveBeenCalledWith(
+      expect.objectContaining({ amountVnd: 500000, itemName: 'Mentor session' }),
+    );
+    expect(result).toEqual(expect.objectContaining({ orderId: 'order-1' }));
+  });
+
   it('marks mentor orders failed when the provider link cannot be created', async () => {
     const { service, orders, provider } = setup();
     orders.save.mockImplementation((input) =>
@@ -97,10 +122,10 @@ describe('BillingCheckoutService', () => {
     provider.createPaymentLink.mockRejectedValue(new Error('payOS unavailable'));
 
     await expect(
-      service.createMentorDepositCheckout({
+      service.createMentorBookingCheckout({
         userId: 'student-1',
         bookingId: 'booking-1',
-        amountVnd: 50000,
+        amountVnd: 500000,
         currency: 'VND',
       }),
     ).rejects.toThrow('payOS unavailable');

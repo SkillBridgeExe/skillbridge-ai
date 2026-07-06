@@ -216,6 +216,7 @@ export class AdminBillingService {
     const { page, limit, skip } = pagination(query.page, query.limit);
     const where: FindOptionsWhere<MentorBookingEntity> = {};
     if (query.status) where.status = query.status;
+    if (query.refundStatus) where.refundStatus = query.refundStatus;
     if (query.studentId) where.studentId = query.studentId;
     if (query.mentorId) where.mentorId = query.mentorId;
 
@@ -235,11 +236,13 @@ export class AdminBillingService {
         mentorId: booking.mentorId,
         planCode: booking.planCode,
         status: booking.status,
+        studentGoal: booking.studentGoal,
         slotStart: booking.slotStart?.toISOString() ?? null,
         slotEnd: booking.slotEnd?.toISOString() ?? null,
         totalAmountVnd: booking.totalAmountVnd,
         depositAmountVnd: booking.depositAmountVnd,
         remainingAmountVnd: booking.remainingAmountVnd,
+        paymentOrderId: booking.paymentOrderId,
         depositPaymentOrderId: booking.depositPaymentOrderId,
         remainingPaymentOrderId: booking.remainingPaymentOrderId,
         acceptedAt: booking.acceptedAt?.toISOString() ?? null,

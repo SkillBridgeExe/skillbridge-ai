@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -24,7 +25,11 @@ import {
   UpdateAdminMentorStatusDto,
   UpdateMentorProfileDto,
 } from './dto/mentor-profile.dto';
-import { CreateMentorSlotDto, ListMentorSlotsQueryDto } from './dto/mentor-availability.dto';
+import {
+  CreateMentorSlotDto,
+  ListMentorSlotsQueryDto,
+  SaveMentorAvailabilityTemplateDto,
+} from './dto/mentor-availability.dto';
 import { MentorAvailabilityService } from './mentor-availability.service';
 import { MentorBookingsService } from './mentor-bookings.service';
 import { MentorsService } from './mentors.service';
@@ -98,10 +103,44 @@ export class MentorAvailabilityController {
     return this.availability.createSlot(user.userId, body);
   }
 
+  @Post(':slotId/block')
+  @ApiOperation({ summary: 'Block a future generated mentor slot' })
+  block(@CurrentUser() user: JwtUser, @Param('slotId') slotId: string) {
+    return this.availability.blockGeneratedSlot(user.userId, slotId);
+  }
+
+  @Post(':slotId/unblock')
+  @ApiOperation({ summary: 'Restore a future generated blocked mentor slot' })
+  unblock(@CurrentUser() user: JwtUser, @Param('slotId') slotId: string) {
+    return this.availability.unblockGeneratedSlot(user.userId, slotId);
+  }
+
   @Delete(':slotId')
   @ApiOperation({ summary: 'Delete a future open mentor slot' })
   delete(@CurrentUser() user: JwtUser, @Param('slotId') slotId: string) {
     return this.availability.deleteSlot(user.userId, slotId);
+  }
+}
+
+@ApiTags('Mentor Availability')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('MENTOR')
+@Controller('api/mentors/me/availability-template')
+export class MentorAvailabilityTemplateController {
+  constructor(private readonly availability: MentorAvailabilityService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get the current mentor weekly availability template' })
+  getTemplate(@CurrentUser() user: JwtUser) {
+    return this.availability.getWeeklyTemplate(user.userId);
+  }
+
+  @Put()
+  @ApiOperation({ summary: 'Save the current mentor weekly availability template' })
+  saveTemplate(@CurrentUser() user: JwtUser, @Body() body: SaveMentorAvailabilityTemplateDto) {
+    return this.availability.saveWeeklyTemplate(user.userId, body);
   }
 }
 

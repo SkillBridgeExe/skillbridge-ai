@@ -122,6 +122,25 @@ export class BillingSettlementService {
       lock: { mode: 'pessimistic_write' },
     });
     if (!booking) return;
+    if (order.purpose === 'MENTOR_BOOKING') {
+      if (booking.status !== 'PENDING_PAYMENT') {
+        if (['CANCELLED', 'EXPIRED'].includes(booking.status)) {
+          booking.paymentOrderId = order.id;
+          booking.refundStatus = 'PENDING';
+          await mentorBookings.save(booking);
+        }
+        return;
+      }
+      booking.status = 'CONFIRMED';
+      booking.paymentOrderId = order.id;
+      const slot = await mentorSlots.findOne({ where: { id: booking.availabilitySlotId } });
+      if (slot && slot.status === 'HELD' && slot.heldByBookingId === booking.id) {
+        slot.status = 'BOOKED';
+        slot.heldByBookingId = null;
+        slot.holdExpiresAt = null;
+        await mentorSlots.save(slot);
+      }
+    }
     if (order.purpose === 'MENTOR_DEPOSIT') {
       if (booking.status !== 'PENDING_DEPOSIT') {
         if (['CANCELLED', 'EXPIRED'].includes(booking.status)) {
