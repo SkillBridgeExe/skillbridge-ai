@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 
 export type MentorBookingStatus =
+  | 'PENDING_PAYMENT'
   | 'PENDING_DEPOSIT'
   | 'AWAITING_REMAINING'
   | 'CONFIRMED'
@@ -65,6 +66,9 @@ export class MentorBookingEntity {
 
   @Column({ type: 'integer', name: 'remaining_amount_vnd' })
   remainingAmountVnd!: number;
+
+  @Column('uuid', { name: 'payment_order_id', nullable: true })
+  paymentOrderId!: string | null;
 
   @Column('uuid', { name: 'deposit_payment_order_id', nullable: true })
   depositPaymentOrderId!: string | null;

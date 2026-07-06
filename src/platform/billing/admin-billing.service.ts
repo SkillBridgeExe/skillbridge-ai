@@ -242,6 +242,7 @@ export class AdminBillingService {
         totalAmountVnd: booking.totalAmountVnd,
         depositAmountVnd: booking.depositAmountVnd,
         remainingAmountVnd: booking.remainingAmountVnd,
+        paymentOrderId: booking.paymentOrderId,
         depositPaymentOrderId: booking.depositPaymentOrderId,
         remainingPaymentOrderId: booking.remainingPaymentOrderId,
         acceptedAt: booking.acceptedAt?.toISOString() ?? null,

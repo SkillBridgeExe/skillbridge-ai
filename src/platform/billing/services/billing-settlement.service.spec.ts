@@ -135,16 +135,16 @@ describe('BillingSettlementService', () => {
     expect(orders.save).not.toHaveBeenCalled();
   });
 
-  it('confirms the held slot and opens remaining payment after the deposit settles', async () => {
+  it('confirms the booking and books the held slot after the mentor booking payment settles', async () => {
     const { service, orders, mentorBookings, mentorSlots } = setup();
     orders.findOne.mockResolvedValue({
       id: 'order-1',
       userId: 'student-1',
       provider: 'PAYOS',
       orderCode: '123',
-      amountVnd: 10000,
+      amountVnd: 100000,
       currency: 'VND',
-      purpose: 'MENTOR_DEPOSIT',
+      purpose: 'MENTOR_BOOKING',
       targetType: 'MENTOR_BOOKING',
       targetId: 'booking-1',
       planCode: 'MENTOR_60',
@@ -154,9 +154,8 @@ describe('BillingSettlementService', () => {
     } as PaymentOrderEntity);
     mentorBookings.findOne.mockResolvedValue({
       id: 'booking-1',
-      status: 'PENDING_DEPOSIT',
-      depositPaymentOrderId: 'order-1',
-      remainingPaymentOrderId: null,
+      status: 'PENDING_PAYMENT',
+      paymentOrderId: 'order-1',
       availabilitySlotId: 'slot-1',
       slotStart: new Date(Date.now() + 48 * 60 * 60 * 1000),
       remainingDueAt: null,
@@ -174,7 +173,7 @@ describe('BillingSettlementService', () => {
       paymentLinkId: 'plink-1',
       reference: 'ref-1',
       status: 'PAID',
-      amountVnd: 10000,
+      amountVnd: 100000,
       currency: 'VND',
       raw: {},
     });
@@ -182,9 +181,8 @@ describe('BillingSettlementService', () => {
     expect(mentorBookings.save).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'booking-1',
-        status: 'AWAITING_REMAINING',
-        depositPaymentOrderId: 'order-1',
-        remainingDueAt: expect.any(Date),
+        status: 'CONFIRMED',
+        paymentOrderId: 'order-1',
       }),
     );
     expect(mentorSlots.save).toHaveBeenCalledWith(
@@ -197,55 +195,16 @@ describe('BillingSettlementService', () => {
     );
   });
 
-  it('moves a booking to confirmed after the remaining payment settles', async () => {
-    const { service, orders, mentorBookings } = setup();
-    orders.findOne.mockResolvedValue({
-      id: 'order-2',
-      userId: 'student-1',
-      provider: 'PAYOS',
-      orderCode: '124',
-      amountVnd: 90000,
-      currency: 'VND',
-      purpose: 'MENTOR_REMAINING',
-      targetType: 'MENTOR_BOOKING',
-      targetId: 'booking-1',
-      planCode: null,
-      status: 'PENDING',
-      paymentLinkId: 'plink-2',
-      paidAt: null,
-    } as PaymentOrderEntity);
-    mentorBookings.findOne.mockResolvedValue({
-      id: 'booking-1',
-      status: 'AWAITING_REMAINING',
-      remainingPaymentOrderId: 'order-2',
-    } as MentorBookingEntity);
-
-    await service.settlePaidPayment({
-      provider: 'PAYOS',
-      orderCode: 124,
-      paymentLinkId: 'plink-2',
-      reference: 'ref-2',
-      status: 'PAID',
-      amountVnd: 90000,
-      currency: 'VND',
-      raw: {},
-    });
-
-    expect(mentorBookings.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'CONFIRMED', remainingPaymentOrderId: 'order-2' }),
-    );
-  });
-
-  it('queues manual refund when a deposit arrives after the booking expired', async () => {
+  it('queues manual refund when a mentor booking payment arrives after the booking expired', async () => {
     const { service, orders, mentorBookings, mentorSlots } = setup();
     orders.findOne.mockResolvedValue({
       id: 'order-late',
       userId: 'student-1',
       provider: 'PAYOS',
       orderCode: '125',
-      amountVnd: 50000,
+      amountVnd: 500000,
       currency: 'VND',
-      purpose: 'MENTOR_DEPOSIT',
+      purpose: 'MENTOR_BOOKING',
       targetType: 'MENTOR_BOOKING',
       targetId: 'booking-expired',
       status: 'PENDING',
@@ -256,7 +215,7 @@ describe('BillingSettlementService', () => {
       id: 'booking-expired',
       status: 'EXPIRED',
       refundStatus: 'NOT_REQUIRED',
-      depositPaymentOrderId: 'order-late',
+      paymentOrderId: 'order-late',
       availabilitySlotId: 'slot-1',
     } as MentorBookingEntity);
 
@@ -266,7 +225,7 @@ describe('BillingSettlementService', () => {
       paymentLinkId: 'plink-late',
       reference: 'ref-late',
       status: 'PAID',
-      amountVnd: 50000,
+      amountVnd: 500000,
       currency: 'VND',
       raw: {},
     });

@@ -50,34 +50,19 @@ export class BillingCheckoutService {
     return this.createProviderLink(order, plan.name);
   }
 
-  async createMentorDepositCheckout(
+  async createMentorBookingCheckout(
     input: MentorPaymentCheckoutInput,
   ): Promise<CheckoutResponseDto> {
     const order = await this.createPendingOrder({
       userId: input.userId,
       amountVnd: input.amountVnd,
-      purpose: 'MENTOR_DEPOSIT',
+      purpose: 'MENTOR_BOOKING',
       targetType: 'MENTOR_BOOKING',
       targetId: input.bookingId,
       planCode: null,
       currency: input.currency,
     });
-    return this.createProviderLink(order, 'Mentor session deposit');
-  }
-
-  async createMentorRemainingCheckout(
-    input: MentorPaymentCheckoutInput,
-  ): Promise<CheckoutResponseDto> {
-    const order = await this.createPendingOrder({
-      userId: input.userId,
-      amountVnd: input.amountVnd,
-      purpose: 'MENTOR_REMAINING',
-      targetType: 'MENTOR_BOOKING',
-      targetId: input.bookingId,
-      planCode: null,
-      currency: input.currency,
-    });
-    return this.createProviderLink(order, 'Mentor remaining');
+    return this.createProviderLink(order, 'Mentor session');
   }
 
   private async requirePlan(

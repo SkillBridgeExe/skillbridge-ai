@@ -45,6 +45,7 @@ const PAYMENT_STATUSES: PaymentOrderStatus[] = [
 ];
 const PAYMENT_PURPOSES: PaymentOrderPurpose[] = [
   'SUBSCRIPTION',
+  'MENTOR_BOOKING',
   'MENTOR_DEPOSIT',
   'MENTOR_REMAINING',
 ];
@@ -55,6 +56,7 @@ const SUBSCRIPTION_STATUSES: UserSubscriptionStatus[] = [
   'EXPIRED',
 ];
 const MENTOR_BOOKING_STATUSES: MentorBookingStatus[] = [
+  'PENDING_PAYMENT',
   'PENDING_DEPOSIT',
   'AWAITING_REMAINING',
   'CONFIRMED',

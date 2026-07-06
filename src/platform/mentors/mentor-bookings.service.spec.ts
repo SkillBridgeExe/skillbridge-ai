@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { DataSource, EntityManager, EntityTarget, Repository } from 'typeorm';
 import { MentorAvailabilitySlotEntity } from '../../database/entities/mentor-availability-slot.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
@@ -77,23 +77,14 @@ describe('MentorBookingsService', () => {
       ),
     } as unknown as DataSource;
     const checkout = {
-      createMentorDepositCheckout: jest.fn().mockResolvedValue({
-        orderId: 'deposit-order-1',
+      createMentorBookingCheckout: jest.fn().mockResolvedValue({
+        orderId: 'mentor-payment-order-1',
         orderCode: 101,
         status: 'PENDING',
-        checkoutUrl: 'https://pay.test/deposit',
+        checkoutUrl: 'https://pay.test/mentor-booking',
         qrCode: null,
         paymentLinkId: 'pay-link-1',
         expiresAt: '2026-06-21T00:15:00.000Z',
-      }),
-      createMentorRemainingCheckout: jest.fn().mockResolvedValue({
-        orderId: 'remaining-order-1',
-        orderCode: 102,
-        status: 'PENDING',
-        checkoutUrl: 'https://pay.test/remaining',
-        qrCode: null,
-        paymentLinkId: 'pay-link-2',
-        expiresAt: null,
       }),
     } as unknown as BillingCheckoutService;
     const service = new MentorBookingsService(
@@ -109,7 +100,7 @@ describe('MentorBookingsService', () => {
     return { service, profiles, slots, bookings, reviews, orders, checkout, repos };
   }
 
-  it('holds an open slot with a student goal and creates a 10 percent deposit from server-owned mentor pricing', async () => {
+  it('holds an open slot with a student goal and creates one full upfront checkout from server-owned mentor pricing', async () => {
     const { service, profiles, slots, bookings, checkout } = setup();
     profiles.findOne.mockResolvedValue(profile);
     slots.findOne.mockResolvedValue({
@@ -130,9 +121,10 @@ describe('MentorBookingsService', () => {
       expect.objectContaining({
         studentGoal: 'Review my backend architecture plan before launch.',
         totalAmountVnd: 500000,
-        depositAmountVnd: 50000,
-        remainingAmountVnd: 450000,
-        status: 'PENDING_DEPOSIT',
+        depositAmountVnd: 0,
+        remainingAmountVnd: 0,
+        paymentOrderId: null,
+        status: 'PENDING_PAYMENT',
       }),
     );
     expect(slots.save).toHaveBeenCalledWith(
@@ -142,14 +134,14 @@ describe('MentorBookingsService', () => {
         holdExpiresAt: new Date('2026-06-21T00:15:00.000Z'),
       }),
     );
-    expect(checkout.createMentorDepositCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 50000 }),
+    expect(checkout.createMentorBookingCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 500000 }),
     );
     expect(result).toEqual(
       expect.objectContaining({
         booking: expect.objectContaining({
           id: 'booking-1',
-          status: 'PENDING_DEPOSIT',
+          status: 'PENDING_PAYMENT',
           studentGoal: 'Review my backend architecture plan before launch.',
         }),
         checkout: expect.objectContaining({ orderCode: 101 }),
@@ -183,116 +175,61 @@ describe('MentorBookingsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('creates a new deposit checkout for an owned pending-deposit booking', async () => {
+  it('creates a new full checkout for an owned pending-payment booking', async () => {
     const { service, bookings, checkout } = setup();
     bookings.findOne.mockResolvedValue({
       id: 'booking-1',
       studentId: 'student-1',
-      status: 'PENDING_DEPOSIT',
-      depositAmountVnd: 50000,
-      depositPaymentOrderId: null,
+      status: 'PENDING_PAYMENT',
+      totalAmountVnd: 500000,
+      paymentOrderId: null,
       packageSnapshot: { currency: 'VND' },
       createdAt: new Date(),
       updatedAt: null,
     });
 
-    const result = await service.payDeposit('student-1', 'booking-1');
+    const result = await service.pay('student-1', 'booking-1');
 
-    expect(checkout.createMentorDepositCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 50000 }),
+    expect(checkout.createMentorBookingCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 500000 }),
     );
     expect(bookings.save).toHaveBeenCalledWith(
-      expect.objectContaining({ depositPaymentOrderId: 'deposit-order-1' }),
+      expect.objectContaining({ paymentOrderId: 'mentor-payment-order-1' }),
     );
     expect(result.orderCode).toBe(101);
   });
 
-  it('returns an existing pending deposit checkout without creating a duplicate order', async () => {
+  it('returns an existing pending full checkout without creating a duplicate order', async () => {
     const { service, bookings, orders, checkout } = setup();
     bookings.findOne.mockResolvedValue({
       id: 'booking-1',
       studentId: 'student-1',
-      status: 'PENDING_DEPOSIT',
-      depositAmountVnd: 50000,
-      depositPaymentOrderId: 'deposit-order-1',
+      status: 'PENDING_PAYMENT',
+      totalAmountVnd: 500000,
+      paymentOrderId: 'mentor-payment-order-1',
       packageSnapshot: { currency: 'VND' },
       createdAt: new Date(),
       updatedAt: null,
     });
     orders.findOne.mockResolvedValue({
-      id: 'deposit-order-1',
+      id: 'mentor-payment-order-1',
       orderCode: '101',
       status: 'PENDING',
-      checkoutUrl: 'https://pay.test/deposit',
+      checkoutUrl: 'https://pay.test/mentor-booking',
       qrCode: null,
       paymentLinkId: 'pay-link-1',
       expiresAt: new Date('2026-06-21T00:15:00.000Z'),
     });
 
-    const result = await service.payDeposit('student-1', 'booking-1');
+    const result = await service.pay('student-1', 'booking-1');
 
-    expect(checkout.createMentorDepositCheckout).not.toHaveBeenCalled();
+    expect(checkout.createMentorBookingCheckout).not.toHaveBeenCalled();
     expect(result).toEqual(
       expect.objectContaining({
-        orderId: 'deposit-order-1',
+        orderId: 'mentor-payment-order-1',
         orderCode: 101,
         status: 'PENDING',
-        checkoutUrl: 'https://pay.test/deposit',
-      }),
-    );
-  });
-
-  it('lets only the owning student create the remaining payment checkout', async () => {
-    const { service, bookings, checkout } = setup();
-    bookings.findOne.mockResolvedValue({
-      id: 'booking-1',
-      studentId: 'student-1',
-      status: 'AWAITING_REMAINING',
-      remainingAmountVnd: 450000,
-      remainingPaymentOrderId: null,
-      remainingDueAt: new Date('2026-06-22T00:00:00.000Z'),
-    });
-
-    await expect(service.payRemaining('other-user', 'booking-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    const result = await service.payRemaining('student-1', 'booking-1');
-
-    expect(checkout.createMentorRemainingCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 450000 }),
-    );
-    expect(result.orderCode).toBe(102);
-  });
-
-  it('returns an existing pending remaining checkout without creating a duplicate order', async () => {
-    const { service, bookings, orders, checkout } = setup();
-    bookings.findOne.mockResolvedValue({
-      id: 'booking-1',
-      studentId: 'student-1',
-      status: 'AWAITING_REMAINING',
-      remainingAmountVnd: 450000,
-      remainingPaymentOrderId: 'remaining-order-1',
-      remainingDueAt: new Date('2026-06-22T00:00:00.000Z'),
-      packageSnapshot: { currency: 'VND' },
-    });
-    orders.findOne.mockResolvedValue({
-      id: 'remaining-order-1',
-      orderCode: '102',
-      status: 'PENDING',
-      checkoutUrl: 'https://pay.test/remaining',
-      qrCode: null,
-      paymentLinkId: 'pay-link-2',
-      expiresAt: null,
-    });
-
-    const result = await service.payRemaining('student-1', 'booking-1');
-
-    expect(checkout.createMentorRemainingCheckout).not.toHaveBeenCalled();
-    expect(result).toEqual(
-      expect.objectContaining({
-        orderId: 'remaining-order-1',
-        orderCode: 102,
-        status: 'PENDING',
+        checkoutUrl: 'https://pay.test/mentor-booking',
       }),
     );
   });
@@ -376,15 +313,15 @@ describe('MentorBookingsService', () => {
     expect(result).toEqual(expect.objectContaining({ id: 'review-1', rating: 5 }));
   });
 
-  it('cancels a deposited booking, reopens its future slot, and queues manual refund review', async () => {
+  it('cancels a confirmed paid booking, reopens its future slot, and queues manual refund review', async () => {
     const { service, bookings, slots } = setup();
     bookings.findOne.mockResolvedValue({
       id: 'booking-1',
       studentId: 'student-1',
       mentorId: 'mentor-1',
       availabilitySlotId: 'slot-1',
-      status: 'AWAITING_REMAINING',
-      depositPaymentOrderId: 'deposit-order-1',
+      status: 'CONFIRMED',
+      paymentOrderId: 'mentor-payment-order-1',
       slotStart: openSlot.startsAt,
       slotEnd: openSlot.endsAt,
       createdAt: new Date(),
@@ -409,13 +346,42 @@ describe('MentorBookingsService', () => {
     expect(result.refundStatus).toBe('PENDING');
   });
 
+  it('cancels an unpaid pending booking without queuing a refund', async () => {
+    const { service, bookings, slots } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      mentorId: 'mentor-1',
+      availabilitySlotId: 'slot-1',
+      status: 'PENDING_PAYMENT',
+      paymentOrderId: null,
+      slotStart: openSlot.startsAt,
+      slotEnd: openSlot.endsAt,
+      createdAt: new Date(),
+      updatedAt: null,
+    });
+    slots.findOne.mockResolvedValue({ ...openSlot, status: 'HELD' });
+
+    const result = await service.cancelByStudent('student-1', 'booking-1', {
+      reason: 'I cannot attend this session',
+    });
+
+    expect(bookings.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'CANCELLED',
+        refundStatus: 'NOT_REQUIRED',
+      }),
+    );
+    expect(result.refundStatus).toBe('NOT_REQUIRED');
+  });
+
   it('releases slots through the transaction repository when expiring bookings', async () => {
     const { service, bookings, slots, repos } = setup();
     const transactionalSlots = repo<MentorAvailabilitySlotEntity>();
     repos.set(MentorAvailabilitySlotEntity, transactionalSlots);
     const candidate = {
-      id: 'booking-deposit',
-      status: 'PENDING_DEPOSIT',
+      id: 'booking-payment',
+      status: 'PENDING_PAYMENT',
       availabilitySlotId: 'slot-1',
       createdAt: new Date('2026-06-20T23:00:00.000Z'),
       remainingDueAt: null,
@@ -432,7 +398,7 @@ describe('MentorBookingsService', () => {
     expect(slots.save).not.toHaveBeenCalled();
   });
 
-  it('expires the booking and reopens the slot when deposit checkout creation fails', async () => {
+  it('expires the booking and reopens the slot when full checkout creation fails', async () => {
     const { service, profiles, slots, bookings, checkout } = setup();
     profiles.findOne.mockResolvedValue(profile);
     slots.findOne.mockResolvedValue({
@@ -442,12 +408,12 @@ describe('MentorBookingsService', () => {
       holdExpiresAt: null,
     });
     bookings.save.mockImplementation(async (booking) => ({ id: 'booking-1', ...booking }));
-    (checkout.createMentorDepositCheckout as jest.Mock).mockRejectedValue(
+    (checkout.createMentorBookingCheckout as jest.Mock).mockRejectedValue(
       new Error('payOS unavailable'),
     );
     bookings.findOne.mockResolvedValue({
       id: 'booking-1',
-      status: 'PENDING_DEPOSIT',
+      status: 'PENDING_PAYMENT',
       availabilitySlotId: 'slot-1',
       refundStatus: 'NOT_REQUIRED',
     });
@@ -472,49 +438,33 @@ describe('MentorBookingsService', () => {
     );
   });
 
-  it('expires stale deposit and remaining-payment bookings and releases their slots', async () => {
+  it('expires stale unpaid bookings and releases their slots without refund review', async () => {
     const { service, bookings, slots } = setup();
     const candidates = [
       {
-        id: 'booking-deposit',
-        status: 'PENDING_DEPOSIT',
+        id: 'booking-payment',
+        status: 'PENDING_PAYMENT',
         availabilitySlotId: 'slot-1',
         createdAt: new Date('2026-06-20T23:00:00.000Z'),
         remainingDueAt: null,
-      },
-      {
-        id: 'booking-remaining',
-        status: 'AWAITING_REMAINING',
-        availabilitySlotId: 'slot-2',
-        createdAt: new Date('2026-06-20T00:00:00.000Z'),
-        remainingDueAt: new Date('2026-06-20T23:59:00.000Z'),
       },
     ];
     bookings.find.mockResolvedValue(candidates);
     bookings.findOne.mockImplementation(({ where }: { where: { id: string } }) =>
       Promise.resolve(candidates.find((booking) => booking.id === where.id)),
     );
-    slots.findOne
-      .mockResolvedValueOnce({ ...openSlot, id: 'slot-1', status: 'HELD' })
-      .mockResolvedValueOnce({ ...openSlot, id: 'slot-2', status: 'BOOKED' });
+    slots.findOne.mockResolvedValueOnce({ ...openSlot, id: 'slot-1', status: 'HELD' });
 
     const result = await service.expireStaleBookings();
 
-    expect(result).toEqual({ expired: 2 });
+    expect(result).toEqual({ expired: 1 });
     expect(bookings.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'booking-deposit',
+        id: 'booking-payment',
         status: 'EXPIRED',
         refundStatus: 'NOT_REQUIRED',
       }),
     );
-    expect(bookings.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'booking-remaining',
-        status: 'EXPIRED',
-        refundStatus: 'PENDING',
-      }),
-    );
-    expect(slots.save).toHaveBeenCalledTimes(2);
+    expect(slots.save).toHaveBeenCalledTimes(1);
   });
 });

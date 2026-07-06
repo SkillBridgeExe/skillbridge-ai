@@ -7,7 +7,11 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type PaymentOrderPurpose = 'SUBSCRIPTION' | 'MENTOR_DEPOSIT' | 'MENTOR_REMAINING';
+export type PaymentOrderPurpose =
+  | 'SUBSCRIPTION'
+  | 'MENTOR_BOOKING'
+  | 'MENTOR_DEPOSIT'
+  | 'MENTOR_REMAINING';
 export type PaymentOrderStatus = 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
 export type PaymentOrderTargetType = 'SUBSCRIPTION' | 'MENTOR_BOOKING';
 
