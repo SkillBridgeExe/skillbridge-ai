@@ -1048,7 +1048,7 @@ export class CvsService {
     // role-specific analysis (its skills_relevance was graded against that role's rubric).
     const rows = (await this.aiResults.manager.query(
       `
-        SELECT ar.parsed_response
+        SELECT ar.parsed_response, ar.confidence_score
         FROM ai_results ar
         INNER JOIN ai_requests req ON req.id = ar.ai_request_id
         WHERE ar.user_id = $1
@@ -1060,9 +1060,15 @@ export class CvsService {
         LIMIT 1
       `,
       [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE],
-    )) as Array<{ parsed_response: CvReviewParsedResponse | null }>;
+    )) as Array<{ parsed_response: CvReviewParsedResponse | null; confidence_score?: unknown }>;
 
-    return rows[0]?.parsed_response ?? null;
+    const row = rows[0];
+    if (!row?.parsed_response) return null;
+    // Same re-attach as getLatestReview — the cache-reuse path must not be the one place a
+    // review loses its confidence_score (review finding I1).
+    return row.confidence_score != null
+      ? { ...row.parsed_response, confidence_score: Number(row.confidence_score) }
+      : row.parsed_response;
   }
 
   private async recordConsentAudit(userId: string, cvId: string): Promise<void> {
