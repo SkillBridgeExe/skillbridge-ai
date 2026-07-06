@@ -83,6 +83,8 @@ describe('RoadmapComposerService.compose', () => {
 
   it('attaches curated resources to feasible steps and lists not_feasible honestly', () => {
     const svc = new RoadmapComposerService(matcher as never);
+    // 30h budget: react (20.8h) fits, rust (another 20.8h) does not — rust must be
+    // reported in not_feasible_items instead of silently promised as a step.
     const out = svc.compose({
       learnItems: [learn('react', 0.9), learn('rust', 0.4)],
       gapItems: [gap('react'), gap('rust')],
@@ -90,6 +92,7 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     expect(out.steps[0].skill_canonical).toBe('react');
+    expect(out.steps[0].strategy).toBe('deep_build');
     expect(out.steps[0].lesson_content).toMatchObject({
       skill_canonical: 'react',
       license_type: 'skillbridge_original',
@@ -105,8 +108,15 @@ describe('RoadmapComposerService.compose', () => {
     });
     expect(out.steps[0].resources[0].low_confidence).toBe(true);
     expect(out.steps[0].recommended_courses?.map((course) => course.id)).toEqual(['r1']);
-    expect(out.steps.map((item) => item.skill_canonical)).toContain('rust');
-    expect(out.not_feasible_items).toEqual([]);
+    expect(out.steps.map((item) => item.skill_canonical)).not.toContain('rust');
+    expect(out.not_feasible_items).toEqual([
+      {
+        skill_canonical: 'rust',
+        display_name: 'rust',
+        reason: 'ran_out_of_budget',
+        fallback: 'crash_prep',
+      },
+    ]);
     expect(out.ai_summary.length).toBeGreaterThan(0);
     expect(matcher.matchResources).toHaveBeenCalledWith(
       [
@@ -356,7 +366,9 @@ describe('RoadmapComposerService.compose', () => {
     const out = svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react', { required_level: 3, cv_level: 2 })],
-      budget: { available_days: 14, hours_per_week: 10 },
+      // 42.9h budget: the 30h resource floor must fit as a step (and carry the floored hours);
+      // a tighter budget would honestly push it into not_feasible_items instead.
+      budget: { available_days: 30, hours_per_week: 10 },
     });
 
     expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
@@ -364,7 +376,7 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.not_feasible_items).toEqual([]);
   });
 
-  it('puts all items in steps even with extremely limited budget', () => {
+  it('moves items that do not fit the budget into not_feasible_items with an honest fallback', () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [],
       uncovered_skills: [],
@@ -380,7 +392,47 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 1, hours_per_week: 1 },
     });
 
-    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['communication', 'portfolio']);
+    expect(out.steps).toEqual([]);
+    expect(out.not_feasible_items).toEqual([
+      {
+        skill_canonical: 'communication',
+        display_name: 'communication',
+        reason: 'ran_out_of_budget',
+        fallback: 'interview_practice',
+      },
+      {
+        skill_canonical: 'portfolio',
+        display_name: 'portfolio',
+        reason: 'ran_out_of_budget',
+        fallback: 'cv_fix',
+      },
+    ]);
+    expect(out.ai_summary).toContain('No learnable gaps fit the available time');
+  });
+
+  it('keeps every item as a step when the budget is roomy (unchanged happy path)', () => {
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [learn('react', 0.9), learn('rust', 0.4)],
+      gapItems: [gap('react'), gap('rust')],
+      budget: { available_days: 60, hours_per_week: 7 },
+    });
+
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react', 'rust']);
+    expect(out.steps.map((s) => s.strategy)).toEqual(['deep_build', 'deep_build']);
+    expect(out.not_feasible_items).toEqual([]);
+  });
+
+  it('marks feasible items as crash_prep on a short timeline (planner strategy, not recomputed)', () => {
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react', { required_level: 3, cv_level: 2 })],
+      budget: { available_days: 7, hours_per_week: 20 },
+    });
+
+    expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
+    expect(out.steps[0].strategy).toBe('crash_prep');
     expect(out.not_feasible_items).toEqual([]);
   });
 });
