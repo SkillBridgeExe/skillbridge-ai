@@ -442,10 +442,7 @@ export class MentorBookingsService {
 
   private cleanStudentGoal(value: string): string {
     const cleaned = value.trim();
-    if (
-      cleaned.length < STUDENT_GOAL_MIN_LENGTH ||
-      cleaned.length > STUDENT_GOAL_MAX_LENGTH
-    ) {
+    if (cleaned.length < STUDENT_GOAL_MIN_LENGTH || cleaned.length > STUDENT_GOAL_MAX_LENGTH) {
       throw this.validationError(
         `Student goal must be between ${STUDENT_GOAL_MIN_LENGTH} and ${STUDENT_GOAL_MAX_LENGTH} characters`,
       );

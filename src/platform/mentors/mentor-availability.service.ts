@@ -375,11 +375,7 @@ export class MentorAvailabilityService {
     return day === 0 ? 7 : day;
   }
 
-  private overlaps(
-    slot: MentorAvailabilitySlotEntity,
-    startsAt: Date,
-    endsAt: Date,
-  ): boolean {
+  private overlaps(slot: MentorAvailabilitySlotEntity, startsAt: Date, endsAt: Date): boolean {
     return slot.startsAt < endsAt && slot.endsAt > startsAt;
   }
 
@@ -394,9 +390,7 @@ export class MentorAvailabilityService {
     return slot;
   }
 
-  private toTemplateDto(
-    rows: MentorAvailabilityTemplateEntity[],
-  ): MentorAvailabilityTemplateDto {
+  private toTemplateDto(rows: MentorAvailabilityTemplateEntity[]): MentorAvailabilityTemplateDto {
     const sorted = [...rows].sort(
       (a, b) => a.dayOfWeek - b.dayOfWeek || a.startMinute - b.startMinute,
     );

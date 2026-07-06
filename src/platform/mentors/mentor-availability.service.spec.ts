@@ -194,7 +194,10 @@ describe('MentorAvailabilityService', () => {
     templates.find.mockResolvedValue([]);
     slots.find.mockResolvedValue([]);
     slots.exist.mockResolvedValue(false);
-    slots.save.mockImplementation(async (input) => ({ id: `slot-${input.startsAt.toISOString()}`, ...input }));
+    slots.save.mockImplementation(async (input) => ({
+      id: `slot-${input.startsAt.toISOString()}`,
+      ...input,
+    }));
 
     const result = await service.saveWeeklyTemplate('mentor-1', {
       timezone: 'Asia/Ho_Chi_Minh',
@@ -310,12 +313,8 @@ describe('MentorAvailabilityService', () => {
     const { service, profiles, slots } = setup();
     profiles.findOne.mockResolvedValue(profile);
     slots.findOne
-      .mockResolvedValueOnce(
-        slot({ id: 'generated-slot', source: 'TEMPLATE', status: 'OPEN' }),
-      )
-      .mockResolvedValueOnce(
-        slot({ id: 'blocked-slot', source: 'TEMPLATE', status: 'BLOCKED' }),
-      )
+      .mockResolvedValueOnce(slot({ id: 'generated-slot', source: 'TEMPLATE', status: 'OPEN' }))
+      .mockResolvedValueOnce(slot({ id: 'blocked-slot', source: 'TEMPLATE', status: 'BLOCKED' }))
       .mockResolvedValueOnce(slot({ id: 'manual-slot', source: 'MANUAL', status: 'OPEN' }));
     slots.exist.mockResolvedValue(false);
 
