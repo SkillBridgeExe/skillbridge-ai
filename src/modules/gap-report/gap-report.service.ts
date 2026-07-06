@@ -131,7 +131,14 @@ export class GapReportService {
             ? partialCanonicals.has(a.skill_canonical)
             : true; // add_evidence/emphasize only need the gap_item — score is always 0-0
       if (!joined) return a;
-      return { ...a, expected_impact: simulateActionImpact(input.match, gi, a) };
+      // Re-supply the item's interview signal (Wave 8): gi.severity was raised with it, so the
+      // simulator's after-fix severity must carry it too or severity_drop over-promises.
+      return {
+        ...a,
+        expected_impact: simulateActionImpact(input.match, gi, a, {
+          interviewRiskSignal: input.interviewSignals?.get(gi.canonical_name)?.risk,
+        }),
+      };
     });
 
     return {
