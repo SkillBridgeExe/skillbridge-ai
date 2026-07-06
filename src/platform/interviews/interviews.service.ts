@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { IsNull, LessThan, Not, Repository } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { maskPii } from '../../common/services/pii-mask';
@@ -205,6 +205,7 @@ export class InterviewsService {
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
+    await this.sweepStaleSessions(userId);
     const context = await this.resolveContext(userId, dto);
     await this.entitlements.assertCanUse(userId, BillingFeatureKey.INTERVIEW_SESSION);
     const entitlements = await this.entitlements.getCurrentEntitlements(userId);
@@ -1573,6 +1574,32 @@ export class InterviewsService {
         errorCode: ERROR_CODES.VALIDATION_ERROR,
         message: 'Interview session is not in progress',
       });
+    }
+  }
+
+  /**
+   * Self-healing sweep: before a user starts (and pays for) a new session, finalize their own
+   * expired IN_PROGRESS sessions through the SAME partial-scoring path as /end — an abandoned
+   * session (tab closed, network drop) with >=1 answered turn gets scored and its gap report
+   * persisted instead of leaking the paid quota; one with 0 answers is CANCELLED.
+   * Never throws: a sweep failure must not block starting the new session.
+   */
+  private async sweepStaleSessions(userId: string): Promise<void> {
+    try {
+      const stale = await this.sessions.find({
+        where: { userId, status: 'IN_PROGRESS', expiresAt: LessThan(new Date()) },
+      });
+      for (const session of stale) {
+        try {
+          await this.end(userId, { sessionId: session.id });
+        } catch (error) {
+          this.logger.warn(
+            `Failed to finalize stale interview session ${session.id}: ${String(error)}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Stale interview session sweep failed for user ${userId}: ${String(error)}`);
     }
   }
 

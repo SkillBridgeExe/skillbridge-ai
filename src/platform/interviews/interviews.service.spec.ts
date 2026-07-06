@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { LessThan } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
@@ -1784,5 +1785,240 @@ describe('InterviewsService', () => {
     expect(response.turns).toHaveLength(1);
     expect(response.finalScore).toMatchObject({ overall: 82 });
     expect(response.coaching).toEqual(coaching);
+  });
+
+  describe('stale session sweep on start', () => {
+    const answeredStaleTurn = (turnOrder: number) => ({
+      id: `stale-turn-${turnOrder}`,
+      sessionId: 'stale-1',
+      turnOrder,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      depthSignal: 'deep',
+      skillCanonical: 'rest_api',
+      currentThread: 'REST API ownership',
+      perQuestionScore: '80.00',
+      signals: {
+        jd_term_hits: { hit: ['REST'], missed: [], coverage: 1 },
+        filler: { count: 0, terms: [] },
+        flags: { rambling_risk: false },
+      },
+      insight: {
+        talking_point: 'project',
+        relevance: 80,
+        clarity: 'clear',
+        off_topic: false,
+        confidence_tone: 'calibrated',
+        evidence_quality: 'strong',
+        note: 'Specific example.',
+        has_specific_example: true,
+        star_present: { situation: true, task: true, action: true, result: true },
+      },
+      modality: 'TEXT',
+      interviewerQuestion: `Stale question ${turnOrder}`,
+      userAnswerText: `Stale answer ${turnOrder} with concrete API details.`,
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+      askedAt: new Date('2026-06-12T00:00:01.000Z'),
+    });
+
+    const staleSession = (id: string) => ({
+      id,
+      userId,
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'HYBRID',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      contextSnapshot: {
+        interviewDifficulty: { level: 'mid', source: 'target role', note: 'test' },
+      },
+    });
+
+    const startDto = {
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    } as const;
+
+    it('sweeps and scores a stale expired session with answers before charging a new one', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      const entitlements = {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      };
+      const coaching = { summary: 'Recovered abandoned session.', strengths: [], priorities: [] };
+      const coachingService = { coach: jest.fn(async () => coaching) };
+      sessions.find.mockResolvedValue([staleSession('stale-1')]);
+      sessions.findOne.mockResolvedValue(staleSession('stale-1'));
+      turns.find.mockResolvedValue([answeredStaleTurn(1), answeredStaleTurn(2)]);
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn(), end: jest.fn() } as never,
+        entitlements as never,
+        { createClientSecret: jest.fn() } as never,
+        undefined,
+        undefined,
+        {} as never,
+        { judge: jest.fn() } as never,
+        coachingService as never,
+      );
+
+      const response = await service.start(userId, startDto);
+
+      expect(sessions.find).toHaveBeenCalledWith({
+        where: {
+          userId,
+          status: 'IN_PROGRESS',
+          expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+        },
+      });
+      expect(coachingService.coach).toHaveBeenCalledTimes(1);
+      expect(sessions.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'stale-1',
+          status: 'COMPLETED',
+          endedAt: new Date('2026-06-12T00:10:00.000Z'),
+          gapItems: expect.any(Array),
+          finalScore: expect.objectContaining({ overall: expect.any(Number) }),
+          coaching,
+        }),
+      );
+      expect(response.id).toBe('generated-id');
+      expect(response.status).toBe('IN_PROGRESS');
+      expect(entitlements.recordUsage).toHaveBeenCalledTimes(1);
+      expect(entitlements.recordUsage).toHaveBeenCalledWith(
+        userId,
+        BillingFeatureKey.INTERVIEW_SESSION,
+        { sourceType: 'interview_session', sourceId: 'generated-id' },
+      );
+    });
+
+    it('cancels a stale expired session with no answers before starting a new one', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      const interviewAi = { start: jest.fn(), end: jest.fn() };
+      sessions.find.mockResolvedValue([staleSession('stale-0')]);
+      sessions.findOne.mockResolvedValue(staleSession('stale-0'));
+      turns.find.mockResolvedValue([
+        {
+          id: 'stale-turn-1',
+          sessionId: 'stale-0',
+          turnOrder: 1,
+          phase: 'SCREENING',
+          modality: 'TEXT',
+          interviewerQuestion: 'Introduce yourself.',
+          userAnswerText: null,
+          createdAt: new Date('2026-06-12T00:00:01.000Z'),
+          askedAt: new Date('2026-06-12T00:00:01.000Z'),
+        },
+      ]);
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        interviewAi as never,
+        {
+          assertCanUse: jest.fn(async () => undefined),
+          recordUsage: jest.fn(async () => undefined),
+          getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+        } as never,
+        { createClientSecret: jest.fn() } as never,
+      );
+
+      const response = await service.start(userId, startDto);
+
+      expect(interviewAi.end).not.toHaveBeenCalled();
+      expect(sessions.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'stale-0',
+          status: 'CANCELLED',
+          endedAt: new Date('2026-06-12T00:10:00.000Z'),
+          durationSeconds: 600,
+        }),
+      );
+      expect(response.status).toBe('IN_PROGRESS');
+    });
+
+    it('leaves fresh in-progress sessions untouched when starting a new one', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      sessions.find.mockResolvedValue([]);
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn() } as never,
+        {
+          assertCanUse: jest.fn(async () => undefined),
+          recordUsage: jest.fn(async () => undefined),
+          getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+        } as never,
+        { createClientSecret: jest.fn() } as never,
+      );
+
+      const response = await service.start(userId, startDto);
+
+      expect(sessions.find).toHaveBeenCalledWith({
+        where: {
+          userId,
+          status: 'IN_PROGRESS',
+          expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+        },
+      });
+      expect(sessions.findOne).not.toHaveBeenCalled();
+      expect(response.status).toBe('IN_PROGRESS');
+    });
+
+    it('still starts a new session when the stale sweep fails', async () => {
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      const entitlements = {
+        assertCanUse: jest.fn(async () => undefined),
+        recordUsage: jest.fn(async () => undefined),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      };
+      sessions.find.mockRejectedValue(new Error('db unavailable'));
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn() } as never,
+        entitlements as never,
+        { createClientSecret: jest.fn() } as never,
+      );
+
+      const response = await service.start(userId, startDto);
+
+      expect(response.status).toBe('IN_PROGRESS');
+      expect(entitlements.recordUsage).toHaveBeenCalledWith(
+        userId,
+        BillingFeatureKey.INTERVIEW_SESSION,
+        expect.objectContaining({ sourceType: 'interview_session' }),
+      );
+    });
   });
 });
