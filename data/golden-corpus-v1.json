@@ -1,0 +1,772 @@
+{
+  "$note": "PV2 Golden validation corpus — 26 end-to-end cases (SkillNormalizer → SkillDiff → buildGapItems → classifyFit → tailor actions). Personas are FICTIONAL VN-student-market profiles, PII-free. Expected values are BANDS and RELATIONS, never exact scores. Every cv_skills/jd_requirements name normalizes against data/skills-pilot.json EXCEPT cases tagged edge_taxonomy (deliberate unknowns validating graceful degradation). All cases use the jd_extraction path (jd_requirements present), so scoring weights are deterministic: hard=1/soft=0.5 normalized, eff_weight × {REQUIRED 1, PREFERRED 0.6, NICE_TO_HAVE 0.3}, partial=(cv/req)^1.6, overall=min(raw, 45+55×required_coverage). Fit: <40 not_recommended; >=65 AND coverage>=0.7 AND seniority-ok safe_apply; else stretch (seniority is 'unknown' everywhere here — no jd_dimensions — which satisfies seniority-ok).",
+  "version": "golden-corpus-v1",
+  "created_at": "2026-07-06",
+  "_bands": {
+    "very_low": [0, 25],
+    "low": [26, 45],
+    "mid": [46, 64],
+    "high": [65, 100]
+  },
+  "_runner_notes": [
+    "expected.match_band: band containing round(overall_score) per _bands. Cases are authored with >=3 points margin from band edges AND from fit thresholds (40/65); coverage values are exact fractions (e.g. 2/3, 3/4) so the 0.7 gate is not float-sensitive.",
+    "expected.top_gap_canonical: canonical_name of the FIRST emitted GapItem (buildGapItems output is already sorted by raw severity desc). null = every item has severity 0 (all matched+proven) — the engine must NOT fabricate a gap; assert items[0] is absent or severity === 0.",
+    "expected.top_action_type: action_type of the FIRST tailor action when buildTailorChecklist runs WITH severityByCanonical (the A2 severity-ranked path, as gap-report.service wires it). null = checklist must be EMPTY (no honest action exists).",
+    "ledger_listed_only / ledger_demonstrated: canonical names, same fixture-ledger semantics as eval-gap-cases (listed_only entries also populate evidence_gap).",
+    "interview_signals: Record<canonical, risk 0-1> → convert to Map<canonical,{risk, ref:'fixture-session'}> for BuildGapItemsInput.interviewSignals (raise-only max semantics).",
+    "market_demand: Record<canonical, pct_of_postings 0-100> → BuildGapItemsInput.marketDemand Map. Used only to break severity ties; never touches overall_score.",
+    "keyword_frequency (only case edge-emphasize-keyword-frequency): overlay onto match.keyword_frequency before buildTailorChecklist ({canonical_name, jd_count, cv_count}). Without it the emphasize bucket is unreachable offline (the harness default is []). If the runner does not support this overlay, skip that single case — do not fail the corpus.",
+    "expected.relations: cross-case claims evaluated after all cases run. Operators: '>' and '=='. Format '<case_id>.score <op> <case_id>.score'.",
+    "expected.unnormalized_jd_count / unnormalized_cv_count (edge_taxonomy cases only): exact expected lengths of diff.unnormalized_jd_requirements / unnormalized_cv_skills.",
+    "target_band is omitted everywhere: the JD path never applies a rubric band (buildRequirements returns bandUsed=null when jd_requirements normalize)."
+  ],
+  "cases": [
+    {
+      "id": "fe-fresher-yeu-easy-jd",
+      "persona": "Sinh viên IT năm 3, mới học web được một học kỳ: HTML ổn, CSS mới sờ tới, chưa học JavaScript.",
+      "target_role": "frontend_developer",
+      "tags": ["easy_jd", "fresher_yeu"],
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "BEGINNER" }
+      ],
+      "jd_requirements": [
+        { "name": "HTML", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "expected": {
+        "match_band": "low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "javascript",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "HTML matched, CSS 1/3 chỉ được (1/3)^1.6≈0.17 credit, JS/React/Git missing → raw≈30, coverage 1/3 → score ~30 (<40 → not_recommended). JS là REQUIRED missing gap 3 (sev≈0.41) vượt CSS partial gap 2 (≈0.34) → top gap + top action đều xoay quanh javascript."
+    },
+    {
+      "id": "fe-fresher-kha-easy-jd",
+      "persona": "Sinh viên năm cuối có 2 project React thật (đồ án + freelance nhỏ), kỹ năng nền đủ mức JD junior.",
+      "target_role": "frontend_developer",
+      "tags": ["easy_jd", "fresher_kha"],
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "INTERMEDIATE", "evidence_text": "Xây SPA quản lý chi tiêu bằng React cho đồ án tốt nghiệp" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "HTML", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "ledger_demonstrated": ["react", "javascript"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": null,
+        "top_action_type": null,
+        "relations": ["fe-fresher-kha-easy-jd.score > fe-fresher-yeu-easy-jd.score"]
+      },
+      "rationale": "Mọi requirement đều đạt mức → raw 100, coverage 1 → safe_apply. Honest-zero gate: engine KHÔNG được bịa gap (mọi severity = 0) và checklist phải rỗng. Cùng JD với fe-fresher-yeu nên relation > phải giữ."
+    },
+    {
+      "id": "fe-fresher-listed-only-unproven",
+      "persona": "Fresher khá nhưng CV kiểu liệt kê: React/JavaScript chỉ nằm trong mục Skills, không có bullet dự án chứng minh.",
+      "target_role": "frontend_developer",
+      "tags": ["easy_jd", "fresher_kha", "evidence_channel"],
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "HTML", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "ledger_listed_only": ["javascript", "react"],
+      "ledger_demonstrated": ["html", "css", "git"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "javascript",
+        "top_action_type": "add_evidence"
+      },
+      "rationale": "Điểm vẫn 100 (level đủ hết) nhưng JS/React listed-only ở mức INTERMEDIATE → cv_status unproven; JS là REQUIRED (sev≈0.50) vượt React PREFERRED (≈0.30). Kênh evidence phải hoạt động độc lập với score: top action = add_evidence."
+    },
+    {
+      "id": "fe-junior-medium-jd",
+      "persona": "Junior FE ~1 năm: React/JS vững qua công việc, TypeScript mới dùng ở 1 task, chưa từng viết test.",
+      "target_role": "frontend_developer",
+      "tags": ["medium_jd", "junior"],
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "INTERMEDIATE", "evidence_text": "Duy trì dashboard nội bộ React tại công ty thực tập" },
+        { "name": "TypeScript", "proficiency_hint": "NOVICE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Cypress", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Core Web Vitals", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["react", "javascript", "typescript"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "frontend_testing",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "3/4 REQUIRED matched, TS partial (2/3)^1.6 → raw≈72, coverage 3/4=0.75 → safe_apply. Top gap là frontend_testing (PREFERRED missing gap 4, sev≈0.32) nhưng missing-PREFERRED không có tailor action → top action là deepen_wording trên TS (partial+demonstrated). Case này validate: top action được phép KHÁC top gap khi gap lớn nhất chỉ có thể 'learn'."
+    },
+    {
+      "id": "fe-mid-vs-senior-jd",
+      "persona": "Mid FE 3 năm nộp vào JD senior: nền tốt nhưng chưa đạt expert React, chưa làm system design/GraphQL.",
+      "target_role": "frontend_developer",
+      "tags": ["hard_jd", "mid"],
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED", "evidence_text": "Dẫn dắt refactor codebase React 100k dòng" },
+        { "name": "TypeScript", "proficiency_hint": "ADVANCED" },
+        { "name": "JavaScript", "proficiency_hint": "ADVANCED" },
+        { "name": "CSS", "proficiency_hint": "ADVANCED" },
+        { "name": "Lighthouse", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Cypress", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "TypeScript", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Core Web Vitals", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Cypress", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "System Design", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "GraphQL", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["react", "typescript", "frontend_testing"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "system_design",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "Chỉ 1/4 REQUIRED matched (TS), 3 partial gap-1 → raw≈54, coverage 0.25 → stretch (MID_SCORE + LOW_COVERAGE). Top gap system_design (PREFERRED missing gap 4, sev≈0.32); action khả thi cao nhất là deepen_wording trên React/Cypress (partial+demonstrated, sev≈0.21)."
+    },
+    {
+      "id": "fe-senior-hard-jd",
+      "persona": "Senior FE 5+ năm đạt mọi yêu cầu, nhưng ghi 'System Design' trong Skills mà không có bullet chứng minh.",
+      "target_role": "frontend_developer",
+      "tags": ["hard_jd", "senior", "evidence_channel"],
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "EXPERT", "evidence_text": "Kiến trúc micro-frontend cho sản phẩm 2M MAU" },
+        { "name": "TypeScript", "proficiency_hint": "ADVANCED" },
+        { "name": "Lighthouse", "proficiency_hint": "ADVANCED" },
+        { "name": "Cypress", "proficiency_hint": "ADVANCED" },
+        { "name": "System Design", "proficiency_hint": "ADVANCED" },
+        { "name": "GraphQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "TypeScript", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Core Web Vitals", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Cypress", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "System Design", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "GraphQL", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["system_design"],
+      "ledger_demonstrated": ["react", "typescript", "web_performance", "frontend_testing", "graphql", "ci_cd"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "system_design",
+        "top_action_type": "add_evidence",
+        "relations": ["fe-senior-hard-jd.score > fe-mid-vs-senior-jd.score"]
+      },
+      "rationale": "Mọi level đạt → 100/safe_apply, nhưng System Design claim ADVANCED + listed-only → cv_status OVERCLAIMED (sev 0.6×0.7525≈0.45) là gap duy nhất khác 0 → top action add_evidence. Validate phát hiện overclaim ở cấp senior không phụ thuộc score."
+    },
+    {
+      "id": "edge-empty-cv-be",
+      "persona": "EDGE: CV không extract được kỹ năng nào (file scan lỗi / CV chỉ có thông tin liên hệ).",
+      "target_role": "backend_developer",
+      "tags": ["edge", "easy_jd", "empty_cv"],
+      "cv_skills": [],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Docker", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "expected": {
+        "match_band": "very_low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "node_js",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "CV rỗng → mọi requirement missing, raw 0, coverage 0 → score 0, not_recommended. node_js là REQUIRED gap-3 duy nhất (0.4075) vượt các REQUIRED gap-2 (0.2775) → top gap; engine không được crash với cv_skills=[]."
+    },
+    {
+      "id": "be-fresher-kha-easy-jd",
+      "persona": "Fresher BE khá: 2 project Node/Express thật, SQL mới mức bài tập, JD junior đòi SQL chắc hơn một chút.",
+      "target_role": "backend_developer",
+      "tags": ["easy_jd", "fresher_kha"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "INTERMEDIATE", "evidence_text": "API đặt sân thể thao bằng Express + PostgreSQL (đồ án nhóm)" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Docker", "proficiency_hint": "NOVICE" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Docker", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "ledger_demonstrated": ["node_js", "rest_api", "sql"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "sql",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "3/4 REQUIRED matched + SQL partial (2/3)^1.6 → raw≈89 nhưng cap coverage 0.75 kéo về 86 → vẫn high/safe_apply. SQL là gap duy nhất khác 0 (REQUIRED partial gap-1, sev≈0.21) và có demonstrated evidence → deepen_wording."
+    },
+    {
+      "id": "be-junior-medium-jd",
+      "persona": "Junior BE ~1.5 năm: Node/REST vững, SQL khá, chưa từng làm auth chuẩn (JWT/OAuth2), Docker mới nghịch.",
+      "target_role": "backend_developer",
+      "tags": ["medium_jd", "junior"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Docker", "proficiency_hint": "NOVICE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "OAuth2", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "rest_api"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "authentication_authorization",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "Auth REQUIRED missing gap-3 (sev≈0.41) là gap nặng nhất, vượt SQL partial demonstrated (≈0.21). Raw≈60, coverage 2/4=0.5 → mid + stretch. Top action = missing_required vì severity auth > severity SQL-deepen."
+    },
+    {
+      "id": "be-mid-hard-jd",
+      "persona": "Mid BE 3 năm nộp JD senior: Node/SQL production tốt, system design/microservices mới mức tham gia, chưa đụng Kubernetes.",
+      "target_role": "backend_developer",
+      "tags": ["hard_jd", "mid"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "ADVANCED", "evidence_text": "Vận hành 6 service Node production" },
+        { "name": "SQL", "proficiency_hint": "ADVANCED" },
+        { "name": "REST API", "proficiency_hint": "ADVANCED" },
+        { "name": "Docker", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Microservices", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "System Design", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "System Design", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Microservices", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Prometheus", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Kafka", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "rest_api", "docker"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "kubernetes",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "Kubernetes REQUIRED missing gap-4 (sev≈0.54) áp đảo mọi partial gap-1 (≈0.21) và PREFERRED missing (≈0.24-0.32). Raw≈53, coverage 2/5=0.4 → mid/stretch, top action missing_required."
+    },
+    {
+      "id": "be-senior-hard-jd",
+      "persona": "Senior BE 5+ năm đạt gần hết JD senior; Kafka mới dùng ở một PoC nhỏ (NOVICE nhưng có bullet thật).",
+      "target_role": "backend_developer",
+      "tags": ["hard_jd", "senior"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "EXPERT" },
+        { "name": "SQL", "proficiency_hint": "EXPERT" },
+        { "name": "System Design", "proficiency_hint": "ADVANCED", "evidence_text": "Thiết kế lại kiến trúc thanh toán chịu tải 5k TPS" },
+        { "name": "Microservices", "proficiency_hint": "ADVANCED" },
+        { "name": "Kubernetes", "proficiency_hint": "ADVANCED" },
+        { "name": "Prometheus", "proficiency_hint": "ADVANCED" },
+        { "name": "Kafka", "proficiency_hint": "NOVICE", "evidence_text": "Dựng consumer Kafka trong PoC event-driven" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "System Design", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Microservices", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Prometheus", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Kafka", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "system_design", "microservices", "kubernetes", "monitoring_logging", "kafka"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "kafka",
+        "top_action_type": "deepen_wording",
+        "relations": ["be-senior-hard-jd.score > be-mid-hard-jd.score"]
+      },
+      "rationale": "5/5 REQUIRED matched, chỉ Kafka PREFERRED partial gap-1 → raw≈95, coverage 1 → high/safe_apply. Kafka là gap duy nhất khác 0 (sev≈0.13), có demonstrated evidence → deepen_wording. Cùng JD với be-mid-hard-jd nên relation > phải giữ."
+    },
+    {
+      "id": "switcher-accountant-to-da",
+      "persona": "Career-switcher: kế toán 2 năm chuyển sang Data Analyst — Excel rất mạnh (pivot/VLOOKUP hàng ngày), SQL/Power BI tự học, chưa từng làm data visualization đúng nghĩa.",
+      "target_role": "data_analyst",
+      "tags": ["easy_jd", "career_switcher"],
+      "cv_skills": [
+        { "name": "Excel", "proficiency_hint": "ADVANCED", "evidence_text": "Tự động hóa báo cáo tài chính tháng bằng pivot + Power Query" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Power BI", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Teamwork", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Excel", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Data Visualization", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Power BI", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Communication", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["excel", "communication"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "data_visualization",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "Điểm cao (raw≈73) nhưng coverage 2/3≈0.667 < 0.7 → verdict phải là STRETCH dù band high — validate cổng coverage độc lập với score. Gap duy nhất: data_visualization REQUIRED missing gap-2 → missing_required."
+    },
+    {
+      "id": "da-fresher-kha-easy-jd",
+      "persona": "Fresher DA khá: đồ án phân tích dữ liệu thật (Excel+SQL+chart), Power BI chỉ ghi trong Skills chưa có minh chứng.",
+      "target_role": "data_analyst",
+      "tags": ["easy_jd", "fresher_kha", "evidence_channel"],
+      "cv_skills": [
+        { "name": "Excel", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "NOVICE" },
+        { "name": "Data Visualization", "proficiency_hint": "NOVICE", "evidence_text": "Vẽ dashboard doanh thu bằng Matplotlib cho đồ án" },
+        { "name": "Power BI", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Excel", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Data Visualization", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Power BI", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Communication", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["power_bi"],
+      "ledger_demonstrated": ["excel", "sql", "data_visualization"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "power_bi",
+        "top_action_type": "add_evidence",
+        "relations": ["da-fresher-kha-easy-jd.score > switcher-accountant-to-da.score"]
+      },
+      "rationale": "Mọi level đạt → 100/safe_apply; Power BI matched nhưng listed-only ở NOVICE → unproven (sev 0.6×0.4955≈0.30) là gap duy nhất → add_evidence. Cùng JD với switcher-accountant nên relation > phải giữ."
+    },
+    {
+      "id": "da-junior-medium-jd",
+      "persona": "Junior DA ~1 năm: SQL/Power BI dùng hàng ngày, Python/statistics mới mức khóa học, chưa làm ETL.",
+      "target_role": "data_analyst",
+      "tags": ["medium_jd", "junior"],
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE", "evidence_text": "Viết query báo cáo tuần trên data warehouse công ty" },
+        { "name": "Excel", "proficiency_hint": "ADVANCED" },
+        { "name": "Python", "proficiency_hint": "NOVICE" },
+        { "name": "Statistics", "proficiency_hint": "NOVICE" },
+        { "name": "Power BI", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Data Visualization", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Python", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Statistics", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Power BI", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "ETL", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Excel", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["sql", "power_bi", "excel"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "etl",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "Raw≈61 nhưng coverage 1/4=0.25 → cap 58.75 cắn nhẹ → mid/stretch. Top gap etl (PREFERRED missing gap-4, sev≈0.32) không có tailor action → top action deepen_wording trên SQL (REQUIRED partial gap-1 demonstrated, sev≈0.21)."
+    },
+    {
+      "id": "edge-overclaim-expert-all",
+      "persona": "EDGE: 'thợ săn keyword' — sinh viên khai EXPERT mọi kỹ năng, toàn bộ chỉ nằm trong mục Skills, không một bullet chứng minh.",
+      "target_role": "backend_developer",
+      "tags": ["edge", "medium_jd", "overclaim"],
+      "cv_skills": [
+        { "name": "NodeJS", "proficiency_hint": "EXPERT" },
+        { "name": "SQL", "proficiency_hint": "EXPERT" },
+        { "name": "REST API", "proficiency_hint": "EXPERT" },
+        { "name": "Docker", "proficiency_hint": "EXPERT" },
+        { "name": "Kubernetes", "proficiency_hint": "EXPERT" },
+        { "name": "Git", "proficiency_hint": "EXPERT" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "OAuth2", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "CI/CD", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["node_js", "sql", "rest_api", "docker", "kubernetes", "git"],
+      "market_demand": { "sql": 62, "node_js": 48, "rest_api": 40 },
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "sql",
+        "top_action_type": "add_evidence"
+      },
+      "rationale": "Level EXPERT đạt hết yêu cầu → score≈73/safe_apply (fit KHÔNG nhìn evidence — giới hạn trung thực của engine, corpus ghi nhận). Nhưng gap engine phải la lên: node/sql/rest đều OVERCLAIMED (core 0.7525), market_demand SQL 62% đẩy SQL lên top (0.789 > node 0.746). Top action add_evidence."
+    },
+    {
+      "id": "edge-soft-skills-only-cv",
+      "persona": "EDGE: CV chỉ toàn soft-skills (giao tiếp, teamwork, quản lý thời gian) nộp vào JD frontend kỹ thuật.",
+      "target_role": "frontend_developer",
+      "tags": ["edge", "easy_jd", "soft_only"],
+      "cv_skills": [
+        { "name": "Communication", "proficiency_hint": "ADVANCED" },
+        { "name": "Teamwork", "proficiency_hint": "ADVANCED" },
+        { "name": "Problem Solving", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Time Management", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "English", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "HTML", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Git", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "expected": {
+        "match_band": "very_low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "javascript",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "Mọi requirement kỹ thuật missing (soft skills thành bonus, không được cộng điểm hộ) → score 0, not_recommended. JS gap-3 REQUIRED (0.4075) vượt HTML/CSS gap-2 (0.2775) → top gap javascript."
+    },
+    {
+      "id": "edge-taxonomy-unknown-jd",
+      "persona": "EDGE_TAXONOMY: JD chứa 2 kỹ năng ngoài taxonomy (SAP ABAP, Salesforce CRM) lẫn với stack Node chuẩn.",
+      "target_role": "backend_developer",
+      "tags": ["edge_taxonomy", "easy_jd"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SAP ABAP", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Salesforce CRM", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "rest_api"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": null,
+        "top_action_type": null,
+        "unnormalized_jd_count": 2
+      },
+      "rationale": "Graceful degradation: 2 skill lạ phải rơi vào unnormalized_jd_requirements (đúng 2 phần tử), KHÔNG được tính là missing/không được crash. 3 requirement còn lại matched hết → 100/safe_apply, không gap, không action."
+    },
+    {
+      "id": "edge-taxonomy-unknown-cv",
+      "persona": "EDGE_TAXONOMY: CV Data Analyst có 1 tool ngoài taxonomy (Alteryx Designer) giữa các skill chuẩn.",
+      "target_role": "data_analyst",
+      "tags": ["edge_taxonomy", "easy_jd"],
+      "cv_skills": [
+        { "name": "Excel", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Alteryx Designer", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Matplotlib", "proficiency_hint": "NOVICE" }
+      ],
+      "jd_requirements": [
+        { "name": "Excel", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Data Visualization", "importance_hint": "REQUIRED", "required_level_hint": "NOVICE" },
+        { "name": "Power BI", "importance_hint": "PREFERRED", "required_level_hint": "NOVICE" },
+        { "name": "Communication", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["excel", "sql"],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": "power_bi",
+        "top_action_type": null,
+        "unnormalized_cv_count": 1
+      },
+      "rationale": "Alteryx phải rơi vào unnormalized_cv_skills (đúng 1), không phá scoring. 3 REQUIRED matched (Matplotlib → data_visualization NOVICE đạt mức) → ~80/safe_apply. Top gap power_bi (PREFERRED missing gap-2, sev≈0.17) nhưng missing-PREFERRED không có action → checklist rỗng (null): không có hành động tailor trung thực nào."
+    },
+    {
+      "id": "edge-nice-only-jd",
+      "persona": "EDGE: JD chỉ toàn NICE_TO_HAVE (không có REQUIRED nào) — coverage=1 kiểu 'vacuous', cap không bao giờ cắn.",
+      "target_role": "frontend_developer",
+      "tags": ["edge", "nice_only_jd"],
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "proficiency_hint": "BEGINNER", "evidence_text": "Chuyển 1 module nhỏ sang TypeScript trong đồ án" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" },
+        { "name": "CSS", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Core Web Vitals", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_demonstrated": ["react", "css", "typescript"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "web_performance",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "Không có REQUIRED → required_coverage=1 (vacuous) → cap=100 không cắn, score = raw≈54 → mid/stretch (STRONG_COVERAGE fires nhưng score chưa đủ 65). Top gap web_performance (NICE missing gap-4, 0.161) vượt TS partial gap-2 (0.102); TS demonstrated → deepen_wording là action duy nhất."
+    },
+    {
+      "id": "edge-interview-signal-flips-top-gap",
+      "persona": "EDGE: junior BE có kết quả mock-interview THẬT rất tệ về SQL (risk 0.9) — tín hiệu thật phải kéo SQL vượt auth-missing lên top gap.",
+      "target_role": "backend_developer",
+      "tags": ["edge", "medium_jd", "interview_signal"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "OAuth2", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "rest_api"],
+      "interview_signals": { "sql": 0.9 },
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "sql",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "Derived: auth missing 0.4075 > sql partial gap-2 0.33875. Signal sql=0.9 (raise-only max) đẩy core SQL lên 0.575 → sql vượt auth thành top gap VÀ kéo deepen_wording(sql) vượt missing_required(auth) thành top action. Score KHÔNG được đổi (xem relation ở case twin)."
+    },
+    {
+      "id": "be-junior-twin-no-signal",
+      "persona": "Twin của edge-interview-signal-flips-top-gap: CÙNG CV + CÙNG JD, không có interview signal — làm baseline đối chứng.",
+      "target_role": "backend_developer",
+      "tags": ["medium_jd", "junior", "twin_baseline"],
+      "cv_skills": [
+        { "name": "Node.js", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "REST API", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Node.js", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "OAuth2", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "GitHub Actions", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["node_js", "sql", "rest_api"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "authentication_authorization",
+        "top_action_type": "missing_required",
+        "relations": ["edge-interview-signal-flips-top-gap.score == be-junior-twin-no-signal.score"]
+      },
+      "rationale": "Không có signal: auth REQUIRED missing gap-3 (0.4075) đứng trên sql partial gap-2 (0.33875) → top gap auth, top action missing_required. Relation == chứng minh interview signal chỉ đổi severity/ranking, TUYỆT ĐỐI không đổi score."
+    },
+    {
+      "id": "edge-emphasize-keyword-frequency",
+      "persona": "EDGE (cần keyword_frequency overlay): CV đạt hết mức nhưng JD nhấn React 5 lần trong khi CV chỉ nhắc 1 lần.",
+      "target_role": "frontend_developer",
+      "tags": ["edge", "easy_jd", "runner_kf_overlay"],
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "CSS", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Git", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "NOVICE" }
+      ],
+      "ledger_demonstrated": ["react", "javascript", "css"],
+      "keyword_frequency": [
+        { "canonical_name": "react", "jd_count": 5, "cv_count": 1 }
+      ],
+      "expected": {
+        "match_band": "high",
+        "fit_verdict": "safe_apply",
+        "top_gap_canonical": null,
+        "top_action_type": "emphasize"
+      },
+      "rationale": "Mọi thứ matched+demonstrated → 100/safe_apply, không gap (null). Nhưng kf jd_count=5/cv_count=1 phải sinh đúng 1 action emphasize (bucket 3) — validate nhánh emphasize vốn không thể chạm tới nếu runner không overlay keyword_frequency."
+    },
+    {
+      "id": "da-fresher-yeu-medium-jd",
+      "persona": "Sinh viên kinh tế năm 2 mới học Excel, tò mò nộp thử JD Data Analyst chính quy.",
+      "target_role": "data_analyst",
+      "tags": ["medium_jd", "fresher_yeu"],
+      "cv_skills": [
+        { "name": "Excel", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Python", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Statistics", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Power BI", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "ETL", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Excel", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "expected": {
+        "match_band": "very_low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "sql",
+        "top_action_type": "missing_required",
+        "relations": ["da-junior-medium-jd.score > da-fresher-yeu-medium-jd.score"]
+      },
+      "rationale": "Chỉ Excel partial NICE (~3 điểm) → very_low, not_recommended. SQL REQUIRED missing gap-4 (0.5375) vượt các REQUIRED missing gap-3 (0.4075) → top gap sql. Cùng JD với da-junior-medium-jd nên relation > phải giữ."
+    },
+    {
+      "id": "da-mid-hard-jd",
+      "persona": "Mid DA 3 năm nộp JD senior: SQL/Python production, statistics chỉ mức nhớ lý thuyết (NOVICE dù có dùng), ML mới học.",
+      "target_role": "data_analyst",
+      "tags": ["hard_jd", "mid", "cap_bites"],
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "ADVANCED", "evidence_text": "Tối ưu pipeline báo cáo trên BigQuery" },
+        { "name": "Python", "proficiency_hint": "ADVANCED" },
+        { "name": "Statistics", "proficiency_hint": "NOVICE" },
+        { "name": "ETL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Power BI", "proficiency_hint": "ADVANCED" },
+        { "name": "Data Warehouse", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "Machine Learning", "proficiency_hint": "NOVICE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "Python", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Statistics", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "ETL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Machine Learning", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Data Warehouse", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["sql", "python", "statistics", "etl", "power_bi"],
+      "expected": {
+        "match_band": "mid",
+        "fit_verdict": "stretch",
+        "top_gap_canonical": "statistics",
+        "top_action_type": "deepen_wording"
+      },
+      "rationale": "Raw≈67 nhưng coverage 1/4=0.25 → cap 58.75 CẮN, kéo về ~59 → mid/stretch (validate cap). Statistics REQUIRED partial gap-2 (0.33875) vượt sql/etl partial gap-1 (0.20875) → top gap; statistics demonstrated → deepen_wording."
+    },
+    {
+      "id": "switcher-marketing-to-fe",
+      "persona": "Career-switcher: marketing executive học bootcamp FE 3 tháng — HTML ổn, React/JS mới mức tutorial, chưa học TypeScript.",
+      "target_role": "frontend_developer",
+      "tags": ["medium_jd", "career_switcher"],
+      "cv_skills": [
+        { "name": "HTML", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "React", "proficiency_hint": "NOVICE", "evidence_text": "Landing page portfolio bằng React trong bootcamp" },
+        { "name": "JavaScript", "proficiency_hint": "NOVICE" },
+        { "name": "CSS", "proficiency_hint": "NOVICE" },
+        { "name": "Communication", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "JavaScript", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "CSS", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Cypress", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Core Web Vitals", "importance_hint": "NICE_TO_HAVE", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["react", "javascript", "css"],
+      "expected": {
+        "match_band": "low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "typescript",
+        "top_action_type": "missing_required",
+        "relations": ["fe-junior-medium-jd.score > switcher-marketing-to-fe.score"]
+      },
+      "rationale": "3 partial NOVICE (~0.52 credit mỗi skill) + TS missing → raw≈32, coverage 0 → low/not_recommended. TS REQUIRED missing gap-3 (0.4075) vượt Cypress PREFERRED gap-4 (0.3225) và các partial (0.20875) → top typescript. Cùng JD với fe-junior-medium-jd → relation >."
+    },
+    {
+      "id": "be-fresher-java-medium-jd",
+      "persona": "Sinh viên năm cuối hệ Java: học Java/OOP trên lớp (có đồ án), SQL rất mỏng, chưa từng viết REST API thật.",
+      "target_role": "backend_developer",
+      "tags": ["medium_jd", "fresher_yeu"],
+      "cv_skills": [
+        { "name": "Java", "proficiency_hint": "NOVICE", "evidence_text": "Đồ án quản lý thư viện bằng Java Swing" },
+        { "name": "OOP", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "SQL", "proficiency_hint": "BEGINNER" },
+        { "name": "Git", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Java", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "OOP", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "REST API", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "PREFERRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": ["java", "oop"],
+      "expected": {
+        "match_band": "low",
+        "fit_verdict": "not_recommended",
+        "top_gap_canonical": "rest_api",
+        "top_action_type": "missing_required"
+      },
+      "rationale": "Chỉ OOP matched; Java partial gap-2, SQL partial gap-2, REST missing → raw≈33, coverage 1/4 → low/not_recommended. rest_api REQUIRED missing gap-3 (0.4075) vượt java/sql partial gap-2 (0.33875) → top gap + missing_required."
+    }
+  ]
+}

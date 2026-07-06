@@ -61,7 +61,9 @@ describe('buildJobRecommendation', () => {
     expect(rec.severe_stretch).toBe(false);
     expect(rec.scoring_breakdown).toEqual(diff.scoring_breakdown);
     expect(Array.isArray(rec.partial_skills)).toBe(true);
+    // canonical_name is the FE's stable React key (display_name may collide/localize)
     expect(rec.partial_skills[0]).toMatchObject({
+      canonical_name: 'react',
       display_name: expect.any(String),
       gap_levels: expect.any(Number),
     });

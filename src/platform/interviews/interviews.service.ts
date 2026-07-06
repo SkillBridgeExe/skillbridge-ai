@@ -35,6 +35,7 @@ import {
   buildInterviewAgenda,
   decideTurn,
   DepthSignal,
+  filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
@@ -65,7 +66,7 @@ import {
   deriveInterviewGaps,
 } from '../../modules/interview/interview-gap-derive';
 import { groundInterviewGaps } from '../../modules/interview/interview-gap';
-import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
+import { buildUnifiedPlan, UnifiedDevelopmentPlan } from '../../modules/gap-report/unified-plan';
 import { GapItem } from '../../modules/gap-engine/gap-item';
 import { InterviewCoaching } from '../../modules/interview/interview-coaching';
 import { InterviewCoachingService } from '../../modules/interview/interview-coaching.service';
@@ -410,7 +411,15 @@ export class InterviewsService {
     current.aiRequestId = assessment.aiRequestId;
     current.perQuestionScore = this.score(assessment.score);
     current.strengths = recognized;
-    current.improvements = assessment.gapsRevealed;
+    // Grounded like `recognized` above: a gap can't be required to appear in the answer
+    // (it names what's missing), so anchor it to the topic universe instead — the asked
+    // question + the agenda topic's JD terms — dropping invented off-topic weaknesses.
+    current.improvements = filterGroundedGaps(assessment.gapsRevealed, [
+      current.interviewerQuestion,
+      ...this.topicTerms(topic),
+      topic.what_to_probe,
+      ...(topic.expected_signals ?? []),
+    ]);
     current.topicPhase = topic.phase;
     current.depthSignal = assessment.depthSignal;
     current.signals = signals;
@@ -546,7 +555,7 @@ export class InterviewsService {
     session.semanticScore = this.score(this.dimensionScore(score, 'technical_depth'));
     session.llmScore = this.score(this.dimensionScore(score, 'evidence_credibility'));
     session.communicationScore = this.score(this.dimensionScore(score, 'communication'));
-    session.aiFeedback = this.compatAiFeedback(coaching);
+    session.aiFeedback = this.compatAiFeedback(coaching, score, plan);
     const saved = await this.sessions.save(session);
 
     return {
@@ -1202,11 +1211,31 @@ export class InterviewsService {
     return score.dimensions.find((item) => item.dimension === dimension)?.score ?? null;
   }
 
-  private compatAiFeedback(coaching: InterviewCoaching): Record<string, unknown> {
+  /**
+   * Legacy-compat aiFeedback: the FE still renders the pre-rubric panels
+   * (technical_delivery / communication_flow / recommendations / suggested_modules), which the
+   * new end path left permanently empty. Map the DETERMINISTIC rubric outputs into that shape —
+   * only dimensions we actually scored are emitted (honest keys, no fabricated sub-metrics like
+   * the legacy code_quality), recommendations are the code-owned coaching priority titles, and
+   * suggested_modules are the devPlan learn items (cap 5). No LLM.
+   */
+  private compatAiFeedback(
+    coaching: InterviewCoaching,
+    score: InterviewScore,
+    plan: UnifiedDevelopmentPlan,
+  ): Record<string, unknown> {
+    const rounded = (dimension: Dimension): Record<string, number> => {
+      const found = score.dimensions.find((item) => item.dimension === dimension);
+      return found ? { [dimension]: Math.round(found.score) } : {};
+    };
     return {
       summary: coaching.summary,
       strengths: coaching.strengths,
       priorities: coaching.priorities,
+      technical_delivery: { ...rounded('technical_depth'), ...rounded('problem_solving') },
+      communication_flow: rounded('communication'),
+      recommendations: coaching.priorities.map((priority) => priority.title),
+      suggested_modules: plan.learn_items.slice(0, 5).map((item) => item.display_name),
     };
   }
 
