@@ -56,7 +56,13 @@ export interface JobRecommendation {
   /** RRF-fused rank position (1 = best). */
   rank: number;
   matched_skills: string[];
-  partial_skills: Array<{ display_name: string; importance: string; gap_levels: number }>;
+  /** canonical_name is additive — the FE's stable list key (display_name may collide/localize). */
+  partial_skills: Array<{
+    canonical_name: string;
+    display_name: string;
+    importance: string;
+    gap_levels: number;
+  }>;
   missing_skills: Array<{ display_name: string; importance: string }>;
   /** Same breakdown the score was computed from — lets the FE detail match the card exactly. */
   scoring_breakdown: DiffResult['scoring_breakdown'];
@@ -405,6 +411,7 @@ export function buildJobRecommendation(
     rank,
     matched_skills: diff.matched_skills.map((s) => s.display_name),
     partial_skills: diff.partial_skills.map((s) => ({
+      canonical_name: s.canonical_name,
       display_name: s.display_name,
       importance: s.importance,
       gap_levels: s.gap_levels,
