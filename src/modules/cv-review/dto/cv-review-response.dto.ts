@@ -143,6 +143,11 @@ export interface CvReviewParsedResponse {
   /** Per-dimension explainability: which scorer (deterministic route or LLM) owns each dimension's
    *  number, plus the evidence behind it. Optional: older cached ai_results predate this field. */
   dimension_provenance?: DimensionProvenance;
+  /** Persisted ai_results.confidence_score, attached by the review-FETCH path (getLatestReview) so
+   *  the FE keeps the confidence signal on cached reads. Additive/optional: absent on the live
+   *  compute path (CvReviewResponseDto carries it as a sibling there) and null for rows persisted
+   *  without one. */
+  confidence_score?: number | null;
 }
 
 export interface CvReviewResponseDto {
