@@ -154,7 +154,12 @@ async function main(): Promise<void> {
         .filter((g): g is typeof g & { canonical_name: string } => g.canonical_name !== null)
         .map((g) => [g.canonical_name, g.severity]),
     );
-    const actions = buildTailorChecklist(match, buildFixtureLedger(c) ?? null, 'vi', severityByCanonical);
+    const actions = buildTailorChecklist(
+      match,
+      buildFixtureLedger(c) ?? null,
+      'vi',
+      severityByCanonical,
+    );
 
     const unnormalizedJd = res.unnormalized_jd_requirements.map((u) => u.raw_input);
     const unnormalizedCv = res.unnormalized_cv_skills.map((u) => u.raw_input);

@@ -218,9 +218,9 @@ describe('filterGroundedGaps', () => {
   ];
 
   it('drops a fabricated off-topic gap the topic universe never mentions', () => {
-    expect(
-      filterGroundedGaps(['did not explain Kafka partitioning strategy'], universe),
-    ).toEqual([]);
+    expect(filterGroundedGaps(['did not explain Kafka partitioning strategy'], universe)).toEqual(
+      [],
+    );
   });
 
   it('keeps a gap anchored to the question or agenda topic terms', () => {
