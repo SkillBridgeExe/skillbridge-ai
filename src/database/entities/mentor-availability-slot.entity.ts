@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 
 export type MentorAvailabilitySlotStatus = 'OPEN' | 'HELD' | 'BOOKED' | 'BLOCKED';
+export type MentorAvailabilitySlotSource = 'MANUAL' | 'TEMPLATE';
 
 @Entity('mentor_availability_slots')
 @Index(['mentorProfileId', 'startsAt'])
@@ -27,6 +28,13 @@ export class MentorAvailabilitySlotEntity {
   @Index()
   @Column({ type: 'varchar', default: 'OPEN' })
   status!: MentorAvailabilitySlotStatus;
+
+  @Index()
+  @Column({ type: 'varchar', default: 'MANUAL' })
+  source!: MentorAvailabilitySlotSource;
+
+  @Column('uuid', { name: 'availability_template_id', nullable: true })
+  availabilityTemplateId!: string | null;
 
   @Column('uuid', { name: 'held_by_booking_id', nullable: true })
   heldByBookingId!: string | null;
