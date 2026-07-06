@@ -50,6 +50,7 @@ jobs:
           EVAL_MATCH_STRICT: '1'
         run: |
           pnpm eval:gap
+          pnpm eval:golden
           pnpm eval:match
           pnpm eval:rubric
           pnpm eval:action
