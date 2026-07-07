@@ -409,13 +409,13 @@ export class InterviewsService {
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
     const hardCap = this.hardTurnCapForSession(session);
-    let action: TurnAction = 'drill';
+    let action: TurnAction;
     let askTopic: AgendaTopic = topic;
     let updatedState = nextState;
     let ask = { aiMessage: '', question: '', aiRequestId: null as string | null };
-    let turnDecision: InterviewTurnDecision = 'continue_topic';
+    let turnDecision: InterviewTurnDecision;
     let finishReason: InterviewFinishReason = null;
-    let nextQuestionKind: InterviewNextQuestionKind = 'follow_up';
+    let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
 
     if (nextState.turns_used >= hardCap) {
