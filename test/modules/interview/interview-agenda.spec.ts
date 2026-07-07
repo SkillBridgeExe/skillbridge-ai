@@ -20,11 +20,11 @@ const sumBudget = (a: { topics: { drill_budget: number }[] }): number =>
   a.topics.reduce((sum, topic) => sum + topic.drill_budget, 0);
 
 describe('buildInterviewAgenda', () => {
-  it('frames a real-interview arc with screening first, wrap last, behavioral for paid budget', () => {
+  it('frames a time-boxed interview arc with screening first and no normal wrap topic', () => {
     const agenda = buildInterviewAgenda({ focusAreas: [fa({})], seniority: 'mid', turnBudget: 10 });
 
     expect(agenda.topics[0].phase).toBe('SCREENING');
-    expect(agenda.topics[agenda.topics.length - 1].phase).toBe('WRAP');
+    expect(agenda.topics.map((topic) => topic.phase)).not.toContain('WRAP');
     expect(agenda.topics.some((topic) => topic.phase === 'BEHAVIORAL')).toBe(true);
   });
 

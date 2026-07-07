@@ -7,8 +7,11 @@ export const QUESTION_BANK_TARGET_ROLES = [
   'backend_developer',
   'frontend_developer',
   'fullstack_developer',
+  'mobile_developer',
   'devops_engineer',
+  'data_analyst',
   'qa_engineer',
+  'ai_ml_engineer',
 ] as const;
 
 export type QuestionBankTargetRole = (typeof QUESTION_BANK_TARGET_ROLES)[number];
@@ -153,6 +156,28 @@ const ROLES: RoleDefinition[] = [
     ],
   },
   {
+    targetRole: 'mobile_developer',
+    roleVi: 'Mobile Developer',
+    roleEn: 'Mobile Developer',
+    skills: [
+      skill('mobile_ui', 'mobile UI', 'mobile UI', 'mobile_interface'),
+      skill('platform_apis', 'platform APIs', 'platform APIs', 'platform_integration'),
+      skill('state_management', 'state management', 'state management', 'state_tradeoff'),
+      skill('api_integration', 'API integration', 'API integration', 'contract_handling'),
+      skill('offline_storage', 'offline storage', 'offline storage', 'data_persistence'),
+      skill(
+        'mobile_performance',
+        'mobile performance',
+        'mobile performance',
+        'performance_debugging',
+      ),
+      skill('mobile_testing', 'mobile testing', 'mobile testing', 'test_strategy'),
+      skill('app_release', 'app release', 'app release', 'release_readiness'),
+      skill('accessibility', 'accessibility', 'accessibility', 'inclusive_ui'),
+      skill('push_notifications', 'push notifications', 'push notifications', 'event_flow'),
+    ],
+  },
+  {
     targetRole: 'devops_engineer',
     roleVi: 'DevOps/SRE Engineer',
     roleEn: 'DevOps/SRE Engineer',
@@ -175,6 +200,33 @@ const ROLES: RoleDefinition[] = [
     ],
   },
   {
+    targetRole: 'data_analyst',
+    roleVi: 'Data Analyst',
+    roleEn: 'Data Analyst',
+    skills: [
+      skill('sql', 'SQL', 'SQL', 'query_reasoning'),
+      skill('data_cleaning', 'data cleaning', 'data cleaning', 'data_quality'),
+      skill('dashboarding', 'dashboarding', 'dashboarding', 'metric_storytelling'),
+      skill('statistics', 'statistics', 'statistics', 'statistical_reasoning'),
+      skill('python', 'Python', 'Python', 'analysis_tooling'),
+      skill('data_visualization', 'data visualization', 'data visualization', 'visual_reasoning'),
+      skill('business_metrics', 'business metrics', 'business metrics', 'business_context'),
+      skill('etl_pipelines', 'ETL pipelines', 'ETL pipelines', 'data_pipeline'),
+      skill(
+        'experiment_analysis',
+        'experiment analysis',
+        'experiment analysis',
+        'experiment_reasoning',
+      ),
+      skill(
+        'stakeholder_communication',
+        'stakeholder communication',
+        'stakeholder communication',
+        'communication',
+      ),
+    ],
+  },
+  {
     targetRole: 'qa_engineer',
     roleVi: 'QA Engineer',
     roleEn: 'QA Engineer',
@@ -194,6 +246,38 @@ const ROLES: RoleDefinition[] = [
       skill('performance_testing', 'performance testing', 'performance testing', 'load_reasoning'),
       skill('ci_quality', 'quality gate trong CI', 'CI quality gates', 'pipeline_quality'),
       skill('risk_analysis', 'risk analysis', 'risk analysis', 'product_risk'),
+    ],
+  },
+  {
+    targetRole: 'ai_ml_engineer',
+    roleVi: 'AI/ML Engineer',
+    roleEn: 'AI/ML Engineer',
+    skills: [
+      skill('python_ml', 'Python ML', 'Python ML', 'ml_tooling'),
+      skill('model_training', 'model training', 'model training', 'training_workflow'),
+      skill(
+        'evaluation_metrics',
+        'evaluation metrics',
+        'evaluation metrics',
+        'evaluation_reasoning',
+      ),
+      skill(
+        'feature_engineering',
+        'feature engineering',
+        'feature engineering',
+        'feature_reasoning',
+      ),
+      skill('data_preprocessing', 'data preprocessing', 'data preprocessing', 'data_quality'),
+      skill(
+        'nlp_computer_vision',
+        'NLP and computer vision',
+        'NLP and computer vision',
+        'model_domain',
+      ),
+      skill('model_deployment', 'model deployment', 'model deployment', 'release_readiness'),
+      skill('llm_prompting', 'LLM prompting', 'LLM prompting', 'prompt_reasoning'),
+      skill('vector_search', 'vector search', 'vector search', 'retrieval_reasoning'),
+      skill('mlops', 'MLOps', 'MLOps', 'ops_reasoning'),
     ],
   },
 ];

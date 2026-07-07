@@ -146,19 +146,6 @@ export function buildInterviewAgenda(input: {
     });
   }
 
-  topics.push({
-    id: 'wrap-1',
-    phase: 'WRAP',
-    skill_canonical: null,
-    display_name: 'Wrap-up',
-    source: 'fixed',
-    priority: 0,
-    seniority_target: input.seniority,
-    drill_budget: 1,
-    what_to_probe: 'graceful close and candidate questions',
-    seed_question: "We're almost out of time. Anything you would like to add, or questions for me?",
-  });
-
   return { topics, turn_budget, uncovered };
 }
 

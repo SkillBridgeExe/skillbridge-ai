@@ -77,6 +77,7 @@ import {
   AnswerInterviewResponseDto,
   AnswerPlatformInterviewDto,
   EndPlatformInterviewDto,
+  InterviewContextMode,
   InterviewDetailResponseDto,
   InterviewListQueryDto,
   InterviewSessionDto,
@@ -93,6 +94,10 @@ import { resolveInterviewVoice } from './interview-voice';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
+const CLOSING_QUESTION_WINDOW_SECONDS = 90;
+const NO_NEW_QUESTION_SECONDS = 25;
+const STANDARD_INTERVIEW_HARD_TURN_CAP = 20;
+const PREMIUM_INTERVIEW_HARD_TURN_CAP = 30;
 const MAX_ANSWER_HISTORY_TURNS = 6;
 const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
 const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
@@ -100,6 +105,9 @@ const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
   /Giữ nguyên dấu tiếng Việt/i,
   /English interview\. Preserve technical terms/i,
 ];
+const CONTEXT_SPECIFIC_QUESTION_PATTERN =
+  /\b(?:CV|resume|job description|JD|gap|matched strengths|weaknesses|tailoring suggestions)\b/i;
+let cachedQuestionBankSeedItems: InterviewQuestionBankCandidate[] | null = null;
 
 /**
  * Render the canonical gap focus areas (severity-ranked, evidence-priority — the SAME ones the prep-plan
@@ -115,6 +123,7 @@ export function formatGapFocusForPrompt(focusAreas: InterviewFocusArea[]): strin
 }
 
 interface InterviewContextSnapshot {
+  contextMode: InterviewContextMode;
   cv: { id: string; title: string | null; targetRole: string | null } | null;
   jobDescription: { id: string; title: string | null; sourceType: string | null } | null;
   cvMatch: {
@@ -129,6 +138,7 @@ interface InterviewContextSnapshot {
 }
 
 interface InterviewContext {
+  contextMode: InterviewContextMode;
   cv: CvEntity | null;
   match: CvMatchEntity | null;
   jd: JobDescriptionEntity | null;
@@ -164,6 +174,14 @@ interface FinalizedTurnAnalysis {
 
 type InterviewDifficultyLevel = 'intern' | 'fresher' | 'junior' | 'mid' | 'senior' | 'lead';
 type InterviewDifficultySource = 'target role' | 'job description' | 'candidate CV' | 'default';
+type InterviewTurnDecision =
+  | 'continue_topic'
+  | 'advance_topic'
+  | 'adaptive_follow_up'
+  | 'closing_prompt'
+  | 'finish';
+type InterviewFinishReason = 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
+type InterviewNextQuestionKind = 'opening' | 'follow_up' | 'transition' | 'closing' | null;
 
 interface InterviewDifficultyProfile {
   level: InterviewDifficultyLevel;
@@ -230,7 +248,11 @@ export class InterviewsService {
     const focusAreas =
       context.focusAreas.length > 0
         ? context.focusAreas
-        : this.fallbackFocusAreasFromQuestionBank(questionBankItems, agendaCriteria);
+        : this.fallbackFocusAreasFromQuestionBank(
+            questionBankItems,
+            agendaCriteria,
+            context.contextMode,
+          );
     const agenda = this.applyQuestionBankToAgenda(
       buildInterviewAgenda({
         focusAreas,
@@ -239,6 +261,7 @@ export class InterviewsService {
       }),
       questionBankItems,
       agendaCriteria,
+      context.contextMode,
     );
     const interviewState = this.initialInterviewState(agenda);
 
@@ -275,6 +298,7 @@ export class InterviewsService {
       });
     }
 
+    firstMessage = this.openingInterviewerMessage(language);
     await this.turns.save(
       this.turns.create({
         sessionId: session.id,
@@ -283,7 +307,7 @@ export class InterviewsService {
         topicPhase: firstTopic.phase,
         modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
         aiRequestId: null,
-        interviewerMessage: '',
+        interviewerMessage: firstMessage,
         interviewerQuestion: firstTopic.seed_question,
         currentThread: firstTopic.what_to_probe,
         skillCanonical: firstTopic.skill_canonical,
@@ -292,7 +316,6 @@ export class InterviewsService {
       }),
     );
 
-    firstMessage = '';
     firstQuestion = firstTopic.seed_question;
     phase = firstTopic.phase;
     session.totalQuestionsPlanned = agenda.turn_budget;
@@ -331,9 +354,14 @@ export class InterviewsService {
         message: 'Interview session has no pending question',
       });
     }
+    const userAnswer = this.normalizeSubmittedAnswer(
+      dto.userAnswer,
+      current.interviewerQuestion,
+      dto.modality,
+    );
 
     if (!this.hasNewTurnDependencies(session)) {
-      return this.answerLegacy(userId, session, dto, answerContext, current);
+      return this.answerLegacy(userId, session, { ...dto, userAnswer }, answerContext, current);
     }
 
     const agenda = this.asInterviewAgenda(session.agenda);
@@ -347,8 +375,14 @@ export class InterviewsService {
     }
 
     const targetDimension = this.primaryDimension(topic.phase);
-    const recentQa = this.questionHistory(answerContext.historyTurns, current, dto.userAnswer);
-    const assessment = await this.interviewChain!.assess(userId, {
+    const recentQa = this.questionHistory(answerContext.historyTurns, current, userAnswer);
+    const signals = analyzeAnswerSignals({
+      answer: userAnswer,
+      question: current.interviewerQuestion,
+      jd_terms: this.topicTerms(topic),
+      language: this.language(session.language),
+    });
+    const assessmentPromise = this.interviewChain!.assess(userId, {
       sessionId: session.id,
       turnOrder: current.turnOrder,
       language: this.language(session.language),
@@ -359,16 +393,9 @@ export class InterviewsService {
       drillDepth: state.drill_depth,
       recentQa,
     });
-    const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, dto.userAnswer);
-    const signals = analyzeAnswerSignals({
-      answer: dto.userAnswer,
-      question: current.interviewerQuestion,
-      jd_terms: this.topicTerms(topic),
-      language: this.language(session.language),
-    });
-    const insight = await this.answerInsight!.judge(
+    const insightPromise = this.answerInsight!.judge(
       {
-        answer: dto.userAnswer,
+        answer: userAnswer,
         question: current.interviewerQuestion,
         target_dimension: targetDimension,
         language: this.language(session.language),
@@ -376,37 +403,86 @@ export class InterviewsService {
       },
       userId,
     );
+    const [assessment, insight] = await Promise.all([assessmentPromise, insightPromise]);
+    const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, userAnswer);
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
-    let action = decideTurn({
-      signal: assessment.depthSignal,
-      drill_depth: nextState.drill_depth,
-      drill_budget: topic.drill_budget,
-      turns_used: nextState.turns_used,
-      turn_budget: agenda.turn_budget,
-      evasive_streak: nextState.evasive_streak,
-      seniority_target: topic.seniority_target,
-    });
-    const nextTopic = action === 'advance' ? this.nextTopic(agenda, topic.id) : topic;
-    if (action === 'advance' && !nextTopic) action = 'wrap';
-    const askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
-    const updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
-    const nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
-    const ask = await this.interviewChain!.ask(userId, {
-      sessionId: session.id,
-      turnOrder: nextTurnOrder,
-      decision: action,
-      language: this.language(session.language),
-      seniorityTarget: askTopic.seniority_target,
-      currentTopic: this.topicForPrompt(askTopic),
-      currentThread: updatedState.current_thread,
-      recentQa,
-      runningNotes: updatedState.running_notes,
-      prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
-    });
+    const secondsRemaining = this.secondsRemaining(session);
+    const hardCap = this.hardTurnCapForSession(session);
+    let action: TurnAction;
+    let askTopic: AgendaTopic = topic;
+    let updatedState = nextState;
+    let ask = { aiMessage: '', question: '', aiRequestId: null as string | null };
+    let turnDecision: InterviewTurnDecision;
+    let finishReason: InterviewFinishReason = null;
+    let nextQuestionKind: InterviewNextQuestionKind;
+    let nextTurnOrder: number | null = null;
 
-    current.userAnswerText = dto.userAnswer;
-    current.userAnswerTranscript = dto.userTranscript ?? null;
+    if (nextState.turns_used >= hardCap) {
+      turnDecision = 'finish';
+      finishReason = 'SAFETY_CAP';
+      nextQuestionKind = null;
+    } else if (this.isClosingTurn(current)) {
+      turnDecision = 'finish';
+      finishReason = 'TIME_LIMIT';
+      nextQuestionKind = null;
+    } else if (this.shouldFinishForTime(secondsRemaining)) {
+      turnDecision = 'finish';
+      finishReason = 'TIME_LIMIT';
+      nextQuestionKind = null;
+    } else {
+      const rawAction = decideTurn({
+        signal: assessment.depthSignal,
+        drill_depth: nextState.drill_depth,
+        drill_budget: topic.drill_budget,
+        turns_used: nextState.turns_used,
+        turn_budget: hardCap + 2,
+        evasive_streak: nextState.evasive_streak,
+        seniority_target: topic.seniority_target,
+      });
+      const nextTopic = rawAction === 'advance' ? this.nextTopic(agenda, topic.id) : null;
+
+      if (this.shouldAskClosingQuestion(secondsRemaining)) {
+        action = 'wrap';
+        askTopic = this.closingTopic(session, topic);
+        updatedState = {
+          ...nextState,
+          current_phase: 'WRAP',
+          current_thread: askTopic.what_to_probe,
+        };
+        turnDecision = 'closing_prompt';
+        nextQuestionKind = 'closing';
+      } else {
+        const exhaustedTopics = rawAction === 'advance' && !nextTopic;
+        action = rawAction === 'wrap' || exhaustedTopics ? 'drill' : rawAction;
+        askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
+        updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
+        turnDecision =
+          action === 'advance'
+            ? 'advance_topic'
+            : exhaustedTopics
+              ? 'adaptive_follow_up'
+              : 'continue_topic';
+        nextQuestionKind = action === 'advance' ? 'transition' : 'follow_up';
+      }
+
+      nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
+      ask = await this.interviewChain!.ask(userId, {
+        sessionId: session.id,
+        turnOrder: nextTurnOrder,
+        decision: action,
+        language: this.language(session.language),
+        seniorityTarget: askTopic.seniority_target,
+        currentTopic: this.topicForPrompt(askTopic),
+        currentThread: updatedState.current_thread,
+        recentQa,
+        runningNotes: updatedState.running_notes,
+        prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+      });
+    }
+
+    current.userAnswerText = userAnswer;
+    current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.aiRequestId = assessment.aiRequestId;
     current.perQuestionScore = this.score(assessment.score);
@@ -431,16 +507,13 @@ export class InterviewsService {
     await this.turns.save(current);
 
     let nextTurn: InterviewTurnEntity | null = null;
-    if (action !== 'wrap') {
-      const nextQuestion =
-        action === 'advance' && nextTopic
-          ? askTopic.seed_question
-          : ask.question || askTopic.seed_question;
+    if (turnDecision !== 'finish') {
+      const nextQuestion = ask.question || askTopic.seed_question;
       const tracking = this.questionBankTrackingForTopic(askTopic, nextQuestion);
       nextTurn = await this.turns.save(
         this.turns.create({
           sessionId: session.id,
-          turnOrder: nextTurnOrder,
+          turnOrder: nextTurnOrder ?? current.turnOrder + 1,
           phase: askTopic.phase,
           topicPhase: askTopic.phase,
           modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
@@ -456,7 +529,7 @@ export class InterviewsService {
     }
 
     session.interviewState = updatedState;
-    if (action === 'wrap') {
+    if (turnDecision === 'finish') {
       session.status = 'COMPLETED';
       session.endedAt = new Date();
       session.durationSeconds = this.durationSeconds(session.startedAt, session.endedAt);
@@ -468,9 +541,11 @@ export class InterviewsService {
       answeredTurn: this.toTurnDto(current),
       nextTurn: nextTurn ? this.toTurnDto(nextTurn) : null,
       aiMessage: ask.aiMessage,
-      nextQuestion:
-        action === 'wrap' ? ask.question || null : (nextTurn?.interviewerQuestion ?? null),
-      finished: action === 'wrap',
+      nextQuestion: nextTurn?.interviewerQuestion ?? null,
+      finished: turnDecision === 'finish',
+      turnDecision,
+      finishReason,
+      nextQuestionKind,
     };
   }
 
@@ -480,7 +555,7 @@ export class InterviewsService {
     if (session.mode === 'VOICE' && Array.isArray(dto.liveTurns)) {
       turns = await this.syncReviewedLiveTurns(session, dto.liveTurns, turns);
     }
-    const answeredTurns = turns.filter((turn) => turn.userAnswerText);
+    const answeredTurns = turns.filter((turn) => this.hasValidStoredAnswer(turn));
     const endedAt = this.resolveEndedAt(session);
     if (answeredTurns.length === 0) {
       session.status = 'CANCELLED';
@@ -623,7 +698,11 @@ export class InterviewsService {
       });
     }
 
-    return this.questionAudio.createQuestionAudio(userId, session, current.interviewerQuestion);
+    return this.questionAudio.createQuestionAudio(
+      userId,
+      session,
+      this.interviewerTurnSpeech(current.interviewerMessage, current.interviewerQuestion),
+    );
   }
 
   private hasNewTurnDependencies(session: InterviewSessionEntity): boolean {
@@ -677,7 +756,8 @@ export class InterviewsService {
 
   private nextTopic(agenda: InterviewAgenda, topicId: string): AgendaTopic | null {
     const index = agenda.topics.findIndex((topic) => topic.id === topicId);
-    return index >= 0 ? (agenda.topics[index + 1] ?? null) : null;
+    if (index < 0) return null;
+    return agenda.topics.slice(index + 1).find((topic) => topic.phase !== 'WRAP') ?? null;
   }
 
   private async loadQuestionBankItems(
@@ -685,8 +765,8 @@ export class InterviewsService {
     language: 'vi' | 'en',
     interviewType: InterviewType,
   ): Promise<InterviewQuestionBankCandidate[]> {
-    if (!this.questionBankItems) return [];
     const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
+    if (!this.questionBankItems) return [];
     try {
       const rows = await this.questionBankItems.find({
         where: {
@@ -722,20 +802,23 @@ export class InterviewsService {
     const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
     if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
 
-    return buildInterviewQuestionBankSeeds()
-      .filter(
-        (seed) =>
-          seed.active &&
-          seed.language === language &&
-          seed.targetRole === normalizedRole &&
-          (seed.interviewType === interviewType ||
-            seed.interviewType === 'MIXED' ||
-            interviewType === 'MIXED'),
-      )
-      .map((seed) => ({
-        ...seed,
-        id: `seed:${seed.questionKey}:${seed.language}`,
-      }));
+    return this.allSeedQuestionBankItems().filter(
+      (seed) =>
+        seed.active &&
+        seed.language === language &&
+        seed.targetRole === normalizedRole &&
+        (seed.interviewType === interviewType ||
+          seed.interviewType === 'MIXED' ||
+          interviewType === 'MIXED'),
+    );
+  }
+
+  private allSeedQuestionBankItems(): InterviewQuestionBankCandidate[] {
+    cachedQuestionBankSeedItems ??= buildInterviewQuestionBankSeeds().map((seed) => ({
+      ...seed,
+      id: `seed:${seed.questionKey}:${seed.language}`,
+    }));
+    return cachedQuestionBankSeedItems;
   }
 
   private isKnownQuestionBankRole(value: string): boolean {
@@ -752,14 +835,16 @@ export class InterviewsService {
       interviewType: InterviewType;
       seniority: string;
     },
+    contextMode: InterviewContextMode,
   ): InterviewFocusArea[] {
     const normalizedRole = normalizeQuestionBankTargetRole(criteria.targetRole);
     if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
 
+    const cvOrRoleOnly = contextMode !== 'CV_JD_MATCH';
     const seniority = criteria.seniority.trim().toLowerCase();
     const phaseRank: Partial<Record<AgendaInterviewPhase, number>> = {
-      JD_REQUIREMENT: 1,
-      SKILL_PROBE: 2,
+      SKILL_PROBE: 1,
+      JD_REQUIREMENT: cvOrRoleOnly ? 99 : 2,
       SCENARIO: 3,
     };
     const focusRank: Record<InterviewFocusArea['focus_type'], number> = {
@@ -783,6 +868,8 @@ export class InterviewsService {
           candidate.skillCanonical &&
           candidate.phase !== 'SCREENING' &&
           candidate.phase !== 'WRAP' &&
+          (!cvOrRoleOnly || candidate.phase !== 'JD_REQUIREMENT') &&
+          (!cvOrRoleOnly || !this.hasContextSpecificQuestion(candidate.questionText)) &&
           (!candidate.seniority || candidate.seniority.trim().toLowerCase() === seniority),
       )
       .sort((a, b) => {
@@ -800,13 +887,30 @@ export class InterviewsService {
       const skill = candidate.skillCanonical;
       if (!skill || usedSkills.has(skill)) continue;
       usedSkills.add(skill);
+      const displayName = this.displayNameFromSkill(skill);
+      const focusType = cvOrRoleOnly
+        ? 'strength_showcase'
+        : this.focusTypeForBankCandidate(candidate);
+      const reason =
+        contextMode === 'ROLE_ONLY'
+          ? `Role-only practice for ${displayName}. No CV or job description was provided.`
+          : contextMode === 'CV_ONLY'
+            ? `CV-only practice for ${displayName}. Use the candidate CV when available; no job description was provided.`
+            : `Role-based question bank fallback for ${displayName}. ${candidate.sourceBasis}`;
       selected.push({
         skill_canonical: skill,
-        display_name: this.displayNameFromSkill(skill),
-        focus_type: this.focusTypeForBankCandidate(candidate),
-        reason: `Role-based question bank fallback for ${this.displayNameFromSkill(skill)}. ${candidate.sourceBasis}`,
+        display_name: displayName,
+        focus_type: focusType,
+        reason,
         difficulty: candidate.difficulty <= 2 ? 'foundation' : 'applied',
-        template_question: candidate.questionText,
+        template_question: cvOrRoleOnly
+          ? this.safeContextTemplateQuestion(
+              criteria.language,
+              criteria.targetRole,
+              displayName,
+              contextMode,
+            )
+          : candidate.questionText,
       });
       if (selected.length >= 6) break;
     }
@@ -822,12 +926,35 @@ export class InterviewsService {
     return 'gap_probe';
   }
 
+  private safeContextTemplateQuestion(
+    language: 'vi' | 'en',
+    targetRole: string,
+    displayName: string,
+    contextMode: InterviewContextMode,
+  ): string {
+    const roleLabel = this.displayNameFromSkill(normalizeQuestionBankTargetRole(targetRole));
+    if (contextMode === 'CV_ONLY') {
+      if (language === 'vi') {
+        return `Dựa trên CV hoặc dự án gần đây của bạn cho vai trò ${roleLabel}, hãy mô tả một ví dụ cụ thể liên quan đến ${displayName}. Bạn phụ trách gì, quyết định ra sao, và kết quả thế nào?`;
+      }
+      return `From your CV or recent projects for a ${roleLabel} role, describe a concrete example involving ${displayName}. What did you own, what decisions did you make, and what was the result?`;
+    }
+    if (language === 'vi') {
+      return `Cho vai trò ${roleLabel}, hãy mô tả một ví dụ thực tế hoặc bài luyện tập liên quan đến ${displayName}. Bạn đã làm gì, gặp khó khăn gì, và rút ra điều gì?`;
+    }
+    return `For a ${roleLabel} role, describe a real or practice example involving ${displayName}. What did you do, what was hard, and what did you learn?`;
+  }
+
   private displayNameFromSkill(skill: string): string {
     return skill
       .split(/[_-]+/g)
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  private hasContextSpecificQuestion(question: string): boolean {
+    return CONTEXT_SPECIFIC_QUESTION_PATTERN.test(question);
   }
 
   private applyQuestionBankToAgenda(
@@ -839,6 +966,7 @@ export class InterviewsService {
       interviewType: 'HR' | 'TECHNICAL' | 'MIXED';
       seniority: string;
     },
+    contextMode: InterviewContextMode,
   ): InterviewAgenda {
     const enrich = (topic: AgendaTopic): AgendaTopic => {
       const selected = selectInterviewQuestion(questionBankItems, {
@@ -851,6 +979,9 @@ export class InterviewsService {
         seniority: criteria.seniority,
       });
       if (!selected) return topic;
+      if (contextMode === 'ROLE_ONLY' && this.hasContextSpecificQuestion(selected.questionText)) {
+        return topic;
+      }
       return {
         ...topic,
         seed_question: selected.questionText,
@@ -976,7 +1107,7 @@ export class InterviewsService {
     });
 
     current.userAnswerText = dto.userAnswer;
-    current.userAnswerTranscript = dto.userTranscript ?? null;
+    current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.perQuestionScore = this.score(aiAnswer.per_question_score);
     current.strengths = aiAnswer.per_question_strengths;
@@ -1243,15 +1374,23 @@ export class InterviewsService {
     userId: string,
     dto: StartPlatformInterviewDto,
   ): Promise<InterviewContext> {
-    const cv = dto.cvId
-      ? await this.cvs.findOne({ where: { id: dto.cvId, userId, deletedAt: IsNull() } })
-      : null;
-    if (dto.cvId && !cv) throw new NotFoundException('CV not found');
-
     const match = dto.cvMatchId
-      ? await this.matches.findOne({ where: { id: dto.cvMatchId, cvId: cv?.id ?? dto.cvId } })
+      ? await this.matches.findOne({ where: { id: dto.cvMatchId } })
       : null;
     if (dto.cvMatchId && !match) throw new NotFoundException('CV match not found');
+
+    if (dto.cvId && match && match.cvId !== dto.cvId) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'CV match does not belong to the selected CV',
+      });
+    }
+
+    const cvId = match?.cvId ?? dto.cvId ?? null;
+    const cv = cvId
+      ? await this.cvs.findOne({ where: { id: cvId, userId, deletedAt: IsNull() } })
+      : null;
+    if (cvId && !cv) throw new NotFoundException('CV not found');
 
     const jdId = match?.jobDescriptionId ?? dto.jobDescriptionId ?? null;
     const jd = jdId
@@ -1273,7 +1412,9 @@ export class InterviewsService {
     }
 
     const interviewDifficulty = this.resolveInterviewDifficulty(cv, jd, targetRole);
-    const snapshot = {
+    const contextMode: InterviewContextMode = match ? 'CV_JD_MATCH' : cv ? 'CV_ONLY' : 'ROLE_ONLY';
+    const snapshot: InterviewContextSnapshot = {
+      contextMode,
       cv: cv ? { id: cv.id, title: cv.title, targetRole: cv.targetRole } : null,
       jobDescription: jd ? { id: jd.id, title: jd.title, sourceType: jd.sourceType } : null,
       cvMatch: match
@@ -1302,6 +1443,7 @@ export class InterviewsService {
     }
 
     return {
+      contextMode,
       cv,
       match,
       jd,
@@ -1315,6 +1457,7 @@ export class InterviewsService {
         targetRole,
         focusAreas,
         interviewDifficulty,
+        contextMode,
       ),
     };
   }
@@ -1347,10 +1490,33 @@ export class InterviewsService {
     targetRole: string,
     focusAreas: InterviewFocusArea[],
     interviewDifficulty: InterviewDifficultyProfile,
+    contextMode: InterviewContextMode,
   ): string {
     const gapFocus = formatGapFocusForPrompt(focusAreas);
+    if (contextMode === 'ROLE_ONLY') {
+      return [
+        `Target role: ${targetRole}`,
+        'Interview context: role-only generic practice. No CV, resume, job description, JD, match report, or gap report was provided.',
+        `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
+        'Interview rule: ask one question at a time, use only role rubric and role-relevant project/practice examples, and do not mention CV, resume, JD, job description, match score, or gap evidence.',
+      ].join('\n\n');
+    }
+
+    if (contextMode === 'CV_ONLY') {
+      return [
+        `Target role: ${targetRole}`,
+        'Interview context: CV-only practice. A CV was provided, but no JD or CV/JD match report was provided.',
+        `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
+        cv?.parsedText ? `Candidate CV excerpt:\n${this.limit(cv.parsedText, 4000)}` : '',
+        'Interview rule: ask one question at a time, ground questions in CV skills/projects when available, and do not claim there is a JD, job requirement, match report, or gap report.',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
     return [
       `Target role: ${targetRole}`,
+      'Interview context: CV/JD match practice. Use the CV, JD, and match/gap context when available.',
       `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
       jd ? `Job description title: ${jd.title ?? '(untitled)'}` : 'Job description: not provided',
       jd?.rawText ? `Job description excerpt:\n${this.limit(jd.rawText, 3000)}` : '',
@@ -1413,7 +1579,37 @@ export class InterviewsService {
 
   private compactRealtimeContext(session: InterviewSessionEntity): string {
     const snapshot = this.asContextSnapshot(session.contextSnapshot);
+    const contextMode = this.contextModeFromSession(session);
+    if (contextMode === 'ROLE_ONLY') {
+      return [
+        `Target role: ${session.targetRole}`,
+        'Context mode: role-only generic practice. No CV, resume, job description, JD, match report, or gap report was provided.',
+        snapshot?.interviewDifficulty
+          ? `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(snapshot.interviewDifficulty)}`
+          : '',
+        'Use role rubric only. Do not mention CV, resume, JD, job description, match score, or gap evidence.',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
+    if (contextMode === 'CV_ONLY') {
+      return [
+        `Target role: ${session.targetRole}`,
+        'Context mode: CV-only practice. A CV was provided, but no JD or match report was provided.',
+        snapshot?.cv?.title ? `CV title: ${snapshot.cv.title}` : '',
+        snapshot?.interviewDifficulty
+          ? `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(snapshot.interviewDifficulty)}`
+          : '',
+        'Do not read the CV context aloud. Use it only to choose relevant follow-up questions. Do not mention a JD or gap report.',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+    }
+
     return [
+      `Target role: ${session.targetRole}`,
+      'Context mode: CV/JD match practice.',
       snapshot?.cv?.title ? `CV title: ${snapshot.cv.title}` : '',
       snapshot?.jobDescription?.title
         ? `Job description title: ${snapshot.jobDescription.title}`
@@ -1575,7 +1771,7 @@ export class InterviewsService {
       case 'mid':
         return 'Difficulty calibration: Ask about module ownership, trade-offs, transaction boundaries, caching, performance, observability, and debugging real production issues. Keep architecture questions scoped to systems the candidate has actually worked on.';
       case 'senior':
-        return 'Difficulty calibration: Ask deeper architecture, scalability, cross-team trade-offs, production incidents, mentoring, and technical decision-making questions, while still grounding each question in the candidate CV/JD context.';
+        return 'Difficulty calibration: Ask deeper architecture, scalability, cross-team trade-offs, production incidents, mentoring, and technical decision-making questions, while still grounding each question in the available interview context.';
       case 'lead':
         return 'Difficulty calibration: Ask about technical leadership, architecture ownership, prioritization, mentoring, incident response, stakeholder trade-offs, and system-level decisions, while avoiding questions unrelated to the target role.';
       default:
@@ -1586,6 +1782,20 @@ export class InterviewsService {
   private asContextSnapshot(value: unknown): InterviewContextSnapshot | null {
     if (!value || typeof value !== 'object') return null;
     return value as InterviewContext['snapshot'];
+  }
+
+  private contextModeFromSession(session: InterviewSessionEntity): InterviewContextMode {
+    const snapshot = this.asContextSnapshot(session.contextSnapshot);
+    if (
+      snapshot?.contextMode === 'ROLE_ONLY' ||
+      snapshot?.contextMode === 'CV_ONLY' ||
+      snapshot?.contextMode === 'CV_JD_MATCH'
+    ) {
+      return snapshot.contextMode;
+    }
+    if (session.cvMatchId) return 'CV_JD_MATCH';
+    if (session.cvId) return 'CV_ONLY';
+    return 'ROLE_ONLY';
   }
 
   private async findOwnedSession(
@@ -1654,6 +1864,53 @@ export class InterviewsService {
 
   private turnBudgetForPlan(planCode: string | null | undefined): number {
     return TURN_BUDGET_BY_TIER[planCode === 'PREMIUM' || planCode === 'PRO' ? 'paid' : 'free'];
+  }
+
+  private hardTurnCapForSession(session: InterviewSessionEntity): number {
+    return (session.maxDurationSeconds ?? PRO_INTERVIEW_SECONDS) >= PREMIUM_INTERVIEW_SECONDS
+      ? PREMIUM_INTERVIEW_HARD_TURN_CAP
+      : STANDARD_INTERVIEW_HARD_TURN_CAP;
+  }
+
+  private secondsRemaining(session: InterviewSessionEntity): number | null {
+    if (!session.expiresAt) return null;
+    return Math.max(0, Math.ceil((session.expiresAt.getTime() - Date.now()) / 1000));
+  }
+
+  private shouldFinishForTime(secondsRemaining: number | null): boolean {
+    return secondsRemaining !== null && secondsRemaining <= NO_NEW_QUESTION_SECONDS;
+  }
+
+  private shouldAskClosingQuestion(secondsRemaining: number | null): boolean {
+    return (
+      secondsRemaining !== null &&
+      secondsRemaining > NO_NEW_QUESTION_SECONDS &&
+      secondsRemaining <= CLOSING_QUESTION_WINDOW_SECONDS
+    );
+  }
+
+  private isClosingTurn(turn: InterviewTurnEntity): boolean {
+    return turn.phase === 'WRAP' || turn.topicPhase === 'WRAP';
+  }
+
+  private closingTopic(session: InterviewSessionEntity, currentTopic: AgendaTopic): AgendaTopic {
+    const role = session.targetRole || currentTopic.display_name;
+    const seedQuestion =
+      this.language(session.language) === 'vi'
+        ? `Mình còn ít thời gian, nên đây là câu cuối: có dự án hoặc năng lực nào liên quan đến ${role} bạn muốn bổ sung ngắn gọn không?`
+        : `We are short on time, so one final question: is there any ${role}-related strength or project you want to add briefly?`;
+    return {
+      id: 'closing-timebox',
+      phase: 'WRAP',
+      skill_canonical: null,
+      display_name: 'Time-boxed closing',
+      source: 'fixed',
+      priority: 0,
+      seniority_target: currentTopic.seniority_target,
+      drill_budget: 1,
+      what_to_probe: 'time-boxed closing; one brief final evidence opportunity',
+      seed_question: seedQuestion,
+    };
   }
 
   private async getTurns(sessionId: string): Promise<InterviewTurnEntity[]> {
@@ -1775,6 +2032,65 @@ export class InterviewsService {
     };
   }
 
+  private normalizeSubmittedAnswer(
+    value: string,
+    interviewerQuestion: string,
+    modality: 'TEXT' | 'AUDIO' | undefined,
+  ): string {
+    const normalized = this.trimOrNull(value)?.normalize('NFC') ?? null;
+    if (!normalized) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview answer is required',
+      });
+    }
+    if (this.hasUnsafeLiveTranscript(normalized)) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview answer transcript is invalid. Please answer again.',
+      });
+    }
+    if (modality === 'AUDIO' && !this.hasMeaningfulTranscript(normalized, interviewerQuestion)) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Interview answer transcript is too short or unclear. Please answer again.',
+      });
+    }
+    return normalized;
+  }
+
+  private hasValidStoredAnswer(turn: InterviewTurnEntity): boolean {
+    const answer = this.trimOrNull(turn.userAnswerText);
+    if (!answer || this.hasUnsafeLiveTranscript(answer)) return false;
+    if (turn.modality !== 'AUDIO') return true;
+    return this.hasMeaningfulTranscript(answer, turn.interviewerQuestion);
+  }
+
+  private hasMeaningfulTranscript(answer: string, interviewerQuestion: string): boolean {
+    if (
+      this.normalizeTranscriptForComparison(answer) ===
+      this.normalizeTranscriptForComparison(interviewerQuestion)
+    ) {
+      return false;
+    }
+    const compactLength = answer.replace(/\s+/g, '').length;
+    if (compactLength < 4) return false;
+    return this.transcriptTokens(answer).length >= 2;
+  }
+
+  private transcriptTokens(value: string): string[] {
+    return value.match(/[\p{L}\p{N}+#.]+/gu) ?? [];
+  }
+
+  private normalizeTranscriptForComparison(value: string): string {
+    return value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}+#.]+/gu, ' ')
+      .trim();
+  }
+
   private hasUnsafeLiveTranscript(text: string): boolean {
     if (CJK_SCRIPT_PATTERN.test(text)) return true;
     return LEGACY_TRANSCRIPTION_PROMPT_PATTERNS.some((pattern) => pattern.test(text));
@@ -1786,6 +2102,7 @@ export class InterviewsService {
       cvId: session.cvId,
       cvMatchId: session.cvMatchId,
       jobDescriptionId: session.jobDescriptionId,
+      contextMode: this.contextModeFromSession(session),
       targetRole: session.targetRole,
       language: session.language,
       mode: session.mode,
@@ -1882,6 +2199,19 @@ export class InterviewsService {
   private trimOrNull(value: string | null | undefined): string | null {
     const trimmed = value?.trim();
     return trimmed ? trimmed : null;
+  }
+
+  private interviewerTurnSpeech(
+    message: string | null | undefined,
+    question: string | null | undefined,
+  ): string {
+    return [this.trimOrNull(message), this.trimOrNull(question)].filter(Boolean).join('\n\n');
+  }
+
+  private openingInterviewerMessage(language: string): string {
+    return language === 'en'
+      ? 'Let us start with a broad question so I can understand your recent work context.'
+      : 'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.';
   }
 
   private limit(text: string, max: number): string {

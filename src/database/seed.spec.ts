@@ -6,6 +6,7 @@ import { RoleEntity } from './entities/role.entity';
 import { SkillEntity } from './entities/skill.entity';
 import { UserEntity } from './entities/user.entity';
 import { UserRoleEntity } from './entities/user-role.entity';
+import { buildInterviewQuestionBankSeeds } from './interview-question-bank-seeds';
 import { MENTOR_SEEDS } from './mentor-seeds';
 import { seedDatabase } from './seed';
 
@@ -87,7 +88,9 @@ describe('seedDatabase', () => {
       true,
     );
     expect(mentorProfileSkills.save).toHaveBeenCalled();
-    expect(interviewQuestionBankItems.save).toHaveBeenCalledTimes(600);
+    expect(interviewQuestionBankItems.save).toHaveBeenCalledTimes(
+      buildInterviewQuestionBankSeeds().length,
+    );
   });
 
   it('refreshes existing mentor seed data without creating duplicate rows or links', async () => {

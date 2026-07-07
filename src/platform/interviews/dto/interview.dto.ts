@@ -29,6 +29,8 @@ const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
 const LANGUAGES = ['vi', 'en'] as const;
 const MODALITIES = ['TEXT', 'AUDIO'] as const;
+export const INTERVIEW_CONTEXT_MODES = ['ROLE_ONLY', 'CV_ONLY', 'CV_JD_MATCH'] as const;
+export type InterviewContextMode = (typeof INTERVIEW_CONTEXT_MODES)[number];
 
 function toRoundedNumber(value: unknown): unknown {
   if (value === undefined || value === null || value === '') return value;
@@ -236,6 +238,7 @@ export interface InterviewSessionDto {
   cvId: string | null;
   cvMatchId: string | null;
   jobDescriptionId: string | null;
+  contextMode: InterviewContextMode;
   targetRole: string;
   language: string;
   mode: InterviewMode;
@@ -276,6 +279,14 @@ export interface AnswerInterviewResponseDto {
   aiMessage: string;
   nextQuestion: string | null;
   finished: boolean;
+  turnDecision?:
+    | 'continue_topic'
+    | 'advance_topic'
+    | 'adaptive_follow_up'
+    | 'closing_prompt'
+    | 'finish';
+  finishReason?: 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
+  nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
 }
 
 export interface InterviewDetailResponseDto extends InterviewSessionDto {

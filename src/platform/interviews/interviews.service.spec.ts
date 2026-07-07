@@ -41,6 +41,20 @@ function attachRealtimePrompts(service: InterviewsService) {
   return prompts;
 }
 
+function defaultInsight() {
+  return {
+    talking_point: 'project',
+    relevance: 76,
+    clarity: 'clear',
+    off_topic: false,
+    confidence_tone: 'calibrated',
+    evidence_quality: 'moderate',
+    note: 'Specific answer.',
+    has_specific_example: true,
+    star_present: { situation: true, task: true, action: true, result: false },
+  };
+}
+
 describe('InterviewsService', () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const cvId = '22222222-2222-4222-8222-222222222222';
@@ -432,8 +446,10 @@ describe('InterviewsService', () => {
     const agenda = createdSession.agenda as { topics: Array<{ phase: string }> };
     expect(agenda.topics.length).toBeGreaterThan(3);
     expect(agenda.topics.map((topic) => topic.phase)).toEqual(
-      expect.arrayContaining(['JD_REQUIREMENT', 'SCENARIO', 'BEHAVIORAL', 'WRAP']),
+      expect.arrayContaining(['SKILL_PROBE', 'SCENARIO', 'BEHAVIORAL']),
     );
+    expect(agenda.topics.map((topic) => topic.phase)).not.toContain('WRAP');
+    expect(agenda.topics.map((topic) => topic.phase)).not.toContain('JD_REQUIREMENT');
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         questionBankKey: expect.stringMatching(/^backend_developer\./),
@@ -441,6 +457,218 @@ describe('InterviewsService', () => {
     );
     expect(response.firstQuestion).toBeTruthy();
     expect(response.totalQuestionsPlanned).toBe(10);
+  });
+
+  it('marks role-only sessions explicitly and avoids CV/JD-specific question wording', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-role-only-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'turn-role-only-1',
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    questionBank.find.mockResolvedValue([]);
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      entitlements as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+    attachRealtimePrompts(service);
+
+    const response = await service.start(userId, {
+      targetRole: 'data_analyst',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    });
+
+    const createdSession = sessions.create.mock.calls[0][0] as InterviewSessionEntity;
+    const snapshot = createdSession.contextSnapshot as { contextMode?: string };
+    const agenda = createdSession.agenda as { topics: Array<{ seed_question: string }> };
+    const allQuestions = agenda.topics.map((topic) => topic.seed_question).join('\n');
+
+    expect(response.contextMode).toBe('ROLE_ONLY');
+    expect(snapshot.contextMode).toBe('ROLE_ONLY');
+    expect(allQuestions).not.toMatch(/\bCV\b|resume|job description|\bJD\b|gap/i);
+    expect(response.firstQuestion).toBeTruthy();
+  });
+
+  it('marks CV-only sessions explicitly and avoids JD/gap-specific fallback wording', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const cvs = repo<CvEntity>();
+    const questionBank = repo<InterviewQuestionBankItemEntity>();
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-cv-only-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'turn-cv-only-1',
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    cvs.findOne.mockResolvedValue({
+      id: cvId,
+      userId,
+      title: 'Backend CV',
+      targetRole: 'backend_developer',
+      parsedText: 'Built REST APIs with PostgreSQL and queue workers.',
+    } as CvEntity);
+    questionBank.find.mockResolvedValue([]);
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      cvs as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      entitlements as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      questionBank as never,
+    );
+    attachRealtimePrompts(service);
+
+    const response = await service.start(userId, {
+      cvId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    });
+
+    const createdSession = sessions.create.mock.calls[0][0] as InterviewSessionEntity;
+    const snapshot = createdSession.contextSnapshot as { contextMode?: string };
+    const agenda = createdSession.agenda as {
+      topics: Array<{ seed_question: string; phase: string }>;
+    };
+    const allQuestions = agenda.topics.map((topic) => topic.seed_question).join('\n');
+
+    expect(response.contextMode).toBe('CV_ONLY');
+    expect(snapshot.contextMode).toBe('CV_ONLY');
+    expect(agenda.topics.map((topic) => topic.phase)).not.toContain('JD_REQUIREMENT');
+    expect(allQuestions).not.toMatch(/job description|\bJD\b|gap/i);
+    expect(response.firstQuestion).toBeTruthy();
+  });
+
+  it('loads a cvMatch by id, verifies ownership through its CV, and stores CV_JD_MATCH mode', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const cvs = repo<CvEntity>();
+    const matches = repo<CvMatchEntity>();
+    const jds = repo<JobDescriptionEntity>();
+    const entitlements = {
+      assertCanUse: jest.fn(async () => undefined),
+      recordUsage: jest.fn(async () => undefined),
+      getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+    };
+    sessions.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'session-match-only-1',
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      updatedAt: null,
+    }));
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: 'turn-match-only-1',
+      createdAt: new Date('2026-06-12T00:00:01.000Z'),
+    }));
+    matches.findOne.mockResolvedValue({
+      id: matchId,
+      cvId,
+      jobDescriptionId: jdId,
+      strengths: [],
+      weaknesses: [],
+      suggestions: {},
+    });
+    cvs.findOne.mockResolvedValue({
+      id: cvId,
+      userId,
+      title: 'Backend CV',
+      parsedText: 'Node.js and Postgres project.',
+      deletedAt: null,
+    });
+    jds.findOne.mockResolvedValue({
+      id: jdId,
+      userId,
+      title: 'Backend JD',
+      rawText: 'Need REST API and database design.',
+    });
+    const cvMatches = {
+      getInterviewFocusAreas: jest.fn(async () => []),
+    };
+
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      cvs as never,
+      matches as never,
+      jds as never,
+      { start: jest.fn() } as never,
+      entitlements as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      cvMatches as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    attachRealtimePrompts(service);
+
+    const response = await service.start(userId, {
+      cvMatchId: matchId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+    });
+
+    expect(matches.findOne).toHaveBeenCalledWith({ where: { id: matchId } });
+    expect(cvs.findOne).toHaveBeenCalledWith({
+      where: { id: cvId, userId, deletedAt: expect.anything() },
+    });
+    expect(response).toMatchObject({
+      cvId,
+      cvMatchId: matchId,
+      contextMode: 'CV_JD_MATCH',
+    });
   });
 
   it('continues interview creation when question bank lookup fails', async () => {
@@ -575,6 +803,8 @@ describe('InterviewsService', () => {
         turnOrder: 1,
         phase: 'SCREENING',
         topicPhase: 'SCREENING',
+        interviewerMessage:
+          'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
         interviewerQuestion:
           'To start, what have you been working on recently, and what drew you to this role?',
       }),
@@ -598,7 +828,8 @@ describe('InterviewsService', () => {
       mode: 'VOICE',
       status: 'IN_PROGRESS',
       totalQuestionsPlanned: 10,
-      firstMessage: '',
+      firstMessage:
+        'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
       firstQuestion:
         'To start, what have you been working on recently, and what drew you to this role?',
       phase: 'SCREENING',
@@ -778,7 +1009,7 @@ describe('InterviewsService', () => {
       interviewType: 'TECHNICAL',
       status: 'IN_PROGRESS',
       startedAt: new Date('2026-06-12T00:00:00.000Z'),
-      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      expiresAt: new Date('2099-06-12T00:10:00.000Z'),
       maxDurationSeconds: 600,
       contextSnapshot: {
         cv: { id: cvId, title: 'Frontend CV', targetRole: 'frontend_developer' },
@@ -805,7 +1036,7 @@ describe('InterviewsService', () => {
     expect(instructions).not.toContain('Context:\nYou are Alex');
   });
 
-  it('creates question audio only from the current pending interview question', async () => {
+  it('creates question audio from the current interviewer bridge and pending question', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -835,7 +1066,7 @@ describe('InterviewsService', () => {
       interviewType: 'TECHNICAL',
       status: 'IN_PROGRESS',
       startedAt: new Date('2026-06-12T00:00:00.000Z'),
-      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      expiresAt: new Date('2099-06-12T00:10:00.000Z'),
       maxDurationSeconds: 600,
       createdAt: new Date('2026-06-12T00:00:00.000Z'),
     } as InterviewSessionEntity;
@@ -843,6 +1074,7 @@ describe('InterviewsService', () => {
       id: 'turn-1',
       sessionId: 'session-1',
       turnOrder: 1,
+      interviewerMessage: 'Bridge before the question.',
       interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
       userAnswerText: null,
     } as InterviewTurnEntity;
@@ -854,7 +1086,7 @@ describe('InterviewsService', () => {
     expect(questionAudio.createQuestionAudio).toHaveBeenCalledWith(
       userId,
       session,
-      'Bạn hãy giới thiệu dự án React gần nhất.',
+      expect.stringContaining('Bridge before the question.'),
     );
     expect(response.contentType).toBe('audio/mpeg');
   });
@@ -1155,7 +1387,7 @@ describe('InterviewsService', () => {
       ask: jest.fn(async () => ({
         aiRequestId: 'ai-ask-2',
         aiMessage: 'Thanks, moving to the next area.',
-        question: 'Generated follow-up should not be used when advancing topics.',
+        question: 'Let us connect that API work to data design: how did you model the schema?',
       })),
     };
     const insight = {
@@ -1298,14 +1530,660 @@ describe('InterviewsService', () => {
     });
 
     expect(response.finished).toBe(false);
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        decision: 'advance',
+        currentTopic: expect.objectContaining({ id: 'topic-2-database-design' }),
+      }),
+    );
     expect(response.nextTurn).toMatchObject({
       turnOrder: 3,
-      interviewerQuestion: 'Describe how you designed a database schema.',
-      questionBankItemId: 'seed:backend_developer.skill.04:en',
-      questionBankKey: 'backend_developer.skill.04',
+      interviewerMessage: 'Thanks, moving to the next area.',
+      interviewerQuestion:
+        'Let us connect that API work to data design: how did you model the schema?',
+      questionBankItemId: null,
+      questionBankKey: null,
     });
+    expect(response.turnDecision).toBe('advance_topic');
+    expect(response.nextQuestionKind).toBe('transition');
     expect(response.session.status).toBe('IN_PROGRESS');
     expect(interviewAi.answer).not.toHaveBeenCalled();
+  });
+
+  it('does not finish just because the soft turn budget is reached while time remains', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-soft-budget',
+        score: 74,
+        recognizedConcepts: ['REST API'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'REST API ownership',
+        gapsRevealed: [],
+        note: 'Answered with an API example.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-soft-budget',
+        aiMessage: 'Let us connect that to data design.',
+        question: 'What database trade-off did you make while building that API?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-soft-budget-1',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2099-06-12T00:10:00.000Z'),
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-rest-api',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'rest_api',
+            display_name: 'REST API',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'REST API ownership',
+            seed_question: 'Describe a REST API you built.',
+          },
+          {
+            id: 'topic-database-design',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'database_design',
+            display_name: 'Database Design',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'schema tradeoffs',
+            seed_question: 'Describe how you designed a database schema.',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-rest-api',
+        drill_depth: 0,
+        current_thread: 'REST API ownership',
+        running_notes: [],
+        covered_topic_ids: ['screening-1', 'topic-a', 'topic-b', 'topic-c', 'topic-d'],
+        uncovered_topic_ids: [],
+        turns_used: 5,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-soft-budget-6',
+      sessionId: 'session-soft-budget-1',
+      turnOrder: 6,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'rest_api',
+      currentThread: 'REST API ownership',
+      modality: 'AUDIO',
+      interviewerQuestion: 'Describe a REST API you built.',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:05:00.000Z'),
+      askedAt: new Date('2026-06-12T00:05:00.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-soft-budget-7',
+      askedAt: new Date('2026-06-12T00:06:00.000Z'),
+      createdAt: new Date('2026-06-12T00:06:00.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-soft-budget-1',
+      userAnswer: 'I built REST APIs with validation, auth, and transaction boundaries.',
+      userTranscript: 'I built REST APIs with validation, auth, and transaction boundaries.',
+      modality: 'AUDIO',
+      durationSeconds: 40,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        decision: 'advance',
+        currentTopic: expect.objectContaining({ id: 'topic-database-design' }),
+      }),
+    );
+    expect(response.nextTurn).toMatchObject({
+      turnOrder: 7,
+      interviewerQuestion: 'What database trade-off did you make while building that API?',
+      aiRequestId: 'ai-ask-soft-budget',
+    });
+    expect(response.turnDecision).toBe('advance_topic');
+    expect(response.nextQuestionKind).toBe('transition');
+    expect(response.finishReason).toBeNull();
+    expect(response.session.status).toBe('IN_PROGRESS');
+  });
+
+  it('does not advance into a wrap topic before the closing time window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-no-early-wrap',
+        score: 73,
+        recognizedConcepts: ['React'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'React component state',
+        gapsRevealed: [],
+        note: 'Explained React state.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-no-early-wrap',
+        aiMessage: 'Thanks, I want to go a level deeper on state.',
+        question: 'How do you decide between local state and server state?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-no-early-wrap',
+      userId,
+      targetRole: 'frontend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-react',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'react',
+            display_name: 'React',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'React component state',
+            seed_question: 'How do you manage state in React?',
+          },
+          {
+            id: 'wrap-1',
+            phase: 'WRAP',
+            skill_canonical: null,
+            display_name: 'Wrap-up',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'close',
+            seed_question: 'Before we wrap up, anything else to add?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-react',
+        drill_depth: 0,
+        current_thread: 'React component state',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 4,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-no-early-wrap',
+      sessionId: 'session-no-early-wrap',
+      turnOrder: 5,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'react',
+      currentThread: 'React component state',
+      modality: 'AUDIO',
+      interviewerQuestion: 'How do you manage state in React?',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:04:20.000Z'),
+      askedAt: new Date('2026-06-12T00:04:20.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-no-early-wrap-next',
+      askedAt: new Date('2026-06-12T00:05:30.000Z'),
+      createdAt: new Date('2026-06-12T00:05:30.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-no-early-wrap',
+      userAnswer: 'I use local state for small UI details and React Query for server state.',
+      userTranscript: 'I use local state for small UI details and React Query for server state.',
+      modality: 'AUDIO',
+      durationSeconds: 40,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(response.nextTurn).toMatchObject({
+      topicPhase: 'SKILL_PROBE',
+      interviewerMessage: 'Thanks, I want to go a level deeper on state.',
+      interviewerQuestion: 'How do you decide between local state and server state?',
+    });
+    expect(response.nextQuestion).not.toContain('Before we wrap');
+    expect(response.turnDecision).toBe('adaptive_follow_up');
+    expect(response.nextQuestionKind).toBe('follow_up');
+    expect(response.finishReason).toBeNull();
+  });
+
+  it('asks one closing prompt inside the closing time window without ending immediately', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:08:45.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-closing-window',
+        score: 71,
+        recognizedConcepts: ['React'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'React state',
+        gapsRevealed: [],
+        note: 'Answered before closing.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-closing-window',
+        aiMessage: 'We are nearly out of time, so I will make this the last one.',
+        question: 'Is there any frontend project or strength you want to add briefly?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { answer: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-closing-window',
+      userId,
+      targetRole: 'frontend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-react',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'react',
+            display_name: 'React',
+            seniority_target: 'junior',
+            drill_budget: 2,
+            what_to_probe: 'React state',
+            seed_question: 'How do you manage state in React?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-react',
+        drill_depth: 0,
+        current_thread: 'React state',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 3,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-closing-window',
+      sessionId: 'session-closing-window',
+      turnOrder: 4,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'react',
+      currentThread: 'React state',
+      modality: 'AUDIO',
+      interviewerQuestion: 'How do you manage state in React?',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:08:20.000Z'),
+      askedAt: new Date('2026-06-12T00:08:20.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-closing-window-next',
+      askedAt: new Date('2026-06-12T00:08:50.000Z'),
+      createdAt: new Date('2026-06-12T00:08:50.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-closing-window',
+      userAnswer: 'I used local state for form UI and React Query for server data.',
+      userTranscript: 'I used local state for form UI and React Query for server data.',
+      modality: 'AUDIO',
+      durationSeconds: 25,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        decision: 'wrap',
+        currentTopic: expect.objectContaining({ phase: 'WRAP' }),
+      }),
+    );
+    expect(response.turnDecision).toBe('closing_prompt');
+    expect(response.nextQuestionKind).toBe('closing');
+    expect(response.finishReason).toBeNull();
+    expect(response.nextTurn).toMatchObject({
+      topicPhase: 'WRAP',
+      interviewerMessage: 'We are nearly out of time, so I will make this the last one.',
+      interviewerQuestion: 'Is there any frontend project or strength you want to add briefly?',
+    });
+  });
+
+  it('finishes after a valid answer when too little time remains for another question', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:09:40.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-time-limit',
+        score: 70,
+        recognizedConcepts: ['REST API'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'REST API ownership',
+        gapsRevealed: [],
+        note: 'Answered near time limit.',
+      })),
+      ask: jest.fn(),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { answer: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-time-limit',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-rest-api',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'rest_api',
+            display_name: 'REST API',
+            seniority_target: 'junior',
+            drill_budget: 2,
+            what_to_probe: 'REST API ownership',
+            seed_question: 'Describe a REST API you built.',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-rest-api',
+        drill_depth: 0,
+        current_thread: 'REST API ownership',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 3,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-time-limit',
+      sessionId: 'session-time-limit',
+      turnOrder: 4,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'rest_api',
+      currentThread: 'REST API ownership',
+      modality: 'AUDIO',
+      interviewerQuestion: 'Describe a REST API you built.',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:09:10.000Z'),
+      askedAt: new Date('2026-06-12T00:09:10.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne.mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => value);
+    sessions.save.mockImplementation(async (value) => value);
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-time-limit',
+      userAnswer: 'I built REST APIs with validation, authentication, and transaction handling.',
+      userTranscript:
+        'I built REST APIs with validation, authentication, and transaction handling.',
+      modality: 'AUDIO',
+      durationSeconds: 30,
+    });
+
+    expect(chain.ask).not.toHaveBeenCalled();
+    expect(response.finished).toBe(true);
+    expect(response.finishReason).toBe('TIME_LIMIT');
+    expect(response.turnDecision).toBe('finish');
+    expect(response.nextQuestionKind).toBeNull();
+    expect(response.nextTurn).toBeNull();
+    expect(response.nextQuestion).toBeNull();
+    expect(sessions.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'COMPLETED',
+        endedAt: new Date('2026-06-12T00:09:40.000Z'),
+      }),
+    );
+  });
+
+  it('continues with an adaptive follow-up when topics are exhausted but the safety cap is not reached', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-exhausted-topic',
+        score: 78,
+        recognizedConcepts: ['Monitoring'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'production monitoring',
+        gapsRevealed: [],
+        note: 'Explained monitoring basics.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-exhausted-topic',
+        aiMessage: 'Let me go one level deeper.',
+        question: 'What signal would tell you the incident is getting worse?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-exhausted-topic-1',
+      userId,
+      targetRole: 'devops_engineer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2099-06-12T00:10:00.000Z'),
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-monitoring',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'monitoring',
+            display_name: 'Monitoring',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'production monitoring',
+            seed_question: 'How do you monitor production health?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-monitoring',
+        drill_depth: 0,
+        current_thread: 'production monitoring',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 5,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-exhausted-topic-6',
+      sessionId: 'session-exhausted-topic-1',
+      turnOrder: 6,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'monitoring',
+      currentThread: 'production monitoring',
+      modality: 'AUDIO',
+      interviewerQuestion: 'How do you monitor production health?',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:05:00.000Z'),
+      askedAt: new Date('2026-06-12T00:05:00.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-exhausted-topic-7',
+      askedAt: new Date('2026-06-12T00:06:00.000Z'),
+      createdAt: new Date('2026-06-12T00:06:00.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-exhausted-topic-1',
+      userAnswer: 'I watch latency, error rate, saturation, and alerts on deployment changes.',
+      userTranscript: 'I watch latency, error rate, saturation, and alerts on deployment changes.',
+      modality: 'AUDIO',
+      durationSeconds: 45,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        decision: 'drill',
+        currentTopic: expect.objectContaining({ id: 'topic-monitoring' }),
+      }),
+    );
+    expect(response.nextTurn).toMatchObject({
+      turnOrder: 7,
+      interviewerQuestion: 'What signal would tell you the incident is getting worse?',
+      aiRequestId: 'ai-ask-exhausted-topic',
+    });
+    expect(response.session.status).toBe('IN_PROGRESS');
   });
 
   it('limits answer history sent to the AI to the latest turns plus the current answer', async () => {

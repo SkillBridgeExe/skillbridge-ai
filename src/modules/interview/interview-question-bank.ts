@@ -130,17 +130,29 @@ export function normalizeQuestionBankTargetRole(value: string): string {
     normalized === 'backend_developer' ||
     normalized === 'frontend_developer' ||
     normalized === 'fullstack_developer' ||
+    normalized === 'mobile_developer' ||
     normalized === 'devops_engineer' ||
-    normalized === 'qa_engineer'
+    normalized === 'data_analyst' ||
+    normalized === 'qa_engineer' ||
+    normalized === 'qa_tester' ||
+    normalized === 'ai_ml_engineer'
   ) {
+    if (normalized === 'qa_tester') return 'qa_engineer';
     return normalized;
   }
 
   const loose = normalized.replace(/_/g, ' ');
   if (/\b(fullstack|full stack|full-stack)\b/.test(loose)) return 'fullstack_developer';
   if (/\b(frontend|front end|front-end)\b/.test(loose)) return 'frontend_developer';
+  if (/\b(mobile|ios|android|react native|flutter)\b/.test(loose)) return 'mobile_developer';
   if (/\b(devops|sre|platform|infra|infrastructure)\b/.test(loose)) return 'devops_engineer';
+  if (/\b(data analyst|analytics|bi|business intelligence|sql analyst)\b/.test(loose)) {
+    return 'data_analyst';
+  }
   if (/\b(qa|quality|tester|testing|sdet)\b/.test(loose)) return 'qa_engineer';
+  if (/\b(ai|ml|machine learning|data science|llm|model)\b/.test(loose)) {
+    return 'ai_ml_engineer';
+  }
   if (/\b(backend|back end|back-end|api|server)\b/.test(loose)) return 'backend_developer';
   return normalized;
 }

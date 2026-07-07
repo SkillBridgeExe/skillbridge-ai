@@ -62,6 +62,9 @@ export class OpenAiRealtimeTokenService {
         output_modalities: ['audio'],
         audio: {
           input: {
+            noise_reduction: {
+              type: 'near_field',
+            },
             transcription: {
               model: transcriptionModel,
               language: transcriptionLanguage,
@@ -69,7 +72,10 @@ export class OpenAiRealtimeTokenService {
             turn_detection: {
               type: 'server_vad',
               create_response: false,
-              interrupt_response: true,
+              interrupt_response: false,
+              threshold: 0.65,
+              prefix_padding_ms: 500,
+              silence_duration_ms: 900,
             },
           },
           output: {
