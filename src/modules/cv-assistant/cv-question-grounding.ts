@@ -6,8 +6,12 @@ const STANDALONE_NUMBER = /(?<![A-Za-z0-9])\d+(?:[.,]\d+)?(?![A-Za-z0-9])/;
 /** Multiplier-style boasts (5x, 3x, 10x nhanh hơn) = also planted claims.
  *  ponytail: leading/trailing lookahead keeps K8s/4K/2FA exempt (tech shorthand ≠ multiplier). */
 const MULTIPLIER_NUMBER = /(?<![A-Za-z0-9])\d+[xX](?![A-Za-z0-9])/;
+/** Reversed multiplier (x2, x10 — VN "x2 doanh số" = doubled revenue). Same lookaround guards. */
+const REVERSE_MULTIPLIER = /(?<![A-Za-z0-9])[xX]\d+(?![A-Za-z0-9])/;
 export function hasPlantedNumber(text: string): boolean {
-  return STANDALONE_NUMBER.test(text) || MULTIPLIER_NUMBER.test(text);
+  return (
+    STANDALONE_NUMBER.test(text) || MULTIPLIER_NUMBER.test(text) || REVERSE_MULTIPLIER.test(text)
+  );
 }
 
 export interface RawSmartQuestion {
