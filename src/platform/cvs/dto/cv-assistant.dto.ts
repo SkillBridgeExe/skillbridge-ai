@@ -42,6 +42,16 @@ export class AssistantAnalyzeRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   locale?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    example: 'backend_developer',
+    maxLength: 120,
+    description: 'The CV target role (informational; verified server-side from the CV record)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  target_role?: string;
 }
 
 /** one Turn-1 answer: a category chip + an optional concrete detail. */

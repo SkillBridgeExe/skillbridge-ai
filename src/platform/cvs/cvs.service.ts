@@ -475,13 +475,14 @@ export class CvsService {
     cvId: string,
     dto: AssistantAnalyzeRequestDto,
   ): Promise<CvAssistantTurn | null> {
-    await this.findOwnedCv(userId, cvId);
+    const cv = await this.findOwnedCv(userId, cvId);
     return cvBuilderAssistantTurn1({
       page: 'cv_builder',
       section: dto.section,
       field_path: dto.field_path,
       current_value: dto.current_value,
       locale: dto.locale ?? 'en',
+      target_role: cv.targetRole ?? undefined,
     });
   }
 

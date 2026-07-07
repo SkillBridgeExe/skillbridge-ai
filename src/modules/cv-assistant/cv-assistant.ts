@@ -52,6 +52,9 @@ export interface CompanionContext {
   field_path?: string;
   current_value?: string;
   locale: Language;
+  /** the CV's target role (server-read from the CV record, never trusted from client input) — lets
+   *  the smart-question generator ask role-appropriate follow-ups. Absent ⇒ role-blind (unchanged). */
+  target_role?: string;
 }
 
 /** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */

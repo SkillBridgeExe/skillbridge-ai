@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
+import * as companionModule from '../../../src/modules/cv-assistant/cv-assistant';
 import type { CvAssistantRewriteResult } from '../../../src/modules/cv-assistant/cv-assistant.service';
 import type {
   AssistantAnalyzeRequestDto,
@@ -11,6 +12,7 @@ function build(
     owned?: boolean;
     rewriteResult?: CvAssistantRewriteResult;
     skills?: Record<string, string[]>;
+    targetRole?: string | null;
   } = {},
 ) {
   const cv = {
@@ -18,6 +20,7 @@ function build(
     userId: 'u1',
     cvKind: 'BUILT',
     parsedJson: opts.skills ? { skills: opts.skills } : null,
+    targetRole: opts.targetRole ?? null,
   };
   const cvsRepo = { findOne: jest.fn().mockResolvedValue(opts.owned === false ? null : cv) };
   const reservation = {
@@ -98,6 +101,14 @@ describe('CvsService — Companion assistant endpoints', () => {
       expect(turn!.questions.length).toBeGreaterThan(0);
       expect(turn!.field_patch).toBeNull();
       expect(entitlements.reserveUsage).not.toHaveBeenCalled();
+    });
+
+    it('assistantAnalyze threads the CV record target_role into the companion context', async () => {
+      const { service } = build({ targetRole: 'backend_developer' });
+      const spy = jest.spyOn(companionModule, 'cvBuilderAssistantTurn1');
+      await service.assistantAnalyze('u1', 'cv1', analyzeDto);
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ target_role: 'backend_developer' }));
+      spy.mockRestore();
     });
   });
 
