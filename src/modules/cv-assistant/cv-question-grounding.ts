@@ -73,6 +73,10 @@ export function groundSmartQuestions(
       .map((label, i) => ({ id: `${gap}_${i}`, label: label.slice(0, 60) }));
     out.push({ gap, prompt, options: chips, allows_free_text: true });
   }
-  if (out.length === 0) return null;
+  if (out.length === 0) {
+    // Spec: already_strong=true → honor it (say the line is strong, ask nothing) even with zero
+    // questions. Only a malformed/all-dropped-and-NOT-strong payload falls back to the rule turn.
+    return r.already_strong === true ? { questions: [], already_strong: true } : null;
+  }
   return { questions: out, already_strong: r.already_strong === true };
 }

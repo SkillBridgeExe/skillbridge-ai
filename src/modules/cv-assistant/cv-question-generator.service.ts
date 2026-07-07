@@ -10,6 +10,7 @@ import {
   analyzeBulletGaps,
   analyzeSummaryGaps,
   cvBuilderAssistantTurn1,
+  strongTurnMessage,
 } from './cv-assistant';
 import { groundSmartQuestions } from './cv-question-grounding';
 
@@ -130,7 +131,9 @@ export class CvQuestionGeneratorService {
       if (!grounded) return fallback; // model output didn't ground to any detected gap — never invent.
 
       return {
-        message: fallback.message,
+        message: grounded.already_strong
+          ? strongTurnMessage(ctx.section, ctx.locale)
+          : fallback.message,
         questions: grounded.already_strong ? [] : grounded.questions,
         requires_user_confirmation: false,
         field_patch: null,

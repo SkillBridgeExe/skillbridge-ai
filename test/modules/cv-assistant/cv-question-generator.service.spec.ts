@@ -1,5 +1,8 @@
 import { CvQuestionGeneratorService } from '../../../src/modules/cv-assistant/cv-question-generator.service';
-import { CompanionContext } from '../../../src/modules/cv-assistant/cv-assistant';
+import {
+  CompanionContext,
+  strongTurnMessage,
+} from '../../../src/modules/cv-assistant/cv-assistant';
 
 function build() {
   const complete = jest.fn();
@@ -52,13 +55,23 @@ describe('CvQuestionGeneratorService.generate', () => {
     expect(turn.questions.length).toBeGreaterThan(0); // rule chips, not empty
   });
 
-  it('empty/strong value → no questions (already strong)', async () => {
+  it('LLM says already_strong on a rule-WEAK bullet → no questions AND the STRONG message (not the rule WEAK fallback)', async () => {
     const { svc, llm } = build();
     llm.complete.mockResolvedValue({
       parsedJson: { already_strong: true, questions: [] },
       text: '{}',
       tokenUsage: {},
     });
+    // CTX.current_value ('làm web bán hàng') is rule-WEAK (missing action/tech) so `generate` must
+    // actually call the LLM here — proving the already_strong branch, not the gaps-empty shortcut.
+    const turn = await svc.generate(CTX);
+    expect(llm.complete).toHaveBeenCalled();
+    expect(turn.questions).toHaveLength(0);
+    expect(turn.message).toBe(strongTurnMessage(CTX.section, CTX.locale));
+  });
+
+  it('rule-strong bullet (gaps already empty) → returns before the LLM, never calls it', async () => {
+    const { svc, llm } = build();
     const turn = await svc.generate({
       page: 'cv_builder',
       section: 'projects',
@@ -66,6 +79,7 @@ describe('CvQuestionGeneratorService.generate', () => {
       locale: 'en',
       target_role: 'frontend_developer',
     });
+    expect(llm.complete).not.toHaveBeenCalled();
     expect(turn.questions).toHaveLength(0);
   });
 

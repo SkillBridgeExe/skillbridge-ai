@@ -81,8 +81,15 @@ describe('groundSmartQuestions', () => {
     expect(result.options.map((o) => o.label)).not.toContain('30% nhanh hơn'); // planted-number chip removed
     expect(result.options.map((o) => o.label)).toContain('nhiều đơn hơn');
   });
-  it('returns null on non-object / empty questions (caller falls back)', () => {
+  it('returns null on non-object / empty-and-not-strong questions (caller falls back)', () => {
     expect(groundSmartQuestions(null, ['tech'], 'vi')).toBeNull();
     expect(groundSmartQuestions({ questions: [] }, ['tech'], 'vi')).toBeNull();
+    expect(
+      groundSmartQuestions({ already_strong: false, questions: [] }, ['tech'], 'vi'),
+    ).toBeNull();
+  });
+  it('already_strong=true + empty questions → grounded empty result, NOT null (spec: honor the signal)', () => {
+    const out = groundSmartQuestions({ already_strong: true, questions: [] }, ['tech'], 'vi');
+    expect(out).toEqual({ questions: [], already_strong: true });
   });
 });

@@ -390,6 +390,15 @@ const SUMMARY_WEAK_MSG: Record<Language, string> = {
   vi: 'Bản tóm tắt có thể sắc hơn — trả lời vài câu để mình viết lại (mình KHÔNG bịa kỹ năng, chức danh hay số liệu).',
 };
 
+/** Pick the right "already strong" message for a section — used by the LLM-backed question
+ *  generator when it must honor `already_strong` without borrowing the rule turn's WEAK message. */
+export function strongTurnMessage(
+  section: CompanionContext['section'],
+  language: Language,
+): string {
+  return section === 'summary' ? SUMMARY_STRONG_MSG[language] : STRONG_MSG[language];
+}
+
 /** Build ONE deterministic assistant turn for a professional summary: ask for missing facts, never fabricate. */
 export function buildSummaryTurn(summary: string, language: Language): CvAssistantTurn {
   const gaps = analyzeSummaryGaps(summary, language);
