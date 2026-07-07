@@ -8,6 +8,29 @@ describe('hasPlantedNumber', () => {
     expect(hasPlantedNumber('bạn đạt 30% cải thiện?')).toBe(true);
     expect(hasPlantedNumber('bạn dùng K8s hay ES6?')).toBe(false);
   });
+  it('flags Nx multiplier-style boasts, exempts tech shorthand', () => {
+    // FLAGGED: multipliers
+    expect(hasPlantedNumber('5x')).toBe(true);
+    expect(hasPlantedNumber('3x')).toBe(true);
+    expect(hasPlantedNumber('10x nhanh hơn')).toBe(true);
+    expect(hasPlantedNumber('cải thiện 5x')).toBe(true);
+    expect(hasPlantedNumber('tăng 3x hiệu suất')).toBe(true);
+    expect(hasPlantedNumber('tăng 10X')).toBe(true);
+    // FLAGGED: existing standalone numbers
+    expect(hasPlantedNumber('30%')).toBe(true);
+    expect(hasPlantedNumber('5000')).toBe(true);
+    expect(hasPlantedNumber('3.5')).toBe(true);
+    expect(hasPlantedNumber('1,000')).toBe(true);
+    // NOT FLAGGED: tech shorthand/names
+    expect(hasPlantedNumber('K8s')).toBe(false);
+    expect(hasPlantedNumber('ES6')).toBe(false);
+    expect(hasPlantedNumber('Vue3')).toBe(false);
+    expect(hasPlantedNumber('S3')).toBe(false);
+    expect(hasPlantedNumber('gpt-4o')).toBe(false);
+    expect(hasPlantedNumber('4K')).toBe(false);
+    expect(hasPlantedNumber('3D')).toBe(false);
+    expect(hasPlantedNumber('2FA')).toBe(false);
+  });
 });
 
 describe('groundSmartQuestions', () => {
