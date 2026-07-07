@@ -58,6 +58,7 @@ describe('interview_ask_v1 prompt contract', () => {
       'running_notes',
       'seniority_target',
       'language',
+      'language_instruction',
       'prev_topic_outcome',
     ]) {
       expect(prompt).toContain(`{{${variable}}}`);
@@ -69,5 +70,16 @@ describe('interview_ask_v1 prompt contract', () => {
     for (const decision of ['drill', 'push_harder', 'advance', 'wrap', 'opener']) {
       expect(prompt.toLowerCase()).toContain(decision);
     }
+  });
+
+  it('locks language and field-separation rules to prevent mixed-language double questions', () => {
+    const lower = prompt.toLowerCase();
+
+    expect(prompt).toContain('{{language_instruction}}');
+    expect(lower).toContain('ai_message must not contain a question');
+    expect(lower).toContain(
+      'question is the only field that may contain the official interview question',
+    );
+    expect(lower).toMatch(/do not return.*english.*vietnamese|do not return.*vietnamese.*english/);
   });
 });

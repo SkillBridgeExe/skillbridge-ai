@@ -157,4 +157,112 @@ describe('InterviewChainLlmService.ask', () => {
       question: 'What invalidation trade-off did you choose?',
     });
   });
+
+  it('drops question-like ai messages in Vietnamese mode while keeping a Vietnamese technical question', async () => {
+    const { service } = build({
+      ai_message:
+        'Let us dive deeper into hooks. Can you explain how you would manage state with useState?',
+      question:
+        'Khi dùng useState trong một React component, bạn sẽ quản lý state như thế nào khi component mở rộng?',
+    });
+
+    const out = await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 4,
+      decision: 'drill',
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-hooks', display_name: 'Hooks' },
+      currentThread: 'React hooks and state management',
+      recentQa: [],
+      runningNotes: ['Ứng viên có nhắc useState và useEffect.'],
+      prevTopicOutcome: 'adequate answer',
+    });
+
+    expect(out).toMatchObject({
+      aiMessage: '',
+      question:
+        'Khi dùng useState trong một React component, bạn sẽ quản lý state như thế nào khi component mở rộng?',
+    });
+  });
+
+  it('clears mostly English questions in Vietnamese mode so the caller can use its seed fallback', async () => {
+    const { service } = build({
+      ai_message: 'Mình chuyển sang phần database design.',
+      question: 'Can you describe a specific project where you had to design a database schema?',
+    });
+
+    const out = await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 5,
+      decision: 'advance',
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-db', display_name: 'Database Design' },
+      currentThread: 'Database Design',
+      recentQa: [],
+      runningNotes: ['Ứng viên vừa nói về REST API.'],
+      prevTopicOutcome: 'adequate answer',
+    });
+
+    expect(out).toMatchObject({
+      aiMessage: 'Mình chuyển sang phần database design.',
+      question: '',
+    });
+  });
+
+  it('drops mostly English bridge text in Vietnamese mode even when it is not phrased as a question', async () => {
+    const { service } = build({
+      ai_message:
+        'Great insights on your REST API experience. Let us shift gears to database design.',
+      question:
+        'Cho vai trò Backend Developer, hãy mô tả một ví dụ thực tế liên quan đến database design.',
+    });
+
+    const out = await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 5,
+      decision: 'advance',
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-db', display_name: 'Database Design' },
+      currentThread: 'Database Design',
+      recentQa: [],
+      runningNotes: ['Ứng viên vừa nói về REST API.'],
+      prevTopicOutcome: 'adequate answer',
+    });
+
+    expect(out).toMatchObject({
+      aiMessage: '',
+      question:
+        'Cho vai trò Backend Developer, hãy mô tả một ví dụ thực tế liên quan đến database design.',
+    });
+  });
+
+  it('passes a natural language instruction into the ask prompt', async () => {
+    const { service, prompts } = build({
+      ai_message: 'Mình đào sâu thêm một chút.',
+      question: 'Bạn xử lý lỗi API như thế nào?',
+    });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'drill',
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-api', display_name: 'API' },
+      currentThread: 'API error handling',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: 'adequate answer',
+    });
+
+    expect(prompts.render).toHaveBeenCalledWith(
+      'interview_ask_v1',
+      expect.objectContaining({
+        language_instruction: expect.stringContaining('Vietnamese'),
+      }),
+    );
+  });
 });

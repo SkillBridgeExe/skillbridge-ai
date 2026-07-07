@@ -8,8 +8,125 @@ import { DepthSignal, TurnAction } from '../../modules/interview/interview-agend
 const PROMPT_ASSESS = 'interview_assess_v1';
 const PROMPT_ASK = 'interview_ask_v1';
 const ASSESS_SEED = 20260621;
+const MAX_AI_MESSAGE_CHARS = 180;
+const MAX_AI_MESSAGE_TOKENS = 28;
 
 const STRING_ARRAY = { type: 'array', items: { type: 'string' } };
+const QUESTION_LIKE_MESSAGE_PATTERN =
+  /\?|(?:\b(?:can|could|would)\s+you\b)|(?:\b(?:describe|explain|tell\s+me)\b)|(?:\bhow\s+(?:would|do|did|can)\s+you\b)|(?:\bwhat\s+(?:would|do|did|can)\s+you\b)|(?:\bwhy\s+(?:would|do|did|can)\s+you\b)|(?:\bhay\s+mo\s+ta\b)|(?:\bban\s+co\s+the\b)|(?:\bgiai\s+thich\b)|(?:\bcho\s+vai\s+tro\b)/i;
+const ENGLISH_QUESTION_START_PATTERN =
+  /^(?:can|could|would|do|did|have|has|what|how|why|when|where|describe|explain|tell)\b/i;
+const VIETNAMESE_SCRIPT_PATTERN =
+  /[ăâđêôơưáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/i;
+const VIETNAMESE_MARKER_PATTERN =
+  /\b(?:ban|minh|toi|em|anh|chi|khi|trong|mot|nhu|the\s+nao|vi\s+sao|hay|mo\s+ta|giai\s+thich|quan\s+ly|du\s+an|thuc\s+te|luyen\s+tap|kho\s+khan|rut\s+ra|lien\s+quan|vai\s+tro)\b/i;
+const TECHNICAL_TOKENS = new Set([
+  'ai',
+  'api',
+  'aws',
+  'backend',
+  'cache',
+  'component',
+  'css',
+  'database',
+  'docker',
+  'frontend',
+  'gateway',
+  'graphql',
+  'html',
+  'javascript',
+  'kubernetes',
+  'llm',
+  'mongodb',
+  'mysql',
+  'nestjs',
+  'next',
+  'node',
+  'nodejs',
+  'postgres',
+  'postgresql',
+  'react',
+  'redis',
+  'rest',
+  'schema',
+  'sql',
+  'state',
+  'typescript',
+  'useeffect',
+  'usestate',
+  'vue',
+]);
+const ENGLISH_COMMON_TOKENS = new Set([
+  'a',
+  'about',
+  'and',
+  'can',
+  'challenges',
+  'choose',
+  'could',
+  'describe',
+  'design',
+  'did',
+  'do',
+  'explain',
+  'experience',
+  'face',
+  'for',
+  'gears',
+  'great',
+  'had',
+  'have',
+  'how',
+  'in',
+  'insights',
+  'into',
+  'let',
+  'me',
+  'moving',
+  'project',
+  'specific',
+  'shift',
+  'tell',
+  'that',
+  'the',
+  'to',
+  'us',
+  'what',
+  'where',
+  'with',
+  'would',
+  'you',
+  'your',
+]);
+const VIETNAMESE_COMMON_TOKENS = new Set([
+  'ban',
+  'cau',
+  'co',
+  'da',
+  'do',
+  'du',
+  'em',
+  'gap',
+  'gi',
+  'hay',
+  'khi',
+  'khan',
+  'kho',
+  'lam',
+  'lien',
+  'minh',
+  'mot',
+  'nao',
+  'quan',
+  'ra',
+  'rut',
+  'se',
+  'the',
+  'toi',
+  'trong',
+  'vai',
+  'voi',
+]);
 
 export const INTERVIEW_ASSESS_SCHEMA: Record<string, unknown> = {
   type: 'object',
@@ -184,6 +301,7 @@ export class InterviewChainLlmService {
       const promptVars = maskPiiDeep({
         decision: input.decision,
         language: input.language,
+        language_instruction: askLanguageInstruction(input.language),
         seniority_target: input.seniorityTarget,
         current_topic: JSON.stringify(input.currentTopic),
         current_thread: input.currentThread,
@@ -206,7 +324,7 @@ export class InterviewChainLlmService {
           model,
         },
       );
-      const output = coerceAskOutput(aiRequestId, llmResult.parsedJson);
+      const output = coerceAskOutput(aiRequestId, llmResult.parsedJson, input.language);
 
       await this.tracing.saveAiResult({
         aiRequestId,
@@ -250,13 +368,18 @@ function coerceAssessOutput(aiRequestId: string, parsed: unknown): InterviewAsse
   };
 }
 
-function coerceAskOutput(aiRequestId: string, parsed: unknown): InterviewAskOutput {
+function coerceAskOutput(
+  aiRequestId: string,
+  parsed: unknown,
+  language: 'vi' | 'en',
+): InterviewAskOutput {
   const raw = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
-  return {
+  const output = {
     aiRequestId,
     aiMessage: stringValue(raw.ai_message),
     question: stringValue(raw.question),
   };
+  return sanitizeAskOutput(output, language);
 }
 
 function clampScore(value: unknown): number {
@@ -281,4 +404,71 @@ function stringArray(value: unknown): string[] {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function askLanguageInstruction(language: 'vi' | 'en'): string {
+  return language === 'vi'
+    ? 'Write both JSON fields in Vietnamese. Preserve English technical terms such as React, useState, REST API, database, Postgres, Node.js, TypeScript, and cache exactly as written.'
+    : 'Write both JSON fields in English.';
+}
+
+function sanitizeAskOutput(output: InterviewAskOutput, language: 'vi' | 'en'): InterviewAskOutput {
+  const question = sanitizeAskQuestion(output.question, language);
+  const aiMessage = sanitizeAiMessage(output.aiMessage, question, language);
+  return { ...output, aiMessage, question };
+}
+
+function sanitizeAiMessage(value: string, question: string, language: 'vi' | 'en'): string {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return '';
+  if (normalized.length > MAX_AI_MESSAGE_CHARS) return '';
+  if (tokens(normalized).length > MAX_AI_MESSAGE_TOKENS) return '';
+  if (QUESTION_LIKE_MESSAGE_PATTERN.test(removeVietnameseMarks(normalized))) return '';
+  if (language === 'vi' && isMostlyEnglishForVietnamese(normalized)) return '';
+  if (question && compareText(normalized) === compareText(question)) return '';
+  return normalized;
+}
+
+function sanitizeAskQuestion(value: string, language: 'vi' | 'en'): string {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) return '';
+  if (language === 'vi' && isMostlyEnglishForVietnamese(normalized)) return '';
+  return normalized;
+}
+
+function isMostlyEnglishForVietnamese(value: string): boolean {
+  if (VIETNAMESE_SCRIPT_PATTERN.test(value)) return false;
+  const plain = removeVietnameseMarks(value);
+  if (VIETNAMESE_MARKER_PATTERN.test(plain)) return false;
+
+  const textTokens = tokens(plain).filter((token) => !TECHNICAL_TOKENS.has(token));
+  if (textTokens.length === 0) return false;
+  if (ENGLISH_QUESTION_START_PATTERN.test(textTokens.join(' '))) return true;
+
+  const englishHits = textTokens.filter((token) => ENGLISH_COMMON_TOKENS.has(token)).length;
+  const vietnameseHits = textTokens.filter((token) => VIETNAMESE_COMMON_TOKENS.has(token)).length;
+  return englishHits >= 4 && englishHits > vietnameseHits * 2;
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function tokens(value: string): string[] {
+  return removeVietnameseMarks(value).match(/[\p{L}\p{N}+#.]+/gu) ?? [];
+}
+
+function removeVietnameseMarks(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase();
+}
+
+function compareText(value: string): string {
+  return removeVietnameseMarks(value)
+    .replace(/[^\p{L}\p{N}+#.]+/gu, ' ')
+    .trim();
 }
