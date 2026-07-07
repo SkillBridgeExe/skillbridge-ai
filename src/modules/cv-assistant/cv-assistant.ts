@@ -52,6 +52,9 @@ export interface CompanionContext {
   field_path?: string;
   current_value?: string;
   locale: Language;
+  /** the CV's target role (server-read from the CV record, never trusted from client input) — lets
+   *  the smart-question generator ask role-appropriate follow-ups. Absent ⇒ role-blind (unchanged). */
+  target_role?: string;
 }
 
 /** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */
@@ -386,6 +389,15 @@ const SUMMARY_WEAK_MSG: Record<Language, string> = {
   en: 'This summary can be sharper — answer a few questions and I will rewrite it (I will NOT invent skills, titles, or numbers).',
   vi: 'Bản tóm tắt có thể sắc hơn — trả lời vài câu để mình viết lại (mình KHÔNG bịa kỹ năng, chức danh hay số liệu).',
 };
+
+/** Pick the right "already strong" message for a section — used by the LLM-backed question
+ *  generator when it must honor `already_strong` without borrowing the rule turn's WEAK message. */
+export function strongTurnMessage(
+  section: CompanionContext['section'],
+  language: Language,
+): string {
+  return section === 'summary' ? SUMMARY_STRONG_MSG[language] : STRONG_MSG[language];
+}
 
 /** Build ONE deterministic assistant turn for a professional summary: ask for missing facts, never fabricate. */
 export function buildSummaryTurn(summary: string, language: Language): CvAssistantTurn {

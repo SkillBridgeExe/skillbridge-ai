@@ -23,6 +23,7 @@ import { CvsService } from './cvs.service';
 import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
 import { TextExtractorService } from './text-extractor.service';
 import { CvAssistantRewriteService } from '../../modules/cv-assistant/cv-assistant.service';
+import { CvQuestionGeneratorService } from '../../modules/cv-assistant/cv-question-generator.service';
 import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
 
 @Module({
@@ -63,6 +64,9 @@ import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
     CvAssistantRewriteService,
     // Narrative intake (Phase 1: experience) — story → structured fields (deps Llm/Prompts/Tracing are @Global).
     CvIntakeService,
+    // Companion Turn-1.5 — role-aware smart-question generator (deps Llm/Prompts are @Global;
+    // Tracing via the TracingModule import above).
+    CvQuestionGeneratorService,
   ],
   exports: [CvsRetentionService, CvsService, CvPdfRendererService],
 })

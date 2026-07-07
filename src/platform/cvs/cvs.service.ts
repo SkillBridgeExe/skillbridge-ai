@@ -34,9 +34,11 @@ import {
   SkillsNudge,
   SkillsSection,
 } from '../../modules/cv-assistant/cv-assistant-skills';
+import { CvQuestionGeneratorService } from '../../modules/cv-assistant/cv-question-generator.service';
 import {
   AssistantAnalyzeRequestDto,
   AssistantRewriteRequestDto,
+  AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
 } from './dto/cv-assistant.dto';
 import { CvIntakeResult, CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
@@ -138,6 +140,10 @@ export class CvsService {
     // runtime via CvsModule; the `?` only satisfies TS (it trails the optionals) and lets unit
     // tests omit it.
     private readonly cvIntake?: CvIntakeService,
+    // Companion Turn-1.5 — role-aware smart-question generator (LLM, opt-in). Provided at runtime
+    // via CvsModule; the `?` only satisfies TS (it trails the optionals above) and lets unit tests
+    // omit it — it is NOT @Optional() for Nest, so a dropped provider fails boot loudly.
+    private readonly questionGenerator?: CvQuestionGeneratorService,
   ) {}
 
   async create(
@@ -475,14 +481,42 @@ export class CvsService {
     cvId: string,
     dto: AssistantAnalyzeRequestDto,
   ): Promise<CvAssistantTurn | null> {
-    await this.findOwnedCv(userId, cvId);
+    const cv = await this.findOwnedCv(userId, cvId);
     return cvBuilderAssistantTurn1({
       page: 'cv_builder',
       section: dto.section,
       field_path: dto.field_path,
       current_value: dto.current_value,
       locale: dto.locale ?? 'en',
+      target_role: cv.targetRole ?? undefined,
     });
+  }
+
+  /**
+   * Companion Turn-1.5: role-aware smart questions (LLM, opt-in). Verifies ownership, then reads
+   * `target_role` from the CV record ITSELF (never from the request body) and delegates to the
+   * generator, which always resolves — any LLM/parse miss degrades to the same deterministic Turn-1
+   * rule questions, so this endpoint never goes silent. No quota is charged here; abuse is bounded
+   * by the controller's rate limit (same shape as /rewrite).
+   */
+  async assistantSmartQuestions(
+    userId: string,
+    cvId: string,
+    dto: AssistantSmartQuestionsRequestDto,
+  ): Promise<CvAssistantTurn> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    if (!this.questionGenerator) throw new Error('CvQuestionGeneratorService is not configured');
+    return this.questionGenerator.generate(
+      {
+        page: 'cv_builder',
+        section: dto.section,
+        field_path: dto.field_path,
+        current_value: dto.current_value,
+        locale: dto.locale ?? 'en',
+        target_role: cv.targetRole ?? undefined,
+      },
+      userId,
+    );
   }
 
   /**

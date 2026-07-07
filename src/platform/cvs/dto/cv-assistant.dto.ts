@@ -42,7 +42,24 @@ export class AssistantAnalyzeRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   locale?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    example: 'backend_developer',
+    maxLength: 120,
+    description: 'The CV target role (informational; verified server-side from the CV record)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  target_role?: string;
 }
+
+/**
+ * Turn-1.5: role-aware smart questions (LLM-backed). Same request shape as Turn-1 analyze —
+ * `target_role` (inherited) is informational only; the endpoint always reads the real
+ * `target_role` server-side from the owned CV record, never from this DTO.
+ */
+export class AssistantSmartQuestionsRequestDto extends AssistantAnalyzeRequestDto {}
 
 /** one Turn-1 answer: a category chip + an optional concrete detail. */
 export class AssistantAnswerDto {
