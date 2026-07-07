@@ -21,20 +21,37 @@ describe('hasPlantedNumber', () => {
     expect(hasPlantedNumber('x10')).toBe(true);
     expect(hasPlantedNumber('x2 doanh số')).toBe(true);
     expect(hasPlantedNumber('X5 hiệu suất')).toBe(true);
+    // FLAGGED: Nk/Nm/Nb magnitude boasts (most common fake-metric pattern)
+    expect(hasPlantedNumber('10k')).toBe(true);
+    expect(hasPlantedNumber('5m')).toBe(true);
+    expect(hasPlantedNumber('2.5b')).toBe(true);
+    expect(hasPlantedNumber('100K')).toBe(true);
+    expect(hasPlantedNumber('10k users')).toBe(true);
+    expect(hasPlantedNumber('tăng 5m requests')).toBe(true);
+    expect(hasPlantedNumber('100k downloads')).toBe(true);
+    expect(hasPlantedNumber('4k salary')).toBe(true);
     // FLAGGED: existing standalone numbers
     expect(hasPlantedNumber('30%')).toBe(true);
     expect(hasPlantedNumber('5000')).toBe(true);
     expect(hasPlantedNumber('3.5')).toBe(true);
     expect(hasPlantedNumber('1,000')).toBe(true);
-    // NOT FLAGGED: tech shorthand/names
+    // FLAGGED trade-off: 4K/8K resolution now caught (asymmetry favors flagging — a
+    // stripped chip just falls back to a generic prompt; missing "10k users" plants a lie)
+    expect(hasPlantedNumber('4K')).toBe(true);
+    expect(hasPlantedNumber('8K')).toBe(true);
+    // NOT FLAGGED: tech shorthand/names + data units (letter follows the k/m/b)
     expect(hasPlantedNumber('K8s')).toBe(false);
     expect(hasPlantedNumber('ES6')).toBe(false);
     expect(hasPlantedNumber('Vue3')).toBe(false);
     expect(hasPlantedNumber('S3')).toBe(false);
     expect(hasPlantedNumber('gpt-4o')).toBe(false);
-    expect(hasPlantedNumber('4K')).toBe(false);
     expect(hasPlantedNumber('3D')).toBe(false);
     expect(hasPlantedNumber('2FA')).toBe(false);
+    expect(hasPlantedNumber('10km')).toBe(false); // kilometer — k followed by m
+    expect(hasPlantedNumber('5kb')).toBe(false); // data unit — letter follows
+    expect(hasPlantedNumber('10mb')).toBe(false); // data unit — letter follows
+    expect(hasPlantedNumber('1080p')).toBe(false);
+    expect(hasPlantedNumber('h264')).toBe(false);
     expect(hasPlantedNumber('x')).toBe(false); // bare letter, no digit
   });
 });

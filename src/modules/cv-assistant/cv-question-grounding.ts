@@ -8,9 +8,16 @@ const STANDALONE_NUMBER = /(?<![A-Za-z0-9])\d+(?:[.,]\d+)?(?![A-Za-z0-9])/;
 const MULTIPLIER_NUMBER = /(?<![A-Za-z0-9])\d+[xX](?![A-Za-z0-9])/;
 /** Reversed multiplier (x2, x10 — VN "x2 doanh số" = doubled revenue). Same lookaround guards. */
 const REVERSE_MULTIPLIER = /(?<![A-Za-z0-9])[xX]\d+(?![A-Za-z0-9])/;
+/** Magnitude boasts (10k users, 5m requests, 2.5b) — the most common fake-metric pattern.
+ *  ponytail: trailing lookahead blocks data units (5kb/10mb) + kilometer (10km); trade-off is
+ *  4K/8K resolution now flags too (stripped chip → generic prompt beats a planted lie). */
+const MAGNITUDE_NUMBER = /(?<![A-Za-z0-9])\d+(?:[.,]\d+)?[kmbKMB](?![A-Za-z0-9])/;
 export function hasPlantedNumber(text: string): boolean {
   return (
-    STANDALONE_NUMBER.test(text) || MULTIPLIER_NUMBER.test(text) || REVERSE_MULTIPLIER.test(text)
+    STANDALONE_NUMBER.test(text) ||
+    MULTIPLIER_NUMBER.test(text) ||
+    REVERSE_MULTIPLIER.test(text) ||
+    MAGNITUDE_NUMBER.test(text)
   );
 }
 
