@@ -2,10 +2,19 @@ import { NotFoundException } from '@nestjs/common';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 import * as companionModule from '../../../src/modules/cv-assistant/cv-assistant';
 import type { CvAssistantRewriteResult } from '../../../src/modules/cv-assistant/cv-assistant.service';
+import type { CvAssistantTurn } from '../../../src/modules/cv-assistant/cv-assistant';
 import type {
   AssistantAnalyzeRequestDto,
   AssistantRewriteRequestDto,
+  AssistantSmartQuestionsRequestDto,
 } from '../../../src/platform/cvs/dto/cv-assistant.dto';
+
+const EMPTY_TURN: CvAssistantTurn = {
+  message: '',
+  questions: [],
+  requires_user_confirmation: false,
+  field_patch: null,
+};
 
 function build(
   opts: {
@@ -43,6 +52,9 @@ function build(
   const cvAssistant = {
     rewrite: jest.fn().mockResolvedValue(opts.rewriteResult ?? defaultPatch),
   };
+  const generator = {
+    generate: jest.fn().mockResolvedValue(EMPTY_TURN),
+  };
   const any = {} as never;
   const service = new CvsService(
     cvsRepo as never, // 1 cvs repo (findOwnedCv)
@@ -66,8 +78,10 @@ function build(
     undefined, // 18 githubEvidence
     undefined, // 19 tailorVerifier
     cvAssistant as never, // 20 cvAssistant
+    undefined, // 21 cvIntake
+    generator as never, // 22 questionGenerator
   );
-  return { service, cvsRepo, entitlements, reservation, cvAssistant };
+  return { service, cvsRepo, entitlements, reservation, cvAssistant, generator };
 }
 
 const analyzeDto: AssistantAnalyzeRequestDto = {
@@ -107,7 +121,9 @@ describe('CvsService — Companion assistant endpoints', () => {
       const { service } = build({ targetRole: 'backend_developer' });
       const spy = jest.spyOn(companionModule, 'cvBuilderAssistantTurn1');
       await service.assistantAnalyze('u1', 'cv1', analyzeDto);
-      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ target_role: 'backend_developer' }));
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({ target_role: 'backend_developer' }),
+      );
       spy.mockRestore();
     });
   });
@@ -193,6 +209,50 @@ describe('CvsService — Companion assistant endpoints', () => {
         },
       });
       expect(await service.assistantSkillsNudge('u1', 'cv1', 'en')).toEqual([]);
+    });
+  });
+
+  describe('assistantSmartQuestions (Turn-1.5, LLM-backed, rate-limited at the controller)', () => {
+    const smartDto: AssistantSmartQuestionsRequestDto = {
+      current_value: 'làm web',
+      section: 'projects',
+      locale: 'vi',
+    };
+
+    it('rejects a CV the user does not own (before calling the generator)', async () => {
+      const { service, generator } = build({ owned: false });
+      await expect(service.assistantSmartQuestions('u1', 'cvX', smartDto)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(generator.generate).not.toHaveBeenCalled();
+    });
+
+    it('checks ownership, reads role, delegates to the generator', async () => {
+      const { service, generator } = build({ targetRole: 'frontend_developer' });
+      generator.generate.mockResolvedValue({
+        message: '',
+        questions: [{ gap: 'tech', prompt: 'x', options: [], allows_free_text: true }],
+        requires_user_confirmation: false,
+        field_patch: null,
+      });
+      const out = await service.assistantSmartQuestions('u1', 'cv1', smartDto);
+      expect(generator.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ target_role: 'frontend_developer', current_value: 'làm web' }),
+        'u1',
+      );
+      expect(out.questions[0].gap).toBe('tech');
+    });
+
+    it('reads target_role from the owned CV record, ignoring any client-sent target_role', async () => {
+      const { service, generator } = build({ targetRole: 'backend_developer' });
+      await service.assistantSmartQuestions('u1', 'cv1', {
+        ...smartDto,
+        target_role: 'frontend_developer', // client-sent — must be ignored server-side
+      });
+      expect(generator.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ target_role: 'backend_developer' }),
+        'u1',
+      );
     });
   });
 });

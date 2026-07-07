@@ -54,6 +54,13 @@ export class AssistantAnalyzeRequestDto {
   target_role?: string;
 }
 
+/**
+ * Turn-1.5: role-aware smart questions (LLM-backed). Same request shape as Turn-1 analyze —
+ * `target_role` (inherited) is informational only; the endpoint always reads the real
+ * `target_role` server-side from the owned CV record, never from this DTO.
+ */
+export class AssistantSmartQuestionsRequestDto extends AssistantAnalyzeRequestDto {}
+
 /** one Turn-1 answer: a category chip + an optional concrete detail. */
 export class AssistantAnswerDto {
   @ApiProperty({ enum: GAPS })

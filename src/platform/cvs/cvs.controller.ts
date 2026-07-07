@@ -37,6 +37,7 @@ import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import {
   AssistantAnalyzeRequestDto,
   AssistantRewriteRequestDto,
+  AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
 } from './dto/cv-assistant.dto';
 import {
@@ -279,6 +280,24 @@ export class CvsController {
     @Body() dto: AssistantAnalyzeRequestDto,
   ) {
     return this.cvs.assistantAnalyze(user.userId, id, dto);
+  }
+
+  // Same abuse bound as /rewrite: this endpoint calls an LLM, so a tight per-user rate keeps
+  // scripted spam from burning tokens before it hits 429.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post(':id/builder/assistant/smart-questions')
+  @ApiOperation({
+    summary: 'CV Builder assistant — role-aware smart questions (Turn-1.5, LLM, rate-limited)',
+    description:
+      'Checks ownership, reads target_role from the CV record server-side (never trusts the client), then delegates to the LLM smart-question generator. Falls back to the deterministic Turn-1 rule questions on any LLM/parse miss — never goes silent.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  smartQuestions(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: AssistantSmartQuestionsRequestDto,
+  ) {
+    return this.cvs.assistantSmartQuestions(user.userId, id, dto);
   }
 
   @Post(':id/builder/story')
