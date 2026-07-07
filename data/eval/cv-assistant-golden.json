@@ -78,6 +78,88 @@
       "model_after": "Built it and cut latency by 30%.",
       "model_used_facts": ["built"],
       "expect_ok": false
+    },
+
+    {
+      "id": "ground-antifab-strip-standalone-percent-en", "kind": "grounding", "language": "en",
+      "detected_gaps": ["result"],
+      "raw": {
+        "already_strong": false,
+        "questions": [
+          {
+            "gap": "result",
+            "prompt": "Did you really hit a 30% improvement?",
+            "chips": ["5x growth", "Improved reliability"]
+          }
+        ]
+      },
+      "expect_raw_has_planted_number": ["Did you really hit a 30% improvement?", "5x growth"],
+      "expect_null": false,
+      "expect_gaps": ["result"],
+      "expect_chip_labels": { "result": ["Improved reliability"] },
+      "expect_prompt_no_planted_number": ["result"]
+    },
+    {
+      "id": "ground-antifab-strip-reverse-multiplier-vi", "kind": "grounding", "language": "vi",
+      "detected_gaps": ["tech"],
+      "raw": {
+        "already_strong": false,
+        "questions": [
+          {
+            "gap": "tech",
+            "prompt": "Bạn đã tăng x2 doanh số bằng công nghệ gì?",
+            "chips": ["x2 doanh số", "Dùng React"]
+          }
+        ]
+      },
+      "expect_raw_has_planted_number": ["Bạn đã tăng x2 doanh số bằng công nghệ gì?", "x2 doanh số"],
+      "expect_null": false,
+      "expect_gaps": ["tech"],
+      "expect_chip_labels": { "tech": ["Dùng React"] },
+      "expect_prompt_no_planted_number": ["tech"]
+    },
+    {
+      "id": "ground-off-taxonomy-full-drop-en", "kind": "grounding", "language": "en",
+      "detected_gaps": ["tech"],
+      "raw": {
+        "already_strong": false,
+        "questions": [
+          { "gap": "result", "prompt": "Any measurable outcome?", "chips": ["Improved reliability"] }
+        ]
+      },
+      "expect_null": true
+    },
+    {
+      "id": "ground-off-taxonomy-partial-drop-en", "kind": "grounding", "language": "en",
+      "detected_gaps": ["tech", "result"],
+      "raw": {
+        "already_strong": false,
+        "questions": [
+          { "gap": "role", "prompt": "Which role are you targeting?", "chips": ["Backend"] },
+          { "gap": "tech", "prompt": "Which tech did you use?", "chips": ["Node.js", "PostgreSQL"] }
+        ]
+      },
+      "expect_null": false,
+      "expect_gaps": ["tech"],
+      "expect_chip_labels": { "tech": ["Node.js", "PostgreSQL"] }
+    },
+    {
+      "id": "ground-role-aware-fe-vs-be-en", "kind": "grounding_role_diff", "language": "en",
+      "detected_gaps": ["tech"],
+      "raw_a": {
+        "already_strong": false,
+        "questions": [
+          { "gap": "tech", "prompt": "Which frontend tech did you use?", "chips": ["React", "Vue", "CSS"] }
+        ]
+      },
+      "raw_b": {
+        "already_strong": false,
+        "questions": [
+          { "gap": "tech", "prompt": "Which backend tech did you use?", "chips": ["Node", "SQL", "Docker"] }
+        ]
+      },
+      "expect_chips_a": ["React", "Vue", "CSS"],
+      "expect_chips_b": ["Node", "SQL", "Docker"]
     }
   ]
 }
