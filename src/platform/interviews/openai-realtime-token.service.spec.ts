@@ -82,7 +82,7 @@ describe('OpenAiRealtimeTokenService', () => {
               turn_detection: expect.objectContaining({
                 type: 'server_vad',
                 create_response: false,
-                interrupt_response: true,
+                interrupt_response: false,
               }),
             }),
             output: expect.objectContaining({
@@ -240,7 +240,7 @@ describe('OpenAiRealtimeTokenService', () => {
     );
   });
 
-  it('keeps guided hybrid voice capture from auto-responding', async () => {
+  it('keeps guided hybrid voice capture from auto-responding or interrupting official audio', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -262,7 +262,7 @@ describe('OpenAiRealtimeTokenService', () => {
               turn_detection: expect.objectContaining({
                 type: 'server_vad',
                 create_response: false,
-                interrupt_response: true,
+                interrupt_response: false,
               }),
             }),
           }),
