@@ -13,8 +13,11 @@ describe('interview question bank seeds', () => {
       'backend_developer',
       'frontend_developer',
       'fullstack_developer',
+      'mobile_developer',
       'devops_engineer',
+      'data_analyst',
       'qa_engineer',
+      'ai_ml_engineer',
     ]);
     expect(keys.size).toBe(QUESTION_BANK_TARGET_ROLES.length * 60);
     expect(seeds).toHaveLength(QUESTION_BANK_TARGET_ROLES.length * 60 * 2);
