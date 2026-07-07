@@ -361,13 +361,7 @@ export class InterviewsService {
     );
 
     if (!this.hasNewTurnDependencies(session)) {
-      return this.answerLegacy(
-        userId,
-        session,
-        { ...dto, userAnswer },
-        answerContext,
-        current,
-      );
+      return this.answerLegacy(userId, session, { ...dto, userAnswer }, answerContext, current);
     }
 
     const agenda = this.asInterviewAgenda(session.agenda);
@@ -808,16 +802,15 @@ export class InterviewsService {
     const normalizedRole = normalizeQuestionBankTargetRole(targetRole);
     if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
 
-    return this.allSeedQuestionBankItems()
-      .filter(
-        (seed) =>
-          seed.active &&
-          seed.language === language &&
-          seed.targetRole === normalizedRole &&
-          (seed.interviewType === interviewType ||
-            seed.interviewType === 'MIXED' ||
-            interviewType === 'MIXED'),
-      );
+    return this.allSeedQuestionBankItems().filter(
+      (seed) =>
+        seed.active &&
+        seed.language === language &&
+        seed.targetRole === normalizedRole &&
+        (seed.interviewType === interviewType ||
+          seed.interviewType === 'MIXED' ||
+          interviewType === 'MIXED'),
+    );
   }
 
   private allSeedQuestionBankItems(): InterviewQuestionBankCandidate[] {
@@ -847,7 +840,6 @@ export class InterviewsService {
     const normalizedRole = normalizeQuestionBankTargetRole(criteria.targetRole);
     if (!this.isKnownQuestionBankRole(normalizedRole)) return [];
 
-    const roleOnly = contextMode === 'ROLE_ONLY';
     const cvOrRoleOnly = contextMode !== 'CV_JD_MATCH';
     const seniority = criteria.seniority.trim().toLowerCase();
     const phaseRank: Partial<Record<AgendaInterviewPhase, number>> = {
@@ -2075,7 +2067,10 @@ export class InterviewsService {
   }
 
   private hasMeaningfulTranscript(answer: string, interviewerQuestion: string): boolean {
-    if (this.normalizeTranscriptForComparison(answer) === this.normalizeTranscriptForComparison(interviewerQuestion)) {
+    if (
+      this.normalizeTranscriptForComparison(answer) ===
+      this.normalizeTranscriptForComparison(interviewerQuestion)
+    ) {
       return false;
     }
     const compactLength = answer.replace(/\s+/g, '').length;

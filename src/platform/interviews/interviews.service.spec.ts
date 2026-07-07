@@ -575,7 +575,9 @@ describe('InterviewsService', () => {
 
     const createdSession = sessions.create.mock.calls[0][0] as InterviewSessionEntity;
     const snapshot = createdSession.contextSnapshot as { contextMode?: string };
-    const agenda = createdSession.agenda as { topics: Array<{ seed_question: string; phase: string }> };
+    const agenda = createdSession.agenda as {
+      topics: Array<{ seed_question: string; phase: string }>;
+    };
     const allQuestions = agenda.topics.map((topic) => topic.seed_question).join('\n');
 
     expect(response.contextMode).toBe('CV_ONLY');
@@ -826,7 +828,8 @@ describe('InterviewsService', () => {
       mode: 'VOICE',
       status: 'IN_PROGRESS',
       totalQuestionsPlanned: 10,
-      firstMessage: 'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
+      firstMessage:
+        'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
       firstQuestion:
         'To start, what have you been working on recently, and what drew you to this role?',
       phase: 'SCREENING',
@@ -1537,7 +1540,8 @@ describe('InterviewsService', () => {
     expect(response.nextTurn).toMatchObject({
       turnOrder: 3,
       interviewerMessage: 'Thanks, moving to the next area.',
-      interviewerQuestion: 'Let us connect that API work to data design: how did you model the schema?',
+      interviewerQuestion:
+        'Let us connect that API work to data design: how did you model the schema?',
       questionBankItemId: null,
       questionBankKey: null,
     });
@@ -2037,7 +2041,8 @@ describe('InterviewsService', () => {
     const response = await service.answer(userId, {
       sessionId: 'session-time-limit',
       userAnswer: 'I built REST APIs with validation, authentication, and transaction handling.',
-      userTranscript: 'I built REST APIs with validation, authentication, and transaction handling.',
+      userTranscript:
+        'I built REST APIs with validation, authentication, and transaction handling.',
       modality: 'AUDIO',
       durationSeconds: 30,
     });

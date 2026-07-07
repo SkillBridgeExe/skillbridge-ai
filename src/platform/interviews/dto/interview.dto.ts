@@ -279,7 +279,12 @@ export interface AnswerInterviewResponseDto {
   aiMessage: string;
   nextQuestion: string | null;
   finished: boolean;
-  turnDecision?: 'continue_topic' | 'advance_topic' | 'adaptive_follow_up' | 'closing_prompt' | 'finish';
+  turnDecision?:
+    | 'continue_topic'
+    | 'advance_topic'
+    | 'adaptive_follow_up'
+    | 'closing_prompt'
+    | 'finish';
   finishReason?: 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
   nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
 }
