@@ -36,6 +36,7 @@ export interface CvListItemDto {
   originalFileName: string | null;
   fileType: string | null;
   fileSize: number | null;
+  cvKind: string;
   language: string | null;
   targetRole: string | null;
   isOcrOnly: boolean;
