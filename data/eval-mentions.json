@@ -2509,11 +2509,11 @@
       "mention": "Oracle",
       "lang": "en",
       "expected": [
-        "sql"
+        "oracle"
       ],
       "category": "alias",
       "requires": [],
-      "note": "oracle/oracle db -> NONE today (not in sql aliases). Add 'oracle' alias to sql. [unlocked by step-2 alias]"
+      "note": "rebaseline 2026-07-08: canonical 'oracle' exists since f92186e; prior [sql] was stale."
     },
     {
       "mention": "Node 18",
@@ -2948,6 +2948,246 @@
       "category": "negative",
       "requires": [],
       "note": "NEGATIVE CONTROL: B2 = a building/floor label; len-10 token exercises the maxD=2 fuzzy band against the new 9-char keys; contextual-only CEFR must NOT fire here. (lái xe B2 + english club member are the other load-bearing guards already in the corpus.)"
+    },
+    {
+      "mention": "objectoriented concepts",
+      "lang": "en",
+      "expected": ["oop"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: near-neighbor of existing oop aliases, no-space compound form."
+    },
+    {
+      "mention": "object oriented concepts",
+      "lang": "en",
+      "expected": ["oop"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: near-neighbor of existing oop aliases, spaced form."
+    },
+    {
+      "mention": "object storage",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: cloud storage concept, must NOT match oop."
+    },
+    {
+      "mention": "automation testing",
+      "lang": "en",
+      "expected": ["test_automation"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: near-neighbor of existing 'automated testing'."
+    },
+    {
+      "mention": "manual estimation",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: estimation practice, must NOT match test_automation."
+    },
+    {
+      "mention": "react hooks",
+      "lang": "en",
+      "expected": ["react"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: React feature name students list verbatim."
+    },
+    {
+      "mention": "git hooks",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: git feature, must NOT match react."
+    },
+    {
+      "mention": "wordpress development",
+      "lang": "en",
+      "expected": ["wordpress"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: common CV phrasing for WordPress work."
+    },
+    {
+      "mention": "software development",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: generic phrase, must NOT match wordpress."
+    },
+    {
+      "mention": "gutenberg",
+      "lang": "en",
+      "expected": ["wordpress"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: WordPress block editor, named after the printing press."
+    },
+    {
+      "mention": "project gutenberg ebook",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: the ebook library, must NOT match wordpress."
+    },
+    {
+      "mention": "classic editor",
+      "lang": "en",
+      "expected": ["wordpress"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: WordPress plugin name (pre-Gutenberg editor)."
+    },
+    {
+      "mention": "code editor",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: generic dev tool, must NOT match wordpress."
+    },
+    {
+      "mention": "gravity forms",
+      "lang": "en",
+      "expected": ["wordpress"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: popular WordPress forms plugin."
+    },
+    {
+      "mention": "google forms",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: unrelated Google product, must NOT match wordpress."
+    },
+    {
+      "mention": "wp engine",
+      "lang": "en",
+      "expected": ["wordpress"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: managed WordPress hosting provider."
+    },
+    {
+      "mention": "game engine",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: unrelated 'engine' phrase, must NOT match wordpress."
+    },
+    {
+      "mention": "retrospective",
+      "lang": "en",
+      "expected": ["agile_scrum"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: Scrum ceremony name students list verbatim."
+    },
+    {
+      "mention": "retrospective meeting minutes",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: generic meeting-notes phrase, must NOT match agile_scrum."
+    },
+    {
+      "mention": "daily standup",
+      "lang": "en",
+      "expected": ["agile_scrum"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: Scrum ceremony name students list verbatim."
+    },
+    {
+      "mention": "standup",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: bare 'standup' too generic (comedy/standing desk), must stay unmatched."
+    },
+    {
+      "mention": "agile development methodologies",
+      "lang": "en",
+      "expected": ["agile_scrum"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: longform CV phrasing for agile."
+    },
+    {
+      "mention": "development best practices",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: generic phrase, must NOT match agile_scrum."
+    },
+    {
+      "mention": "ci",
+      "lang": "en",
+      "expected": ["ci_cd"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: whole-mention only, short alias guarded by exact-key length (<=4 chars disables fuzzy)."
+    },
+    {
+      "mention": "continuous improvement",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: process phrase, must NOT match ci_cd via the new bare 'ci' alias."
+    },
+    {
+      "mention": "aws cloud practitioner",
+      "lang": "en",
+      "expected": ["cloud_aws"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1: AWS certification name students list verbatim."
+    },
+    {
+      "mention": "cloud",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": ["prenormalize"],
+      "note": "NEGATIVE CONTROL: bare 'cloud' too generic, must stay unmatched. PRE-EXISTING FP (not caused by this task): fuzzy-matches cloud_gcp's 'gcloud' alias at d=1 (5-7 char band). Confirmed the new 'aws cloud practitioner' alias (21-char key) cannot affect this — length gap skips it in the fuzzy loop. Locked out of scope; step-4 fuzzy guard should kill it."
+    },
+    {
+      "mention": "apis",
+      "lang": "en",
+      "expected": ["rest_api"],
+      "category": "alias",
+      "requires": [],
+      "note": "S1-FLAG: plural of common 'api' shorthand; key len 4 disables fuzzy so risk is exact-collision only."
+    },
+    {
+      "mention": "api spec",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: spec document, must NOT match rest_api via the new 'apis' alias."
+    },
+    {
+      "mention": "api integration",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "NEGATIVE CONTROL: generic integration phrase, must NOT match rest_api via the new 'apis' alias."
     }
   ]
 }
