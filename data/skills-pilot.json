@@ -3372,6 +3372,268 @@
         "quan tri active directory"
       ],
       "note": "CUSTOM — added for the Story→CV full-IT role set (role-set B). Bare 'ad' intentionally NOT aliased (too generic, collision risk). No clean ESCO/O*NET concept (honest null)."
+    },
+    {
+      "canonical_name": "axios",
+      "display_name": "Axios",
+      "category": "frontend",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "axios"
+      ]
+    },
+    {
+      "canonical_name": "react_router",
+      "display_name": "React Router",
+      "category": "frontend_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "react router",
+        "react-router",
+        "react router dom",
+        "react-router-dom"
+      ]
+    },
+    {
+      "canonical_name": "swagger",
+      "display_name": "Swagger / OpenAPI",
+      "category": "tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "swagger",
+        "swagger docs",
+        "openapi",
+        "open api",
+        "swagger ui"
+      ]
+    },
+    {
+      "canonical_name": "adobe_illustrator",
+      "display_name": "Adobe Illustrator",
+      "category": "design",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "adobe illustrator",
+        "illustrator",
+        "adobe ai"
+      ]
+    },
+    {
+      "canonical_name": "linq",
+      "display_name": "LINQ",
+      "category": "backend",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "linq"
+      ]
+    },
+    {
+      "canonical_name": "logstash",
+      "display_name": "Logstash",
+      "category": "data_tool",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "logstash"
+      ]
+    },
+    {
+      "canonical_name": "mocha",
+      "display_name": "Mocha",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "mocha",
+        "mocha chai",
+        "chai"
+      ]
+    },
+    {
+      "canonical_name": "pm2",
+      "display_name": "PM2",
+      "category": "devops",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "pm2"
+      ]
+    },
+    {
+      "canonical_name": "dayjs",
+      "display_name": "Day.js",
+      "category": "frontend",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "dayjs",
+        "day.js",
+        "day js"
+      ]
+    },
+    {
+      "canonical_name": "xml",
+      "display_name": "XML",
+      "category": "web_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "xml"
+      ]
+    },
+    {
+      "canonical_name": "riverpod",
+      "display_name": "Riverpod",
+      "category": "mobile_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "riverpod",
+        "flutter riverpod"
+      ]
+    },
+    {
+      "canonical_name": "bloc",
+      "display_name": "BLoC",
+      "category": "mobile_framework",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "bloc",
+        "flutter bloc"
+      ]
+    },
+    {
+      "canonical_name": "faiss",
+      "display_name": "FAISS",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "faiss"
+      ]
+    },
+    {
+      "canonical_name": "qdrant",
+      "display_name": "Qdrant",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "qdrant"
+      ]
+    },
+    {
+      "canonical_name": "nltk",
+      "display_name": "NLTK",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "nltk"
+      ]
+    },
+    {
+      "canonical_name": "langgraph",
+      "display_name": "LangGraph",
+      "category": "ai_ml",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "langgraph"
+      ],
+      "note": "S2 brief listed alias 'langchain' too, but that collides with existing llm_engineering's alias 'langchain' (skills-pilot-integrity guard). Narrowed to the specific named concept 'langgraph' only — do not add 'langchain' here."
+    },
+    {
+      "canonical_name": "design_patterns",
+      "display_name": "Design Patterns",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "design patterns",
+        "repository pattern"
+      ]
+    },
+    {
+      "canonical_name": "unit_testing",
+      "display_name": "Unit Testing",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "unit testing",
+        "unit test"
+      ]
+    },
+    {
+      "canonical_name": "tdd",
+      "display_name": "Test-Driven Development",
+      "category": "testing",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "tdd",
+        "test driven development",
+        "test-driven development"
+      ]
+    },
+    {
+      "canonical_name": "code_review",
+      "display_name": "Code Review",
+      "category": "process",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "code review",
+        "code reviews"
+      ]
+    },
+    {
+      "canonical_name": "clean_architecture",
+      "display_name": "Clean Architecture",
+      "category": "architecture",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "clean architecture"
+      ]
+    },
+    {
+      "canonical_name": "dependency_injection",
+      "display_name": "Dependency Injection",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "dependency injection",
+        "ioc container"
+      ]
+    },
+    {
+      "canonical_name": "refactoring",
+      "display_name": "Refactoring",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "refactoring"
+      ]
+    },
+    {
+      "canonical_name": "concurrency",
+      "display_name": "Concurrency",
+      "category": "cs_fundamentals",
+      "source": "CUSTOM",
+      "source_external_id": null,
+      "aliases": [
+        "concurrency"
+      ]
     }
   ]
 }

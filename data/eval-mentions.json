@@ -2904,7 +2904,9 @@
     {
       "mention": "CEFR B2",
       "lang": "en",
-      "expected": ["english_proficiency"],
+      "expected": [
+        "english_proficiency"
+      ],
       "category": "alias",
       "requires": [],
       "note": "NEW (RED before alias add): CEFR band bound to the CEFR context word."
@@ -2912,7 +2914,9 @@
     {
       "mention": "Tieng Anh B2",
       "lang": "vi",
-      "expected": ["english_proficiency"],
+      "expected": [
+        "english_proficiency"
+      ],
       "category": "alias",
       "requires": [],
       "note": "NEW (RED before alias add): diacritic-stripped twin key 'tienganhb2'."
@@ -2920,7 +2924,9 @@
     {
       "mention": "English B2",
       "lang": "en",
-      "expected": ["english_proficiency"],
+      "expected": [
+        "english_proficiency"
+      ],
       "category": "alias",
       "requires": [],
       "note": "UPGRADE: already fuzzy-resolves (key 'englishb2' is d=2 from 'english'); alias lifts matched_via 0.65 -> 0.9."
@@ -2928,7 +2934,9 @@
     {
       "mention": "Tiếng Anh B2",
       "lang": "vi",
-      "expected": ["english_proficiency"],
+      "expected": [
+        "english_proficiency"
+      ],
       "category": "alias",
       "requires": [],
       "note": "UPGRADE: diacritic form already fuzzy-resolves; alias makes it an exact alias hit."
@@ -2936,7 +2944,9 @@
     {
       "mention": "B2 English",
       "lang": "en",
-      "expected": ["english_proficiency"],
+      "expected": [
+        "english_proficiency"
+      ],
       "category": "alias",
       "requires": [],
       "note": "UPGRADE: already fuzzy-resolves (key 'b2english' d=2 from 'english')."
@@ -2952,7 +2962,9 @@
     {
       "mention": "objectoriented concepts",
       "lang": "en",
-      "expected": ["oop"],
+      "expected": [
+        "oop"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: near-neighbor of existing oop aliases, no-space compound form."
@@ -2960,7 +2972,9 @@
     {
       "mention": "object oriented concepts",
       "lang": "en",
-      "expected": ["oop"],
+      "expected": [
+        "oop"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: near-neighbor of existing oop aliases, spaced form."
@@ -2976,7 +2990,9 @@
     {
       "mention": "automation testing",
       "lang": "en",
-      "expected": ["test_automation"],
+      "expected": [
+        "test_automation"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: near-neighbor of existing 'automated testing'."
@@ -2992,7 +3008,9 @@
     {
       "mention": "react hooks",
       "lang": "en",
-      "expected": ["react"],
+      "expected": [
+        "react"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: React feature name students list verbatim."
@@ -3008,7 +3026,9 @@
     {
       "mention": "wordpress development",
       "lang": "en",
-      "expected": ["wordpress"],
+      "expected": [
+        "wordpress"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: common CV phrasing for WordPress work."
@@ -3024,7 +3044,9 @@
     {
       "mention": "gutenberg",
       "lang": "en",
-      "expected": ["wordpress"],
+      "expected": [
+        "wordpress"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: WordPress block editor, named after the printing press."
@@ -3040,7 +3062,9 @@
     {
       "mention": "classic editor",
       "lang": "en",
-      "expected": ["wordpress"],
+      "expected": [
+        "wordpress"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: WordPress plugin name (pre-Gutenberg editor)."
@@ -3056,7 +3080,9 @@
     {
       "mention": "gravity forms",
       "lang": "en",
-      "expected": ["wordpress"],
+      "expected": [
+        "wordpress"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: popular WordPress forms plugin."
@@ -3072,7 +3098,9 @@
     {
       "mention": "wp engine",
       "lang": "en",
-      "expected": ["wordpress"],
+      "expected": [
+        "wordpress"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: managed WordPress hosting provider."
@@ -3088,7 +3116,9 @@
     {
       "mention": "retrospective",
       "lang": "en",
-      "expected": ["agile_scrum"],
+      "expected": [
+        "agile_scrum"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: Scrum ceremony name students list verbatim."
@@ -3104,7 +3134,9 @@
     {
       "mention": "daily standup",
       "lang": "en",
-      "expected": ["agile_scrum"],
+      "expected": [
+        "agile_scrum"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: Scrum ceremony name students list verbatim."
@@ -3120,7 +3152,9 @@
     {
       "mention": "agile development methodologies",
       "lang": "en",
-      "expected": ["agile_scrum"],
+      "expected": [
+        "agile_scrum"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: longform CV phrasing for agile."
@@ -3136,7 +3170,9 @@
     {
       "mention": "ci",
       "lang": "en",
-      "expected": ["ci_cd"],
+      "expected": [
+        "ci_cd"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: whole-mention only, short alias guarded by exact-key length (<=4 chars disables fuzzy)."
@@ -3152,7 +3188,9 @@
     {
       "mention": "aws cloud practitioner",
       "lang": "en",
-      "expected": ["cloud_aws"],
+      "expected": [
+        "cloud_aws"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1: AWS certification name students list verbatim."
@@ -3162,13 +3200,17 @@
       "lang": "en",
       "expected": [],
       "category": "negative",
-      "requires": ["prenormalize"],
+      "requires": [
+        "prenormalize"
+      ],
       "note": "NEGATIVE CONTROL: bare 'cloud' too generic, must stay unmatched. PRE-EXISTING FP (not caused by this task): fuzzy-matches cloud_gcp's 'gcloud' alias at d=1 (5-7 char band). Confirmed the new 'aws cloud practitioner' alias (21-char key) cannot affect this — length gap skips it in the fuzzy loop. Locked out of scope; step-4 fuzzy guard should kill it."
     },
     {
       "mention": "apis",
       "lang": "en",
-      "expected": ["rest_api"],
+      "expected": [
+        "rest_api"
+      ],
       "category": "alias",
       "requires": [],
       "note": "S1-FLAG: plural of common 'api' shorthand; key len 4 disables fuzzy so risk is exact-collision only."
@@ -3188,6 +3230,302 @@
       "category": "negative",
       "requires": [],
       "note": "NEGATIVE CONTROL: generic integration phrase, must NOT match rest_api via the new 'apis' alias."
+    },
+    {
+      "mention": "axios",
+      "lang": "en",
+      "expected": [
+        "axios"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "react-router-dom",
+      "lang": "en",
+      "expected": [
+        "react_router"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "openapi",
+      "lang": "en",
+      "expected": [
+        "swagger"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "adobe illustrator",
+      "lang": "en",
+      "expected": [
+        "adobe_illustrator"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "linq",
+      "lang": "en",
+      "expected": [
+        "linq"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "logstash",
+      "lang": "en",
+      "expected": [
+        "logstash"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "mocha",
+      "lang": "en",
+      "expected": [
+        "mocha"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "pm2",
+      "lang": "en",
+      "expected": [
+        "pm2"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "day js",
+      "lang": "en",
+      "expected": [
+        "dayjs"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "XML",
+      "lang": "en",
+      "expected": [
+        "xml"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "flutter riverpod",
+      "lang": "en",
+      "expected": [
+        "riverpod"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "flutter bloc",
+      "lang": "en",
+      "expected": [
+        "bloc"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (tool)."
+    },
+    {
+      "mention": "faiss",
+      "lang": "en",
+      "expected": [
+        "faiss"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (AI/RAG infra)."
+    },
+    {
+      "mention": "qdrant",
+      "lang": "en",
+      "expected": [
+        "qdrant"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (AI/RAG infra)."
+    },
+    {
+      "mention": "nltk",
+      "lang": "en",
+      "expected": [
+        "nltk"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (AI/RAG infra)."
+    },
+    {
+      "mention": "langgraph",
+      "lang": "en",
+      "expected": [
+        "langgraph"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (AI/RAG infra). Alias 'langchain' deliberately NOT added — collides with existing llm_engineering's alias 'langchain'."
+    },
+    {
+      "mention": "design patterns",
+      "lang": "en",
+      "expected": [
+        "design_patterns"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "unit testing",
+      "lang": "en",
+      "expected": [
+        "unit_testing"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "test-driven development",
+      "lang": "en",
+      "expected": [
+        "tdd"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "code review",
+      "lang": "en",
+      "expected": [
+        "code_review"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "clean architecture",
+      "lang": "en",
+      "expected": [
+        "clean_architecture"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "ioc container",
+      "lang": "en",
+      "expected": [
+        "dependency_injection"
+      ],
+      "category": "alias",
+      "requires": [],
+      "note": "S2 practice alias."
+    },
+    {
+      "mention": "refactoring",
+      "lang": "en",
+      "expected": [
+        "refactoring"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "concurrency",
+      "lang": "en",
+      "expected": [
+        "concurrency"
+      ],
+      "category": "exact",
+      "requires": [],
+      "note": "S2 new row (practice)."
+    },
+    {
+      "mention": "develop applications",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "practice-guard: duty, must NOT match any practice row."
+    },
+    {
+      "mention": "software development",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "practice-guard: duty, must NOT match code_review/tdd/etc."
+    },
+    {
+      "mention": "development best practices",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "practice-guard: prose, stays []."
+    },
+    {
+      "mention": "hands-on coding",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "practice-guard: duty prose, stays []."
+    },
+    {
+      "mention": "technical specifications",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "practice-guard: duty artifact, stays []."
+    },
+    {
+      "mention": "mocha coffee",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "must NOT match mocha (test lib)."
+    },
+    {
+      "mention": "bloc party",
+      "lang": "en",
+      "expected": [],
+      "category": "negative",
+      "requires": [],
+      "note": "bloc = Flutter BLoC; whole-mention only, generic 'bloc' prose stays []."
     }
   ]
 }
