@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class PlatformCvReviewRequestDto {
   @ApiProperty({
@@ -23,4 +23,18 @@ export class PlatformCvReviewRequestDto {
   @MaxLength(80)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   targetRole?: string;
+
+  /**
+   * Optional UI locale ('vi' | 'en') for the FEEDBACK language. When set, the review's prose
+   * (rationale, tips, top_summary) is produced in this language so it matches the app's UI toggle;
+   * CV quotes stay in the CV's own language. Omitted = the detected CV language (backward-compatible).
+   * A different `lang` than a cached review's re-generates instead of reusing the previous language.
+   */
+  @ApiPropertyOptional({
+    description: 'UI locale for feedback language (vi|en). Defaults to the detected CV language.',
+    enum: ['vi', 'en'],
+  })
+  @IsOptional()
+  @IsIn(['vi', 'en'])
+  lang?: 'vi' | 'en';
 }

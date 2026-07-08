@@ -208,6 +208,10 @@ export class CvReviewService {
         cv_id: input.cv_id,
         prompt_template_code: input.prompt_template_code,
         target_role: input.target_role,
+        // Persist the REQUESTED feedback locale (null when omitted) so the platform review cache
+        // only reuses a review whose language matches — a UI toggle re-generates instead of
+        // serving the previous language. Null bucket keeps pre-lang rows reusable.
+        lang: input.lang ?? null,
       },
     });
 

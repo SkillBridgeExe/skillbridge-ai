@@ -23,7 +23,7 @@ export class DiagnosisController {
   })
   @ApiBody({ type: PlatformCvReviewRequestDto })
   review(@CurrentUser() user: JwtUser, @Body() dto: PlatformCvReviewRequestDto) {
-    return this.cvs.rerunReview(user.userId, dto.cvId, dto.targetRole);
+    return this.cvs.rerunReview(user.userId, dto.cvId, dto.targetRole, dto.lang);
   }
 
   @Get('history')

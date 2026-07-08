@@ -891,7 +891,12 @@ export class CvsService {
     });
   }
 
-  async rerunReview(userId: string, cvId: string, requestedRole?: string): Promise<CvResponseDto> {
+  async rerunReview(
+    userId: string,
+    cvId: string,
+    requestedRole?: string,
+    lang?: 'vi' | 'en',
+  ): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     const parsedText = this.reviewableText(cv);
     if (!parsedText) {
@@ -905,7 +910,10 @@ export class CvsService {
     // stored role when none is given. Reuse a cached analysis only for THAT role — a different
     // role re-grades against its own rubric instead of returning the stored role's review.
     const role = this.normalizeTargetRole(requestedRole) ?? cv.targetRole ?? null;
-    const cached = await this.getLatestMatchingReview(userId, cv.id, role);
+    // Reuse a cached review ONLY when its feedback language matches what the caller asked for
+    // (a UI-locale toggle must re-generate, not serve the previous language). `lang` undefined =
+    // old behavior (matches the null-lang bucket).
+    const cached = await this.getLatestMatchingReview(userId, cv.id, role, lang);
     if (cached) {
       return this.toResponse(cv, await this.getPersistedSkills(cv.id), cached);
     }
@@ -917,7 +925,7 @@ export class CvsService {
     }
     const usage = await this.analysisQuota.reserveAnalysis(userId);
     try {
-      const review = await this.reviewCv(userId, cv, role ?? undefined);
+      const review = await this.reviewCv(userId, cv, role ?? undefined, lang);
       await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
       return this.toResponse(review.cv, review.skills, review.parsed);
     } catch (error) {
@@ -930,6 +938,7 @@ export class CvsService {
     userId: string,
     cv: CvEntity,
     targetRole?: string,
+    lang?: 'vi' | 'en',
   ): Promise<{ cv: CvEntity; parsed: CvReviewParsedResponse; skills: CvSkillResponseDto[] }> {
     if (!cv.parsedText) {
       throw new BadRequestException({
@@ -947,6 +956,7 @@ export class CvsService {
       target_role: effectiveTargetRole ?? undefined,
       mime_type: cv.fileType ?? undefined,
       is_ocr_only: cv.isOcrOnly,
+      lang,
     });
     const parsed = review.parsed_response;
 
@@ -1073,6 +1083,7 @@ export class CvsService {
     userId: string,
     cvId: string,
     targetRole: string | null,
+    lang?: 'vi' | 'en',
   ): Promise<CvReviewParsedResponse | null> {
     // All four predicates read the SAME nested `payload` object that cv-review.service writes
     // (cv_id, target_role, prompt_template_code='cv_review_v1'). The TOP-LEVEL
@@ -1092,10 +1103,11 @@ export class CvsService {
           AND req.request_payload -> 'payload' ->> 'cv_id' = $3
           AND req.request_payload -> 'payload' ->> 'target_role' IS NOT DISTINCT FROM $4
           AND req.request_payload -> 'payload' ->> 'prompt_template_code' = $5
+          AND req.request_payload -> 'payload' ->> 'lang' IS NOT DISTINCT FROM $6
         ORDER BY ar.created_at DESC
         LIMIT 1
       `,
-      [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE],
+      [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE, lang ?? null],
     )) as Array<{ parsed_response: CvReviewParsedResponse | null; confidence_score?: unknown }>;
 
     const row = rows[0];
