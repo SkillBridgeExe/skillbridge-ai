@@ -175,6 +175,7 @@ export class CvReviewService {
       parsed_text: input.parsed_text,
       mime_type: input.mime_type,
       is_ocr_only: input.is_ocr_only,
+      lang: feedbackLang,
     });
 
     // ─── Step 3: LLM rubric scoring ─────────────────────────────────────────
