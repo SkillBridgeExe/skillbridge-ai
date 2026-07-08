@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { Equals, IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Equals, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCvDto {
@@ -23,4 +23,13 @@ export class CreateCvDto {
   @IsBoolean()
   @Equals(true)
   consentAccepted!: boolean;
+
+  /**
+   * Optional UI locale ('vi' | 'en') for the review FEEDBACK language, so the first diagnosis
+   * matches the app's UI toggle. Omitted = the detected CV language (backward-compatible).
+   */
+  @ApiPropertyOptional({ enum: ['vi', 'en'], description: 'UI locale for review feedback language.' })
+  @IsOptional()
+  @IsIn(['vi', 'en'])
+  lang?: 'vi' | 'en';
 }

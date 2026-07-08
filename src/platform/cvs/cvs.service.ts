@@ -162,7 +162,7 @@ export class CvsService {
     const generatedSource = await this.findGeneratedPdfSource(userId, file);
     if (generatedSource) {
       const role = this.normalizeTargetRole(dto.targetRole) ?? generatedSource.targetRole ?? null;
-      const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role);
+      const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role, dto.lang);
       if (cached) {
         return this.toResponse(
           generatedSource,
@@ -186,7 +186,7 @@ export class CvsService {
       }
       const usage = await this.analysisQuota.reserveAnalysis(userId);
       try {
-        const review = await this.reviewCv(userId, generatedSource, role ?? undefined);
+        const review = await this.reviewCv(userId, generatedSource, role ?? undefined, dto.lang);
         await usage?.confirm({ sourceType: 'cv', sourceId: generatedSource.id });
         return this.toResponse(review.cv, review.skills, review.parsed);
       } catch (error) {
@@ -208,6 +208,7 @@ export class CvsService {
         userId,
         duplicate.id,
         requestedRole ?? null,
+        dto.lang,
       );
       if (cachedForRole) {
         return this.toResponse(
@@ -222,7 +223,7 @@ export class CvsService {
           duplicate.targetRole = requestedRole;
           await this.cvs.save(duplicate);
         }
-        const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined);
+        const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined, dto.lang);
         await usage?.confirm({ sourceType: 'cv', sourceId: duplicate.id });
         return this.toResponse(review.cv, review.skills, review.parsed);
       } catch (error) {
@@ -268,7 +269,7 @@ export class CvsService {
       cvSaved = true;
       await this.recordConsentAudit(userId, cv.id);
 
-      const review = await this.reviewCv(userId, cv, targetRole ?? undefined);
+      const review = await this.reviewCv(userId, cv, targetRole ?? undefined, dto.lang);
       cv = review.cv;
       await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
 
