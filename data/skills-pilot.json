@@ -77,7 +77,8 @@
         "react.js",
         "reactjs",
         "react js",
-        "Lập trình React"
+        "Lập trình React",
+        "react hooks"
       ]
     },
     {
@@ -231,7 +232,8 @@
         "thiết kế api",
         "rest api",
         "rest api design",
-        "rest api integration"
+        "rest api integration",
+        "apis"
       ]
     },
     {
@@ -381,7 +383,8 @@
         "ci/cd pipeline",
         "cicd",
         "argocd",
-        "gitops"
+        "gitops",
+        "ci"
       ]
     },
     {
@@ -418,7 +421,8 @@
         "rds",
         "điện toán đám mây",
         "dien toan dam may",
-        "aws"
+        "aws",
+        "aws cloud practitioner"
       ]
     },
     {
@@ -467,7 +471,10 @@
         "trello",
         "confluence",
         "quản lý dự án",
-        "quan ly du an"
+        "quan ly du an",
+        "retrospective",
+        "daily standup",
+        "agile development methodologies"
       ]
     },
     {
@@ -904,7 +911,8 @@
         "writing automated test scripts",
         "selenium webdriver",
         "katalon",
-        "katalon studio"
+        "katalon studio",
+        "automation testing"
       ]
     },
     {
@@ -1406,7 +1414,9 @@
         "lập trình hướng đối tượng",
         "lap trinh huong doi tuong",
         "object oriented design",
-        "principles of object oriented programming"
+        "principles of object oriented programming",
+        "objectoriented concepts",
+        "object oriented concepts"
       ],
       "role_relevance": [
         {
@@ -1639,7 +1649,12 @@
         "vector db",
         "pgvector",
         "kỹ thuật llm",
-        "ky thuat llm"
+        "ky thuat llm",
+        "claude",
+        "chatgpt",
+        "gemini",
+        "openai gpt-4o",
+        "github copilot"
       ],
       "role_relevance": [
         {
@@ -2811,7 +2826,12 @@
       "source": "ONET",
       "source_external_id": "onet:2.E.4.g:WordPress",
       "aliases": [
-        "wordpress"
+        "wordpress",
+        "wordpress development",
+        "gutenberg",
+        "classic editor",
+        "gravity forms",
+        "wp engine"
       ],
       "in_demand": true
     },
