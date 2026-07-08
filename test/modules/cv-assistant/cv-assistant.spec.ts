@@ -71,6 +71,11 @@ describe('buildCvAssistantTurn — asks concrete questions, never fabricates', (
     expect(turn.message.toLowerCase()).toContain('strong');
   });
 
+  it('ATS requested action asks for the tech/keyword gap first', () => {
+    const turn = buildCvAssistantTurn('Built a small dashboard.', 'en', 'make_ats_friendly');
+    expect(turn.questions.map((q) => q.gap)).toEqual(['tech']);
+  });
+
   it('respects locale (Vietnamese UI → Vietnamese questions)', () => {
     const turn = buildCvAssistantTurn('Em làm dự án nhóm.', 'vi');
     expect(turn.questions[0].prompt).toMatch(/BẠN đã làm gì/);

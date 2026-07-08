@@ -376,6 +376,9 @@ function gapsForRequestedAction(
   if (requestedAction === 'add_evidence' || requestedAction === 'turn_into_impact') {
     return gaps.includes('result') ? ['result'] : [];
   }
+  if (requestedAction === 'make_ats_friendly') {
+    return gaps.includes('tech') ? ['tech'] : gaps;
+  }
   return gaps;
 }
 
