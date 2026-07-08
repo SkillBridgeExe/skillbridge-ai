@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { CvKind } from '../../../database/entities/cv.entity';
 
 export class CvListQueryDto {
   @IsOptional()
@@ -14,4 +15,8 @@ export class CvListQueryDto {
   @Min(1)
   @Max(50)
   limit = 20;
+
+  @IsOptional()
+  @IsIn(['UPLOADED', 'BUILT'])
+  cvKind?: CvKind;
 }

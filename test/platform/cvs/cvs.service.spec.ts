@@ -323,6 +323,44 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.review).toEqual({ ...parsedReview, confidence_score: null });
   });
 
+  it('filters CV library list by cvKind and returns cvKind in list items', async () => {
+    const { service, cvsRepo } = build();
+    cvsRepo.findAndCount.mockResolvedValue([
+      [
+        {
+          id: 'draft-1',
+          userId: 'u1',
+          title: 'Builder Draft',
+          originalFileName: null,
+          fileType: null,
+          fileSize: null,
+          cvKind: 'BUILT',
+          language: 'en',
+          targetRole: 'frontend_developer',
+          isOcrOnly: false,
+          atsReadabilityScore: null,
+          createdAt: now,
+        },
+      ],
+      1,
+    ]);
+
+    const response = await service.list('u1', { page: 1, limit: 50, cvKind: 'BUILT' });
+
+    expect(cvsRepo.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'u1', cvKind: 'BUILT' },
+        take: 50,
+      }),
+    );
+    expect(response.items).toEqual([
+      expect.objectContaining({
+        id: 'draft-1',
+        cvKind: 'BUILT',
+      }),
+    ]);
+  });
+
   it('persists each normalized skill only once when multiple raw skills map to the same canonical skill', async () => {
     const { service, cvSkillsRepo, cvReview, skillNormalizer, skillsRepo } = build();
     cvReview.review.mockResolvedValue({

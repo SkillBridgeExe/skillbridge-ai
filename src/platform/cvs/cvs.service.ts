@@ -282,10 +282,10 @@ export class CvsService {
 
   async list(
     userId: string,
-    options: { page: number; limit: number },
+    options: { page: number; limit: number; cvKind?: CvEntity['cvKind'] },
   ): Promise<{ items: CvListItemDto[]; total: number; page: number; limit: number }> {
     const [items, total] = await this.cvs.findAndCount({
-      where: { userId },
+      where: options.cvKind ? { userId, cvKind: options.cvKind } : { userId },
       order: { createdAt: 'DESC' },
       skip: (options.page - 1) * options.limit,
       take: options.limit,
@@ -1269,6 +1269,7 @@ export class CvsService {
       originalFileName: cv.originalFileName,
       fileType: cv.fileType,
       fileSize: cv.fileSize,
+      cvKind: cv.cvKind,
       language: cv.language,
       targetRole: cv.targetRole,
       isOcrOnly: cv.isOcrOnly,
