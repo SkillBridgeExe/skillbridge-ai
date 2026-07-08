@@ -1,7 +1,11 @@
 import * as skillsData from '../../../data/skills-pilot.json';
 import { SkillTaxonomyService } from './skill-taxonomy.service';
 
-interface Entry { canonical_name: string; display_name: string; aliases?: string[] }
+interface Entry {
+  canonical_name: string;
+  display_name: string;
+  aliases?: string[];
+}
 
 describe('skills-pilot.json integrity', () => {
   it('no normalized key maps to two different canonicals', () => {
