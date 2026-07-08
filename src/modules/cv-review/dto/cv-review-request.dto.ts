@@ -100,4 +100,19 @@ export class CvReviewRequestDto {
   })
   @IsOptional()
   is_ocr_only?: boolean;
+
+  /**
+   * Optional UI locale for the FEEDBACK language (LLM rationale, deterministic tips, top_summary,
+   * dimension rationale). When set, feedback prose is produced in this language regardless of the
+   * CV's own language, so the review matches the app's UI toggle. Quotes of the CV stay verbatim in
+   * the CV's original language. Omitted → falls back to the detected CV language (backward-compatible).
+   * Scoring, CV-text analysis and the response's `language` field ALWAYS use the detected CV language.
+   */
+  @ApiPropertyOptional({
+    description: 'UI locale for feedback language (vi|en). Defaults to the detected CV language.',
+    enum: ['vi', 'en'],
+  })
+  @IsOptional()
+  @IsIn(['vi', 'en'])
+  lang?: 'vi' | 'en';
 }
