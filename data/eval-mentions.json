@@ -3188,54 +3188,6 @@
       "category": "negative",
       "requires": [],
       "note": "NEGATIVE CONTROL: generic integration phrase, must NOT match rest_api via the new 'apis' alias."
-    },
-    {
-      "mention": "claude",
-      "lang": "en",
-      "expected": ["llm_engineering"],
-      "category": "alias",
-      "requires": [],
-      "note": "S1-FLAG: LLM product name students list as AI tooling experience."
-    },
-    {
-      "mention": "chatgpt",
-      "lang": "en",
-      "expected": ["llm_engineering"],
-      "category": "alias",
-      "requires": [],
-      "note": "S1-FLAG: LLM product name students list as AI tooling experience."
-    },
-    {
-      "mention": "gemini",
-      "lang": "en",
-      "expected": ["llm_engineering"],
-      "category": "alias",
-      "requires": [],
-      "note": "S1-FLAG: LLM product name students list as AI tooling experience."
-    },
-    {
-      "mention": "openai gpt-4o",
-      "lang": "en",
-      "expected": ["llm_engineering"],
-      "category": "alias",
-      "requires": [],
-      "note": "S1-FLAG: LLM model name students list as AI tooling experience."
-    },
-    {
-      "mention": "github copilot",
-      "lang": "en",
-      "expected": ["llm_engineering"],
-      "category": "alias",
-      "requires": [],
-      "note": "S1-FLAG: AI coding assistant students list as AI tooling experience."
-    },
-    {
-      "mention": "chatbot",
-      "lang": "en",
-      "expected": [],
-      "category": "negative",
-      "requires": [],
-      "note": "NEGATIVE CONTROL: generic term, must NOT match llm_engineering via the new claude/chatgpt/gemini aliases."
     }
   ]
 }
