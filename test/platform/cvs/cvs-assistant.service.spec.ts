@@ -243,6 +243,21 @@ describe('CvsService — Companion assistant endpoints', () => {
       expect(out.questions[0].gap).toBe('tech');
     });
 
+    it('passes requested_action through so action chips do not degrade to generic analyze', async () => {
+      const { service, generator } = build({ targetRole: 'frontend_developer' });
+      await service.assistantSmartQuestions('u1', 'cv1', {
+        ...smartDto,
+        requested_action: 'add_evidence',
+      });
+      expect(generator.generate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requested_action: 'add_evidence',
+          target_role: 'frontend_developer',
+        }),
+        'u1',
+      );
+    });
+
     it('reads target_role from the owned CV record, ignoring any client-sent target_role', async () => {
       const { service, generator } = build({ targetRole: 'backend_developer' });
       await service.assistantSmartQuestions('u1', 'cv1', {

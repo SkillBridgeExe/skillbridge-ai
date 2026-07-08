@@ -21,7 +21,11 @@ function build() {
     markFailed: jest.fn().mockResolvedValue(undefined),
   } as never;
   const svc = new CvQuestionGeneratorService(llm, prompts, tracing);
-  return { svc, llm: llm as unknown as { complete: jest.Mock } };
+  return {
+    svc,
+    llm: llm as unknown as { complete: jest.Mock },
+    prompts: prompts as unknown as { render: jest.Mock },
+  };
 }
 
 const CTX: CompanionContext = {
@@ -88,6 +92,29 @@ describe('CvQuestionGeneratorService.generate', () => {
     const turn = await svc.generate({ ...CTX, target_role: undefined });
     expect(llm.complete).not.toHaveBeenCalled();
     expect(turn.questions.length).toBeGreaterThan(0); // rule chips
+  });
+
+  it('honors requested_action when building the role-aware prompt gaps', async () => {
+    const { svc, llm, prompts } = build();
+    llm.complete.mockResolvedValue({
+      parsedJson: {
+        already_strong: false,
+        questions: [{ gap: 'result', prompt: 'Kết quả thật là gì?', chips: ['Nhanh hơn'] }],
+      },
+      text: '{}',
+      tokenUsage: {},
+    });
+
+    await svc.generate({
+      ...CTX,
+      current_value: 'Built a React dashboard.',
+      requested_action: 'add_evidence',
+    });
+
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_questions_v1',
+      expect.objectContaining({ gaps: 'result' }),
+    );
   });
 
   it('section this skill does not route (e.g. skills) → empty turn, never calls the LLM', async () => {

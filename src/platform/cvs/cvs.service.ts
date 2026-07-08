@@ -488,6 +488,7 @@ export class CvsService {
       field_path: dto.field_path,
       current_value: dto.current_value,
       locale: dto.locale ?? 'en',
+      requested_action: dto.requested_action,
       target_role: cv.targetRole ?? undefined,
     });
   }
@@ -513,6 +514,7 @@ export class CvsService {
         field_path: dto.field_path,
         current_value: dto.current_value,
         locale: dto.locale ?? 'en',
+        requested_action: dto.requested_action,
         target_role: cv.targetRole ?? undefined,
       },
       userId,

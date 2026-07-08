@@ -3,7 +3,7 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { maskPii } from '../../common/services/pii-mask';
-import { AssistantGap, CvAnswer, Language } from './cv-assistant';
+import { AssistantGap, CvAnswer, Language, analyzeBulletGaps } from './cv-assistant';
 import {
   FieldPatch,
   RewriteModelOutput,
@@ -41,6 +41,8 @@ export interface CvAssistantRewriteInput {
   kind?: 'bullet' | 'summary';
   /** "Viết lại nhẹ hơn" — softer phrasing, same facts. Omitted = default tone. */
   tone?: 'softer';
+  /** Action-chip intent. Transform intents may rewrite from the original bullet without fake answer gaps. */
+  intent?: 'improve' | 'shorten' | 'make_ats_friendly' | 'turn_into_impact' | 'add_evidence';
 }
 
 /**
@@ -52,6 +54,22 @@ const TONE_INSTRUCTION: Record<'softer' | 'default', string> = {
   softer:
     'Rewrite with a lighter, more modest tone — soften intensity words, keep EVERY fact identical; do not add or remove any fact.',
   default: '(default)',
+};
+
+const INTENT_INSTRUCTION: Record<
+  NonNullable<CvAssistantRewriteInput['intent']> | 'default',
+  string
+> = {
+  default: 'Polish the bullet for clarity and strength while keeping every fact grounded.',
+  improve:
+    'Polish the bullet for clarity, specificity, and recruiter readability. Do not add new facts.',
+  shorten: 'Shorten the bullet. Keep only the strongest grounded facts. Do not add new facts.',
+  make_ats_friendly:
+    'Make the bullet ATS-friendly: keep clear role/skill keywords already present, remove vague phrasing, and do not add missing keywords.',
+  turn_into_impact:
+    'Turn the bullet into an impact-oriented bullet using only the existing result/evidence or user-provided result facts.',
+  add_evidence:
+    'Add evidence only when it is already present in the original bullet or supplied by the user. If evidence is missing, do not invent it.',
 };
 
 export type CvAssistantRewriteResult =
@@ -74,6 +92,10 @@ const REASK_STRENGTH: Record<Language, string> = {
 const REASK_GENERIC: Record<Language, string> = {
   en: 'Tell me a bit more so I can rewrite it without inventing anything.',
   vi: 'Cho mình thêm chút thông tin để viết lại mà không bịa gì nhé.',
+};
+const REASK_RESULT: Record<Language, string> = {
+  en: 'What result or evidence can you truthfully add (metric, user impact, quality improvement, or outcome)?',
+  vi: 'Bạn có thể thêm kết quả hoặc bằng chứng thật nào (số liệu, tác động người dùng, cải thiện chất lượng, hoặc kết quả)?',
 };
 const DEGRADED_MSG: Record<Language, string> = {
   en: 'I could not rewrite this right now — please try again in a moment.',
@@ -107,6 +129,21 @@ export class CvAssistantRewriteService {
     const language = input.language; // UI language → user-facing re-ask / degraded messages.
     const outputLang = input.outputLang ?? language; // CV language → grounded facts + the rewritten text.
     const grounded = groundCvAssistantAnswers(input.answers, outputLang);
+    const isTransformIntent = Boolean(input.intent);
+
+    if (
+      (input.intent === 'add_evidence' || input.intent === 'turn_into_impact') &&
+      (input.kind ?? 'bullet') === 'bullet' &&
+      analyzeBulletGaps(input.before, outputLang).includes('result') &&
+      !input.answers.some((a) => a.gap === 'result' && (a.option_id !== 'none' || a.detail?.trim()))
+    ) {
+      return {
+        ok: false,
+        reason: 'NEEDS_DETAIL',
+        gap: 'result',
+        message: REASK_RESULT[language],
+      };
+    }
 
     // re-ask BEFORE spending any LLM call (deterministic gate).
     if (grounded.needs_detail.length > 0) {
@@ -118,7 +155,7 @@ export class CvAssistantRewriteService {
         message: gap === 'strength' ? REASK_STRENGTH[language] : REASK_TECH[language],
       };
     }
-    if (grounded.facts.length === 0) {
+    if (grounded.facts.length === 0 && !isTransformIntent) {
       return { ok: false, reason: 'NEEDS_DETAIL', message: REASK_GENERIC[language] };
     }
 
@@ -143,6 +180,7 @@ export class CvAssistantRewriteService {
         before: maskPii(input.before),
         facts: grounded.facts.map((f) => `- ${f}`).join('\n'),
         tone_instruction: TONE_INSTRUCTION[input.tone ?? 'default'],
+        intent_instruction: INTENT_INSTRUCTION[input.intent ?? 'default'],
       });
 
       const llmResult = await this.llm.complete(

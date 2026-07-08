@@ -17,6 +17,19 @@ const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence'] as con
 const KINDS = ['bullet', 'summary'] as const;
 const LANGS = ['vi', 'en'] as const;
 const TONES = ['softer'] as const;
+const REQUESTED_ACTIONS = [
+  'analyze',
+  'add_evidence',
+  'make_ats_friendly',
+  'turn_into_impact',
+] as const;
+const REWRITE_INTENTS = [
+  'improve',
+  'shorten',
+  'make_ats_friendly',
+  'turn_into_impact',
+  'add_evidence',
+] as const;
 const INTAKE_SECTIONS = ['experience'] as const;
 
 /** Turn-1: ask the engine to analyze one CV field and produce structured questions. */
@@ -42,6 +55,15 @@ export class AssistantAnalyzeRequestDto {
   @IsOptional()
   @IsIn(LANGS as unknown as string[])
   locale?: (typeof LANGS)[number];
+
+  @ApiPropertyOptional({
+    enum: REQUESTED_ACTIONS,
+    description:
+      'Optional action-chip intent. Used to avoid no-op "already strong" replies when the user explicitly asks for evidence/impact.',
+  })
+  @IsOptional()
+  @IsIn(REQUESTED_ACTIONS as unknown as string[])
+  requested_action?: (typeof REQUESTED_ACTIONS)[number];
 
   @ApiPropertyOptional({
     example: 'backend_developer',
@@ -89,7 +111,7 @@ export class AssistantRewriteRequestDto {
 
   @ApiProperty({ type: [AssistantAnswerDto], maxItems: 6 })
   @IsArray()
-  @ArrayMinSize(1)
+  @ArrayMinSize(0)
   @ArrayMaxSize(6)
   @ValidateNested({ each: true })
   @Type(() => AssistantAnswerDto)
@@ -129,6 +151,15 @@ export class AssistantRewriteRequestDto {
   @IsOptional()
   @IsIn(TONES as unknown as string[])
   tone?: (typeof TONES)[number];
+
+  @ApiPropertyOptional({
+    enum: REWRITE_INTENTS,
+    description:
+      'Action-chip rewrite intent. Lets transform-only chips rewrite safely without faking an answer gap.',
+  })
+  @IsOptional()
+  @IsIn(REWRITE_INTENTS as unknown as string[])
+  intent?: (typeof REWRITE_INTENTS)[number];
 }
 
 /**

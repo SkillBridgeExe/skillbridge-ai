@@ -12,7 +12,7 @@ describe('cv_assistant_rewrite_v1 prompt contract', () => {
   });
 
   it('declares every required input variable', () => {
-    for (const variable of ['language', 'before', 'facts']) {
+    for (const variable of ['language', 'before', 'facts', 'intent_instruction']) {
       expect(prompt).toContain(`{{${variable}}}`);
     }
   });

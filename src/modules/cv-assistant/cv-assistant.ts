@@ -19,6 +19,11 @@ export type BulletGap = 'action' | 'tech' | 'result';
 export type SummaryGap = 'role' | 'strength' | 'evidence';
 /** any gap the assistant can ask about — bullets + summary share the answer/grounding pipeline. */
 export type AssistantGap = BulletGap | SummaryGap;
+export type AssistantRequestedAction =
+  | 'analyze'
+  | 'add_evidence'
+  | 'make_ats_friendly'
+  | 'turn_into_impact';
 
 export interface AssistantOption {
   id: string;
@@ -52,6 +57,7 @@ export interface CompanionContext {
   field_path?: string;
   current_value?: string;
   locale: Language;
+  requested_action?: AssistantRequestedAction;
   /** the CV's target role (server-read from the CV record, never trusted from client input) — lets
    *  the smart-question generator ask role-appropriate follow-ups. Absent ⇒ role-blind (unchanged). */
   target_role?: string;
@@ -363,8 +369,22 @@ const WEAK_MSG: Record<Language, string> = {
 };
 
 /** Build ONE deterministic assistant turn for a CV bullet: ask for the missing facts, never fabricate. */
-export function buildCvAssistantTurn(bullet: string, language: Language): CvAssistantTurn {
-  const gaps = analyzeBulletGaps(bullet, language);
+function gapsForRequestedAction(
+  gaps: BulletGap[],
+  requestedAction?: AssistantRequestedAction,
+): BulletGap[] {
+  if (requestedAction === 'add_evidence' || requestedAction === 'turn_into_impact') {
+    return gaps.includes('result') ? ['result'] : [];
+  }
+  return gaps;
+}
+
+export function buildCvAssistantTurn(
+  bullet: string,
+  language: Language,
+  requestedAction?: AssistantRequestedAction,
+): CvAssistantTurn {
+  const gaps = gapsForRequestedAction(analyzeBulletGaps(bullet, language), requestedAction);
   if (gaps.length === 0) {
     return {
       message: STRONG_MSG[language],
@@ -427,7 +447,7 @@ export function cvBuilderAssistantTurn1(ctx: CompanionContext): CvAssistantTurn 
   if (!ctx.current_value || ctx.current_value.trim().length === 0) return null;
   if (ctx.section === 'summary') return buildSummaryTurn(ctx.current_value, ctx.locale);
   if (!ctx.section || ctx.section === 'projects' || ctx.section === 'experience') {
-    return buildCvAssistantTurn(ctx.current_value, ctx.locale);
+    return buildCvAssistantTurn(ctx.current_value, ctx.locale, ctx.requested_action);
   }
   return null;
 }

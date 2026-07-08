@@ -4,11 +4,8 @@ import { PromptsService } from '../prompts/prompts.service';
 import { TracingService } from '../tracing/tracing.service';
 import { maskPii } from '../../common/services/pii-mask';
 import {
-  AssistantGap,
   CompanionContext,
   CvAssistantTurn,
-  analyzeBulletGaps,
-  analyzeSummaryGaps,
   cvBuilderAssistantTurn1,
   strongTurnMessage,
 } from './cv-assistant';
@@ -68,10 +65,7 @@ export class CvQuestionGeneratorService {
     if (!fallback) return EMPTY_TURN; // page/section this skill doesn't handle — same as the rule route.
     const value = ctx.current_value!.trim(); // non-null: cvBuilderAssistantTurn1 returns null otherwise.
 
-    const gaps: AssistantGap[] =
-      ctx.section === 'summary'
-        ? analyzeSummaryGaps(value, ctx.locale)
-        : analyzeBulletGaps(value, ctx.locale);
+    const gaps = fallback.questions.map((q) => q.gap);
     if (gaps.length === 0) return fallback; // rule already says "strong" — keep its message, don't spend the LLM.
     if (!ctx.target_role) return fallback; // no role → role-blind, keep the generic rule chips.
 

@@ -196,4 +196,75 @@ describe('CvAssistantRewriteService.rewrite', () => {
       expect.objectContaining({ language: 'vi' }),
     );
   });
+
+  it('transform intent can rewrite from the original bullet without fake answer gaps', async () => {
+    const complete = llmOk({
+      after: 'Built the checkout API with Node.js and reduced p95 latency by 30%.',
+      used_facts: [],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    const out = await svc.rewrite({
+      before: 'Built checkout API with Node.js, reduced p95 latency by 30%.',
+      answers: [],
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      intent: 'improve',
+    });
+
+    expect(out.ok).toBe(true);
+    expect(complete).toHaveBeenCalledTimes(1);
+    const prompts = d.prompts as unknown as { render: jest.Mock };
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_rewrite_v1',
+      expect.objectContaining({
+        intent_instruction: expect.stringMatching(/polish/i),
+      }),
+    );
+  });
+
+  it('add-evidence intent re-asks for result/evidence before spending LLM when the bullet has none', async () => {
+    const complete = jest.fn();
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    const out = await svc.rewrite({
+      before: 'Built a small dashboard with React.',
+      answers: [],
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      intent: 'add_evidence',
+    });
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.reason).toBe('NEEDS_DETAIL');
+      expect(out.gap).toBe('result');
+    }
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('make-ATS-friendly intent is a safe transform, not a gap-question detour', async () => {
+    const complete = llmOk({
+      after: 'Built React dashboard components for the checkout flow.',
+      used_facts: [],
+    });
+    const d = makeDeps(complete);
+    const svc = new CvAssistantRewriteService(d.llm, d.prompts, d.tracing);
+    const out = await svc.rewrite({
+      before: 'Built React dashboard components for checkout.',
+      answers: [],
+      target: 'projects[0].bullets[0]',
+      language: 'en',
+      intent: 'make_ats_friendly',
+    });
+
+    expect(out.ok).toBe(true);
+    const prompts = d.prompts as unknown as { render: jest.Mock };
+    expect(prompts.render).toHaveBeenCalledWith(
+      'cv_assistant_rewrite_v1',
+      expect.objectContaining({
+        intent_instruction: expect.stringContaining('ATS'),
+      }),
+    );
+  });
 });

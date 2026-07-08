@@ -17,6 +17,7 @@ Rewrite the CV bullet below to be clearer and stronger (action + tech + result w
 - Keep it to ONE concise, results-oriented bullet that starts with a strong action verb.
 - Write in {{language}} (match the user's locale).
 - Do NOT coach, do NOT add commentary, do NOT include any URL.
+- User intent: {{intent_instruction}}
 - Tone: {{tone_instruction}}
 
 ## Output (JSON only)
