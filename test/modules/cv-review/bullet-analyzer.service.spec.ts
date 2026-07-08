@@ -259,6 +259,20 @@ describe('BulletAnalyzerService', () => {
     expect(svc.analyzeBullets(doc)).toEqual([]);
   });
 
+  it('analyzeBullets tips follow feedbackLang; CV-text analysis stays the CV language', () => {
+    // A Vietnamese CV: with no feedbackLang, tips fall back to the CV language (Vietnamese).
+    const viDoc = docWith(['Responsible for fixing bugs'], 'vi');
+    const defaultOut = svc.analyzeBullets(viDoc)[0];
+    // Requesting 'en' feedback flips the TIP language to English, keeping the same analysis signal.
+    const enOut = svc.analyzeBullets(viDoc, 'en')[0];
+    const VI_DIACRITICS = /[àáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+
+    expect(defaultOut.weakOpener).toBe(enOut.weakOpener); // deterministic analysis unchanged
+    expect(defaultOut.tips.join(' ')).toMatch(VI_DIACRITICS); // default → Vietnamese tips
+    expect(enOut.tips.join(' ')).not.toMatch(VI_DIACRITICS); // 'en' request → English tips
+    expect(enOut.tips.join(' ')).toMatch(/verb|remove|number|filler/i); // real English tip content
+  });
+
   // ─── detectBuzzwords — distinct cliché phrases (Task 3) ──────────────────
 
   it('detectBuzzwords finds cliché phrases in the CV (distinct, case-insensitive)', () => {
