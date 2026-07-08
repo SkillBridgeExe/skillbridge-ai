@@ -28,7 +28,10 @@ export class CreateCvDto {
    * Optional UI locale ('vi' | 'en') for the review FEEDBACK language, so the first diagnosis
    * matches the app's UI toggle. Omitted = the detected CV language (backward-compatible).
    */
-  @ApiPropertyOptional({ enum: ['vi', 'en'], description: 'UI locale for review feedback language.' })
+  @ApiPropertyOptional({
+    enum: ['vi', 'en'],
+    description: 'UI locale for review feedback language.',
+  })
   @IsOptional()
   @IsIn(['vi', 'en'])
   lang?: 'vi' | 'en';
