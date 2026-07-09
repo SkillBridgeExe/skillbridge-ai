@@ -5,6 +5,7 @@ import {
   Get,
   Header,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -50,6 +51,7 @@ import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-ext
 import { ProjectIntakeRequestDto, ProjectIntakeResponseDto } from './dto/project-intake.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
+import { RenameCvDto } from './dto/rename-cv.dto';
 import { CvsService } from './cvs.service';
 import {
   CREATE_BUILDER_BODY_EXAMPLES,
@@ -166,6 +168,18 @@ export class CvsController {
   @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
   get(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.cvs.get(user.userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Rename a CV',
+    description:
+      'Updates only the display title of an owned CV (UPLOADED or BUILT). Does not touch the document, so unlike the builder autosave it works for uploaded CVs and never ships the canonical doc.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiBody({ type: RenameCvDto })
+  rename(@CurrentUser() user: JwtUser, @Param('id') id: string, @Body() dto: RenameCvDto) {
+    return this.cvs.rename(user.userId, id, dto.title);
   }
 
   @Get(':id/interview-plan')

@@ -326,6 +326,18 @@ export class CvsService {
     await this.cvs.softDelete({ id: cvId, userId });
   }
 
+  /**
+   * Title-only rename for any owned CV. Unlike updateBuilderDraft this never touches
+   * parsed_json and is not gated to BUILT, so uploaded CVs can be renamed too. Bumps
+   * updated_at via save() so the library "last edited" stays accurate.
+   */
+  async rename(userId: string, cvId: string, title: string): Promise<CvResponseDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    cv.title = title.trim();
+    const saved = await this.cvs.save(cv);
+    return this.toResponse(saved, [], null);
+  }
+
   async createBuilderDraft(userId: string, dto: CreateBuilderCvDto): Promise<CvResponseDto> {
     const source = dto.sourceCvId
       ? await this.findOwnedCv(userId, dto.sourceCvId)
