@@ -371,7 +371,7 @@ export class CvsService {
         origin,
       }),
     );
-    await this.pruneAutoVersions(cv.id);
+    await this.pruneVersions(cv.id);
     return this.toVersionSummary(version);
   }
 
@@ -417,7 +417,7 @@ export class CvsService {
           origin: 'AUTO_PRE_RESTORE',
         }),
       );
-      await this.pruneAutoVersions(cv.id);
+      await this.pruneVersions(cv.id);
     }
     cv.parsedJson = this.cloneDocument(version.snapshot);
     cv.language = version.snapshot.language ?? cv.language;
@@ -1388,15 +1388,23 @@ export class CvsService {
     return version;
   }
 
-  /** Keep the newest 20 AUTO snapshots per CV; MANUAL/labeled versions are kept. */
-  private async pruneAutoVersions(cvId: string): Promise<void> {
-    const AUTO_KEEP = 20;
-    const autos = await this.versions.find({
-      where: { cvId, origin: In(['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT']) },
+  /**
+   * Bound table growth: keep the newest N of each origin class per CV (auto snapshots = 20,
+   * manual/labeled = 50). Without the manual cap the table grows unbounded on repeated
+   * "Save version". ponytail: fixed caps; raise if users ask for deeper history.
+   */
+  private async pruneVersions(cvId: string): Promise<void> {
+    await this.pruneOrigin(cvId, ['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT'], 20);
+    await this.pruneOrigin(cvId, ['MANUAL'], 50);
+  }
+
+  private async pruneOrigin(cvId: string, origins: CvVersionOrigin[], keep: number): Promise<void> {
+    const rows = await this.versions.find({
+      where: { cvId, origin: In(origins) },
       order: { createdAt: 'DESC' },
       select: ['id'],
     });
-    const stale = autos.slice(AUTO_KEEP).map((v) => v.id);
+    const stale = rows.slice(keep).map((v) => v.id);
     if (stale.length > 0) await this.versions.delete({ id: In(stale) });
   }
 

@@ -68,6 +68,26 @@ describe('CvsService versions', () => {
     expect(versionsRepo.find).toHaveBeenCalled(); // prune ran
   });
 
+  it('prunes MANUAL versions beyond the cap of 50', async () => {
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv()) };
+    const overflowManual = Array.from({ length: 52 }, (_, i) => ({ id: `m${i}` }));
+    const versionsRepo = {
+      create: jest.fn().mockImplementation((x) => x),
+      save: jest
+        .fn()
+        .mockImplementation((x) => Promise.resolve({ ...x, id: 'new', createdAt: new Date() })),
+      // prune queries auto first (none), then manual (52 → over the 50 cap)
+      find: jest.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(overflowManual),
+      delete: jest.fn(),
+    };
+    const service = setup(cvsRepo, versionsRepo);
+
+    await service.createVersion('user-1', 'cv-1', 'v');
+
+    // auto prune deletes nothing; manual prune deletes exactly the overflow beyond 50
+    expect(versionsRepo.delete).toHaveBeenCalledTimes(1);
+  });
+
   it('createVersion rejects when the CV has no document', async () => {
     const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv({ parsedJson: null })) };
     const versionsRepo = { create: jest.fn(), save: jest.fn(), find: jest.fn(), delete: jest.fn() };
