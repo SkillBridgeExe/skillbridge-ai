@@ -18,6 +18,7 @@ import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { CvVersionEntity, CvVersionOrigin } from '../../database/entities/cv-version.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
@@ -41,6 +42,7 @@ import {
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
 } from './dto/cv-assistant.dto';
+import { CvVersionDetailDto, CvVersionSummaryDto } from './dto/cv-version.dto';
 import { CvIntakeResult, CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
 import {
   DownloadedFile,
@@ -144,6 +146,11 @@ export class CvsService {
     // via CvsModule; the `?` only satisfies TS (it trails the optionals above) and lets unit tests
     // omit it — it is NOT @Optional() for Nest, so a dropped provider fails boot loudly.
     private readonly questionGenerator?: CvQuestionGeneratorService,
+    // P2 builder management — version-snapshot repo. @InjectRepository provides the token, so it is
+    // ALWAYS present at runtime (CvsModule registers CvVersionEntity); the `?` only trails the
+    // optionals above so existing unit tests that omit it still compile. Access via `this.versions`.
+    @InjectRepository(CvVersionEntity)
+    private readonly cvVersions?: Repository<CvVersionEntity>,
   ) {}
 
   async create(
@@ -326,6 +333,99 @@ export class CvsService {
     await this.cvs.softDelete({ id: cvId, userId });
   }
 
+  /**
+   * Title-only rename for any owned CV. Unlike updateBuilderDraft this never touches
+   * parsed_json and is not gated to BUILT, so uploaded CVs can be renamed too. Bumps
+   * updated_at via save() so the library "last edited" stays accurate.
+   */
+  async rename(userId: string, cvId: string, title: string): Promise<CvResponseDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    cv.title = title.trim();
+    const saved = await this.cvs.save(cv);
+    return this.toResponse(saved, [], null);
+  }
+
+  /**
+   * Snapshot the current CV document as a version. Bounds table growth by pruning old auto
+   * snapshots. Beyond Reactive Resume — this is what powers version history + restore.
+   */
+  async createVersion(
+    userId: string,
+    cvId: string,
+    label?: string,
+    origin: CvVersionOrigin = 'MANUAL',
+  ): Promise<CvVersionSummaryDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    if (!cv.parsedJson) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'CV has no document to snapshot',
+      });
+    }
+    const version = await this.versions.save(
+      this.versions.create({
+        cvId: cv.id,
+        snapshot: this.cloneDocument(cv.parsedJson),
+        title: cv.title,
+        label: label?.trim() || null,
+        origin,
+      }),
+    );
+    await this.pruneVersions(cv.id);
+    return this.toVersionSummary(version);
+  }
+
+  /** Version history, newest first, WITHOUT snapshot bodies (perf). */
+  async listVersions(
+    userId: string,
+    cvId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: CvVersionSummaryDto[]; total: number; page: number; limit: number }> {
+    await this.findOwnedCv(userId, cvId); // ownership gate
+    const [items, total] = await this.versions.findAndCount({
+      where: { cvId },
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: ['id', 'label', 'origin', 'title', 'createdAt'],
+    });
+    return { items: items.map((v) => this.toVersionSummary(v)), total, page, limit };
+  }
+
+  /** One version incl. its snapshot, for preview/diff before restore. */
+  async getVersion(userId: string, cvId: string, versionId: string): Promise<CvVersionDetailDto> {
+    await this.findOwnedCv(userId, cvId);
+    const version = await this.findOwnedVersion(cvId, versionId);
+    return { ...this.toVersionSummary(version), snapshot: version.snapshot };
+  }
+
+  /**
+   * Restore a version onto the CV. Auto-snapshots the current doc first (so restore is itself
+   * undoable), overwrites parsed_json, re-syncs cv_skills, and bumps updated_at via save().
+   */
+  async restoreVersion(userId: string, cvId: string, versionId: string): Promise<CvResponseDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    const version = await this.findOwnedVersion(cvId, versionId);
+    if (cv.parsedJson) {
+      await this.versions.save(
+        this.versions.create({
+          cvId: cv.id,
+          snapshot: this.cloneDocument(cv.parsedJson),
+          title: cv.title,
+          label: null,
+          origin: 'AUTO_PRE_RESTORE',
+        }),
+      );
+      await this.pruneVersions(cv.id);
+    }
+    cv.parsedJson = this.cloneDocument(version.snapshot);
+    cv.language = version.snapshot.language ?? cv.language;
+    const saved = await this.cvs.save(cv);
+    await this.syncSkillsFromDoc(saved.id, cv.parsedJson);
+    return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
+  }
+
   async createBuilderDraft(userId: string, dto: CreateBuilderCvDto): Promise<CvResponseDto> {
     const source = dto.sourceCvId
       ? await this.findOwnedCv(userId, dto.sourceCvId)
@@ -384,24 +484,9 @@ export class CvsService {
 
     const saved = await this.cvs.save(cv);
 
-    // Re-sync cv_skills from the edited document (same normalize→persist path reviewCv uses):
-    // job-recommendation reads cv_skills, so a builder edit that adds/removes skills must not
-    // leave scoring on the pre-edit set until the next review. Secondary to the save itself —
-    // a sync failure degrades to the previous skill set (warn), it must not fail the autosave.
-    try {
-      const doc = dto.parsedJson;
-      const rawSkills = [
-        ...(doc.skills?.technical ?? []),
-        ...(doc.skills?.soft ?? []),
-        ...(doc.skills?.languages ?? []),
-        ...(doc.skills?.tools ?? []),
-      ];
-      await this.persistExtractedSkills(saved.id, rawSkills);
-    } catch (err) {
-      this.logger.warn(
-        `builder skill sync failed for cv ${saved.id} — job-rec will read the previous set: ${(err as Error).message}`,
-      );
-    }
+    // Re-sync cv_skills from the edited document: job-recommendation reads cv_skills, so a builder
+    // edit that adds/removes skills must not leave scoring on the pre-edit set until the next review.
+    await this.syncSkillsFromDoc(saved.id, dto.parsedJson);
 
     return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
   }
@@ -1289,5 +1374,68 @@ export class CvsService {
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       createdAt: cv.createdAt.toISOString(),
     };
+  }
+
+  /** Version repo — guaranteed at runtime by CvsModule; guards against a mis-wired module. */
+  private get versions(): Repository<CvVersionEntity> {
+    if (!this.cvVersions) throw new Error('CvVersionEntity repository is not injected');
+    return this.cvVersions;
+  }
+
+  private async findOwnedVersion(cvId: string, versionId: string): Promise<CvVersionEntity> {
+    const version = await this.versions.findOne({ where: { id: versionId, cvId } });
+    if (!version) throw new NotFoundException('CV version not found');
+    return version;
+  }
+
+  /**
+   * Bound table growth: keep the newest N of each origin class per CV (auto snapshots = 20,
+   * manual/labeled = 50). Without the manual cap the table grows unbounded on repeated
+   * "Save version". ponytail: fixed caps; raise if users ask for deeper history.
+   */
+  private async pruneVersions(cvId: string): Promise<void> {
+    await this.pruneOrigin(cvId, ['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT'], 20);
+    await this.pruneOrigin(cvId, ['MANUAL'], 50);
+  }
+
+  private async pruneOrigin(cvId: string, origins: CvVersionOrigin[], keep: number): Promise<void> {
+    const rows = await this.versions.find({
+      where: { cvId, origin: In(origins) },
+      order: { createdAt: 'DESC' },
+      select: ['id'],
+    });
+    const stale = rows.slice(keep).map((v) => v.id);
+    if (stale.length > 0) await this.versions.delete({ id: In(stale) });
+  }
+
+  private toVersionSummary(v: CvVersionEntity): CvVersionSummaryDto {
+    return {
+      id: v.id,
+      label: v.label,
+      origin: v.origin,
+      title: v.title,
+      createdAt: v.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * Re-sync cv_skills from a canonical doc (best-effort). job-recommendation reads cv_skills, so a
+   * builder save/restore that changes skills must not leave scoring on the stale set. A sync failure
+   * degrades to the previous set (warn) — it must never fail the caller.
+   */
+  private async syncSkillsFromDoc(cvId: string, doc: CanonicalCvDocument): Promise<void> {
+    try {
+      const rawSkills = [
+        ...(doc.skills?.technical ?? []),
+        ...(doc.skills?.soft ?? []),
+        ...(doc.skills?.languages ?? []),
+        ...(doc.skills?.tools ?? []),
+      ];
+      await this.persistExtractedSkills(cvId, rawSkills);
+    } catch (err) {
+      this.logger.warn(
+        `builder skill sync failed for cv ${cvId} — job-rec will read the previous set: ${(err as Error).message}`,
+      );
+    }
   }
 }

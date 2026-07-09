@@ -5,6 +5,7 @@ import {
   Get,
   Header,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -50,6 +51,8 @@ import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-ext
 import { ProjectIntakeRequestDto, ProjectIntakeResponseDto } from './dto/project-intake.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
+import { RenameCvDto } from './dto/rename-cv.dto';
+import { CreateCvVersionDto, CvVersionListQueryDto } from './dto/cv-version.dto';
 import { CvsService } from './cvs.service';
 import {
   CREATE_BUILDER_BODY_EXAMPLES,
@@ -166,6 +169,78 @@ export class CvsController {
   @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
   get(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.cvs.get(user.userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Rename a CV',
+    description:
+      'Updates only the display title of an owned CV (UPLOADED or BUILT). Does not touch the document, so unlike the builder autosave it works for uploaded CVs and never ships the canonical doc.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiBody({ type: RenameCvDto })
+  rename(@CurrentUser() user: JwtUser, @Param('id') id: string, @Body() dto: RenameCvDto) {
+    return this.cvs.rename(user.userId, id, dto.title);
+  }
+
+  @Post(':id/versions')
+  @ApiOperation({
+    summary: 'Snapshot the current CV document as a version',
+    description:
+      'Saves a point-in-time snapshot of the CV canonical document for version history / restore.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiBody({ type: CreateCvVersionDto })
+  createVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: CreateCvVersionDto,
+  ) {
+    return this.cvs.createVersion(user.userId, id, dto.label);
+  }
+
+  @Get(':id/versions')
+  @ApiOperation({
+    summary: 'List a CV version history',
+    description:
+      'Newest-first, paginated. Snapshot bodies are omitted; fetch one by id for the doc.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page, max 50.' })
+  listVersions(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Query() query: CvVersionListQueryDto,
+  ) {
+    return this.cvs.listVersions(user.userId, id, query.page, query.limit);
+  }
+
+  @Get(':id/versions/:versionId')
+  @ApiOperation({ summary: 'Get one CV version including its document snapshot' })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: 'Version ID.', format: 'uuid' })
+  getVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvs.getVersion(user.userId, id, versionId);
+  }
+
+  @Post(':id/versions/:versionId/restore')
+  @ApiOperation({
+    summary: 'Restore a CV version',
+    description: 'Auto-snapshots the current document first (undoable), then overwrites it.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: 'Version ID.', format: 'uuid' })
+  restoreVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvs.restoreVersion(user.userId, id, versionId);
   }
 
   @Get(':id/interview-plan')
