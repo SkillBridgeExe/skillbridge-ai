@@ -13,7 +13,9 @@ import {
 } from 'class-validator';
 
 const SECTIONS = ['summary', 'projects', 'experience', 'skills', 'education'] as const;
-const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence'] as const;
+// 'user_clarify' is the FE's synthetic gap for the user-initiated "ask more" free-text answer
+// (CvBuilderSkill EXTRA_CLARIFY_GAP) — it never appears in Turn-1 questions, only in answers.
+const GAPS = ['action', 'tech', 'result', 'role', 'strength', 'evidence', 'user_clarify'] as const;
 const KINDS = ['bullet', 'summary'] as const;
 const LANGS = ['vi', 'en'] as const;
 const TONES = ['softer'] as const;

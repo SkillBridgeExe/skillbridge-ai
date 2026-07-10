@@ -63,9 +63,11 @@ export interface CompanionContext {
   target_role?: string;
 }
 
-/** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */
+/** one user answer to a Turn-1 question: a category chip + an optional concrete detail.
+ *  `user_clarify` is the FE's synthetic gap for the user-initiated "ask more" free text —
+ *  never asked in Turn-1, but a legal answer whose detail is a grounded user-provided fact. */
 export interface CvAnswer {
-  gap: AssistantGap;
+  gap: AssistantGap | 'user_clarify';
   option_id: string;
   /** free text OR a picked known-tech; REQUIRED for `tech` before a rewrite (a category alone is not enough). */
   detail?: string;

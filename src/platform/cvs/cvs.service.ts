@@ -848,7 +848,10 @@ export class CvsService {
     // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
     // diverge from the rewrite's own re-ask gate.
     const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
-    const willRunRewrite = grounded.needs_detail.length === 0 && grounded.facts.length > 0;
+    // A transform intent (improve/shorten/…) rewrites from the original bullet alone, so it runs
+    // the LLM even with zero answer facts — mirror the engine's isTransformIntent gate exactly.
+    const willRunRewrite =
+      grounded.needs_detail.length === 0 && (grounded.facts.length > 0 || Boolean(dto.intent));
     const usage = willRunRewrite
       ? await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
           sourceType: 'cv',
@@ -866,6 +869,7 @@ export class CvsService {
           outputLang: dto.output_lang ?? language,
           kind: dto.kind ?? 'bullet',
           tone: dto.tone,
+          intent: dto.intent,
         },
         userId,
       );

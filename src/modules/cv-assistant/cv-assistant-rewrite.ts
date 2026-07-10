@@ -132,6 +132,12 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
         if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
         break;
       }
+      case 'user_clarify': {
+        // "ask more" free text — the user's own clarification is a grounded fact verbatim
+        // (its numbers/tech become allowed evidence for the rewrite gate).
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
     }
   }
   return { facts, needs_detail };
