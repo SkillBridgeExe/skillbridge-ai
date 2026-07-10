@@ -8,6 +8,8 @@
  *                          must keep/strip/drop (anti-fabrication + off-taxonomy gate, Task 2).
  *   - 'grounding_role_diff': two raw payloads for the SAME bullet/gap (role-specific chip sets) →
  *                          grounding must preserve each set distinctly (proves it doesn't homogenize).
+ *   - 'explanation'      : a field → the exact citedSignals the read-only explanation must emit
+ *                          (P3-5 case 5: an explanation may cite ONLY deterministic signal IDs).
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -26,6 +28,10 @@ import {
   groundSmartQuestions,
   hasPlantedNumber,
 } from '../modules/cv-assistant/cv-question-grounding';
+import {
+  buildCvAssistantExplanation,
+  CitedSignal,
+} from '../modules/cv-assistant/cv-assistant-explain';
 
 export type CvAssistantEvalCase =
   | { id: string; kind: 'gaps'; bullet: string; language: Language; expected_gaps: BulletGap[] }
@@ -68,6 +74,14 @@ export type CvAssistantEvalCase =
       raw_b: unknown;
       expect_chips_a: string[];
       expect_chips_b: string[];
+    }
+  | {
+      id: string;
+      kind: 'explanation';
+      text: string;
+      section: 'summary' | 'projects' | 'experience';
+      language: Language;
+      expected_signals: CitedSignal[];
     };
 
 export interface CvAssistantEvalResult {
@@ -164,6 +178,25 @@ export function scoreCvAssistantCase(c: CvAssistantEvalCase): CvAssistantEvalRes
         : `chipsA=${JSON.stringify(chipsA)} (expected ${JSON.stringify(c.expect_chips_a)}) chipsB=${JSON.stringify(chipsB)} (expected ${JSON.stringify(c.expect_chips_b)})`,
     };
   }
+  if (c.kind === 'explanation') {
+    const got = buildCvAssistantExplanation({
+      page: 'cv_builder',
+      section: c.section,
+      current_value: c.text,
+      locale: c.language,
+    });
+    if (!got || got.type !== 'explanation' || !got.message.trim()) {
+      return { id: c.id, pass: false, detail: `no explanation: ${JSON.stringify(got)}` };
+    }
+    const pass = JSON.stringify(got.citedSignals) === JSON.stringify(c.expected_signals);
+    return {
+      id: c.id,
+      pass,
+      detail: pass
+        ? ''
+        : `signals ${JSON.stringify(got.citedSignals)} != ${JSON.stringify(c.expected_signals)}`,
+    };
+  }
   const grounded = groundCvAssistantAnswers(c.answers, c.language);
   const verdict = groundCvRewrite(
     c.before,
@@ -171,15 +204,24 @@ export function scoreCvAssistantCase(c: CvAssistantEvalCase): CvAssistantEvalRes
     grounded,
     { target: 't', why: 'w' },
   );
-  const pass = verdict.ok === c.expect_ok;
-  return {
-    id: c.id,
-    pass,
-    detail: pass
-      ? ''
-      : `expected ok=${c.expect_ok} got ok=${verdict.ok}` +
+  if (verdict.ok !== c.expect_ok) {
+    return {
+      id: c.id,
+      pass: false,
+      detail:
+        `expected ok=${c.expect_ok} got ok=${verdict.ok}` +
         (verdict.ok ? '' : ` (${verdict.detail})`),
-  };
+    };
+  }
+  // P3-5 case 6 (BE side): an accepted patch must echo the exact target/before it was asked
+  // for — the FE fail-closed validator relies on that fidelity to apply it to the right field.
+  if (verdict.ok) {
+    const fp = verdict.field_patch;
+    if (fp.target !== 't' || fp.before !== c.before || fp.after !== c.model_after) {
+      return { id: c.id, pass: false, detail: `patch fidelity broken: ${JSON.stringify(fp)}` };
+    }
+  }
+  return { id: c.id, pass: true, detail: '' };
 }
 
 // CLI runner: `pnpm eval:cv-assistant` (also exercised deterministically by cv-assistant-eval.spec.ts).
