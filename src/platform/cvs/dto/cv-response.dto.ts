@@ -42,4 +42,5 @@ export interface CvListItemDto {
   isOcrOnly: boolean;
   atsReadabilityScore: number | null;
   createdAt: string;
+  updatedAt: string | null;
 }

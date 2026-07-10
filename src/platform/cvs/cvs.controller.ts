@@ -196,7 +196,7 @@ export class CvsController {
     @Param('id') id: string,
     @Body() dto: CreateCvVersionDto,
   ) {
-    return this.cvs.createVersion(user.userId, id, dto.label);
+    return this.cvs.createVersion(user.userId, id, dto.label, dto.origin);
   }
 
   @Get(':id/versions')
@@ -207,7 +207,12 @@ export class CvsController {
   })
   @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
-  @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page, max 50.' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Items per page, max 100 (covers the full 70-version retention cap).',
+  })
   listVersions(
     @CurrentUser() user: JwtUser,
     @Param('id') id: string,

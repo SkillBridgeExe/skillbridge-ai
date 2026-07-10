@@ -1,4 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { CvEntity } from '../../database/entities/cv.entity';
+import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { SkillEntity } from '../../database/entities/skill.entity';
 import { CvsService } from './cvs.service';
 
 /**
@@ -88,6 +91,28 @@ describe('CvsService versions', () => {
     expect(versionsRepo.delete).toHaveBeenCalledTimes(1);
   });
 
+  it('createVersion accepts AUTO_PRE_IMPORT origin for the pre-import backup', async () => {
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv()) };
+    const versionsRepo = {
+      create: jest.fn().mockImplementation((x) => x),
+      save: jest
+        .fn()
+        .mockImplementation((x) =>
+          Promise.resolve({ ...x, id: 'v-import', createdAt: new Date() }),
+        ),
+      find: jest.fn().mockResolvedValue([]),
+      delete: jest.fn(),
+    };
+    const service = setup(cvsRepo, versionsRepo);
+
+    const res = await service.createVersion('user-1', 'cv-1', 'Before import', 'AUTO_PRE_IMPORT');
+
+    expect(versionsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: 'AUTO_PRE_IMPORT', label: 'Before import' }),
+    );
+    expect(res.origin).toBe('AUTO_PRE_IMPORT');
+  });
+
   it('createVersion rejects when the CV has no document', async () => {
     const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv({ parsedJson: null })) };
     const versionsRepo = { create: jest.fn(), save: jest.fn(), find: jest.fn(), delete: jest.fn() };
@@ -148,15 +173,12 @@ describe('CvsService versions', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('restoreVersion auto-snapshots the current doc first, then overwrites parsed_json', async () => {
+  it('restoreVersion re-reads the CV under a row lock, auto-snapshots, then overwrites — in ONE transaction', async () => {
     const currentDoc = { language: 'en', skills: {}, summary: 'current' };
     const versionDoc = { language: 'en', skills: {}, summary: 'restored' };
     const cv = makeCv({ parsedJson: currentDoc });
-    const cvsRepo = {
-      findOne: jest.fn().mockResolvedValue(cv),
-      save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
-    };
-    const versionsRepo = {
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(cv) };
+    const versionsRepo: Record<string, jest.Mock> & { manager?: unknown } = {
       findOne: jest.fn().mockResolvedValue({
         id: 'v4',
         cvId: 'cv-1',
@@ -166,23 +188,41 @@ describe('CvsService versions', () => {
         origin: 'MANUAL',
         createdAt: new Date(),
       }),
-      create: jest.fn().mockImplementation((x) => x),
-      save: jest.fn().mockResolvedValue({ id: 'auto', createdAt: new Date() }),
       find: jest.fn().mockResolvedValue([]),
       delete: jest.fn(),
     };
+    // the transaction re-reads the CV row (locked) through its own repository
+    const cvLockRepo = { findOne: jest.fn().mockResolvedValue(cv) };
+    const em = {
+      create: jest.fn().mockImplementation((_entity: unknown, x: unknown) => x),
+      save: jest.fn().mockImplementation((x: unknown) => Promise.resolve(x)),
+      getRepository: jest.fn((entity: unknown) =>
+        entity === CvEntity ? cvLockRepo : versionsRepo,
+      ),
+    };
+    const transaction = jest.fn(async (fn: (m: typeof em) => Promise<unknown>) => fn(em));
+    versionsRepo.manager = { transaction };
     const service = setup(cvsRepo, versionsRepo);
 
     const res = await service.restoreVersion('user-1', 'cv-1', 'v4');
 
+    // Snapshot + overwrite committed together — no spurious AUTO row on a failed restore.
+    expect(transaction).toHaveBeenCalledTimes(1);
+    // the row is re-read INSIDE the tx under a pessimistic lock, so a concurrent autosave can
+    // neither interleave nor stale the pre-restore snapshot
+    expect(cvLockRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
     // captured the CURRENT doc as an undo point before overwriting
-    expect(versionsRepo.create).toHaveBeenCalledWith(
+    expect(em.create).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ origin: 'AUTO_PRE_RESTORE' }),
     );
     // doc overwritten with the restored snapshot (deep clone → deep equal)
     expect(cv.parsedJson).toEqual(versionDoc);
     expect(res.parsedJson).toEqual(versionDoc);
-    expect(cvsRepo.save).toHaveBeenCalled();
+    // both writes (snapshot row + restored CV) went through the transaction manager
+    expect(em.save).toHaveBeenCalledTimes(2);
   });
 
   it('restoreVersion 404s on a missing version and never overwrites', async () => {
@@ -194,5 +234,46 @@ describe('CvsService versions', () => {
       NotFoundException,
     );
     expect(cvsRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('does not let a stale autosave overwrite cv_skills after a restore', async () => {
+    const restoredDoc = { language: 'en', skills: { technical: ['React'] } };
+    const staleAutosaveDoc = { language: 'en', skills: { technical: ['Node.js'] } };
+    const currentCv = makeCv({ parsedJson: restoredDoc });
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(currentCv) };
+    const cvSkillsRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      delete: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+    const skillsRepo = { find: jest.fn() };
+    const versionsRepo: Record<string, jest.Mock> & { manager?: unknown } = {
+      findOne: jest.fn(),
+    };
+    const cvLockRepo = { findOne: jest.fn().mockResolvedValue(currentCv) };
+    const em = {
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === CvEntity) return cvLockRepo;
+        if (entity === CvSkillEntity) return cvSkillsRepo;
+        if (entity === SkillEntity) return skillsRepo;
+        return undefined;
+      }),
+    };
+    (cvsRepo as { manager?: unknown }).manager = { transaction: jest.fn(async (fn) => fn(em)) };
+
+    const service = setup(cvsRepo, versionsRepo, cvSkillsRepo);
+    const args = service as unknown as { skillNormalizer?: unknown };
+    args.skillNormalizer = { normalizeManyAsync: jest.fn().mockResolvedValue([]) };
+
+    await (
+      service as unknown as { syncSkillsFromDoc: (id: string, doc: unknown) => Promise<void> }
+    ).syncSkillsFromDoc('cv-1', staleAutosaveDoc);
+
+    expect(cvLockRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
+    expect(cvSkillsRepo.delete).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.save).not.toHaveBeenCalled();
   });
 });

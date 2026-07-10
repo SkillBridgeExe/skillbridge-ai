@@ -77,8 +77,10 @@ export class UpdateBuilderCvDto {
 
   @ApiPropertyOptional({
     maxLength: 160,
-    example: 'Updated Frontend CV',
-    description: 'Optional new display title. Omit to keep current title.',
+    deprecated: true,
+    description:
+      'IGNORED. The title is owned by rename (PATCH /api/cvs/:id). The field is kept only so ' +
+      'older clients that still send it are not rejected by forbidNonWhitelisted.',
   })
   @IsOptional()
   @IsString()
