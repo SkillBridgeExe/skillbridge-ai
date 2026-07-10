@@ -63,9 +63,11 @@ export interface CompanionContext {
   target_role?: string;
 }
 
-/** one user answer to a Turn-1 question: a category chip + an optional concrete detail. */
+/** one user answer to a Turn-1 question: a category chip + an optional concrete detail.
+ *  `user_clarify` is the FE's synthetic gap for the user-initiated "ask more" free text —
+ *  never asked in Turn-1, but a legal answer whose detail is a grounded user-provided fact. */
 export interface CvAnswer {
-  gap: AssistantGap;
+  gap: AssistantGap | 'user_clarify';
   option_id: string;
   /** free text OR a picked known-tech; REQUIRED for `tech` before a rewrite (a category alone is not enough). */
   detail?: string;
@@ -368,7 +370,11 @@ const WEAK_MSG: Record<Language, string> = {
   vi: 'Mục này có thể mạnh hơn — trả lời vài câu để mình giúp viết lại (mình KHÔNG bịa số liệu, công ty hay thành tích).',
 };
 
-/** Build ONE deterministic assistant turn for a CV bullet: ask for the missing facts, never fabricate. */
+/**
+ * Filter Turn-1 questions by the user's action chip. An empty result does NOT mean "nothing to
+ * do" — it tells the FE the intent needs no facts, so it must fire the SAFE transform rewrite
+ * for that intent instead of showing a no-op "already strong" message (P3-4).
+ */
 function gapsForRequestedAction(
   gaps: BulletGap[],
   requestedAction?: AssistantRequestedAction,
@@ -377,7 +383,22 @@ function gapsForRequestedAction(
     return gaps.includes('result') ? ['result'] : [];
   }
   if (requestedAction === 'make_ats_friendly') {
-    return gaps.includes('tech') ? ['tech'] : gaps;
+    // Ask ONLY when the keyword evidence (a named tech) is missing; otherwise safe transform.
+    return gaps.includes('tech') ? ['tech'] : [];
+  }
+  return gaps;
+}
+
+/** Summary twin of gapsForRequestedAction: evidence↔result, strength↔tech. */
+function summaryGapsForRequestedAction(
+  gaps: SummaryGap[],
+  requestedAction?: AssistantRequestedAction,
+): SummaryGap[] {
+  if (requestedAction === 'add_evidence' || requestedAction === 'turn_into_impact') {
+    return gaps.includes('evidence') ? ['evidence'] : [];
+  }
+  if (requestedAction === 'make_ats_friendly') {
+    return gaps.includes('strength') ? ['strength'] : [];
   }
   return gaps;
 }
@@ -423,8 +444,15 @@ export function strongTurnMessage(
 }
 
 /** Build ONE deterministic assistant turn for a professional summary: ask for missing facts, never fabricate. */
-export function buildSummaryTurn(summary: string, language: Language): CvAssistantTurn {
-  const gaps = analyzeSummaryGaps(summary, language);
+export function buildSummaryTurn(
+  summary: string,
+  language: Language,
+  requestedAction?: AssistantRequestedAction,
+): CvAssistantTurn {
+  const gaps = summaryGapsForRequestedAction(
+    analyzeSummaryGaps(summary, language),
+    requestedAction,
+  );
   if (gaps.length === 0) {
     return {
       message: SUMMARY_STRONG_MSG[language],
@@ -448,7 +476,9 @@ export function buildSummaryTurn(summary: string, language: Language): CvAssista
 export function cvBuilderAssistantTurn1(ctx: CompanionContext): CvAssistantTurn | null {
   if (ctx.page !== 'cv_builder') return null;
   if (!ctx.current_value || ctx.current_value.trim().length === 0) return null;
-  if (ctx.section === 'summary') return buildSummaryTurn(ctx.current_value, ctx.locale);
+  if (ctx.section === 'summary') {
+    return buildSummaryTurn(ctx.current_value, ctx.locale, ctx.requested_action);
+  }
   if (!ctx.section || ctx.section === 'projects' || ctx.section === 'experience') {
     return buildCvAssistantTurn(ctx.current_value, ctx.locale, ctx.requested_action);
   }

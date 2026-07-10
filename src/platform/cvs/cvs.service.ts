@@ -32,6 +32,10 @@ import {
 import { groundCvAssistantAnswers } from '../../modules/cv-assistant/cv-assistant-rewrite';
 import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
 import {
+  AssistantExplanation,
+  buildCvAssistantExplanation,
+} from '../../modules/cv-assistant/cv-assistant-explain';
+import {
   analyzeSkillsSection,
   SkillsNudge,
   SkillsSection,
@@ -39,6 +43,7 @@ import {
 import { CvQuestionGeneratorService } from '../../modules/cv-assistant/cv-question-generator.service';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
@@ -617,6 +622,25 @@ export class CvsService {
   }
 
   /**
+   * P3-3 "Why is this weak?" — read-only explanation from the SAME deterministic gap analysis
+   * as Turn-1. No LLM, no quota, never a patch — citedSignals can't cite what wasn't detected.
+   */
+  async assistantExplain(
+    userId: string,
+    cvId: string,
+    dto: AssistantExplainRequestDto,
+  ): Promise<AssistantExplanation | null> {
+    await this.findOwnedCv(userId, cvId);
+    return buildCvAssistantExplanation({
+      page: 'cv_builder',
+      section: dto.section,
+      field_path: dto.field_path,
+      current_value: dto.current_value,
+      locale: dto.locale ?? 'en',
+    });
+  }
+
+  /**
    * Companion Turn-1.5: role-aware smart questions (LLM, opt-in). Verifies ownership, then reads
    * `target_role` from the CV record ITSELF (never from the request body) and delegates to the
    * generator, which always resolves — any LLM/parse miss degrades to the same deterministic Turn-1
@@ -848,7 +872,10 @@ export class CvsService {
     // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
     // diverge from the rewrite's own re-ask gate.
     const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
-    const willRunRewrite = grounded.needs_detail.length === 0 && grounded.facts.length > 0;
+    // A transform intent (improve/shorten/…) rewrites from the original bullet alone, so it runs
+    // the LLM even with zero answer facts — mirror the engine's isTransformIntent gate exactly.
+    const willRunRewrite =
+      grounded.needs_detail.length === 0 && (grounded.facts.length > 0 || Boolean(dto.intent));
     const usage = willRunRewrite
       ? await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
           sourceType: 'cv',
@@ -866,6 +893,7 @@ export class CvsService {
           outputLang: dto.output_lang ?? language,
           kind: dto.kind ?? 'bullet',
           tone: dto.tone,
+          intent: dto.intent,
         },
         userId,
       );

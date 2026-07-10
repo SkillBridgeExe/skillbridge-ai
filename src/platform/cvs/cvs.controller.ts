@@ -37,6 +37,7 @@ import { RewriteRequestDto } from '../../modules/cv-builder/dto/rewrite.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
@@ -366,6 +367,21 @@ export class CvsController {
     @Body() dto: AssistantAnalyzeRequestDto,
   ) {
     return this.cvs.assistantAnalyze(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/assistant/explain')
+  @ApiOperation({
+    summary: 'CV Builder assistant — read-only "why is this weak?" (deterministic, no quota)',
+    description:
+      'Checks ownership, then explains the field from the SAME deterministic gap analysis that drives Turn-1 questions. Returns message + citedSignals; never a patch, never an LLM call.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  assistantExplain(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: AssistantExplainRequestDto,
+  ) {
+    return this.cvs.assistantExplain(user.userId, id, dto);
   }
 
   // Same abuse bound as /rewrite: this endpoint calls an LLM, so a tight per-user rate keeps
