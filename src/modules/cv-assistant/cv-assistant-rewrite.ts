@@ -261,6 +261,56 @@ export function hasWord(text: string, word: string): boolean {
   return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
 
+/** URLs / bare domains — a rewrite may not add a link the user never gave (P3-5 case 1). */
+const URL_RE = /(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|org|net|io|dev|ai|app|vn|co)\b/giu;
+export function urlTokens(text: string): string[] {
+  return (text.match(URL_RE) ?? []).map((u) => u.toLowerCase());
+}
+
+/** credential claims — fabricating a certificate is a hard reject (P3-5 case 1). */
+const CREDENTIAL_WORDS = [
+  'certified',
+  'certification',
+  'certificate',
+  'chứng chỉ',
+  'ielts',
+  'toeic',
+];
+
+/**
+ * NEW multi-word proper-noun phrases ("Nova Dynamics", "Google Cloud") — the deterministic
+ * employer/org/product fabrication net. A run of ≥2 capitalized tokens counts only when at least
+ * one token is TitleCase (Upper+lower), so all-caps generic pairs ("REST API") stay allowed, and a
+ * run never starts at a sentence-initial token (normal sentence case can't false-positive).
+ * ponytail: a bare single-word org ("Google") still slips unless it's in NAMED_TECH — add a real
+ * org gazetteer only if this proves too loose in the eval corpus.
+ */
+export function properNounPhrases(text: string): string[] {
+  const toks = text.split(/\s+/);
+  const clean = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.+#&-]+$/gu, '');
+  const isCap = (w: string) => w.length >= 2 && /^[\p{Lu}][\p{L}\p{N}.+#&-]*$/u.test(w);
+  const isTitle = (w: string) => /^[\p{Lu}]\p{Ll}/u.test(w);
+  const phrases: string[] = [];
+  let i = 1; // token 0 is sentence-initial by definition
+  while (i < toks.length) {
+    const sentenceInitial = /[.!?:]$/.test(toks[i - 1]);
+    const w = clean(toks[i]);
+    if (!sentenceInitial && isCap(w)) {
+      const run = [w];
+      let j = i + 1;
+      while (j < toks.length && isCap(clean(toks[j]))) {
+        run.push(clean(toks[j]));
+        j += 1;
+      }
+      if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
+      i = j;
+    } else {
+      i += 1;
+    }
+  }
+  return phrases;
+}
+
 export function groundCvRewrite(
   before: string,
   model: RewriteModelOutput,
@@ -297,6 +347,25 @@ export function groundCvRewrite(
   for (const tech of NAMED_TECH) {
     if (hasWord(model.after, tech) && !hasWord(source, tech)) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated tech: ${tech}` };
+    }
+  }
+  // (d) no fabricated URL/domain — a link is evidence; the user must have given it.
+  const sourceLower = source.toLowerCase();
+  for (const url of urlTokens(model.after)) {
+    if (!sourceLower.includes(url)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated url: ${url}` };
+    }
+  }
+  // (e) no fabricated credential claim (certificates are a hard fabrication risk on a CV).
+  for (const word of CREDENTIAL_WORDS) {
+    if (hasWord(model.after, word) && !hasWord(source, word)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated credential: ${word}` };
+    }
+  }
+  // (f) no NEW multi-word proper-noun phrase — the employer/org/product fabrication net.
+  for (const phrase of properNounPhrases(model.after)) {
+    if (!sourceLower.includes(phrase.toLowerCase())) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity: ${phrase}` };
     }
   }
   return {
