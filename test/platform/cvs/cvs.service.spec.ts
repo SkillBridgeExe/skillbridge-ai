@@ -502,18 +502,21 @@ describe('CvsService R1 completion behavior', () => {
 
     await service.updateBuilderDraft('u1', 'draft-1', {
       parsedJson: parsedReview.document,
-      title: 'Updated Draft',
+      title: 'Updated Draft', // stale clients still send it — must be ignored
       targetRole: 'backend_developer',
     });
 
-    expect(cvsRepo.save).toHaveBeenCalledWith(
+    // Column-scoped UPDATE: autosave writes only the columns it owns…
+    expect(cvsRepo.update).toHaveBeenCalledWith(
+      'draft-1',
       expect.objectContaining({
-        id: 'draft-1',
         parsedJson: parsedReview.document,
-        title: 'Updated Draft',
         targetRole: 'backend_developer',
       }),
     );
+    // …and NEVER the title — that column is owned by rename (PATCH /api/cvs/:id).
+    expect(cvsRepo.update.mock.calls[0][1]).not.toHaveProperty('title');
+    expect(cvsRepo.save).not.toHaveBeenCalled();
   });
 
   it('builder autosave re-syncs cv_skills from the edited document (job-rec reads them)', async () => {

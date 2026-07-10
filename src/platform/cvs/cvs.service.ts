@@ -340,14 +340,25 @@ export class CvsService {
    * updated_at via save() so the library "last edited" stays accurate.
    */
   async rename(userId: string, cvId: string, title: string): Promise<RenameCvResponseDto> {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      // Contract: explicit TITLE_REQUIRED, not a generic validation message.
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.TITLE_REQUIRED,
+        message: 'title must not be empty',
+      });
+    }
     const cv = await this.findOwnedCv(userId, cvId);
-    cv.title = title.trim();
-    const saved = await this.cvs.save(cv);
+    // Column-scoped UPDATE, not save(entity): a full-entity save would write the parsedJson read
+    // above back to the DB, so an autosave landing in between would be silently reverted —
+    // the same lost-update class as the autosave/title race, in the other direction.
+    await this.cvs.update(cv.id, { title: trimmed }); // bumps updated_at via @UpdateDateColumn
+    const fresh = await this.findOwnedCv(userId, cvId);
     // Slim response per contract — shipping the whole canonical doc for a title change is waste.
     return {
-      id: saved.id,
-      title: saved.title,
-      updatedAt: saved.updatedAt ? saved.updatedAt.toISOString() : null,
+      id: fresh.id,
+      title: fresh.title,
+      updatedAt: fresh.updatedAt ? fresh.updatedAt.toISOString() : null,
     };
   }
 
@@ -411,11 +422,18 @@ export class CvsService {
    * undoable), overwrites parsed_json, re-syncs cv_skills, and bumps updated_at via save().
    */
   async restoreVersion(userId: string, cvId: string, versionId: string): Promise<CvResponseDto> {
-    const cv = await this.findOwnedCv(userId, cvId);
+    await this.findOwnedCv(userId, cvId); // cheap ownership 404 before opening a transaction
     const version = await this.findOwnedVersion(cvId, versionId);
-    // Atomic: the pre-restore snapshot and the doc overwrite commit together, so a failure can
-    // never leave a spurious AUTO_PRE_RESTORE row without the restore (or vice versa).
+    // Atomic AND concurrency-safe: the CV row is re-read under a pessimistic lock INSIDE the
+    // transaction, so a concurrent autosave can neither slip between the pre-restore snapshot
+    // and the overwrite nor make that snapshot stale — snapshot + overwrite commit together
+    // against the exact row state the lock observed.
     const saved = await this.versions.manager.transaction(async (em) => {
+      const cv = await em.getRepository(CvEntity).findOne({
+        where: { id: cvId, userId, deletedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cv) throw new NotFoundException('CV not found');
       if (cv.parsedJson) {
         await em.save(
           em.create(CvVersionEntity, {
@@ -487,20 +505,24 @@ export class CvsService {
     const cv = await this.findOwnedCv(userId, cvId);
     this.assertBuiltCv(cv);
 
-    cv.parsedJson = this.cloneDocument(dto.parsedJson);
-    cv.language = dto.language ?? dto.parsedJson.language ?? cv.language;
-    // dto.title is deliberately IGNORED: the title is owned by rename (PATCH /api/cvs/:id).
-    // Old cached FE bundles still send it on every autosave and would silently overwrite a
-    // rename. The DTO keeps the field only because forbidNonWhitelisted would 400 them.
-    if (dto.targetRole !== undefined) cv.targetRole = this.normalizeTargetRole(dto.targetRole);
-
-    const saved = await this.cvs.save(cv);
+    // Column-scoped UPDATE, deliberately NOT save(entity): autosave must never write columns it
+    // doesn't own. A full-entity save wrote the title read above back to the DB, so any rename
+    // landing between this read and the save was silently reverted (lost update). dto.title is
+    // ignored for the same reason — title is owned by rename (PATCH /api/cvs/:id); the DTO keeps
+    // the field only because forbidNonWhitelisted would 400 old clients that still send it.
+    const patch: Partial<CvEntity> = {
+      parsedJson: this.cloneDocument(dto.parsedJson),
+      language: dto.language ?? dto.parsedJson.language ?? cv.language,
+    };
+    if (dto.targetRole !== undefined) patch.targetRole = this.normalizeTargetRole(dto.targetRole);
+    await this.cvs.update(cv.id, patch); // bumps updated_at via @UpdateDateColumn
 
     // Re-sync cv_skills from the edited document: job-recommendation reads cv_skills, so a builder
     // edit that adds/removes skills must not leave scoring on the pre-edit set until the next review.
-    await this.syncSkillsFromDoc(saved.id, dto.parsedJson);
+    await this.syncSkillsFromDoc(cv.id, dto.parsedJson);
 
-    return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
+    const fresh = await this.findOwnedCv(userId, cvId);
+    return this.toResponse(fresh, await this.getPersistedSkills(cv.id), null);
   }
 
   async evaluateBuilderSection(

@@ -1,21 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 
 /**
- * Title-only rename for any owned CV (UPLOADED or BUILT). Trims first, then rejects
- * empty-after-trim via MinLength(1) — the builder autosave must NOT own the title.
+ * Title-only rename for any owned CV (UPLOADED or BUILT). Contract: trim, 1..200 chars;
+ * empty-after-trim is rejected by the service with errorCode TITLE_REQUIRED (not a generic
+ * validation message) — the builder autosave must NOT own the title.
  */
 export class RenameCvDto {
   @ApiProperty({
-    maxLength: 160,
+    maxLength: 200,
     example: 'Frontend Developer CV',
-    description: 'New display title. Trimmed; must be non-empty.',
+    description: 'New display title. Trimmed; must be non-empty (400 TITLE_REQUIRED otherwise).',
   })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
-  @MinLength(1, { message: 'title must not be empty' })
-  @MaxLength(160)
+  @MaxLength(200)
   title!: string;
 }
 

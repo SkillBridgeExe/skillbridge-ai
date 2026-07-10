@@ -43,7 +43,12 @@ describe('CvsService.updateBuilderDraft — title ownership', () => {
     const cv = makeCv();
     const cvsRepo = {
       findOne: jest.fn().mockResolvedValue(cv),
-      save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
+      save: jest.fn(),
+      // emulate the DB applying the column patch, like the real UPDATE would
+      update: jest.fn().mockImplementation((_id, patch) => {
+        Object.assign(cv, patch);
+        return Promise.resolve({ affected: 1 });
+      }),
     };
     const service = setup(cvsRepo);
 
@@ -53,9 +58,15 @@ describe('CvsService.updateBuilderDraft — title ownership', () => {
     } as unknown as UpdateBuilderCvDto;
     const res = await service.updateBuilderDraft('user-1', 'cv-1', dto);
 
-    expect(cv.title).toBe('Renamed by user');
+    // Column-scoped UPDATE without title — immune to the read-modify-write lost update where
+    // a rename landing mid-autosave got reverted by a full-entity save.
+    expect(cvsRepo.update).toHaveBeenCalledWith(
+      'cv-1',
+      expect.objectContaining({ parsedJson: { language: 'en', skills: {}, summary: 'edited' } }),
+    );
+    expect(cvsRepo.update.mock.calls[0][1]).not.toHaveProperty('title');
+    expect(cvsRepo.save).not.toHaveBeenCalled();
     expect(res.title).toBe('Renamed by user');
-    // the document itself still saves normally
     expect(res.parsedJson).toEqual({ language: 'en', skills: {}, summary: 'edited' });
   });
 });

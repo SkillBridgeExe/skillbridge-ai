@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { CvEntity } from '../../database/entities/cv.entity';
 import { CvsService } from './cvs.service';
 
 /**
@@ -170,7 +171,7 @@ describe('CvsService versions', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('restoreVersion auto-snapshots the current doc first, then overwrites parsed_json — in ONE transaction', async () => {
+  it('restoreVersion re-reads the CV under a row lock, auto-snapshots, then overwrites — in ONE transaction', async () => {
     const currentDoc = { language: 'en', skills: {}, summary: 'current' };
     const versionDoc = { language: 'en', skills: {}, summary: 'restored' };
     const cv = makeCv({ parsedJson: currentDoc });
@@ -188,10 +189,14 @@ describe('CvsService versions', () => {
       find: jest.fn().mockResolvedValue([]),
       delete: jest.fn(),
     };
+    // the transaction re-reads the CV row (locked) through its own repository
+    const cvLockRepo = { findOne: jest.fn().mockResolvedValue(cv) };
     const em = {
       create: jest.fn().mockImplementation((_entity: unknown, x: unknown) => x),
       save: jest.fn().mockImplementation((x: unknown) => Promise.resolve(x)),
-      getRepository: jest.fn(() => versionsRepo),
+      getRepository: jest.fn((entity: unknown) =>
+        entity === CvEntity ? cvLockRepo : versionsRepo,
+      ),
     };
     const transaction = jest.fn(async (fn: (m: typeof em) => Promise<unknown>) => fn(em));
     versionsRepo.manager = { transaction };
@@ -201,6 +206,11 @@ describe('CvsService versions', () => {
 
     // snapshot + overwrite committed together — no spurious AUTO row on a failed restore
     expect(transaction).toHaveBeenCalledTimes(1);
+    // the row is re-read INSIDE the tx under a pessimistic lock, so a concurrent autosave can
+    // neither interleave nor stale the pre-restore snapshot
+    expect(cvLockRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
     // captured the CURRENT doc as an undo point before overwriting
     expect(em.create).toHaveBeenCalledWith(
       expect.anything(),
@@ -211,8 +221,6 @@ describe('CvsService versions', () => {
     expect(res.parsedJson).toEqual(versionDoc);
     // both writes (snapshot row + restored CV) went through the transaction manager
     expect(em.save).toHaveBeenCalledTimes(2);
-    // prune ran against the transaction-scoped repository
-    expect(em.getRepository).toHaveBeenCalled();
   });
 
   it('restoreVersion 404s on a missing version and never overwrites', async () => {
