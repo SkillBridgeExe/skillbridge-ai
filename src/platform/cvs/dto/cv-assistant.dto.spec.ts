@@ -1,6 +1,7 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
 } from './cv-assistant.dto';
@@ -75,6 +76,10 @@ describe('AssistantAnalyzeRequestDto / AssistantSmartQuestionsRequestDto (Turn-1
     await expect(
       accept(AssistantAnalyzeRequestDto, { ...base, current_value: '' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('explain (P3-3) accepts the same body shape as analyze', async () => {
+    await expect(accept(AssistantExplainRequestDto, base)).resolves.toMatchObject(base);
   });
 });
 

@@ -32,6 +32,10 @@ import {
 import { groundCvAssistantAnswers } from '../../modules/cv-assistant/cv-assistant-rewrite';
 import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
 import {
+  AssistantExplanation,
+  buildCvAssistantExplanation,
+} from '../../modules/cv-assistant/cv-assistant-explain';
+import {
   analyzeSkillsSection,
   SkillsNudge,
   SkillsSection,
@@ -39,6 +43,7 @@ import {
 import { CvQuestionGeneratorService } from '../../modules/cv-assistant/cv-question-generator.service';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
@@ -613,6 +618,25 @@ export class CvsService {
       locale: dto.locale ?? 'en',
       requested_action: dto.requested_action,
       target_role: cv.targetRole ?? undefined,
+    });
+  }
+
+  /**
+   * P3-3 "Why is this weak?" — read-only explanation from the SAME deterministic gap analysis
+   * as Turn-1. No LLM, no quota, never a patch — citedSignals can't cite what wasn't detected.
+   */
+  async assistantExplain(
+    userId: string,
+    cvId: string,
+    dto: AssistantExplainRequestDto,
+  ): Promise<AssistantExplanation | null> {
+    await this.findOwnedCv(userId, cvId);
+    return buildCvAssistantExplanation({
+      page: 'cv_builder',
+      section: dto.section,
+      field_path: dto.field_path,
+      current_value: dto.current_value,
+      locale: dto.locale ?? 'en',
     });
   }
 

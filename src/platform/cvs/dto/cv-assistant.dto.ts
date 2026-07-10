@@ -85,6 +85,12 @@ export class AssistantAnalyzeRequestDto {
  */
 export class AssistantSmartQuestionsRequestDto extends AssistantAnalyzeRequestDto {}
 
+/**
+ * P3-3 "Why is this weak?" — read-only explanation. Same request shape as analyze;
+ * the response is an AssistantExplanation (message + citedSignals), NEVER a patch.
+ */
+export class AssistantExplainRequestDto extends AssistantAnalyzeRequestDto {}
+
 /** one Turn-1 answer: a category chip + an optional concrete detail. */
 export class AssistantAnswerDto {
   @ApiProperty({ enum: GAPS })
