@@ -63,7 +63,29 @@ describe('CvsService R1 completion behavior', () => {
         createdAt: input.createdAt ?? now,
         updatedAt: now,
       })),
-      findOne: jest.fn(),
+      // Default models the DB after a row was created: lookups BY ID hit (reviewCv's identity
+      // read needs the row it just wrote), probes by contentHash/fingerprint miss. Tests that
+      // need a specific row (or a 404) override with mockResolvedValue as before.
+      findOne: jest.fn(
+        async (opts?: { where?: Record<string, unknown> }): Promise<unknown> =>
+          opts?.where?.id
+            ? {
+                id: opts.where.id,
+                userId: (opts.where.userId as string) ?? 'u1',
+                title: 'CV',
+                parsedText: 'parsed cv text',
+                parsedJson: null,
+                cvKind: 'UPLOADED',
+                language: 'vi',
+                isOcrOnly: false,
+                atsReadabilityScore: null,
+                targetRole: null,
+                createdAt: now,
+                updatedAt: now,
+                deletedAt: null,
+              }
+            : undefined,
+      ) as jest.Mock,
       findAndCount: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
       softDelete: jest.fn(),
@@ -1002,6 +1024,40 @@ describe('CvsService R1 completion behavior', () => {
         target_role: 'backend_developer',
       }),
     );
+  });
+
+  it('analyze yields — no doc/skills write — when the document changes during the model call', async () => {
+    const { service, cvsRepo, cvSkillsRepo, cvReview, aiResults } = build();
+    const preDoc = { ...parsedReview.document, summary: 'pre-analysis summary' };
+    const cvRow = {
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: preDoc,
+      cvKind: 'UPLOADED',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(cvRow);
+    aiResults.manager.query.mockResolvedValue([]); // no cached review — the model must run
+    // A restore commits while the model call is in flight.
+    cvReview.review.mockImplementationOnce(async () => {
+      cvRow.parsedJson = { ...preDoc, summary: 'restored during analysis' };
+      return { parsed_response: parsedReview };
+    });
+
+    const response = await service.rerunReview('u1', 'cv-1');
+
+    // The fresher document wins — the stale analysis persists NOTHING (invariant: cv_skills
+    // must always represent the stored parsed_json)…
+    expect(cvsRepo.update).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.delete).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.save).not.toHaveBeenCalled();
+    // …but the analysis result itself is still returned for display.
+    expect(response.review).toEqual(parsedReview);
   });
 
   it('generates an interview plan from the latest review and records interview quota', async () => {
