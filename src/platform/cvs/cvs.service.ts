@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
+import { isDeepStrictEqual } from 'util';
 import { EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
@@ -1096,11 +1097,25 @@ export class CvsService {
   private async persistExtractedSkills(
     cvId: string,
     rawSkills: string[],
+    em?: EntityManager,
   ): Promise<CvSkillResponseDto[]> {
+    const normalized = await this.normalizeRawSkills(rawSkills);
+    return this.writeNormalizedSkills(cvId, normalized, em);
+  }
+
+  /** Normalization can hit the embedding service (network) — keep it OUTSIDE any DB lock. */
+  private normalizeRawSkills(rawSkills: string[]) {
     const uniqueRawSkills = [...new Set(rawSkills.map((s) => s.trim()).filter(Boolean))];
     // Async variant = deterministic cascade + embedding fallback for the long tail
     // (semantic tier fires only on full cascade misses; no-ops in test/keyless envs).
-    const normalized = await this.skillNormalizer.normalizeManyAsync(uniqueRawSkills);
+    return this.skillNormalizer.normalizeManyAsync(uniqueRawSkills);
+  }
+
+  private async writeNormalizedSkills(
+    cvId: string,
+    normalized: Awaited<ReturnType<SkillNormalizerService['normalizeManyAsync']>>,
+    em?: EntityManager,
+  ): Promise<CvSkillResponseDto[]> {
     const canonicalNames = [
       ...new Set(
         normalized
@@ -1109,19 +1124,21 @@ export class CvsService {
       ),
     ];
 
+    const skillsRepository = em ? em.getRepository(SkillEntity) : this.skills;
+    const cvSkillsRepository = em ? em.getRepository(CvSkillEntity) : this.cvSkills;
     const entities =
       canonicalNames.length > 0
-        ? await this.skills.find({ where: { canonicalName: In(canonicalNames) } })
+        ? await skillsRepository.find({ where: { canonicalName: In(canonicalNames) } })
         : [];
     const entityByCanonical = new Map(entities.map((skill) => [skill.canonicalName, skill]));
 
-    await this.cvSkills.delete({ cvId });
+    await cvSkillsRepository.delete({ cvId });
     const rowsBySkillId = new Map<string, CvSkillEntity>();
     for (const skill of normalized) {
       if (!skill.canonical_name) continue;
       const entity = entityByCanonical.get(skill.canonical_name);
       if (!entity) continue;
-      const row = this.cvSkills.create({
+      const row = cvSkillsRepository.create({
         cvId,
         skillId: entity.id,
         confidence: skill.confidence.toFixed(2),
@@ -1132,7 +1149,7 @@ export class CvsService {
       }
     }
     const rows = [...rowsBySkillId.values()];
-    if (rows.length > 0) await this.cvSkills.save(rows);
+    if (rows.length > 0) await cvSkillsRepository.save(rows);
 
     return normalized.map((skill) => {
       const entity = skill.canonical_name ? entityByCanonical.get(skill.canonical_name) : undefined;
@@ -1472,7 +1489,21 @@ export class CvsService {
         ...(doc.skills?.languages ?? []),
         ...(doc.skills?.tools ?? []),
       ];
-      await this.persistExtractedSkills(cvId, rawSkills);
+      // Normalize BEFORE taking the row lock — it can call the embedding service, and a DB
+      // lock must never span a network call (autosave, rename, and restore all queue on
+      // this row; a slow embedding tier would serialize them all behind it).
+      const normalized = await this.normalizeRawSkills(rawSkills);
+      await this.cvs.manager.transaction(async (em) => {
+        // Persisted derived skills must belong to the exact document currently stored. A restore
+        // can replace parsedJson while an earlier autosave is still waiting to sync; locking the
+        // CV row and rejecting a document mismatch prevents that stale autosave from winning.
+        const current = await em.getRepository(CvEntity).findOne({
+          where: { id: cvId, deletedAt: IsNull() },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!current || !isDeepStrictEqual(current.parsedJson, doc)) return;
+        await this.writeNormalizedSkills(cvId, normalized, em);
+      });
     } catch (err) {
       this.logger.warn(
         `builder skill sync failed for cv ${cvId} — job-rec will read the previous set: ${(err as Error).message}`,

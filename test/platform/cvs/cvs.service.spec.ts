@@ -1,5 +1,8 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { BillingFeatureKey } from '../../../src/common/constants/billing.constants';
+import { CvEntity } from '../../../src/database/entities/cv.entity';
+import { CvSkillEntity } from '../../../src/database/entities/cv-skill.entity';
+import { SkillEntity } from '../../../src/database/entities/skill.entity';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 
 describe('CvsService R1 completion behavior', () => {
@@ -74,6 +77,20 @@ describe('CvsService R1 completion behavior', () => {
     };
     const skillsRepo = {
       find: jest.fn().mockResolvedValue([]),
+    };
+    // Keep derived cv_skills in the same guarded transaction as the document identity check.
+    // This mirrors the real TypeORM repositories and lets autosave tests exercise the sync path.
+    (cvsRepo as { manager?: unknown }).manager = {
+      transaction: jest.fn(async (fn) =>
+        fn({
+          getRepository: (entity: unknown) => {
+            if (entity === CvEntity) return cvsRepo;
+            if (entity === CvSkillEntity) return cvSkillsRepo;
+            if (entity === SkillEntity) return skillsRepo;
+            return undefined;
+          },
+        }),
+      ),
     };
     const storage = {
       buildCvObjectKey: jest.fn().mockReturnValue('cvs/u1/cv-1/sample.pdf'),
@@ -521,7 +538,7 @@ describe('CvsService R1 completion behavior', () => {
 
   it('builder autosave re-syncs cv_skills from the edited document (job-rec reads them)', async () => {
     const { service, cvsRepo, skillNormalizer } = build();
-    cvsRepo.findOne.mockResolvedValue({
+    const draft = {
       id: 'draft-1',
       userId: 'u1',
       title: 'Draft',
@@ -531,6 +548,13 @@ describe('CvsService R1 completion behavior', () => {
       targetRole: null,
       createdAt: now,
       updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(draft);
+    // The production path is a column-scoped UPDATE. Reflect that DB mutation in this unit mock
+    // so the guarded derived-skill sync sees the just-persisted canonical document.
+    cvsRepo.update.mockImplementation(async (_id, patch) => {
+      Object.assign(draft, patch);
+      return { affected: 1 };
     });
 
     await service.updateBuilderDraft('u1', 'draft-1', {

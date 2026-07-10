@@ -1,5 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CvEntity } from '../../database/entities/cv.entity';
+import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { SkillEntity } from '../../database/entities/skill.entity';
 import { CvsService } from './cvs.service';
 
 /**
@@ -204,7 +206,7 @@ describe('CvsService versions', () => {
 
     const res = await service.restoreVersion('user-1', 'cv-1', 'v4');
 
-    // snapshot + overwrite committed together — no spurious AUTO row on a failed restore
+    // Snapshot + overwrite committed together — no spurious AUTO row on a failed restore.
     expect(transaction).toHaveBeenCalledTimes(1);
     // the row is re-read INSIDE the tx under a pessimistic lock, so a concurrent autosave can
     // neither interleave nor stale the pre-restore snapshot
@@ -232,5 +234,46 @@ describe('CvsService versions', () => {
       NotFoundException,
     );
     expect(cvsRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('does not let a stale autosave overwrite cv_skills after a restore', async () => {
+    const restoredDoc = { language: 'en', skills: { technical: ['React'] } };
+    const staleAutosaveDoc = { language: 'en', skills: { technical: ['Node.js'] } };
+    const currentCv = makeCv({ parsedJson: restoredDoc });
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(currentCv) };
+    const cvSkillsRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      delete: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+    const skillsRepo = { find: jest.fn() };
+    const versionsRepo: Record<string, jest.Mock> & { manager?: unknown } = {
+      findOne: jest.fn(),
+    };
+    const cvLockRepo = { findOne: jest.fn().mockResolvedValue(currentCv) };
+    const em = {
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === CvEntity) return cvLockRepo;
+        if (entity === CvSkillEntity) return cvSkillsRepo;
+        if (entity === SkillEntity) return skillsRepo;
+        return undefined;
+      }),
+    };
+    (cvsRepo as { manager?: unknown }).manager = { transaction: jest.fn(async (fn) => fn(em)) };
+
+    const service = setup(cvsRepo, versionsRepo, cvSkillsRepo);
+    const args = service as unknown as { skillNormalizer?: unknown };
+    args.skillNormalizer = { normalizeManyAsync: jest.fn().mockResolvedValue([]) };
+
+    await (
+      service as unknown as { syncSkillsFromDoc: (id: string, doc: unknown) => Promise<void> }
+    ).syncSkillsFromDoc('cv-1', staleAutosaveDoc);
+
+    expect(cvLockRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
+    expect(cvSkillsRepo.delete).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.save).not.toHaveBeenCalled();
   });
 });
