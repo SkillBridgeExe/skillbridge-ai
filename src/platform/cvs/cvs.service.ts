@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
-import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
@@ -82,6 +82,7 @@ import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
+import { RenameCvResponseDto } from './dto/rename-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
 import { CvPdfRendererService, RenderedCvPdf } from './cv-pdf-renderer.service';
 import { TextExtractorService } from './text-extractor.service';
@@ -338,11 +339,16 @@ export class CvsService {
    * parsed_json and is not gated to BUILT, so uploaded CVs can be renamed too. Bumps
    * updated_at via save() so the library "last edited" stays accurate.
    */
-  async rename(userId: string, cvId: string, title: string): Promise<CvResponseDto> {
+  async rename(userId: string, cvId: string, title: string): Promise<RenameCvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     cv.title = title.trim();
     const saved = await this.cvs.save(cv);
-    return this.toResponse(saved, [], null);
+    // Slim response per contract — shipping the whole canonical doc for a title change is waste.
+    return {
+      id: saved.id,
+      title: saved.title,
+      updatedAt: saved.updatedAt ? saved.updatedAt.toISOString() : null,
+    };
   }
 
   /**
@@ -407,22 +413,26 @@ export class CvsService {
   async restoreVersion(userId: string, cvId: string, versionId: string): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     const version = await this.findOwnedVersion(cvId, versionId);
-    if (cv.parsedJson) {
-      await this.versions.save(
-        this.versions.create({
-          cvId: cv.id,
-          snapshot: this.cloneDocument(cv.parsedJson),
-          title: cv.title,
-          label: null,
-          origin: 'AUTO_PRE_RESTORE',
-        }),
-      );
-      await this.pruneVersions(cv.id);
-    }
-    cv.parsedJson = this.cloneDocument(version.snapshot);
-    cv.language = version.snapshot.language ?? cv.language;
-    const saved = await this.cvs.save(cv);
-    await this.syncSkillsFromDoc(saved.id, cv.parsedJson);
+    // Atomic: the pre-restore snapshot and the doc overwrite commit together, so a failure can
+    // never leave a spurious AUTO_PRE_RESTORE row without the restore (or vice versa).
+    const saved = await this.versions.manager.transaction(async (em) => {
+      if (cv.parsedJson) {
+        await em.save(
+          em.create(CvVersionEntity, {
+            cvId: cv.id,
+            snapshot: this.cloneDocument(cv.parsedJson),
+            title: cv.title,
+            label: null,
+            origin: 'AUTO_PRE_RESTORE',
+          }),
+        );
+        await this.pruneVersions(cv.id, em);
+      }
+      cv.parsedJson = this.cloneDocument(version.snapshot);
+      cv.language = version.snapshot.language ?? cv.language;
+      return em.save(cv);
+    });
+    await this.syncSkillsFromDoc(saved.id, saved.parsedJson!); // best-effort by design, outside tx
     return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
   }
 
@@ -479,7 +489,9 @@ export class CvsService {
 
     cv.parsedJson = this.cloneDocument(dto.parsedJson);
     cv.language = dto.language ?? dto.parsedJson.language ?? cv.language;
-    if (dto.title !== undefined) cv.title = dto.title.trim() || cv.title;
+    // dto.title is deliberately IGNORED: the title is owned by rename (PATCH /api/cvs/:id).
+    // Old cached FE bundles still send it on every autosave and would silently overwrite a
+    // rename. The DTO keeps the field only because forbidNonWhitelisted would 400 them.
     if (dto.targetRole !== undefined) cv.targetRole = this.normalizeTargetRole(dto.targetRole);
 
     const saved = await this.cvs.save(cv);
@@ -1373,6 +1385,7 @@ export class CvsService {
       isOcrOnly: cv.isOcrOnly,
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       createdAt: cv.createdAt.toISOString(),
+      updatedAt: cv.updatedAt ? cv.updatedAt.toISOString() : null,
     };
   }
 
@@ -1393,19 +1406,25 @@ export class CvsService {
    * manual/labeled = 50). Without the manual cap the table grows unbounded on repeated
    * "Save version". ponytail: fixed caps; raise if users ask for deeper history.
    */
-  private async pruneVersions(cvId: string): Promise<void> {
-    await this.pruneOrigin(cvId, ['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT'], 20);
-    await this.pruneOrigin(cvId, ['MANUAL'], 50);
+  private async pruneVersions(cvId: string, em?: EntityManager): Promise<void> {
+    await this.pruneOrigin(cvId, ['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT'], 20, em);
+    await this.pruneOrigin(cvId, ['MANUAL'], 50, em);
   }
 
-  private async pruneOrigin(cvId: string, origins: CvVersionOrigin[], keep: number): Promise<void> {
-    const rows = await this.versions.find({
+  private async pruneOrigin(
+    cvId: string,
+    origins: CvVersionOrigin[],
+    keep: number,
+    em?: EntityManager,
+  ): Promise<void> {
+    const repo = em ? em.getRepository(CvVersionEntity) : this.versions;
+    const rows = await repo.find({
       where: { cvId, origin: In(origins) },
       order: { createdAt: 'DESC' },
       select: ['id'],
     });
     const stale = rows.slice(keep).map((v) => v.id);
-    if (stale.length > 0) await this.versions.delete({ id: In(stale) });
+    if (stale.length > 0) await repo.delete({ id: In(stale) });
   }
 
   private toVersionSummary(v: CvVersionEntity): CvVersionSummaryDto {

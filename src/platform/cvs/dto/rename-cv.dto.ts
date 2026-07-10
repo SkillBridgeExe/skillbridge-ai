@@ -18,3 +18,10 @@ export class RenameCvDto {
   @MaxLength(160)
   title!: string;
 }
+
+/** Slim rename response per the P2 contract — no canonical doc, no skills. */
+export interface RenameCvResponseDto {
+  id: string;
+  title: string | null;
+  updatedAt: string | null;
+}

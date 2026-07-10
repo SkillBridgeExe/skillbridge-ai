@@ -88,6 +88,28 @@ describe('CvsService versions', () => {
     expect(versionsRepo.delete).toHaveBeenCalledTimes(1);
   });
 
+  it('createVersion accepts AUTO_PRE_IMPORT origin for the pre-import backup', async () => {
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv()) };
+    const versionsRepo = {
+      create: jest.fn().mockImplementation((x) => x),
+      save: jest
+        .fn()
+        .mockImplementation((x) =>
+          Promise.resolve({ ...x, id: 'v-import', createdAt: new Date() }),
+        ),
+      find: jest.fn().mockResolvedValue([]),
+      delete: jest.fn(),
+    };
+    const service = setup(cvsRepo, versionsRepo);
+
+    const res = await service.createVersion('user-1', 'cv-1', 'Before import', 'AUTO_PRE_IMPORT');
+
+    expect(versionsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: 'AUTO_PRE_IMPORT', label: 'Before import' }),
+    );
+    expect(res.origin).toBe('AUTO_PRE_IMPORT');
+  });
+
   it('createVersion rejects when the CV has no document', async () => {
     const cvsRepo = { findOne: jest.fn().mockResolvedValue(makeCv({ parsedJson: null })) };
     const versionsRepo = { create: jest.fn(), save: jest.fn(), find: jest.fn(), delete: jest.fn() };
@@ -148,15 +170,12 @@ describe('CvsService versions', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('restoreVersion auto-snapshots the current doc first, then overwrites parsed_json', async () => {
+  it('restoreVersion auto-snapshots the current doc first, then overwrites parsed_json — in ONE transaction', async () => {
     const currentDoc = { language: 'en', skills: {}, summary: 'current' };
     const versionDoc = { language: 'en', skills: {}, summary: 'restored' };
     const cv = makeCv({ parsedJson: currentDoc });
-    const cvsRepo = {
-      findOne: jest.fn().mockResolvedValue(cv),
-      save: jest.fn().mockImplementation((c) => Promise.resolve(c)),
-    };
-    const versionsRepo = {
+    const cvsRepo = { findOne: jest.fn().mockResolvedValue(cv) };
+    const versionsRepo: Record<string, jest.Mock> & { manager?: unknown } = {
       findOne: jest.fn().mockResolvedValue({
         id: 'v4',
         cvId: 'cv-1',
@@ -166,23 +185,34 @@ describe('CvsService versions', () => {
         origin: 'MANUAL',
         createdAt: new Date(),
       }),
-      create: jest.fn().mockImplementation((x) => x),
-      save: jest.fn().mockResolvedValue({ id: 'auto', createdAt: new Date() }),
       find: jest.fn().mockResolvedValue([]),
       delete: jest.fn(),
     };
+    const em = {
+      create: jest.fn().mockImplementation((_entity: unknown, x: unknown) => x),
+      save: jest.fn().mockImplementation((x: unknown) => Promise.resolve(x)),
+      getRepository: jest.fn(() => versionsRepo),
+    };
+    const transaction = jest.fn(async (fn: (m: typeof em) => Promise<unknown>) => fn(em));
+    versionsRepo.manager = { transaction };
     const service = setup(cvsRepo, versionsRepo);
 
     const res = await service.restoreVersion('user-1', 'cv-1', 'v4');
 
+    // snapshot + overwrite committed together — no spurious AUTO row on a failed restore
+    expect(transaction).toHaveBeenCalledTimes(1);
     // captured the CURRENT doc as an undo point before overwriting
-    expect(versionsRepo.create).toHaveBeenCalledWith(
+    expect(em.create).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ origin: 'AUTO_PRE_RESTORE' }),
     );
     // doc overwritten with the restored snapshot (deep clone → deep equal)
     expect(cv.parsedJson).toEqual(versionDoc);
     expect(res.parsedJson).toEqual(versionDoc);
-    expect(cvsRepo.save).toHaveBeenCalled();
+    // both writes (snapshot row + restored CV) went through the transaction manager
+    expect(em.save).toHaveBeenCalledTimes(2);
+    // prune ran against the transaction-scoped repository
+    expect(em.getRepository).toHaveBeenCalled();
   });
 
   it('restoreVersion 404s on a missing version and never overwrites', async () => {

@@ -62,6 +62,8 @@ describe('CvsService.rename', () => {
     const res = await service.rename('user-1', 'cv-1', '  New title  ');
 
     expect(res.title).toBe('New title');
+    // slim contract response — no canonical doc, no skills payload for a title change
+    expect(res).toEqual({ id: 'cv-1', title: 'New title', updatedAt: expect.any(String) });
     expect(cvsRepo.save).toHaveBeenCalledTimes(1);
     expect(cvsRepo.findOne).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: 'cv-1', userId: 'user-1' }) }),
@@ -79,9 +81,9 @@ describe('CvsService.rename', () => {
     const res = await service.rename('user-1', 'cv-1', 'My Best Resume');
 
     expect(res.title).toBe('My Best Resume');
-    expect(res.cvKind).toBe('UPLOADED');
-    // untouched document
-    expect(res.parsedText).toBe('original text');
+    // untouched document on the entity itself
+    expect(cv.parsedText).toBe('original text');
+    expect(cv.cvKind).toBe('UPLOADED');
   });
 
   it('throws NotFound and never saves when the CV is not owned', async () => {
