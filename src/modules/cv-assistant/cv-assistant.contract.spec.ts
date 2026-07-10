@@ -1,4 +1,4 @@
-import { buildCvAssistantTurn, buildSummaryTurn } from './cv-assistant';
+import { buildCvAssistantTurn, buildSummaryTurn, cvBuilderAssistantTurn1 } from './cv-assistant';
 import { CvAssistantRewriteService } from './cv-assistant.service';
 
 /**
@@ -42,12 +42,43 @@ describe('Turn-1 union (deterministic turns)', () => {
     expect(turn.questions.map((q) => q.gap)).toEqual(['tech']);
   });
 
+  it('make_ats_friendly with tech already present asks NOTHING (safe transform, not a quiz)', () => {
+    // tech present, action+result missing — the ATS chip must not detour into generic questions.
+    const turn = buildCvAssistantTurn('Responsible for PostgreSQL.', 'en', 'make_ats_friendly');
+    expect(turn.questions).toEqual([]);
+  });
+
   it('summary turn asks summary gaps (role/strength/evidence), bilingual', () => {
     for (const lang of ['en', 'vi'] as const) {
       const turn = buildSummaryTurn('I am a hard-working person.', lang);
       expect(turn.questions.map((q) => q.gap)).toEqual(['role', 'strength', 'evidence']);
       expect(turn.field_patch).toBeNull();
     }
+  });
+
+  it('summary honors the action chips: evidence/impact target evidence, ats targets strength', () => {
+    const weak = 'I am a hard-working person.'; // missing role + strength + evidence
+    expect(buildSummaryTurn(weak, 'en', 'add_evidence').questions.map((q) => q.gap)).toEqual([
+      'evidence',
+    ]);
+    expect(buildSummaryTurn(weak, 'en', 'turn_into_impact').questions.map((q) => q.gap)).toEqual([
+      'evidence',
+    ]);
+    expect(buildSummaryTurn(weak, 'en', 'make_ats_friendly').questions.map((q) => q.gap)).toEqual([
+      'strength',
+    ]);
+    // evidence already present → nothing to ask → FE fires the safe transform instead.
+    const evidenced = 'Hard-working professional with 3 years of shipping.';
+    expect(buildSummaryTurn(evidenced, 'en', 'add_evidence').questions).toEqual([]);
+    // the companion route passes requested_action through for summary (P2 fix).
+    const routed = cvBuilderAssistantTurn1({
+      page: 'cv_builder',
+      section: 'summary',
+      current_value: weak,
+      locale: 'en',
+      requested_action: 'add_evidence',
+    });
+    expect(routed?.questions.map((q) => q.gap)).toEqual(['evidence']);
   });
 });
 
