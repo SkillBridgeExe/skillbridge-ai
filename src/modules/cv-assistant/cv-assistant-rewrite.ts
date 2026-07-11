@@ -322,8 +322,15 @@ export function properNounPhrases(text: string): string[] {
  * corpus ever shows them slipping through.
  */
 const MONTHS_EN = [
-  'january', 'february', 'april', 'june', 'july',
-  'september', 'october', 'november', 'december',
+  'january',
+  'february',
+  'april',
+  'june',
+  'july',
+  'september',
+  'october',
+  'november',
+  'december',
 ];
 const MONTHS_EN_AMBIGUOUS_RE =
   /\b(?:in|by|since|from|until|till|during|between|before|after|early|mid|late)[\s-]+(may|march|august)\b/giu;
@@ -332,12 +339,35 @@ const SEASONS_EN_RE =
 const RELATIVE_EN_RE =
   /\b(?:last|next)\s+(?:year|month|week|quarter)\b|\b\S+\s+(?:years?|months?|weeks?)\s+ago\b/giu;
 const TEMPORAL_VI = [
-  'tháng giêng', 'tháng chạp', 'tháng một', 'tháng hai', 'tháng ba', 'tháng tư', 'tháng bốn',
-  'tháng năm', 'tháng sáu', 'tháng bảy', 'tháng tám', 'tháng chín', 'tháng mười',
-  'mùa xuân', 'mùa hạ', 'mùa hè', 'mùa thu', 'mùa đông',
-  'năm ngoái', 'năm trước', 'năm sau', 'năm tới',
-  'tháng trước', 'tháng sau', 'tháng tới',
-  'tuần trước', 'tuần sau', 'quý trước', 'quý sau',
+  'tháng giêng',
+  'tháng chạp',
+  'tháng một',
+  'tháng hai',
+  'tháng ba',
+  'tháng tư',
+  'tháng bốn',
+  'tháng năm',
+  'tháng sáu',
+  'tháng bảy',
+  'tháng tám',
+  'tháng chín',
+  'tháng mười',
+  'mùa xuân',
+  'mùa hạ',
+  'mùa hè',
+  'mùa thu',
+  'mùa đông',
+  'năm ngoái',
+  'năm trước',
+  'năm sau',
+  'năm tới',
+  'tháng trước',
+  'tháng sau',
+  'tháng tới',
+  'tuần trước',
+  'tuần sau',
+  'quý trước',
+  'quý sau',
 ];
 
 export function temporalTokens(text: string): string[] {
