@@ -40,9 +40,10 @@ export default () => ({
 
   // CV-JD match prompt template (server-side flip). v1 = skill-only (legacy, byte-identical output);
   // v2 = adds JD-Intelligence (jd_dimensions → jd_intelligence + non-skill gap_items). Joi-validated
-  // to v1|v2 at boot. Flip to v2 here (after A/B drift check) or override via Cloud Run env.
+  // to v1|v2 at boot. Default v2 = what prod has run via Cloud Run env since 2026-06-16; env stays
+  // the rollback lever (set cv_jd_match_v1 to revert without a deploy).
   cvJdMatch: {
-    templateCode: process.env.CV_JD_MATCH_TEMPLATE_CODE ?? 'cv_jd_match_v1',
+    templateCode: process.env.CV_JD_MATCH_TEMPLATE_CODE ?? 'cv_jd_match_v2',
     extractionCacheEnabled: process.env.CV_JD_MATCH_EXTRACTION_CACHE_ENABLED !== 'false',
     // Phase 2 determinism toggle: override model for the EXTRACTION call only. Empty = OFF (use the
     // llm default + temp 0.1, byte-identical legacy). Set to a non-reasoning model (e.g. gpt-4o-mini)

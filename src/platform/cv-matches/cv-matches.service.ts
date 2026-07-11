@@ -183,10 +183,10 @@ export class CvMatchesService {
         cv_text: cv.parsedText,
         jd_id: jd.id,
         jd_text: jdText,
-        // Server-side prompt version (CV_JD_MATCH_TEMPLATE_CODE). Default v1 when unconfigured (unit
-        // tests / unset env); prod sets it via the typed config. FE never sends this.
+        // Server-side prompt version (CV_JD_MATCH_TEMPLATE_CODE). Default v2 (prod reality since
+        // 2026-06-16) when unconfigured (unit tests / unset env); env is the rollback lever.
         scoring_template_code:
-          this.config?.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v1',
+          this.config?.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v2',
         target_role: targetRole ?? undefined,
         target_band: dto.targetBand ?? undefined,
       });
