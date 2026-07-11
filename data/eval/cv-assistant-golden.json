@@ -218,6 +218,54 @@
       "expect_ok": false
     },
     {
+      "id": "rewrite-reject-fabricated-month-en", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard in January.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-relative-date-en", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard last summer.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-month-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ vào tháng Ba.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-relative-date-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ từ năm ngoái.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-accept-user-given-month", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard since January.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard since January.",
+      "model_used_facts": ["built"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-accept-modal-may-not-a-date", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard that may serve reports faster.",
+      "model_used_facts": ["built"],
+      "expect_ok": true
+    },
+    {
       "id": "rewrite-reject-ats-keyword-injection", "kind": "rewrite", "language": "en",
       "before": "Maintained internal services.",
       "answers": [{ "gap": "tech", "option_id": "backend", "detail": "Node.js" }],

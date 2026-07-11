@@ -311,6 +311,47 @@ export function properNounPhrases(text: string): string[] {
   return phrases;
 }
 
+/**
+ * (g) textual temporal expressions — the non-numeric date fabrication net (W112).
+ * The number net (b) already catches digit dates ("2023", "03/2024"); this catches
+ * worded time claims: month names, qualified seasons, and relative periods
+ * ("in January", "last summer", "two years ago", "tháng Ba", "năm ngoái").
+ * Ambiguous EN month words (may/march/august — also modal/verb/adjective) count
+ * only after a temporal preposition, so "this may improve" stays allowed.
+ * ponytail: full month names only — add abbreviations (Jan/Sept) if the eval
+ * corpus ever shows them slipping through.
+ */
+const MONTHS_EN = [
+  'january', 'february', 'april', 'june', 'july',
+  'september', 'october', 'november', 'december',
+];
+const MONTHS_EN_AMBIGUOUS_RE =
+  /\b(?:in|by|since|from|until|till|during|between|before|after|early|mid|late)[\s-]+(may|march|august)\b/giu;
+const SEASONS_EN_RE =
+  /\b(?:last|next|this|in|during|early|mid|late)\s+(?:the\s+)?(spring|summer|autumn|winter|fall)\b/giu;
+const RELATIVE_EN_RE =
+  /\b(?:last|next)\s+(?:year|month|week|quarter)\b|\b\S+\s+(?:years?|months?|weeks?)\s+ago\b/giu;
+const TEMPORAL_VI = [
+  'tháng giêng', 'tháng chạp', 'tháng một', 'tháng hai', 'tháng ba', 'tháng tư', 'tháng bốn',
+  'tháng năm', 'tháng sáu', 'tháng bảy', 'tháng tám', 'tháng chín', 'tháng mười',
+  'mùa xuân', 'mùa hạ', 'mùa hè', 'mùa thu', 'mùa đông',
+  'năm ngoái', 'năm trước', 'năm sau', 'năm tới',
+  'tháng trước', 'tháng sau', 'tháng tới',
+  'tuần trước', 'tuần sau', 'quý trước', 'quý sau',
+];
+
+export function temporalTokens(text: string): string[] {
+  const found: string[] = [];
+  for (const month of MONTHS_EN) if (hasWord(text, month)) found.push(month);
+  for (const m of text.matchAll(MONTHS_EN_AMBIGUOUS_RE)) found.push(m[1].toLowerCase());
+  for (const m of text.matchAll(SEASONS_EN_RE)) found.push(m[1].toLowerCase());
+  for (const m of text.matchAll(RELATIVE_EN_RE)) found.push(m[0].toLowerCase());
+  const lower = text.toLowerCase();
+  // "tháng mười một/hai" also contain "tháng mười" — substring check keeps both grounded consistently.
+  for (const phrase of TEMPORAL_VI) if (lower.includes(phrase)) found.push(phrase);
+  return found;
+}
+
 export function groundCvRewrite(
   before: string,
   model: RewriteModelOutput,
@@ -366,6 +407,13 @@ export function groundCvRewrite(
   for (const phrase of properNounPhrases(model.after)) {
     if (!sourceLower.includes(phrase.toLowerCase())) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity: ${phrase}` };
+    }
+  }
+  // (g) no fabricated textual date/period — worded months, seasons, relative time (W112).
+  for (const tk of temporalTokens(model.after)) {
+    const present = tk.includes(' ') ? sourceLower.includes(tk) : hasWord(source, tk);
+    if (!present) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated date/time: ${tk}` };
     }
   }
   return {
