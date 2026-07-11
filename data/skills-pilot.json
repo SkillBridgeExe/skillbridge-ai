@@ -474,7 +474,11 @@
         "quan ly du an",
         "retrospective",
         "daily standup",
-        "agile development methodologies"
+        "agile development methodologies",
+        "agile development",
+        "scrum framework",
+        "lean",
+        "extreme programming"
       ]
     },
     {
@@ -3557,7 +3561,9 @@
       "source_external_id": null,
       "aliases": [
         "design patterns",
-        "repository pattern"
+        "repository pattern",
+        "design principles",
+        "nguyên tắc thiết kế"
       ]
     },
     {
@@ -3580,7 +3586,9 @@
       "aliases": [
         "tdd",
         "test driven development",
-        "test-driven development"
+        "test-driven development",
+        "atdd",
+        "acceptance test driven development"
       ]
     },
     {
