@@ -25,6 +25,7 @@ describe('cv-assistant golden set', () => {
       'rewrite-reject-fabricated-employer',
       'rewrite-reject-fabricated-url',
       'rewrite-reject-fabricated-certificate',
+      'rewrite-reject-fabricated-date',
       'rewrite-reject-ats-keyword-injection',
       'rewrite-accept-user-clarify-fact',
     ]) {

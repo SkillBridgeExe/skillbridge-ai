@@ -202,6 +202,22 @@
       "expect_ok": false
     },
     {
+      "id": "rewrite-reject-fabricated-date", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard in 2023.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-date-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ từ 2022 đến 2023.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
       "id": "rewrite-reject-ats-keyword-injection", "kind": "rewrite", "language": "en",
       "before": "Maintained internal services.",
       "answers": [{ "gap": "tech", "option_id": "backend", "detail": "Node.js" }],
