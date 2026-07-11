@@ -143,4 +143,6 @@ export const configValidationSchema = Joi.object({
   OCR_FALLBACK_TIMEOUT_MS: Joi.number().integer().min(1000).default(25000),
   OCR_FALLBACK_MAX_PDF_BYTES: Joi.number().integer().min(1).default(10485760),
   OCR_FALLBACK_DPI: Joi.number().integer().min(72).max(400).default(200),
+  // Single lower-DPI retry when the full-DPI OCR attempt times out. 0 disables the retry.
+  OCR_FALLBACK_RETRY_DPI: Joi.number().integer().min(0).max(400).default(120),
 });
