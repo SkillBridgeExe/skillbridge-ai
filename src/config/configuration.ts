@@ -118,6 +118,8 @@ export default () => ({
     timeoutMs: parseInt(process.env.OCR_FALLBACK_TIMEOUT_MS ?? '25000', 10),
     maxPdfBytes: parseInt(process.env.OCR_FALLBACK_MAX_PDF_BYTES ?? '10485760', 10),
     dpi: parseInt(process.env.OCR_FALLBACK_DPI ?? '200', 10),
+    // Lower-DPI single retry when the full-DPI attempt times out (dense scans). 0 disables.
+    retryDpi: parseInt(process.env.OCR_FALLBACK_RETRY_DPI ?? '120', 10),
   },
 });
 
