@@ -112,7 +112,7 @@ async function main(): Promise<void> {
       cv_text: CV_TEXT,
       jd_id: jdId,
       jd_text: JD_TEXT,
-      scoring_template_code: config.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v1',
+      scoring_template_code: config.get<string>('cvJdMatch.templateCode') ?? 'cv_jd_match_v2',
     });
 
     // ── Step 3: gap report (pure composition, no LLM) — mirrors CvMatchesService.getGapReport ──

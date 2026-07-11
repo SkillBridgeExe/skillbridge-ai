@@ -111,12 +111,13 @@ export const configValidationSchema = Joi.object({
   CV_REVIEW_DAILY_LIMIT: Joi.number().integer().min(0).default(5),
 
   // CV-JD match prompt template. v2 adds JD-Intelligence (jd_dimensions) extraction; v1 is the
-  // skill-only legacy path. SERVER-SIDE only (FE never sends it). Default v1 = safe baseline; flip
-  // to v2 in code after the A/B drift check, OR via this env on Cloud Run. Joi restricts to the 2
-  // valid codes so a typo can never reach prompts.get().
+  // skill-only legacy path. SERVER-SIDE only (FE never sends it). Default v2 = matches what prod has
+  // run via this env on Cloud Run since 2026-06-16, so a redeploy that drops the env can't silently
+  // fall back to v1 (which kills the FE jd_intelligence block). v1 stays valid as the rollback lever.
+  // Joi restricts to the 2 valid codes so a typo can never reach prompts.get().
   CV_JD_MATCH_TEMPLATE_CODE: Joi.string()
     .valid('cv_jd_match_v1', 'cv_jd_match_v2')
-    .default('cv_jd_match_v1'),
+    .default('cv_jd_match_v2'),
   CV_JD_MATCH_EXTRACTION_CACHE_ENABLED: Joi.boolean().default(true),
   // Phase 2 determinism toggle. Empty/unset = OFF (legacy default model + temp 0.1, byte-identical).
   // Set to a non-reasoning model (e.g. gpt-4o-mini) → temperature-0 (+ optional seed) extraction.
