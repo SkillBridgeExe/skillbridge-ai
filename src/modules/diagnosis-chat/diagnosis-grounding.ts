@@ -350,15 +350,49 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
   let answer: string;
   if (actions.length) {
     const list = actions.map((a, i) => `(${i + 1}) ${a}`).join('; ');
+    // Advisor v2 honesty: ADMIT the question wasn't answered instead of answering a different one
+    // (the old copy read like a reply and users rightly called it a parrot). The verified
+    // priorities still ride along so the turn is never useless.
     answer = isEn
-      ? `Based on your CV diagnosis, here are the actions to prioritize: ${list}.`
-      : `Dựa trên kết quả chẩn đoán CV của bạn, đây là những việc nên ưu tiên: ${list}.`;
+      ? `I can't answer that confidently from your verified diagnosis data. Based on your CV diagnosis, the actions worth prioritizing: ${list}.`
+      : `Mình chưa đủ dữ kiện đã xác minh để trả lời chắc câu này. Dựa trên chẩn đoán CV của bạn, những việc nên ưu tiên: ${list}.`;
   } else {
     answer = isEn
       ? "I don't have enough diagnosis data to answer specifically yet — please re-run your CV diagnosis and ask again."
       : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
   }
   return { answer: stripRawUrls(answer) };
+}
+
+// ── Advisor v2 number gate — the deterministic wall between "the model phrased verified facts"
+// and "the model invented a number". Everything the model may cite numerically must already
+// exist in FACTS: numeric values, numbers inside verbatim fact strings, list sizes (so honest
+// counting like "3 gap" stays legal), and the two score scales (/20, /100).
+function allowedNumberTokens(facts: DiagnosisFacts): Set<string> {
+  const allowed = new Set<string>(['0', '20', '100']);
+  const visit = (value: unknown): void => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      allowed.add(String(value));
+    } else if (typeof value === 'string') {
+      for (const token of value.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+        allowed.add(token.replace(',', '.'));
+      }
+    } else if (Array.isArray(value)) {
+      allowed.add(String(value.length));
+      value.forEach(visit);
+    } else if (value && typeof value === 'object') {
+      Object.values(value).forEach(visit);
+    }
+  };
+  visit(facts);
+  return allowed;
+}
+
+function numbersGrounded(text: string, allowed: Set<string>): boolean {
+  for (const token of text.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+    if (!allowed.has(token.replace(',', '.'))) return false;
+  }
+  return true;
 }
 
 /**
@@ -407,6 +441,30 @@ export function groundDiagnosis(
       : undefined;
 
   if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
+
+  // Advisor v2: grounding VERIFIES instead of replacing. A message whose citation resolved and
+  // whose every number token already exists in FACTS is the model doing its actual job —
+  // synthesis, comparison, prioritization — so serve it (URL-stripped). Any gate failure falls
+  // through to the deterministic template below, byte-identical to the pre-v2 behavior.
+  const allowed = allowedNumberTokens(facts);
+  const modelMessage = stripRawUrls(obj.message);
+  if (numbersGrounded(modelMessage, allowed)) {
+    const rawSuggestion =
+      typeof obj.suggested_next_step === 'string' ? obj.suggested_next_step.trim() : '';
+    const suggestionOk = rawSuggestion !== '' && numbersGrounded(rawSuggestion, allowed);
+    // Verified default when the model's suggestion is absent/ungrounded — same sources the
+    // template uses: the cited gap's next action, else the top prioritized action.
+    const verifiedSuggestion =
+      gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null;
+    return {
+      answer: modelMessage,
+      ...(dimension ? { cited_dimension: dimension.key } : {}),
+      ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
+      ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
+      ...(toolResult ? { cited_tool: citedTool as string } : {}),
+      suggested_next_step: suggestionOk ? stripRawUrls(rawSuggestion) : verifiedSuggestion,
+    };
+  }
 
   const rendered = renderGroundedAnswer({
     dimension,

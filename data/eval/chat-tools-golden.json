@@ -4,7 +4,7 @@
       "id": "cite-github-exists",
       "kind": "cite-facts",
       "parsed": {
-        "message": "ok",
+        "message": "GitHub của bạn có repo công khai và hoạt động gần đây.",
         "cited_dimension": null,
         "cited_gap_id": null,
         "cited_other_match_index": null,
@@ -15,7 +15,9 @@
         "ats_score": 60,
         "dimensions": [],
         "top_summary": {
-          "prioritized_actions": ["Add Docker evidence"]
+          "prioritized_actions": [
+            "Add Docker evidence"
+          ]
         },
         "gap_items": [],
         "tool_results": {
@@ -38,7 +40,7 @@
       "id": "cite-github-not-exists",
       "kind": "cite-facts",
       "parsed": {
-        "message": "ok",
+        "message": "Không tìm thấy tài khoản GitHub công khai với username đó.",
         "cited_dimension": null,
         "cited_gap_id": null,
         "cited_other_match_index": null,
@@ -49,7 +51,9 @@
         "ats_score": 60,
         "dimensions": [],
         "top_summary": {
-          "prioritized_actions": ["Add Docker evidence"]
+          "prioritized_actions": [
+            "Add Docker evidence"
+          ]
         },
         "gap_items": [],
         "tool_results": {
@@ -79,7 +83,9 @@
         "ats_score": 60,
         "dimensions": [],
         "top_summary": {
-          "prioritized_actions": ["Add Docker evidence"]
+          "prioritized_actions": [
+            "Add Docker evidence"
+          ]
         },
         "gap_items": []
       },
