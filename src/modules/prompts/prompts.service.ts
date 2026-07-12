@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { TemplateRenderer } from './template-renderer';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { sanitizePromptVars } from '../../common/services/prompt-input-sanitizer';
 
 export interface PromptTemplate {
   code: string;
@@ -103,10 +104,22 @@ export class PromptsService implements OnModuleInit {
     return template;
   }
 
-  /** Render a template with placeholders. */
+  /** Render a template with placeholders. Vars are sanitized against prompt injection (M6):
+   *  user free-text (pasted JD, CV, answers) is DATA — instruction-shaped phrases in it are
+   *  redacted before interpolation. Template bodies are trusted and never touched. */
   render(combinedCode: string, vars: Record<string, unknown>): string {
     const template = this.get(combinedCode);
-    return this.renderer.render(template.body, vars);
+    const { vars: safeVars, redactions } = sanitizePromptVars(vars);
+    if (redactions.length > 0) {
+      const samples = redactions
+        .slice(0, 3)
+        .map((s) => JSON.stringify(s.slice(0, 60)))
+        .join(', ');
+      this.logger.warn(
+        `Prompt-injection phrasing redacted from vars of ${combinedCode}: ${redactions.length} span(s) — ${samples}`,
+      );
+    }
+    return this.renderer.render(template.body, safeVars);
   }
 
   list(): PromptTemplate[] {
