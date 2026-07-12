@@ -800,10 +800,21 @@ export class CvMatchesService {
       scoring_breakdown?: CvJdMatchParsedResponse['scoring_breakdown'];
     };
     const weaknesses = Array.isArray(match.weaknesses) ? match.weaknesses : [];
+    // TRUST' P1: null-preserving. A stored NULL score means "no requirement basis" (source='none'),
+    // NOT a 0 scored against the pasted JD. Derive the source + degraded_reasons from the null-ness
+    // so the lossy reconstruction cannot re-assert a fake 'jd_extraction' basis for a null-score row.
+    const overallScore = this.numberOrNull(match.overallScore);
+    const matchRatio = this.numberOrNull(match.semanticScore);
+    const noBasis = overallScore === null && matchRatio === null;
+    const persistedDegraded = Array.isArray(suggestions.degraded_reasons)
+      ? suggestions.degraded_reasons
+      : [];
+    const degraded_reasons = noBasis
+      ? Array.from(new Set([...persistedDegraded, 'NO_REQUIREMENT_BASIS' as const]))
+      : persistedDegraded;
     return {
-      // null-preserving (TRUST'): a stored NULL score means "no requirement basis", not 0.
-      overall_score: this.numberOrNull(match.overallScore),
-      match_ratio: this.numberOrNull(match.semanticScore),
+      overall_score: overallScore,
+      match_ratio: matchRatio,
       required_coverage: this.percentToRatio(match.ruleEngineScore) ?? 0,
       matched_skills: Array.isArray(match.strengths)
         ? (match.strengths as CvJdMatchParsedResponse['matched_skills'])
@@ -835,7 +846,8 @@ export class CvMatchesService {
           raw_weighted_score: 0,
           cap_applied: false,
         } satisfies CvJdMatchParsedResponse['scoring_breakdown']),
-      source_of_requirements: 'jd_extraction',
+      source_of_requirements: noBasis ? 'none' : 'jd_extraction',
+      ...(degraded_reasons.length ? { degraded_reasons } : {}),
       target_role: null,
     };
   }

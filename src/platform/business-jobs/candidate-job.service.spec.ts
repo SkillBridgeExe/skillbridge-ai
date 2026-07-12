@@ -13,8 +13,24 @@ import {
   CandidateJobService,
   safeSavedJob,
   snapshotCandidateContact,
+  toMatchScoreColumn,
 } from './candidate-job.service';
 import { safeApplication } from './job-domain';
+
+// TRUST' P2: the match numeric column is `string | null`. When computeMatch scores against a job
+// version with no skills and no usable role rubric, SkillDiff returns overall_score=null (proven by
+// the honest-zero cases in skill-diff.service.spec). The persist step must convert that to a real
+// SQL NULL — String(null) => "null" would corrupt/break the numeric write. matchResult is kept so
+// the UI can still inspect degraded_reasons.
+describe('toMatchScoreColumn (TRUST P2 — null-safe numeric column)', () => {
+  it('null score → null column (never the string "null")', () => {
+    expect(toMatchScoreColumn(null)).toBeNull();
+  });
+  it('numeric score → its string form for the numeric column', () => {
+    expect(toMatchScoreColumn(42)).toBe('42');
+    expect(toMatchScoreColumn(0)).toBe('0');
+  });
+});
 
 function repo<T extends ObjectLiteral>() {
   return {
