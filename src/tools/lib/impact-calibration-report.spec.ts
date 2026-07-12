@@ -58,6 +58,25 @@ describe('aggregateImpactCalibrations', () => {
     expect(docker.within_range).toBe(1);
   });
 
+  it('computes bias from MEASURED rows only — unmeasured predicted ranges must not skew it', () => {
+    // Post-merge review finding: 9 unmeasured rows (mid 5) + 1 perfectly-calibrated measured row
+    // (mid 1, actual 1). Bias must be 0, not (1 - 4.6) = -3.6.
+    const rows = [
+      ...Array.from({ length: 9 }, () =>
+        row({
+          predicted_score_min: '4.00',
+          predicted_score_max: '6.00',
+          actual_score_delta: null,
+        }),
+      ),
+      row({ predicted_score_min: '1.00', predicted_score_max: '1.00', actual_score_delta: '1.00' }),
+    ];
+    const agg = aggregateImpactCalibrations(rows);
+    const g = agg.groups[0];
+    expect(g.mean_actual_delta).toBe(1);
+    expect(g.bias).toBe(0);
+  });
+
   it('handles zero rows without dividing by zero', () => {
     const agg = aggregateImpactCalibrations([]);
     expect(agg.total).toBe(0);
