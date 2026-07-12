@@ -7,6 +7,7 @@
  */
 import OpenAI from 'openai';
 import { Pool } from 'pg';
+import { assertNotAccidentalProdDb } from '../database/prod-db-guard';
 import { toSql } from 'pgvector';
 import { LearningResourceMatcherService } from '../modules/roadmap/learning-resource-matcher.service';
 import { LearningResource } from '../modules/roadmap/learning-resource';
@@ -61,6 +62,8 @@ async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
   if (!databaseUrl) throw new Error('DATABASE_URL is not set');
+  // Deliberate prod DB ops require the explicit ALLOW_PROD_DB=1 opt-in (see prod-db-guard).
+  assertNotAccidentalProdDb(databaseUrl);
 
   const model = process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-large';
   const dimensions = parseInt(process.env.VECTOR_DIMENSION ?? '1024', 10);
