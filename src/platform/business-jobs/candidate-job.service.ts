@@ -18,7 +18,8 @@ import { SavedJobEntity } from '../../database/entities/saved-job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
-import { SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import { RawCvSkill, SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import { loadLatestReviewSkills, toRawCvSkills } from '../../modules/cv-jd-match/cv-review-facts';
 import { CvPdfRendererService } from '../cvs/cv-pdf-renderer.service';
 import { ApplyToJobDto } from './dto/business-jobs.dto';
 import { BusinessJobsMaintenanceService } from './business-jobs-maintenance.service';
@@ -233,7 +234,12 @@ export class CandidateJobService {
     }
 
     try {
-      const match = this.computeMatch(cvSkillSnapshot, version);
+      // R1: same proficiency-aware facts as the job-recommendation cards. Loaded INSIDE this try —
+      // a review-lookup failure degrades to matchStatus=FAILED, never blocks the submission.
+      const match = this.computeMatch(
+        await this.loadCvSkillFacts(userId, cv.id, cvSkillSnapshot),
+        version,
+      );
       application.matchStatus = 'READY';
       // null-safe: a no-basis match (null score) persists as SQL NULL, not the string "null".
       // matchResult is still stored so the UI can inspect degraded_reasons.
@@ -280,7 +286,8 @@ export class CandidateJobService {
         errorCode: 'JOB_NOT_FOUND',
         message: 'Job match data is unavailable',
       });
-    return this.computeMatch(await this.loadCvSkillSnapshot(cv.id), version);
+    const snapshot = await this.loadCvSkillSnapshot(cv.id);
+    return this.computeMatch(await this.loadCvSkillFacts(userId, cv.id, snapshot), version);
   }
 
   async listMyApplications(userId: string, page = 1, limit = 20) {
@@ -388,9 +395,26 @@ export class CandidateJobService {
     }));
   }
 
-  private computeMatch(cvSkills: Array<{ canonicalName: string }>, version: JobPostVersionEntity) {
+  /**
+   * R1 — the SAME fact set the job-recommendation cards score from: latest review's
+   * proficiency-bearing skills when one exists, presence-only snapshot canonicals otherwise.
+   * The persisted cvSkillsSnapshot is unchanged (audit trail of what the CV formally listed).
+   */
+  private async loadCvSkillFacts(
+    userId: string,
+    cvId: string,
+    snapshot: Array<{ canonicalName: string }>,
+  ): Promise<RawCvSkill[]> {
+    const review = await loadLatestReviewSkills(this.dataSource, userId, cvId);
+    return toRawCvSkills(
+      review,
+      snapshot.map((skill) => skill.canonicalName),
+    );
+  }
+
+  private computeMatch(cvSkillsRaw: RawCvSkill[], version: JobPostVersionEntity) {
     return this.skillDiff.diff({
-      cv_skills_raw: cvSkills.map((skill) => ({ name: skill.canonicalName })),
+      cv_skills_raw: cvSkillsRaw,
       jd_requirements_raw: version.skills.map((skill) => ({
         name: skill.canonicalName,
         importance_hint: skill.importance,

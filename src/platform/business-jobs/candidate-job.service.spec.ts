@@ -187,6 +187,100 @@ describe('CandidateJobService', () => {
     expect(savedJobs.save).not.toHaveBeenCalled();
   });
 
+  // RECOMMENDATION' R1 — the apply/match path must score from the SAME proficiency-aware fact set
+  // as the job-recommendation cards (review skills with proficiency_hint when a review exists,
+  // presence-only cv_skills canonicals otherwise). Divergence here is audit P0-4: one CV/job pair
+  // getting a presence-only score at apply time and a proficiency-aware score on the card.
+  function matchJobService(options: { reviewRows: Array<{ parsed_response: unknown }> }) {
+    const jobs = repo<JobEntity>();
+    jobs.findOne.mockResolvedValue({
+      id: 'job-1',
+      status: 'active',
+      canonicalJobId: null,
+      expiresAt: null,
+      applicationMode: 'NATIVE',
+      companyId: 'company-1',
+      currentPublishedVersionId: 'version-1',
+    } as JobEntity);
+    const versions = repo<JobPostVersionEntity>();
+    versions.findOne.mockResolvedValue({
+      id: 'version-1',
+      jobId: 'job-1',
+      status: 'PUBLISHED',
+      roleCode: 'frontend',
+      skills: [{ canonicalName: 'react', importance: 'REQUIRED', minLevel: 2, rawText: null }],
+    } as unknown as JobPostVersionEntity);
+    const cvs = repo<CvEntity>();
+    cvs.findOne.mockResolvedValue({ id: 'cv-1' } as CvEntity);
+    const cvSkills = repo<CvSkillEntity>();
+    cvSkills.find.mockResolvedValue([{ skillId: 'skill-1' } as CvSkillEntity]);
+    const skills = repo<SkillEntity>();
+    skills.find.mockResolvedValue([
+      { id: 'skill-1', canonicalName: 'react', displayName: 'React' } as SkillEntity,
+    ]);
+    const diff = jest.fn().mockReturnValue({ overall_score: 80 });
+    const dataSource = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([{ visible: true }]) // requirePublicJob NATIVE verified check
+        .mockResolvedValueOnce(options.reviewRows), // R1 latest-review skills lookup
+    };
+    const service = new CandidateJobService(
+      jobs,
+      versions,
+      repo<SavedJobEntity>(),
+      repo<JobApplicationEntity>(),
+      repo<JobApplicationStatusEventEntity>(),
+      repo<JobReportEntity>(),
+      cvs,
+      cvSkills,
+      skills,
+      repo<UserEntity>(),
+      {} as never,
+      {} as never,
+      { diff } as never,
+      dataSource as never,
+      { processNotificationEvent: jest.fn() } as never,
+    );
+    return { service, diff };
+  }
+
+  it('matchJob scores with proficiency facts from the latest CV review (R1 shared basis)', async () => {
+    const { service, diff } = matchJobService({
+      reviewRows: [
+        {
+          parsed_response: {
+            ats_extracted: {
+              skills_extracted: [
+                { name: 'React', proficiency_hint: 'beginner', evidence_text: null },
+              ],
+            },
+          },
+        },
+      ],
+    });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'React', proficiency_hint: 'beginner' }],
+      }),
+    );
+  });
+
+  it('matchJob falls back to presence-only snapshot skills when no review exists', async () => {
+    const { service, diff } = matchJobService({ reviewRows: [] });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'react' }],
+      }),
+    );
+  });
+
   it('withdraws an owned application and schedules PII purge 90 days later', async () => {
     const applications = repo<JobApplicationEntity>();
     const events = repo<JobApplicationStatusEventEntity>();

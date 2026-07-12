@@ -7,8 +7,7 @@ import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.se
 import { proficiencyHintForLevel } from '../../../common/services/proficiency-calibration';
 import { rrfFuse } from './rrf';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
-import { CvReviewParsedResponse } from '../../cv-review/dto/cv-review-response.dto';
-import { BillingFeatureKey } from '../../../common/constants/billing.constants';
+import { loadLatestReviewSkills, toRawCvSkills } from '../../cv-jd-match/cv-review-facts';
 import {
   deriveCvSeniority,
   computeExperienceFit,
@@ -230,12 +229,10 @@ export class JobRecommendationService {
 
     // TRUST (B1): score jobs with the user's REAL proficiency from their latest CV review —
     // the same input class cv-jd-match uses — instead of presence-only (everything level 3).
-    // ponytail: falls back to presence-only when no review exists (fresh CV, review failed).
-    const reviewSkills = await this.loadLatestReviewSkills(userId, cvId);
-    const cvSkillsRaw: RawCvSkill[] =
-      reviewSkills && reviewSkills.length > 0
-        ? reviewSkills.map((s) => ({ name: s.name, proficiency_hint: s.proficiency_hint }))
-        : cvCanonicals.map((name) => ({ name }));
+    // Falls back to presence-only when no review exists (fresh CV, review failed).
+    // R1: shared fact builder — the candidate apply/match path builds its facts the same way.
+    const reviewSkills = await loadLatestReviewSkills(this.db, userId, cvId);
+    const cvSkillsRaw: RawCvSkill[] = toRawCvSkills(reviewSkills, cvCanonicals);
 
     // 3. Signal A — deterministic skill match per candidate (pure code, reproducible).
     const diffByJob = new Map<string, ReturnType<SkillDiffService['diff']>>();
@@ -324,43 +321,6 @@ export class JobRecommendationService {
     );
 
     return { cv_id: cvId, pool_size: candidates.length, total, limit, offset, recommendations };
-  }
-
-  /**
-   * TRUST (B1) — latest cv_review's proficiency-bearing skills for (user, cv). Returns
-   * `ats_extracted.skills_extracted` (CvSkillExtracted[]: {name, proficiency_hint, evidence_text})
-   * — the SAME shape cv-jd-match's LLM extraction produces (RawCvSkill) and InterviewPlanService
-   * already consumes this exact way (`review.ats_extracted?.skills_extracted`). null when no
-   * review exists yet (fresh CV, review failed) — caller falls back to presence-only.
-   *
-   * SQL is an EXACT mirror of CvsService.getLatestReview, duplicated (not imported) on purpose:
-   * this service has no DI on CvsService/TypeORM repos (raw db.query only throughout), so
-   * injecting CvsService would be new module coupling for one query. Same move
-   * TailorVerifierService made to dodge the CvsModule↔CvMatchesModule cycle — see its comment in
-   * tailor-verifier.service.ts. Keep the two in sync if either query changes.
-   */
-  private async loadLatestReviewSkills(
-    userId: string,
-    cvId: string,
-  ): Promise<CvReviewParsedResponse['ats_extracted']['skills_extracted'] | null> {
-    const rows = await this.db.query<{ parsed_response: CvReviewParsedResponse | null }>(
-      `
-        SELECT ar.parsed_response
-        FROM ai_results ar
-        INNER JOIN ai_requests req ON req.id = ar.ai_request_id
-        INNER JOIN cvs c
-          ON c.id = (req.request_payload -> 'payload' ->> 'cv_id')::uuid
-         AND c.user_id = ar.user_id
-         AND c.deleted_at IS NULL
-        WHERE ar.user_id = $1
-          AND ar.result_type = $2
-          AND req.request_payload -> 'payload' ->> 'cv_id' = $3
-        ORDER BY ar.created_at DESC
-        LIMIT 1
-      `,
-      [userId, BillingFeatureKey.CV_REVIEW, cvId],
-    );
-    return rows[0]?.parsed_response?.ats_extracted?.skills_extracted ?? null;
   }
 }
 
