@@ -133,15 +133,32 @@ async function main(): Promise<void> {
     } else {
       fail(failures, `review overall_score out of [0,100]: ${reviewScore}`);
     }
-    if (
-      matchScore !== null &&
-      Number.isFinite(matchScore) &&
-      matchScore >= 0 &&
-      matchScore <= 100
-    ) {
+    // MEASURE M1: score must be a real number OR an honest null with a stated reason — a null
+    // without NO_REQUIREMENT_BASIS (or a 0-as-placeholder) is exactly the failure this smoke exists
+    // to catch.
+    const degradedReasons = match.parsed_response.degraded_reasons ?? [];
+    if (matchScore === null) {
+      if (degradedReasons.includes('NO_REQUIREMENT_BASIS')) {
+        ok(`match overall_score honest-null (degraded_reasons: ${degradedReasons.join(',')})`);
+      } else {
+        fail(
+          failures,
+          `match overall_score null WITHOUT NO_REQUIREMENT_BASIS (degraded_reasons: ${degradedReasons.join(',') || 'none'})`,
+        );
+      }
+    } else if (Number.isFinite(matchScore) && matchScore >= 0 && matchScore <= 100) {
       ok(`match overall_score in [0,100]: ${matchScore}`);
     } else {
       fail(failures, `match overall_score out of [0,100]: ${matchScore}`);
+    }
+
+    // MEASURE M1 / TRUST T1: input_quality must be classified (usable/suspect/unusable) so the FE
+    // can suppress scores on unusable input. Absent = the trust gate silently disappeared.
+    const inputQuality = review.parsed_response.extraction_quality?.input_quality;
+    if (inputQuality && ['usable', 'suspect', 'unusable'].includes(inputQuality)) {
+      ok(`extraction_quality.input_quality present: ${inputQuality}`);
+    } else {
+      fail(failures, `extraction_quality.input_quality missing/invalid: ${inputQuality}`);
     }
 
     const dims = ['action_verbs', 'skills_relevance', 'experience', 'education'] as const;
@@ -192,6 +209,23 @@ async function main(): Promise<void> {
       fail(failures, `fit missing/invalid: ${JSON.stringify(report.fit)}`);
     }
 
+    // MEASURE M1 / TRUST T4: a pasted JD must yield a jd_intelligence block with an explicit
+    // 4-state status (the v1/no-JD paths omit the block — this fixture pastes a real JD).
+    const jdStatuses = [
+      'available',
+      'no_eligible_dimension_found',
+      'not_extracted',
+      'not_requested',
+    ];
+    const jdStatus = report.jd_intelligence?.status;
+    if (jdStatus && jdStatuses.includes(jdStatus)) {
+      ok(`jd_intelligence.status present: ${jdStatus}`);
+    } else if (!report.jd_intelligence) {
+      fail(failures, 'jd_intelligence block missing despite pasted JD (v2 extraction expected)');
+    } else {
+      fail(failures, `jd_intelligence.status missing/invalid: ${jdStatus}`);
+    }
+
     let impactRangeBad = 0;
     for (const a of report.recommended_actions) {
       if (a.expected_impact && a.expected_impact.score_min > a.expected_impact.score_max) {
@@ -213,8 +247,9 @@ async function main(): Promise<void> {
     // ── Summary table ──────────────────────────────────────────────────────────────────────────
     console.log('\n=== Summary ===');
     console.log(
-      `Review: overall=${review.total_score} ats=${review.parsed_response.ats_rule_score} confidence=${review.confidence_score}`,
+      `Review: overall=${review.total_score} ats=${review.parsed_response.ats_rule_score} confidence=${review.confidence_score} input_quality=${review.parsed_response.extraction_quality?.input_quality}`,
     );
+    console.log(`JD intel: status=${report.jd_intelligence?.status}`);
     console.log(
       `Match:  overall=${match.parsed_response.overall_score} match_ratio=${match.parsed_response.match_ratio} required_coverage=${match.parsed_response.required_coverage}`,
     );
