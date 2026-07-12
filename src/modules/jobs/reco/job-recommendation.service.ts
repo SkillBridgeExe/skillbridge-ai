@@ -21,6 +21,10 @@ import {
   CvSeniority,
 } from '../../../common/services/seniority';
 import { classifyFit, FitVerdict } from '../../gap-engine/fit-strategy';
+import {
+  fetchLatestInterviewSignalsForUser,
+  InterviewSignalMap,
+} from '../../../platform/interviews/interview-signals';
 
 export interface JobRecommendation {
   job_id: string;
@@ -81,6 +85,11 @@ export interface JobRecommendation {
    *  deal-breaker basis is never emitted here (pool jobs carry no jd_dimensions). Optional for the
    *  same additive/cached-row convention as `fit`. */
   score_basis?: ScoreBasis;
+  /** R4 (RECOMMENDATION'): requirements of THIS job the user's latest COMPLETED interview flagged
+   *  as knowledge/evidence gaps (risk 0-1, worst per skill; session_ref = session id prefix).
+   *  CONFIDENCE OVERLAY ONLY — never raises or lowers ranking in v1 (a weak interview must not
+   *  silently bury a job). Absent when no completed interview, no overlap, or lookup failed. */
+  interview_signals?: Array<{ skill_canonical: string; risk: number; session_ref: string }>;
 }
 
 export interface JobRecommendationResponse {
@@ -243,6 +252,10 @@ export class JobRecommendationService {
     const reviewSkills = await loadLatestReviewSkills(this.db, userId, cvId);
     const cvSkillsRaw: RawCvSkill[] = toRawCvSkills(reviewSkills, cvCanonicals);
 
+    // R4: latest completed interview (any match) → per-skill risk map, fetched ONCE per request.
+    // Confidence overlay only — it never enters rankA/rankB/RRF/rerank below. Never-throw.
+    const interviewSignals = await fetchLatestInterviewSignalsForUser(this.db, userId);
+
     // 3. Signal A — deterministic skill match per candidate (pure code, reproducible).
     const diffByJob = new Map<string, ReturnType<SkillDiffService['diff']>>();
     for (const job of candidates) {
@@ -326,6 +339,7 @@ export class JobRecommendationService {
         offset + i + 1,
         simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
         fitByJob.get(jobId)!,
+        interviewSignals,
       ),
     );
 
@@ -340,7 +354,18 @@ export function buildJobRecommendation(
   rank: number,
   semanticSimilarity: number | null,
   experienceFit: ExperienceFit,
+  interviewSignals?: InterviewSignalMap,
 ): JobRecommendation {
+  // R4: intersect the user's latest-interview risk map with THIS job's requirements. Annotation
+  // only — computed after every score above is final, omitted (not []) when nothing overlaps.
+  const interview_signals = interviewSignals
+    ? job.skills
+        .filter((s) => interviewSignals.has(s.canonical))
+        .map((s) => {
+          const signal = interviewSignals.get(s.canonical)!;
+          return { skill_canonical: s.canonical, risk: signal.risk, session_ref: signal.ref };
+        })
+    : [];
   const policy = recommendationSeniorityPolicy(experienceFit);
   // ponytail: null overall_score (job with no scorable requirements) coerces to 0 — byte-identical
   // to pre-TRUST-prime behavior for such jobs. Honest-null on job cards = RECOMMENDATION wave.
@@ -398,5 +423,6 @@ export function buildJobRecommendation(
     // honest basis is skills_only. Deal-breaker basis is unreachable here by construction (see
     // the unmet_deal_breakers:[] note above).
     score_basis: experienceFit.verdict === 'unknown' ? 'skills_only' : 'skills_and_seniority',
+    ...(interview_signals.length > 0 ? { interview_signals } : {}),
   };
 }
