@@ -191,7 +191,7 @@ describe('CandidateJobService', () => {
   // as the job-recommendation cards (review skills with proficiency_hint when a review exists,
   // presence-only cv_skills canonicals otherwise). Divergence here is audit P0-4: one CV/job pair
   // getting a presence-only score at apply time and a proficiency-aware score on the card.
-  function matchJobService(options: { reviewRows: Array<{ parsed_response: unknown }> }) {
+  function matchJobService(options: { reviewRows: Array<{ parsed_response: unknown }> | Error }) {
     const jobs = repo<JobEntity>();
     jobs.findOne.mockResolvedValue({
       id: 'job-1',
@@ -219,11 +219,15 @@ describe('CandidateJobService', () => {
       { id: 'skill-1', canonicalName: 'react', displayName: 'React' } as SkillEntity,
     ]);
     const diff = jest.fn().mockReturnValue({ overall_score: 80 });
+    const reviewLookup =
+      options.reviewRows instanceof Error
+        ? Promise.reject(options.reviewRows)
+        : Promise.resolve(options.reviewRows);
     const dataSource = {
       query: jest
         .fn()
         .mockResolvedValueOnce([{ visible: true }]) // requirePublicJob NATIVE verified check
-        .mockResolvedValueOnce(options.reviewRows), // R1 latest-review skills lookup
+        .mockReturnValueOnce(reviewLookup), // R1 latest-review skills lookup
     };
     const service = new CandidateJobService(
       jobs,
@@ -265,6 +269,20 @@ describe('CandidateJobService', () => {
     expect(diff).toHaveBeenCalledWith(
       expect.objectContaining({
         cv_skills_raw: [{ name: 'React', proficiency_hint: 'beginner' }],
+      }),
+    );
+  });
+
+  it('matchJob degrades to presence-only facts when the review lookup THROWS (never 500s — post-merge review finding)', async () => {
+    // The snapshot facts are already in memory; a transient DB error on the review lookup must not
+    // fail the match (apply path would persist matchStatus=FAILED with no recompute path).
+    const { service, diff } = matchJobService({ reviewRows: new Error('pool exhausted') });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'react' }],
       }),
     );
   });

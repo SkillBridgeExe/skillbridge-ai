@@ -89,7 +89,13 @@ export interface JobRecommendation {
    *  as knowledge/evidence gaps (risk 0-1, worst per skill; session_ref = session id prefix).
    *  CONFIDENCE OVERLAY ONLY — never raises or lowers ranking in v1 (a weak interview must not
    *  silently bury a job). Absent when no completed interview, no overlap, or lookup failed. */
-  interview_signals?: Array<{ skill_canonical: string; risk: number; session_ref: string }>;
+  interview_signals?: Array<{
+    skill_canonical: string;
+    /** human label (InterviewGapItem.display_name) — FE chips must never show the raw canonical. */
+    display_name: string;
+    risk: number;
+    session_ref: string;
+  }>;
 }
 
 export interface JobRecommendationResponse {
@@ -363,7 +369,12 @@ export function buildJobRecommendation(
         .filter((s) => interviewSignals.has(s.canonical))
         .map((s) => {
           const signal = interviewSignals.get(s.canonical)!;
-          return { skill_canonical: s.canonical, risk: signal.risk, session_ref: signal.ref };
+          return {
+            skill_canonical: s.canonical,
+            display_name: signal.display,
+            risk: signal.risk,
+            session_ref: signal.ref,
+          };
         })
     : [];
   const policy = recommendationSeniorityPolicy(experienceFit);

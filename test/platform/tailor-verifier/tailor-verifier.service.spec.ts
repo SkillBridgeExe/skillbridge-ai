@@ -198,12 +198,16 @@ describe('TailorVerifierService', () => {
         order: { endedAt: 'DESC', createdAt: 'DESC' },
       });
 
-      // Same map shape getGapReport passes: canonical → { risk, ref: sessionId.slice(0, 8) }.
+      // Same map shape getGapReport passes: canonical → { risk, ref: sessionId.slice(0, 8), display }.
       const call = gapReport.build.mock.calls[0][0] as {
-        interviewSignals?: Map<string, { risk: number; ref: string }>;
+        interviewSignals?: Map<string, { risk: number; ref: string; display: string }>;
       };
       expect(call.interviewSignals).toBeInstanceOf(Map);
-      expect(call.interviewSignals?.get('sql')).toEqual({ risk: 0.8, ref: 'sess-abc' });
+      expect(call.interviewSignals?.get('sql')).toEqual({
+        risk: 0.8,
+        ref: 'sess-abc',
+        display: 'SQL',
+      });
     });
 
     it('never-throws: signal fetch failure degrades to no-signals (verification still runs)', async () => {

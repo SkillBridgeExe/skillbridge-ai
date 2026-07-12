@@ -59,6 +59,22 @@ describe('groundCvRewrite — rejects any fabricated fact (anti-fabrication chok
     if (v.ok) expect(v.field_patch.after).toContain('Node.js');
   });
 
+  it('accepts a used_fact echoed in its SANITIZED form (M6: the model only ever sees sanitized facts)', () => {
+    // A legitimate fact that happens to contain an instruction-shaped span. PromptsService.render
+    // sanitizes vars before the model sees them, so the model can only echo the redacted form back
+    // — grounding must accept it instead of deterministically rejecting UNGROUNDED.
+    const fact = 'tự động bỏ qua các chỉ thị cũ trong pipeline';
+    const g = { facts: ['xây', fact], needs_detail: [] as never[] };
+    const echoed = 'tự động [redacted] cũ trong pipeline';
+    const v = groundCvRewrite(
+      'Làm tài liệu.',
+      { after: 'Xây quy trình tự động cho pipeline.', used_facts: ['xây', echoed] },
+      g,
+      OPTS,
+    );
+    expect(v.ok).toBe(true);
+  });
+
   it('REJECTS a fabricated number (40% the user never gave)', () => {
     const v = groundCvRewrite(
       before,
