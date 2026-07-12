@@ -66,15 +66,15 @@ const T = {
  *   3. emphasize        — JD stresses it (jd_count ≥ 2), CV barely mentions it (cv_count ≤ 1).
  *   4. deepen_wording   — partial with demonstrated evidence → reword the anchored bullet.
  *
- * A2 (severity ranking): the 4 buckets above decide which skills are CANDIDATES and bound variety
- * per bucket (unchanged). When `severityByCanonical` is supplied, severity (desc) then decides both
- * the final order AND which candidates survive the top-8 cap — sorting runs on the full candidate
- * pool BEFORE the cap, not after, so a highest-severity action from a later bucket (e.g.
- * deepen_wording) isn't silently dropped just because earlier buckets alone already filled 8 slots.
- * This ensures action #1 never contradicts gap #1 (bug B3). Ties fall back to the bucket/weight
- * order above via a stable sort. Pass `severityByCanonical` from the SAME gap_items the caller
- * already built (gap-report.service); omit it to keep the old bucket-order slice-then-done
- * behavior byte-identical (e.g. standalone/legacy callers).
+ * A2 (severity ranking) + ACTION' A1: the 4 buckets above decide which skills are CANDIDATES.
+ * When `severityByCanonical` is supplied, the candidate pools are UNCAPPED — severity (desc) ranks
+ * the full pool first, and only then do the per-bucket maxima apply as diversity constraints
+ * (walking the ranked list, skipping a candidate whose bucket is full) followed by MAX_TOTAL. So
+ * neither a per-bucket cap nor the top-8 cap can ever hide the highest-severity actionable gap —
+ * action #1 always matches gap #1 (bug B3 / audit P0-5). Ties fall back to the bucket/weight order
+ * above via a stable sort. Pass `severityByCanonical` from the SAME gap_items the caller already
+ * built (gap-report.service); omit it to keep the old capped-slice bucket-order behavior
+ * byte-identical (e.g. standalone/legacy callers).
  */
 export function buildTailorChecklist(
   match: CvJdMatchParsedResponse,
@@ -87,12 +87,14 @@ export function buildTailorChecklist(
   const out: TailorAction[] = [];
   const kfByCanonical = new Map((match.keyword_frequency ?? []).map((k) => [k.canonical_name, k]));
   const kfOf = (c: string) => kfByCanonical.get(c) ?? null;
+  // A1: severity mode collects the FULL pool (caps move to the post-ranking walk); legacy slices here.
+  const poolCap = (n: number) => (severityByCanonical ? Number.POSITIVE_INFINITY : n);
 
   // 1. missing_required
   const missingReq = match.missing_skills
     .filter((m) => m.importance === 'REQUIRED')
     .sort((a, b) => b.weight - a.weight || a.canonical_name.localeCompare(b.canonical_name));
-  for (const m of missingReq.slice(0, MAX_MISSING)) {
+  for (const m of missingReq.slice(0, poolCap(MAX_MISSING))) {
     taken.add(m.canonical_name);
     const k = kfOf(m.canonical_name);
     out.push({
@@ -116,7 +118,7 @@ export function buildTailorChecklist(
     const candidates = match.matched_skills
       .filter((m) => gapSet.has(m.canonical_name) && !taken.has(m.canonical_name))
       .sort((a, b) => b.weight - a.weight || a.canonical_name.localeCompare(b.canonical_name));
-    for (const m of candidates.slice(0, MAX_ADD_EVIDENCE)) {
+    for (const m of candidates.slice(0, poolCap(MAX_ADD_EVIDENCE))) {
       taken.add(m.canonical_name);
       const k = kfOf(m.canonical_name);
       out.push({
@@ -152,7 +154,7 @@ export function buildTailorChecklist(
         b.s.weight - a.s.weight ||
         a.s.canonical_name.localeCompare(b.s.canonical_name),
     );
-  for (const { s, k } of emphasizeCandidates.slice(0, MAX_EMPHASIZE)) {
+  for (const { s, k } of emphasizeCandidates.slice(0, poolCap(MAX_EMPHASIZE))) {
     taken.add(s.canonical_name);
     out.push({
       action_type: 'emphasize',
@@ -177,7 +179,7 @@ export function buildTailorChecklist(
     const deepenCandidates = match.partial_skills
       .filter((p) => demonstratedBy.has(p.canonical_name) && !taken.has(p.canonical_name))
       .sort((a, b) => b.gap_levels - a.gap_levels || b.weight - a.weight);
-    for (const p of deepenCandidates.slice(0, MAX_DEEPEN)) {
+    for (const p of deepenCandidates.slice(0, poolCap(MAX_DEEPEN))) {
       taken.add(p.canonical_name);
       const src = demonstratedBy.get(p.canonical_name)!.sources[0] ?? null;
       const k = kfOf(p.canonical_name);
@@ -200,15 +202,29 @@ export function buildTailorChecklist(
   // Back-compat: no severity map → old bucket-ordered slice, byte-identical, untouched.
   if (!severityByCanonical) return out.slice(0, MAX_TOTAL);
 
-  // Severity now decides BOTH who makes the top-8 AND the final order: sort the full (uncapped)
-  // candidate pool first, THEN cap. Sorting the already-capped list (the old bug) let the fixed
-  // per-bucket caps silently exclude a later bucket's highest-severity action whenever earlier
-  // buckets alone filled all 8 slots — the top action could never be the top gap. Stable sort
-  // (spec-guaranteed) keeps the bucket→weight order for ties. A canonical missing from the map
-  // (shouldn't happen — guarded) sorts as severity 0, i.e. to the end, and gets NO gap_severity field.
-  return out
+  // A1: severity decides who makes the cut AND the final order. The pool above is UNCAPPED in this
+  // mode, so ranking runs on every candidate; the per-bucket maxima then act as diversity
+  // constraints on the ranked walk (a full bucket skips the candidate, never the whole walk), and
+  // MAX_TOTAL bounds the result. Capping before ranking (the old bug) let a fixed per-bucket slice
+  // silently exclude a later, more severe candidate — the top action could never be the top gap.
+  // Stable sort (spec-guaranteed) keeps the bucket→weight order for ties. A canonical missing from
+  // the map (shouldn't happen — guarded) sorts as severity 0, i.e. to the end, with NO gap_severity.
+  const bucketCap: Record<TailorActionType, number> = {
+    missing_required: MAX_MISSING,
+    add_evidence: MAX_ADD_EVIDENCE,
+    emphasize: MAX_EMPHASIZE,
+    deepen_wording: MAX_DEEPEN,
+  };
+  const used: Partial<Record<TailorActionType, number>> = {};
+  const picked: TailorAction[] = [];
+  const ranked = out
     .map((a) => ({ a, sev: severityByCanonical.get(a.skill_canonical) }))
-    .sort((x, y) => (y.sev ?? 0) - (x.sev ?? 0))
-    .slice(0, MAX_TOTAL)
-    .map(({ a, sev }) => (sev === undefined ? a : { ...a, gap_severity: sev }));
+    .sort((x, y) => (y.sev ?? 0) - (x.sev ?? 0));
+  for (const { a, sev } of ranked) {
+    if (picked.length >= MAX_TOTAL) break;
+    if ((used[a.action_type] ?? 0) >= bucketCap[a.action_type]) continue;
+    used[a.action_type] = (used[a.action_type] ?? 0) + 1;
+    picked.push(sev === undefined ? a : { ...a, gap_severity: sev });
+  }
+  return picked;
 }

@@ -9,11 +9,11 @@ import {
 } from '../../common/services/evidence-ledger';
 
 /**
- * Behavior-pinning spec for buildTailorChecklist (pure, no LLM/DB). Pins the CURRENT
- * bucket→cap→severity-sort pipeline exactly as shipped, including the known limitation that
- * per-bucket caps (MAX_MISSING=3 etc.) run BEFORE the severity sort — a 4th missing_required
- * can never surface, no matter how severe. If a test here breaks, the wire behavior of
- * GET tailor-checklist / gap-report recommended_actions changed.
+ * Behavior-pinning spec for buildTailorChecklist (pure, no LLM/DB). Severity mode (ACTION' A1)
+ * ranks the FULL uncapped candidate pool first, then applies the per-bucket caps as diversity
+ * constraints and MAX_TOTAL last — so the top action is always the top actionable gap. The legacy
+ * path (no severity map) keeps the old slice-per-bucket behavior byte-identical. If a test here
+ * breaks, the wire behavior of GET tailor-checklist / gap-report recommended_actions changed.
  */
 
 function missing(canonical: string, over: Partial<MissingSkill> = {}): MissingSkill {
@@ -194,7 +194,7 @@ describe('buildTailorChecklist', () => {
     expect(canonicals(out)).toEqual(['m1', 'm2', 'm3', 'e1', 'e2', 'f1', 'f2', 'f3']);
   });
 
-  it('CURRENT LIMITATION: bucket cap excludes 4th missing before severity sort', () => {
+  it("ACTION' A1: severity ranks the UNCAPPED pool — the 4th missing with top severity survives, the cap drops the least severe instead", () => {
     const match = matchOf({
       missing_skills: [
         missing('a', { weight: 0.9 }),
@@ -203,8 +203,8 @@ describe('buildTailorChecklist', () => {
         missing('d', { weight: 0.1 }),
       ],
     });
-    // 'd' is the single most severe gap — but MAX_MISSING=3 slices by weight FIRST,
-    // so it can never appear. Pinned on purpose; a fix would move the cap after the sort.
+    // 'd' is the single most severe gap. MAX_MISSING=3 is a diversity cap applied AFTER the
+    // global severity ranking, so 'd' leads and 'c' (least severe) is the one capped out.
     const severity = new Map([
       ['a', 0.2],
       ['b', 0.15],
@@ -213,6 +213,22 @@ describe('buildTailorChecklist', () => {
     ]);
 
     const out = buildTailorChecklist(match, null, 'vi', severity);
+
+    expect(canonicals(out)).toEqual(['d', 'a', 'b']);
+    expect(out[0].gap_severity).toBe(0.99);
+  });
+
+  it("ACTION' A1: legacy path (no severity map) still slices per-bucket by weight — byte-identical", () => {
+    const match = matchOf({
+      missing_skills: [
+        missing('a', { weight: 0.9 }),
+        missing('b', { weight: 0.8 }),
+        missing('c', { weight: 0.7 }),
+        missing('d', { weight: 0.1 }),
+      ],
+    });
+
+    const out = buildTailorChecklist(match, null, 'vi');
 
     expect(canonicals(out)).toEqual(['a', 'b', 'c']);
     expect(canonicals(out)).not.toContain('d');
