@@ -101,9 +101,7 @@ export class GapReportService {
     // in, so a top seniority/language/education/domain gap yields an `advice` action instead of
     // silently having no next step.
     const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
-    const nonSkillGaps = gapItems.filter(
-      (g) => g.type !== 'hard_skill' && g.type !== 'soft_skill',
-    );
+    const nonSkillGaps = gapItems.filter((g) => g.type !== 'hard_skill' && g.type !== 'soft_skill');
     const checklist = this.tailor.build({
       match: input.match,
       review: input.review,
