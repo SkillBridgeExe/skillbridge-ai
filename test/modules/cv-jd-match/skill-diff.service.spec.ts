@@ -458,6 +458,76 @@ describe('SkillDiffService — seniority bands + OR-group', () => {
   });
 });
 
+/**
+ * EXPLAIN' E1: per-skill weighted math in scoring_breakdown — the FE renders
+ * "skill X contributed Y/Z points because REQUIRED × weight" without knowing MATCH_TUNING.
+ */
+describe("SkillDiffService — per-skill weighted math (EXPLAIN' E1)", () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('per_skill covers every requirement; effective_weight = weight × importance multiplier; status mirrors the diff arrays', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'React', proficiency_hint: 'ADVANCED' },
+        { name: 'Git', proficiency_hint: 'NOVICE' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    const per = res.scoring_breakdown.per_skill!;
+    expect(per).toBeDefined();
+    expect(per.length).toBe(res.scoring_breakdown.total_requirements);
+    for (const p of per) {
+      expect(p.effective_weight).toBeCloseTo(
+        p.weight * MATCH_TUNING.importanceMultiplier[p.importance],
+        3,
+      );
+    }
+    const react = per.find((p) => p.canonical_name === 'react');
+    expect(react?.status).toBe('matched');
+    expect(react?.strength).toBe(1);
+    const git = per.find((p) => p.canonical_name === 'git');
+    expect(git?.status).toBe('partial'); // NOVICE 2 vs required — convex strength in (0,1)
+    expect(git!.strength).toBeGreaterThan(0);
+    expect(git!.strength).toBeLessThan(1);
+    const missing = per.filter((p) => p.status === 'missing');
+    expect(missing.length).toBe(res.missing_skills.length);
+    for (const m of missing) expect(m.strength).toBe(0);
+  });
+
+  it('Σ points_earned reproduces raw_weighted_score and Σ points_possible ≈ 100 (pre-cap math is auditable)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'React', proficiency_hint: 'ADVANCED' },
+        { name: 'JavaScript', proficiency_hint: 'INTERMEDIATE' },
+        { name: 'Git', proficiency_hint: 'NOVICE' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    const per = res.scoring_breakdown.per_skill!;
+    const earned = per.reduce((s, p) => s + p.points_earned, 0);
+    const possible = per.reduce((s, p) => s + p.points_possible, 0);
+    expect(earned).toBeCloseTo(res.scoring_breakdown.raw_weighted_score, 1);
+    expect(possible).toBeCloseTo(100, 1);
+  });
+
+  it('source none → per_skill is empty (no fabricated math)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'role_that_has_no_rubric_xyz',
+    });
+    expect(res.scoring_breakdown.per_skill).toEqual([]);
+  });
+});
+
 describe('SkillDiffService — TRUST honest-zero + degraded_reasons', () => {
   let diff: SkillDiffService;
 
