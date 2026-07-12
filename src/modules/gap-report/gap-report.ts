@@ -67,10 +67,13 @@ export interface JdIntelligenceItem {
 export interface JdIntelligenceBlock {
   dimensions: JdIntelligenceItem[];
   note: string;
-  /** TRUST' T4: 'extracted' when ≥1 dimension was pulled; 'none_found' when the v2 extractor RAN but
-   *  returned no non-skill requirement (JD may not state any, OR the LLM missed it — honest, not a
-   *  claim of "no gap"). Absent on the v1 path (block omitted entirely). */
-  status?: 'extracted' | 'none_found';
+  /** TRUST' T4: makes an empty dimensions[] unambiguous. The v1 path omits the block entirely.
+   *  - available: ≥1 non-skill dimension was extracted.
+   *  - no_eligible_dimension_found: JD parsed fine for skills but stated no seniority/language/
+   *    education/domain requirement (honest "none in this JD", not "no gap").
+   *  - not_extracted: a JD was pasted but couldn't be read (it also failed to yield skills).
+   *  - not_requested: no JD was pasted (role-rubric / no-basis match) — nothing to extract from. */
+  status?: 'available' | 'no_eligible_dimension_found' | 'not_extracted' | 'not_requested';
 }
 
 export interface GapReportCore {
@@ -110,11 +113,24 @@ const JD_INTEL_NOTE = {
   en: 'Seniority, language, education and domain are graded when the CV carries a matching signal. Work mode is disclosure-only (not graded). Dimensions without enough CV-side signal are honestly omitted.',
 } as const;
 
-/** TRUST' T4 copy: the v2 extractor ran but pulled no non-skill requirement. Honest — could be that
- *  the JD states none, or that the model missed one; either way it is NOT "no seniority/language gap". */
-const JD_INTEL_NONE_FOUND_NOTE = {
-  vi: 'Chưa trích xuất được yêu cầu phi kỹ năng nào (cấp độ, ngôn ngữ, học vấn, lĩnh vực) từ JD này. JD có thể không nêu, hoặc hệ thống chưa đọc được — đây không phải kết luận "không có yêu cầu nào".',
-  en: 'No non-skill requirements (seniority, language, education, domain) were extracted from this JD. The JD may state none, or the system may have missed them — this is not a conclusion that "there are none".',
+/** TRUST' T4 copy per empty-dimension status. Each is honest about WHY there are no dimensions —
+ *  never a claim that "there is no seniority/language gap". */
+const JD_INTEL_EMPTY_NOTE: Record<
+  'no_eligible_dimension_found' | 'not_extracted' | 'not_requested',
+  { vi: string; en: string }
+> = {
+  no_eligible_dimension_found: {
+    vi: 'JD đã được đọc nhưng không nêu yêu cầu phi kỹ năng nào (cấp độ, ngôn ngữ, học vấn, lĩnh vực) — không phải kết luận "không có gap".',
+    en: 'The JD was read but states no non-skill requirement (seniority, language, education, domain) — this is not a conclusion that "there is no gap".',
+  },
+  not_extracted: {
+    vi: 'Không đọc được yêu cầu phi kỹ năng từ JD này (JD có thể ở định dạng khó đọc). Chưa thể kết luận có hay không yêu cầu về cấp độ/ngôn ngữ/học vấn/lĩnh vực.',
+    en: 'Non-skill requirements could not be read from this JD (it may be in a hard-to-parse format). Whether it requires a seniority/language/education/domain level is undetermined.',
+  },
+  not_requested: {
+    vi: 'Chưa dán JD nên không có yêu cầu phi kỹ năng để đối chiếu.',
+    en: 'No JD was provided, so there are no non-skill requirements to compare against.',
+  },
 } as const;
 
 /** Human-readable CV-side signal per dimension (enums/derived values only — never raw CV text).
@@ -188,7 +204,7 @@ function buildJdIntelligence(
       verdict: isSeniorityGraded ? grade.verdict : null,
     };
   });
-  return { dimensions, note: JD_INTEL_NOTE[lang], status: 'extracted' };
+  return { dimensions, note: JD_INTEL_NOTE[lang], status: 'available' };
 }
 
 const EMPHASIS_JD_MIN = 2;
@@ -250,15 +266,22 @@ export function buildGapReportCore(
     ? ledger.items.filter((i) => i.strength === 'demonstrated').map((i) => i.skill_canonical)
     : [];
 
-  // PR3: build the JD-Intelligence disclosure block when v2 extracted dimensions. TRUST' T4: when v2
-  // RAN but found none (jd_dimensions_attempted && empty), emit an honest 'none_found' disclosure
-  // instead of silently omitting — a missed non-skill requirement must not read as "no such gap".
-  // The v1 path (attempted falsy) still omits entirely so legacy output stays byte-identical.
+  // PR3 + TRUST' T4: build the JD-Intelligence disclosure. When v2 extracted dimensions → 'available'.
+  // When v2 RAN but dims are empty, disambiguate WHY instead of silently omitting (a missed non-skill
+  // requirement must not read as "no such gap"): JD parsed for skills but stated none →
+  // no_eligible_dimension_found; JD pasted but unreadable (also failed to yield skills) → not_extracted;
+  // no JD pasted at all → not_requested. The v1 path (attempted falsy) still omits (byte-identical).
   const jdDims = match.jd_dimensions ?? [];
+  const emptyStatus: 'no_eligible_dimension_found' | 'not_extracted' | 'not_requested' =
+    match.source_of_requirements === 'jd_extraction'
+      ? 'no_eligible_dimension_found'
+      : match.fell_back_to_rubric
+        ? 'not_extracted'
+        : 'not_requested';
   const jd_intelligence: JdIntelligenceBlock | undefined = jdDims.length
     ? buildJdIntelligence(jdDims, cvSeniority, cvSignals, lang)
     : match.jd_dimensions_attempted
-      ? { dimensions: [], note: JD_INTEL_NONE_FOUND_NOTE[lang], status: 'none_found' }
+      ? { dimensions: [], note: JD_INTEL_EMPTY_NOTE[emptyStatus][lang], status: emptyStatus }
       : undefined;
 
   // E5 (v2-flip): reuse the SAME gradeSeniority() decision jd_intelligence.dimensions[].verdict

@@ -366,24 +366,47 @@ describe('buildGapReportCore (pure)', () => {
   });
 });
 
-describe("TRUST' T4: jd_intelligence not-extracted disclosure", () => {
-  it('v1 path (jd_dimensions_attempted falsy, no dims) → block OMITTED (byte-identical legacy)', () => {
+describe("TRUST' T4: jd_intelligence 4-state status (empty dims are never ambiguous)", () => {
+  it('v1 path (attempted falsy) → block OMITTED (byte-identical legacy)', () => {
     const m = baseMatch({ jd_dimensions: [] }); // attempted undefined
     const core = buildGapReportCore(m, null, null, null, 'vi');
     expect(core.jd_intelligence).toBeUndefined();
   });
 
-  it('v2 ran but found none (attempted=true, dims=[]) → none_found disclosure, NOT omitted', () => {
-    const m = baseMatch({ jd_dimensions: [], jd_dimensions_attempted: true });
-    const coreVi = buildGapReportCore(m, null, null, null, 'vi');
-    expect(coreVi.jd_intelligence?.status).toBe('none_found');
-    expect(coreVi.jd_intelligence?.dimensions).toEqual([]);
-    expect(coreVi.jd_intelligence?.note).toContain('Chưa trích xuất');
-    const coreEn = buildGapReportCore(m, null, null, null, 'en');
-    expect(coreEn.jd_intelligence?.note).toContain('No non-skill requirements');
+  it("attempted + empty + JD parsed for skills (jd_extraction) → 'no_eligible_dimension_found'", () => {
+    const m = baseMatch({
+      jd_dimensions: [],
+      jd_dimensions_attempted: true,
+      source_of_requirements: 'jd_extraction',
+    });
+    const core = buildGapReportCore(m, null, null, null, 'vi');
+    expect(core.jd_intelligence?.status).toBe('no_eligible_dimension_found');
+    expect(core.jd_intelligence?.dimensions).toEqual([]);
   });
 
-  it('v2 with dimensions → status extracted (regression guard on the happy path)', () => {
+  it("attempted + empty + JD pasted but unreadable (fell_back_to_rubric) → 'not_extracted'", () => {
+    const m = baseMatch({
+      jd_dimensions: [],
+      jd_dimensions_attempted: true,
+      source_of_requirements: 'role_rubric',
+      fell_back_to_rubric: true,
+    });
+    const core = buildGapReportCore(m, null, null, null, 'en');
+    expect(core.jd_intelligence?.status).toBe('not_extracted');
+  });
+
+  it("attempted + empty + no JD pasted (role rubric, no fallback) → 'not_requested'", () => {
+    const m = baseMatch({
+      jd_dimensions: [],
+      jd_dimensions_attempted: true,
+      source_of_requirements: 'role_rubric',
+      fell_back_to_rubric: false,
+    });
+    const core = buildGapReportCore(m, null, null, null, 'en');
+    expect(core.jd_intelligence?.status).toBe('not_requested');
+  });
+
+  it("dims present → status 'available'", () => {
     const m = baseMatch({
       jd_dimensions_attempted: true,
       jd_dimensions: [
@@ -399,7 +422,7 @@ describe("TRUST' T4: jd_intelligence not-extracted disclosure", () => {
       ],
     });
     const core = buildGapReportCore(m, null, null, null, 'en');
-    expect(core.jd_intelligence?.status).toBe('extracted');
+    expect(core.jd_intelligence?.status).toBe('available');
     expect(core.jd_intelligence?.dimensions.length).toBe(1);
   });
 });
