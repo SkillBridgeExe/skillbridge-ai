@@ -1,6 +1,7 @@
 import {
   BonusSkill,
   DiffResult,
+  MatchDegradedReason,
   MatchedSkill,
   MissingSkill,
   PartialSkill,
@@ -28,10 +29,14 @@ export interface KeywordFrequency {
  *     for product team to expand the taxonomy.
  */
 export interface CvJdMatchParsedResponse {
-  /** Weighted composite 0-100 from SkillDiffService.computeMatchScore() */
-  overall_score: number;
-  /** Simple ratio matched/total × 100 — easier to communicate to users */
-  match_ratio: number;
+  /** Weighted composite 0-100 from SkillDiffService. null when source_of_requirements==='none'
+   *  (no JD requirements AND no rubric) — "no basis" is not a 0 (TRUST' honest-zero). */
+  overall_score: number | null;
+  /** Simple ratio matched/total × 100 — null exactly when overall_score is null. */
+  match_ratio: number | null;
+  /** Degraded-state markers (empty/absent = healthy): NO_REQUIREMENT_BASIS | CV_SKILLS_UNRECOGNIZED.
+   *  Optional for backward-compat with persisted legacy rows. */
+  degraded_reasons?: MatchDegradedReason[];
 
   matched_skills: MatchedSkill[];
   partial_skills: PartialSkill[];
@@ -71,6 +76,14 @@ export interface CvJdMatchParsedResponse {
    * seniority gap_item stay omitted there). Only `seniority` is graded into gap_items today.
    */
   jd_dimensions?: JdDimension[];
+  /**
+   * TRUST' T4: true when the v2 template actually RAN the JD-dimension extraction. Distinguishes
+   * "no dimensions found" (v2 ran, jd_dimensions=[]) from "not attempted" (v1 path, key omitted) —
+   * the two are indistinguishable from jd_dimensions alone (both []). The gap-report uses it to
+   * DISCLOSE "no non-skill requirements extracted" instead of silently omitting the block, so a
+   * missed seniority/language requirement never reads as "no such gap". Optional for legacy rows.
+   */
+  jd_dimensions_attempted?: boolean;
 
   /** Indicates which source was used for "required skills". */
   source_of_requirements: 'role_rubric' | 'jd_extraction' | 'none';

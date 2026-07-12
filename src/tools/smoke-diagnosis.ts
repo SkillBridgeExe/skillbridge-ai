@@ -133,7 +133,12 @@ async function main(): Promise<void> {
     } else {
       fail(failures, `review overall_score out of [0,100]: ${reviewScore}`);
     }
-    if (Number.isFinite(matchScore) && matchScore >= 0 && matchScore <= 100) {
+    if (
+      matchScore !== null &&
+      Number.isFinite(matchScore) &&
+      matchScore >= 0 &&
+      matchScore <= 100
+    ) {
       ok(`match overall_score in [0,100]: ${matchScore}`);
     } else {
       fail(failures, `match overall_score out of [0,100]: ${matchScore}`);

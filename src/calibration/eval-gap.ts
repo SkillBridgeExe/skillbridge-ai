@@ -151,6 +151,7 @@ async function main(): Promise<void> {
       target_role: c.target_role,
       ...(c.jd_requirements ? { jd_requirements_raw: c.jd_requirements } : {}),
     });
+    if (res.overall_score === null) throw new Error(`eval:gap — unexpected null overall_score`);
 
     if (res.unnormalized_cv_skills.length > 0) {
       dataErrors.push(

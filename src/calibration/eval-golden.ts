@@ -115,7 +115,11 @@ async function main(): Promise<void> {
       ...(c.target_band ? { target_band: c.target_band } : {}),
       ...(c.jd_requirements ? { jd_requirements_raw: c.jd_requirements } : {}),
     });
-    scoreById.set(c.id, res.overall_score);
+    const overallScore = res.overall_score;
+    if (overallScore === null || res.match_ratio === null) {
+      throw new Error(`eval:golden — unexpected null score (source=none) in case ${c.id}`);
+    }
+    scoreById.set(c.id, overallScore);
 
     // buildGapItems / buildTailorChecklist read only these fields off the parsed-match shape.
     const match = {
@@ -142,7 +146,7 @@ async function main(): Promise<void> {
     });
 
     const fit = classifyFit({
-      score: res.overall_score,
+      score: overallScore,
       required_coverage: res.required_coverage,
       seniority_verdict: 'unknown',
       unmet_deal_breakers: [],
@@ -169,7 +173,7 @@ async function main(): Promise<void> {
     if (c.expected.match_band) {
       hits.bandTotal++;
       const [lo, hi] = bands[c.expected.match_band];
-      if (res.overall_score >= lo && res.overall_score <= hi) hits.band++;
+      if (overallScore >= lo && overallScore <= hi) hits.band++;
       else {
         misses.push(
           `  ${c.id}: band expected ${c.expected.match_band}[${lo}-${hi}] got ${res.overall_score}`,

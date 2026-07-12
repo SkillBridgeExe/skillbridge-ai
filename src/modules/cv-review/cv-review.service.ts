@@ -607,7 +607,9 @@ export class CvReviewService {
         missing: diff.missing_skills.map(item),
         rubric_band: band,
       },
-      diffOverallScore: diff.overall_score,
+      // Rubric-gated path: buildSkillBreakdown only runs when a seeded rubric exists, so
+      // source=role_rubric and overall_score is never null here; ?? 0 is a type-level guard only.
+      diffOverallScore: diff.overall_score ?? 0,
     };
   }
 

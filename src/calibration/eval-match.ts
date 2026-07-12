@@ -78,6 +78,14 @@ async function main(): Promise<void> {
       // Legacy pairs omit target_band → diff defaults to 'mid' (byte-identical history).
       ...(pair.target_band ? { target_band: pair.target_band } : {}),
     });
+    if (res.overall_score === null || res.match_ratio === null) {
+      throw new Error(
+        `eval:match — unexpected null score for pair '${pair.id}' ` +
+          `(requirements_source='${res.requirements_source}', ` +
+          `degraded_reasons=[${res.degraded_reasons.join(', ')}]). A golden pair must always have a ` +
+          `scorable requirement basis — check its target_role has a rubric or its jd_requirements normalize.`,
+      );
+    }
     const score = res.overall_score;
     const ok = inBand(score, pair.expected_overall);
     if (ok) inBandCount += 1;

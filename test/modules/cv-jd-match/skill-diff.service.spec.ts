@@ -54,8 +54,8 @@ describe('SkillDiffService step-5 formula', () => {
       ]),
       target_role: 'qa_tester',
     });
-    expect(full.overall_score).toBeGreaterThan(noPreferred.overall_score);
-    expect(noPreferred.overall_score - noRequired.overall_score).toBeGreaterThanOrEqual(2);
+    expect(full.overall_score!).toBeGreaterThan(noPreferred.overall_score!);
+    expect(noPreferred.overall_score! - noRequired.overall_score!).toBeGreaterThanOrEqual(2);
   });
 
   it('partial credit is convex: NOVICE-everywhere scores far below linear credit', () => {
@@ -114,7 +114,7 @@ describe('SkillDiffService step-5 formula', () => {
       cv_skills_raw: cv([...base, ['Docker', 'ADVANCED'], ['Unity', 'ADVANCED']]),
       target_role: 'data_analyst',
     });
-    expect(withBonus.overall_score).toBeGreaterThanOrEqual(plain.overall_score);
+    expect(withBonus.overall_score!).toBeGreaterThanOrEqual(plain.overall_score!);
     expect(withBonus.bonus_skills.map((b) => b.canonical_name)).toEqual(
       expect.arrayContaining(['docker', 'unity']),
     );
@@ -397,7 +397,7 @@ describe('SkillDiffService — seniority bands + OR-group', () => {
     const jsFresher = fresher.matched_skills.find((x) => x.canonical_name === 'javascript');
     expect(jsMid).toBeDefined(); // cv3 vs req4 @mid = partial
     expect(jsFresher).toBeDefined(); // cv3 vs req3 @fresher = matched
-    expect(fresher.overall_score).toBeGreaterThan(mid.overall_score);
+    expect(fresher.overall_score!).toBeGreaterThan(mid.overall_score!);
   });
 
   it('reports rubric_band on the rubric path and null on the JD path', () => {
@@ -455,5 +455,72 @@ describe('SkillDiffService — seniority bands + OR-group', () => {
     expect(group).toBeDefined();
     expect(group?.display_name).toContain('Swift');
     expect(group?.display_name).toContain('Kotlin');
+  });
+});
+
+describe('SkillDiffService — TRUST honest-zero + degraded_reasons', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('source none (no JD, no rubric role) → null scores + NO_REQUIREMENT_BASIS, never a hard 0', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'role_that_has_no_rubric_xyz',
+    });
+    expect(res.requirements_source).toBe('none');
+    expect(res.overall_score).toBeNull();
+    expect(res.match_ratio).toBeNull();
+    expect(res.degraded_reasons).toContain('NO_REQUIREMENT_BASIS');
+  });
+
+  it('JD provided but zero requirements normalize AND no rubric → none arm goes null too', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: [
+        { name: 'self-motivated team player', importance_hint: 'REQUIRED' },
+        { name: 'good communication vibes', importance_hint: 'PREFERRED' },
+      ],
+    });
+    expect(res.requirements_source).toBe('none');
+    expect(res.overall_score).toBeNull();
+    expect(res.degraded_reasons).toContain('NO_REQUIREMENT_BASIS');
+  });
+
+  it('all CV skills outside taxonomy → CV_SKILLS_UNRECOGNIZED flag, score still computed (all-missing)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'zzz-proprietary-tool-9000', proficiency_hint: 'ADVANCED' },
+        { name: 'quantum flux capaciting', proficiency_hint: 'BEGINNER' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    expect(res.requirements_source).toBe('role_rubric');
+    expect(res.degraded_reasons).toContain('CV_SKILLS_UNRECOGNIZED');
+    expect(res.overall_score).toBe(0); // computable — honest 0 vs a real rubric, but flagged
+    expect(res.unnormalized_cv_skills.length).toBe(2);
+    expect(res.matched_skills.length + res.partial_skills.length).toBe(0);
+  });
+
+  it('healthy path → degraded_reasons is empty and scores are numbers', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'frontend_developer',
+    });
+    expect(res.degraded_reasons).toEqual([]);
+    expect(typeof res.overall_score).toBe('number');
+    expect(typeof res.match_ratio).toBe('number');
+  });
+
+  it('empty CV skill list does NOT flag CV_SKILLS_UNRECOGNIZED (nothing to recognize)', () => {
+    const res = diff.diff({ cv_skills_raw: [], target_role: 'frontend_developer' });
+    expect(res.degraded_reasons).toEqual([]);
   });
 });

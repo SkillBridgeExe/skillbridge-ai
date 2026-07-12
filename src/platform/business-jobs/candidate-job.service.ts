@@ -235,7 +235,9 @@ export class CandidateJobService {
     try {
       const match = this.computeMatch(cvSkillSnapshot, version);
       application.matchStatus = 'READY';
-      application.matchScore = String(match.overall_score);
+      // null-safe: a no-basis match (null score) persists as SQL NULL, not the string "null".
+      // matchResult is still stored so the UI can inspect degraded_reasons.
+      application.matchScore = toMatchScoreColumn(match.overall_score);
       application.matchScoringVersion = 'skill-diff-v1';
       application.matchResult = match;
       application.matchComputedAt = new Date();
@@ -459,6 +461,13 @@ export class CandidateJobService {
       message: 'Job application not found',
     });
   }
+}
+
+/** TRUST' P2: convert a match score to the numeric-column value. A null score (no requirement
+ *  basis) must persist as SQL NULL — String(null) would write the literal "null" and break the
+ *  numeric write. */
+export function toMatchScoreColumn(score: number | null): string | null {
+  return score === null ? null : String(score);
 }
 
 export function snapshotCandidateContact(
