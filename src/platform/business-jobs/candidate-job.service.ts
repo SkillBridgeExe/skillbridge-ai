@@ -18,7 +18,11 @@ import { SavedJobEntity } from '../../database/entities/saved-job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
-import { DiffResult, RawCvSkill, SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import {
+  DiffResult,
+  RawCvSkill,
+  SkillDiffService,
+} from '../../modules/cv-jd-match/skill-diff.service';
 import {
   loadLatestReviewSkills,
   toRawCvSkills,
