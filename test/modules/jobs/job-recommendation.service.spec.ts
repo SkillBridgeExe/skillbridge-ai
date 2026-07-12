@@ -183,7 +183,9 @@ describe('JobRecommendationService — R4 interview signal overlay', () => {
     );
 
     expect(res.recommendations[0].interview_signals).toEqual([
-      { skill_canonical: 'react', risk: 0.8, session_ref: 'abcdef12' },
+      // display_name rides along so the FE never has to render the raw canonical as a chip
+      // (post-merge review finding: 'node_js' next to sibling chips saying 'Node.js').
+      { skill_canonical: 'react', display_name: 'React', risk: 0.8, session_ref: 'abcdef12' },
     ]);
   });
 
