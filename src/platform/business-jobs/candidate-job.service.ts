@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -43,6 +44,8 @@ import {
 
 @Injectable()
 export class CandidateJobService {
+  private readonly logger = new Logger(CandidateJobService.name);
+
   constructor(
     @InjectRepository(JobEntity) private readonly jobs: Repository<JobEntity>,
     @InjectRepository(JobPostVersionEntity)
@@ -409,13 +412,23 @@ export class CandidateJobService {
    * R1 — the SAME fact set the job-recommendation cards score from: latest review's
    * proficiency-bearing skills when one exists, presence-only snapshot canonicals otherwise.
    * The persisted cvSkillsSnapshot is unchanged (audit trail of what the CV formally listed).
+   * Never-throw: the snapshot facts are already in memory, so a transient failure of the
+   * review lookup degrades to presence-only scoring instead of failing the match forever
+   * (apply persists matchStatus=FAILED with no recompute path) or 500ing matchJob.
    */
   private async loadCvSkillFacts(
     userId: string,
     cvId: string,
     snapshot: Array<{ canonicalName: string }>,
   ): Promise<RawCvSkill[]> {
-    const review = await loadLatestReviewSkills(this.dataSource, userId, cvId);
+    let review: Awaited<ReturnType<typeof loadLatestReviewSkills>> = null;
+    try {
+      review = await loadLatestReviewSkills(this.dataSource, userId, cvId);
+    } catch (err) {
+      this.logger.warn(
+        `review-skills lookup failed for cv ${cvId} — scoring presence-only: ${String(err)}`,
+      );
+    }
     return toRawCvSkills(
       review,
       snapshot.map((skill) => skill.canonicalName),
