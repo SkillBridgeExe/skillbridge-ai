@@ -39,6 +39,169 @@
       "ledger_listed_only": ["react"],
       "rationale": "React matched (adv>=int) but only listed in Skills → add_evidence (prove it with a bullet). No demonstrated bullet exists → no before, not rewrite_eligible.",
       "expect_patch": [{ "canonical": "react", "action_type": "add_evidence", "rewrite_eligible": false, "has_before": false }]
+    },
+    {
+      "id": "patch-two-required-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "Git", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "rationale": "Two REQUIRED skills absent from the CV → both surface as missing_required, never rewrite_eligible, never a before (a before for an absent skill would be fabrication).",
+      "expect_patch": [
+        { "canonical": "docker", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false },
+        { "canonical": "kubernetes", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false }
+      ]
+    },
+    {
+      "id": "patch-add-evidence-two-listed-only",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "Java", "proficiency_hint": "ADVANCED" },
+        { "name": "Docker", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Java", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["java", "docker"],
+      "rationale": "Both skills matched at level but only LISTED in the skills section (evidence_gap) → each gets add_evidence: write a proving bullet, no rewrite of existing text (there is nothing to rewrite).",
+      "expect_patch": [
+        { "canonical": "java", "action_type": "add_evidence", "rewrite_eligible": false, "has_before": false },
+        { "canonical": "docker", "action_type": "add_evidence", "rewrite_eligible": false, "has_before": false }
+      ]
+    },
+    {
+      "id": "patch-deepen-anchor-second-project",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_demonstrated": [
+        ["sql", "Analytics Dashboard"]
+      ],
+      "cv_projects": [
+        { "name": "Chat App", "bullets": ["Xây dựng chat realtime với websocket"] },
+        { "name": "Analytics Dashboard", "bullets": ["Tối ưu truy vấn SQL cho báo cáo doanh thu", "Viết unit test cho service"] }
+      ],
+      "rationale": "The demonstrated anchor points at the SECOND project; its bullet mentions SQL → anchor resolves there (not in the first project) → has_before=true with the right bullet.",
+      "expect_patch": [
+        { "canonical": "sql", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": true }
+      ]
+    },
+    {
+      "id": "patch-mixed-missing-and-deepen",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_demonstrated": [
+        ["sql", "Booking App"]
+      ],
+      "cv_projects": [
+        { "name": "Booking App", "bullets": ["Tối ưu truy vấn SQL giảm thời gian phản hồi"] }
+      ],
+      "rationale": "One scan yields BOTH kinds honestly: absent Docker → missing_required (no rewrite), demonstrated-but-shallow SQL → deepen_wording with a real before.",
+      "expect_patch": [
+        { "canonical": "docker", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false },
+        { "canonical": "sql", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": true }
+      ]
+    },
+    {
+      "id": "patch-partial-listed-only-yields-only-missing",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "Python", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Python", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "Java", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" }
+      ],
+      "ledger_listed_only": ["python"],
+      "rationale": "Partial Python is only LISTED (not demonstrated) → no deepen_wording (nothing evidence-backed to reword) and no add_evidence (that bucket is for matched skills only) → the ONLY action is the absent Java. Pins that a listed-only partial never gets a rewrite path.",
+      "expect_patch": [
+        { "canonical": "java", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false }
+      ]
+    },
+    {
+      "id": "patch-deepen-two-partials-mixed-before",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "SQL", "proficiency_hint": "INTERMEDIATE" },
+        { "name": "MongoDB", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "MongoDB", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_demonstrated": [
+        ["sql", "Booking App"],
+        ["mongodb", "Chat App"]
+      ],
+      "cv_projects": [
+        { "name": "Booking App", "bullets": ["Tối ưu truy vấn SQL cho module đặt phòng"] },
+        { "name": "Chat App", "bullets": ["Xây dựng tính năng nhắn tin nhóm"] }
+      ],
+      "rationale": "Two demonstrated partials → both deepen_wording. SQL's anchored bullet mentions SQL → before. MongoDB's project bullet never names it → NO before (the engine must not guess a bullet).",
+      "expect_patch": [
+        { "canonical": "sql", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": true },
+        { "canonical": "mongodb", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": false }
+      ]
+    },
+    {
+      "id": "patch-add-evidence-plus-deepen",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "Git", "proficiency_hint": "ADVANCED" },
+        { "name": "Docker", "proficiency_hint": "INTERMEDIATE" }
+      ],
+      "jd_requirements": [
+        { "name": "Git", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_listed_only": ["git"],
+      "ledger_demonstrated": [
+        ["docker", "DevOps Pipeline"]
+      ],
+      "cv_projects": [
+        { "name": "DevOps Pipeline", "bullets": ["Triển khai CI/CD với Docker cho 3 dịch vụ"] }
+      ],
+      "rationale": "Matched-but-listed-only Git → add_evidence; demonstrated partial Docker → deepen_wording with a real before. Two different honesty paths in one report.",
+      "expect_patch": [
+        { "canonical": "git", "action_type": "add_evidence", "rewrite_eligible": false, "has_before": false },
+        { "canonical": "docker", "action_type": "deepen_wording", "rewrite_eligible": true, "has_before": true }
+      ]
+    },
+    {
+      "id": "patch-matched-demonstrated-stays-quiet",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "Docker", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "ledger_demonstrated": [
+        ["docker", "Infra Migration"]
+      ],
+      "cv_projects": [
+        { "name": "Infra Migration", "bullets": ["Chuyển 5 dịch vụ sang Docker Swarm"] }
+      ],
+      "rationale": "Docker is matched AND demonstrated → healthy, no action noise for it; the checklist only surfaces the absent Kubernetes. Pins that proven strengths are left alone.",
+      "expect_patch": [
+        { "canonical": "kubernetes", "action_type": "missing_required", "rewrite_eligible": false, "has_before": false }
+      ]
     }
   ]
 }
