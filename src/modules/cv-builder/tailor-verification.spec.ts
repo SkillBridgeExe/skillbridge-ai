@@ -108,7 +108,7 @@ describe('verifyTailorAction', () => {
       );
     });
 
-    it.each(['missing_required', 'add_evidence'] as const)(
+    it.each(['missing_required', 'add_evidence', 'advice'] as const)(
       'rejects %s even when rewrite_eligible=true',
       (actionType) => {
         const action = makeAction({ action_type: actionType, action_id: `${actionType}:nestjs` });
