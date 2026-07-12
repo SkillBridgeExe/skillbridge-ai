@@ -108,6 +108,23 @@ describe('assessExtractionQuality', () => {
     expect(q.section_count).toBeLessThan(3);
     expect(q.confidence).toBe('medium');
     expect(q.flags).toContain('SPARSE_SECTIONS');
+    // emptyCanonicalCv has no contact → the parse-failure proxy also fires here.
+    expect(q.flags).toContain('NO_CONTACT_ANCHOR');
+  });
+
+  it('clean text + rich doc but NO name AND NO email → confidence medium + NO_CONTACT_ANCHOR (parse-failure proxy)', () => {
+    const doc = richDoc();
+    doc.contact = { name: null, email: null, phone: '0900', location: null, links: [] };
+    const q = assessExtractionQuality(CLEAN_EN, doc);
+    expect(q.flags).toContain('NO_CONTACT_ANCHOR');
+    expect(q.confidence).toBe('medium');
+  });
+
+  it('a name OR an email present → NO_CONTACT_ANCHOR does NOT fire', () => {
+    const doc = richDoc();
+    doc.contact = { name: null, email: 'a@x.dev', phone: null, location: null, links: [] };
+    const q = assessExtractionQuality(CLEAN_EN, doc);
+    expect(q.flags).not.toContain('NO_CONTACT_ANCHOR');
   });
 
   it('skill_count falls back to declared skills when no scan is provided', () => {

@@ -15,6 +15,8 @@
  * re-tune once a layout-diverse corpus exists; see eval:extractors disclaimer):
  *   LOW    : mojibake_ratio > 0.02  OR  wordlike_ratio < 0.55  OR  char_count < 200  OR  ocr_used
  *   MEDIUM : mojibake_ratio > 0.005 OR  wordlike_ratio < 0.72  OR  section_count < 3
+ *            OR  no contact anchor (name AND email both missing — an OpenResume-style parse-failure
+ *            proxy: a real CV almost always yields at least one, so neither surviving parse == suspect)
  *   HIGH   : everything else
  */
 import { CanonicalCvDocument } from '../types/canonical-cv';
@@ -83,6 +85,9 @@ export function assessExtractionQuality(
   const metrics = computeTextMetrics(text, opts.scan ?? (() => []));
   const section_count = countSections(document);
   const skill_count = opts.scan ? metrics.skillsFound : declaredSkillCount(document);
+  // OpenResume-style cheap parse-failure proxy: a well-formed CV almost always yields a name or an
+  // email; losing BOTH usually means the parser mis-read the layout, not that the CV lacks contact.
+  const no_contact_anchor = !document.contact.name && !document.contact.email;
 
   const flags: string[] = [];
   if (ocr_used) flags.push('OCR_USED');
@@ -92,6 +97,7 @@ export function assessExtractionQuality(
   if (metrics.wordlikeRatio < WORDLIKE_LOW) flags.push('WORDLIKE_LOW');
   else if (metrics.wordlikeRatio < WORDLIKE_WEAK) flags.push('WORDLIKE_WEAK');
   if (section_count < SPARSE_SECTIONS) flags.push('SPARSE_SECTIONS');
+  if (no_contact_anchor) flags.push('NO_CONTACT_ANCHOR');
 
   let confidence: ExtractionConfidence = 'high';
   if (
@@ -104,7 +110,8 @@ export function assessExtractionQuality(
   } else if (
     metrics.mojibakeRatio > MOJIBAKE_SLIGHT ||
     metrics.wordlikeRatio < WORDLIKE_WEAK ||
-    section_count < SPARSE_SECTIONS
+    section_count < SPARSE_SECTIONS ||
+    no_contact_anchor
   ) {
     confidence = 'medium';
   }
