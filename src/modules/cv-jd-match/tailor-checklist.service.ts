@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CvJdMatchParsedResponse } from './dto/cv-jd-match-response.dto';
 import { CvReviewParsedResponse } from '../cv-review/dto/cv-review-response.dto';
-import { buildTailorChecklist, TailorAction } from './tailor-checklist';
+import { buildTailorChecklist, NonSkillGap, TailorAction } from './tailor-checklist';
 
 export interface TailorChecklistResponseDto {
   actions: TailorAction[];
@@ -26,6 +26,9 @@ export class TailorChecklistService {
     /** A2: canonical → gap_items severity (from the SAME gap_items the caller already built —
      *  gap-report.service). Ranks the checklist by gap severity instead of the old bucket order. */
     severityByCanonical?: Map<string, number> | null;
+    /** ACTION' A2: the non-skill gap_items (seniority/language/education/domain) — each real gap
+     *  becomes an `advice` action so the top gap always has a next step. Optional (legacy omits). */
+    nonSkillGaps?: NonSkillGap[] | null;
   }): TailorChecklistResponseDto {
     const ledger = input.review?.evidence_ledger ?? null;
     return {
@@ -34,6 +37,7 @@ export class TailorChecklistService {
         ledger,
         input.lang ?? 'vi',
         input.severityByCanonical,
+        input.nonSkillGaps,
       ),
       generated_with_ledger: ledger !== null,
       source_of_requirements: input.match.source_of_requirements,

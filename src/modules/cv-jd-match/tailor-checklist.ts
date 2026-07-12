@@ -1,8 +1,27 @@
 import { CvJdMatchParsedResponse } from './dto/cv-jd-match-response.dto';
 import { MatchedSkill, PartialSkill } from './skill-diff.service';
 import { EvidenceLedger } from '../../common/services/evidence-ledger';
+import type { GapItem } from '../gap-engine/gap-item';
 
-export type TailorActionType = 'missing_required' | 'add_evidence' | 'emphasize' | 'deepen_wording';
+export type TailorActionType =
+  | 'missing_required'
+  | 'add_evidence'
+  | 'emphasize'
+  | 'deepen_wording'
+  | 'advice';
+
+/** A2 (ACTION'): the non-skill GapItem slice the advice bucket reads — pass gap_items entries of
+ *  type seniority/language/education/domain straight through (type-only import, no runtime cycle). */
+export type NonSkillGap = Pick<
+  GapItem,
+  | 'type'
+  | 'canonical_name'
+  | 'display_name'
+  | 'importance'
+  | 'cv_status'
+  | 'cv_level'
+  | 'required_level'
+>;
 
 export interface TailorAction {
   action_type: TailorActionType;
@@ -29,6 +48,9 @@ const MAX_MISSING = 3;
 const MAX_ADD_EVIDENCE = 2;
 const MAX_EMPHASIZE = 3;
 const MAX_DEEPEN = 2;
+// ponytail: 4 = every gradeable non-skill dimension (seniority/language/education/domain) — the
+// pool is bounded by construction, so this "cap" only exists to keep bucketCap total.
+const MAX_ADVICE = 4;
 const MAX_TOTAL = 8;
 
 type Lang = 'vi' | 'en';
@@ -42,6 +64,17 @@ const T = {
       `JD nhấn ${s} ${jd} lần, CV chỉ nhắc ${cv} lần — đưa ${s} vào summary hoặc bullet nổi bật hơn.`,
     deepen: (s: string, cv: number, req: number) =>
       `CV có bằng chứng ${s} nhưng wording mới thể hiện mức ${cv}/5, JD cần ${req}/5 — viết lại bullet cho rõ độ sâu (không thổi phồng).`,
+    // A2 advice — honest framing: inferred from what the CV shows/doesn't show, never "bạn thiếu".
+    adviceSeniority: (cv: number | null, req: number | null) =>
+      cv != null && req != null
+        ? `JD yêu cầu cấp độ kinh nghiệm ${req}/5, CV đang thể hiện ${cv}/5 — khoảng trống này không sửa được bằng viết lại CV: tích lũy thêm kinh nghiệm thực tế, hoặc nêu rõ số năm và phạm vi trách nhiệm nếu CV chưa phản ánh đủ.`
+        : `JD yêu cầu cấp độ kinh nghiệm cao hơn mức CV thể hiện — tích lũy thêm kinh nghiệm thực tế, hoặc nêu rõ số năm và phạm vi trách nhiệm nếu CV chưa phản ánh đủ.`,
+    adviceLanguage: () =>
+      `JD yêu cầu trình độ ngoại ngữ mà CV chưa thể hiện — bổ sung chứng chỉ/minh chứng thật nếu bạn có; nếu chưa, đây là khoảng trống cần đầu tư học, không sửa được bằng viết lại CV.`,
+    adviceEducation: () =>
+      `JD yêu cầu học vấn/bằng cấp mà CV chưa thể hiện — bổ sung thông tin học vấn hoặc chứng chỉ tương đương nếu có; viết lại CV không tạo ra bằng cấp.`,
+    adviceDomain: () =>
+      `CV đang thể hiện lĩnh vực khác với JD — nêu bật kinh nghiệm/dự án liên quan tới lĩnh vực của JD nếu có; nếu chưa, xác định đây là khoảng trống cần thời gian tích lũy.`,
   },
   en: {
     missing: (s: string, jd: number | null) =>
@@ -52,6 +85,16 @@ const T = {
       `The JD mentions ${s} ${jd}×, your CV only ${cv}× — surface ${s} in the summary or a prominent bullet.`,
     deepen: (s: string, cv: number, req: number) =>
       `The CV evidences ${s} but the wording reads level ${cv}/5 while the JD needs ${req}/5 — reword the bullet to show depth (without inflating).`,
+    adviceSeniority: (cv: number | null, req: number | null) =>
+      cv != null && req != null
+        ? `The JD asks for experience level ${req}/5 while the CV reads ${cv}/5 — no rewrite closes this: gain more hands-on experience, or state your years and scope of responsibility clearly if the CV under-reports them.`
+        : `The JD asks for a higher experience level than the CV shows — gain more hands-on experience, or state your years and scope of responsibility clearly if the CV under-reports them.`,
+    adviceLanguage: () =>
+      `The JD requires a language proficiency the CV doesn't show — add a real certificate/proof if you have one; otherwise this is a gap to invest in, not something a rewrite can fix.`,
+    adviceEducation: () =>
+      `The JD requires education/credentials the CV doesn't show — add your education details or an equivalent certificate if you have them; a rewrite cannot create a degree.`,
+    adviceDomain: () =>
+      `The CV reads as a different domain than the JD — highlight related experience/projects for the JD's domain if you have any; otherwise treat this as a gap that takes time to build.`,
   },
 } as const;
 
@@ -65,6 +108,9 @@ const T = {
  *   2. add_evidence     — matched but listed-only → write a proving bullet (no rewrite).
  *   3. emphasize        — JD stresses it (jd_count ≥ 2), CV barely mentions it (cv_count ≤ 1).
  *   4. deepen_wording   — partial with demonstrated evidence → reword the anchored bullet.
+ *   5. advice (A2)      — non-skill gaps (seniority/language/education/domain, from `nonSkillGaps`)
+ *                         → a clear next step that is explicitly NOT a CV rewrite (never verified/
+ *                         rewritten; the tailor verifier rejects it as ACTION_NOT_REWRITABLE).
  *
  * A2 (severity ranking) + ACTION' A1: the 4 buckets above decide which skills are CANDIDATES.
  * When `severityByCanonical` is supplied, the candidate pools are UNCAPPED — severity (desc) ranks
@@ -81,6 +127,7 @@ export function buildTailorChecklist(
   ledger: EvidenceLedger | null,
   lang: Lang,
   severityByCanonical?: Map<string, number> | null,
+  nonSkillGaps?: NonSkillGap[] | null,
 ): TailorAction[] {
   const t = T[lang];
   const taken = new Set<string>();
@@ -199,6 +246,37 @@ export function buildTailorChecklist(
     }
   }
 
+  // 5. advice (A2) — non-skill gaps become an honest next step. No rewrite path, no anchor; the
+  // grader already decided cv_status, so only real (non-matched) gradeable gaps qualify.
+  if (nonSkillGaps?.length) {
+    const adviceWhy = (g: NonSkillGap): string | null => {
+      if (g.type === 'seniority') return t.adviceSeniority(g.cv_level, g.required_level);
+      if (g.type === 'language') return t.adviceLanguage();
+      if (g.type === 'education') return t.adviceEducation();
+      if (g.type === 'domain') return t.adviceDomain();
+      return null; // work_mode & anything else stays disclosure-only — never an action
+    };
+    for (const g of nonSkillGaps) {
+      if (g.cv_status === 'matched' || taken.has(g.canonical_name)) continue;
+      const why = adviceWhy(g);
+      if (!why) continue;
+      taken.add(g.canonical_name);
+      out.push({
+        action_type: 'advice',
+        skill_canonical: g.canonical_name,
+        display_name: g.display_name,
+        why,
+        rewrite_eligible: false,
+        anchor: null,
+        jd_importance: g.importance,
+        jd_count: null,
+        cv_count: null,
+        cv_level: g.cv_level,
+        required_level: g.required_level,
+      });
+    }
+  }
+
   // Back-compat: no severity map → old bucket-ordered slice, byte-identical, untouched.
   if (!severityByCanonical) return out.slice(0, MAX_TOTAL);
 
@@ -214,6 +292,7 @@ export function buildTailorChecklist(
     add_evidence: MAX_ADD_EVIDENCE,
     emphasize: MAX_EMPHASIZE,
     deepen_wording: MAX_DEEPEN,
+    advice: MAX_ADVICE,
   };
   const used: Partial<Record<TailorActionType, number>> = {};
   const picked: TailorAction[] = [];

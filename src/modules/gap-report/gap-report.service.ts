@@ -97,13 +97,19 @@ export class GapReportService {
 
     // A2: rank recommended_actions by the SAME severity as gap_items (fixes B3 — action #1 could
     // contradict gap #1). Built from gapItems (already computed here) and passed INTO the checklist
-    // builder rather than re-derived/joined downstream.
+    // builder rather than re-derived/joined downstream. ACTION': the non-skill gap items also flow
+    // in, so a top seniority/language/education/domain gap yields an `advice` action instead of
+    // silently having no next step.
     const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
+    const nonSkillGaps = gapItems.filter(
+      (g) => g.type !== 'hard_skill' && g.type !== 'soft_skill',
+    );
     const checklist = this.tailor.build({
       match: input.match,
       review: input.review,
       lang,
       severityByCanonical,
+      nonSkillGaps,
     });
 
     // PR4: enrich the checklist into a deterministic patch plan (joins gap_items by skill_canonical).
@@ -122,6 +128,9 @@ export class GapReportService {
     const missingCanonicals = new Set(input.match.missing_skills.map((m) => m.canonical_name));
     const partialCanonicals = new Set(input.match.partial_skills.map((p) => p.canonical_name));
     const recommendedActions = patched.map((a) => {
+      // ACTION' A2: advice actions have no CV-patch/score path — simulateActionImpact would THROW
+      // on the partial/missing lookup. No expected_impact is the honest value (never a 0-0).
+      if (a.action_type === 'advice') return a;
       const gi = gapByCanonical.get(a.skill_canonical);
       if (!gi) return a;
       const joined =
