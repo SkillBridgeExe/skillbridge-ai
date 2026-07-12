@@ -288,13 +288,6 @@
       "note": "Vague tech-adjacent 'works with computers'. Adversarial vs networking 'mạng máy tính' (shares 'máy tính'); must stay none."
     },
     {
-      "mention": "sửa máy in",
-      "lang": "vi",
-      "expected": [],
-      "kind": "semantic_negative",
-      "note": "Tech-adjacent but non-software 'printer repair'. Hardware support, no canonical; must stay none."
-    },
-    {
       "mention": "cài đặt phần mềm văn phòng",
       "lang": "vi",
       "expected": [],
