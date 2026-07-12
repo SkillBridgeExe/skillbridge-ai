@@ -78,7 +78,7 @@ const languageDim = {
   evidence_text: 'English B2 or above required',
 };
 
-describe('GapReportService (ACTION\' wiring)', () => {
+describe("GapReportService (ACTION' wiring)", () => {
   const service = (market: JdMarketPositionService) =>
     new GapReportService(new TailorChecklistService(), market);
 

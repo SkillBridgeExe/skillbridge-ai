@@ -180,6 +180,56 @@
         { "canonical": "kubernetes", "cv_status": "missing", "fixability": "learn" }
       ],
       "expect_actions_order": ["docker", "kubernetes"]
+    },
+    {
+      "id": "a1-severity-outranks-bucket-cap",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "SQL", "proficiency_hint": "ADVANCED" },
+        { "name": "Git", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "Docker", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "Kubernetes", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "MongoDB", "importance_hint": "REQUIRED", "required_level_hint": "INTERMEDIATE" },
+        { "name": "TypeScript", "importance_hint": "REQUIRED", "required_level_hint": "EXPERT" },
+        { "name": "React", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" },
+        { "name": "Git", "importance_hint": "PREFERRED", "required_level_hint": "ADVANCED" }
+      ],
+      "note": "Hand-authored for ACTION' A1 (audit P0-5): the missing_required bucket has FOUR equal-weight REQUIRED gaps, so the legacy weight-then-alphabetical slice would keep docker/kubernetes/mongodb and silently drop typescript -- but typescript is the single most severe gap (required EXPERT -> gap_levels=5 -> need=1.0 -> core=0.65*1.0+0.35*0.05=0.6675 -> severity~0.668 vs INTERMEDIATE trio gap_levels=3 -> need=0.6 -> severity~0.408). Post-A1 the severity ranking runs on the UNCAPPED pool, so typescript leads and MAX_MISSING=3 caps out mongodb (the least-severe alphabetical straggler) instead. Ties among the 0.408 trio keep generation order (stable sort): docker, kubernetes.",
+      "expect": [
+        { "canonical": "typescript", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "docker", "cv_status": "missing", "fixability": "learn" }
+      ],
+      "expect_actions_order": ["typescript", "docker", "kubernetes"]
+    },
+    {
+      "id": "a2-nonskill-language-top-gap-gets-advice",
+      "target_role": "backend_developer",
+      "cv_skills": [
+        { "name": "React", "proficiency_hint": "ADVANCED" },
+        { "name": "SQL", "proficiency_hint": "ADVANCED" }
+      ],
+      "jd_requirements": [
+        { "name": "React", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" },
+        { "name": "SQL", "importance_hint": "REQUIRED", "required_level_hint": "ADVANCED" }
+      ],
+      "jd_dimensions": [
+        {
+          "dimension": "language",
+          "value_text": "English B2",
+          "importance_hint": "REQUIRED",
+          "evidence_text": "English B2 or above required"
+        }
+      ],
+      "note": "Hand-authored for ACTION' A2 (audit P0-5, non-skill half): every JD skill is matched at the bar (severity 0, no skill action), and the ONLY real gap is the REQUIRED English-B2 language dimension graded from CV silence (missing/learn). Pre-A2 the checklist was empty here -- the top gap had no next step. Post-A2 the language gap yields exactly one 'advice' action, so action #1 == gap #1; the alignment gate (2) plus no-contradiction gate 4(d) (language is course-addressable -> must reach the roadmap learn_items) now have teeth for non-skill gaps.",
+      "expect": [
+        { "canonical": "language", "cv_status": "missing", "fixability": "learn" },
+        { "canonical": "react", "cv_status": "matched", "fixability": "not_fixable_now" }
+      ],
+      "expect_actions_order": ["language"]
     }
   ]
 }
