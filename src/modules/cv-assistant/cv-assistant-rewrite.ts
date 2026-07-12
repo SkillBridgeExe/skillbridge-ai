@@ -10,6 +10,7 @@
  *      must be a subset of the allowed facts. Any violation → REJECT (return a follow-up, never a patch).
  */
 import { AssistantGap, CvAnswer, Language } from './cv-assistant';
+import { sanitizePromptText } from '../../common/services/prompt-input-sanitizer';
 
 export interface GroundedAnswers {
   /** the ONLY fact phrases the rewrite model may use (action verb · named tech · result phrase · number). */
@@ -401,9 +402,15 @@ export function groundCvRewrite(
   // numbers are matched as whole UNIT-aware tokens: "30%" ≠ "30ms", and "3-5 years" ≠ "5 years".
   const allowedNumbers = new Set(numberTokens(source));
 
-  // (a) every declared used_fact must be one of the allowed facts.
+  // (a) every declared used_fact must be one of the allowed facts. The model never sees the
+  //     ORIGINAL facts — PromptsService.render sanitizes vars (M6) — so a fact carrying a
+  //     redacted span can only be echoed back in its sanitized form; accept that form too, or
+  //     grounding deterministically rejects legitimate facts (post-merge review finding).
+  const allowedFacts = new Set(
+    grounded.facts.flatMap((f) => [f.toLowerCase(), sanitizePromptText(f).text.toLowerCase()]),
+  );
   for (const uf of model.used_facts) {
-    if (!grounded.facts.some((f) => f.toLowerCase() === uf.toLowerCase())) {
+    if (!allowedFacts.has(uf.toLowerCase())) {
       return { ok: false, reason: 'UNGROUNDED', detail: `used_fact not in allowed facts: ${uf}` };
     }
   }
