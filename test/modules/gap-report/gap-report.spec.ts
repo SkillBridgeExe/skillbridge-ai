@@ -366,6 +366,44 @@ describe('buildGapReportCore (pure)', () => {
   });
 });
 
+describe("TRUST' T4: jd_intelligence not-extracted disclosure", () => {
+  it('v1 path (jd_dimensions_attempted falsy, no dims) → block OMITTED (byte-identical legacy)', () => {
+    const m = baseMatch({ jd_dimensions: [] }); // attempted undefined
+    const core = buildGapReportCore(m, null, null, null, 'vi');
+    expect(core.jd_intelligence).toBeUndefined();
+  });
+
+  it('v2 ran but found none (attempted=true, dims=[]) → none_found disclosure, NOT omitted', () => {
+    const m = baseMatch({ jd_dimensions: [], jd_dimensions_attempted: true });
+    const coreVi = buildGapReportCore(m, null, null, null, 'vi');
+    expect(coreVi.jd_intelligence?.status).toBe('none_found');
+    expect(coreVi.jd_intelligence?.dimensions).toEqual([]);
+    expect(coreVi.jd_intelligence?.note).toContain('Chưa trích xuất');
+    const coreEn = buildGapReportCore(m, null, null, null, 'en');
+    expect(coreEn.jd_intelligence?.note).toContain('No non-skill requirements');
+  });
+
+  it('v2 with dimensions → status extracted (regression guard on the happy path)', () => {
+    const m = baseMatch({
+      jd_dimensions_attempted: true,
+      jd_dimensions: [
+        {
+          dimension: 'seniority',
+          value_text: 'Senior',
+          level_hint: 'SENIOR',
+          min_years: 5,
+          importance: 'REQUIRED',
+          deal_breaker: false,
+          evidence_text: '5+ years senior engineer',
+        },
+      ],
+    });
+    const core = buildGapReportCore(m, null, null, null, 'en');
+    expect(core.jd_intelligence?.status).toBe('extracted');
+    expect(core.jd_intelligence?.dimensions.length).toBe(1);
+  });
+});
+
 describe('A1 (Wave ACTION): fit — score=overall_score, deal_breakers from jd_intelligence', () => {
   it('v1 path (no jd_dimensions): fit is present with unmet_deal_breakers=[]', () => {
     const m = baseMatch({ overall_score: 61, required_coverage: 0.5 });

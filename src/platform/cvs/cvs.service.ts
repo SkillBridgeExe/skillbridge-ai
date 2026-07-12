@@ -820,7 +820,9 @@ export class CvsService {
     // source_of_requirements). No cast needed — every DiffResult field buildGapItems reads exists
     // on CvJdMatchParsedResponse with an identical type.
     const match: CvJdMatchParsedResponse = {
-      overall_score: diff.overall_score,
+      // ponytail: builder-readiness keeps the legacy 0 when the role has no rubric (source none);
+      // honest-null for the builder surface is out of TRUST scope — ledgered for a later wave.
+      overall_score: diff.overall_score ?? 0,
       match_ratio: diff.match_ratio,
       matched_skills: diff.matched_skills,
       partial_skills: diff.partial_skills,
@@ -839,7 +841,7 @@ export class CvsService {
     return {
       readiness,
       band,
-      overall_score: diff.overall_score,
+      overall_score: diff.overall_score ?? 0,
       required_coverage,
       matched_count: diff.matched_skills.length,
       missing_count: diff.missing_skills.length,

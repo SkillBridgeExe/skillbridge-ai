@@ -78,6 +78,9 @@ async function main(): Promise<void> {
       // Legacy pairs omit target_band → diff defaults to 'mid' (byte-identical history).
       ...(pair.target_band ? { target_band: pair.target_band } : {}),
     });
+    if (res.overall_score === null || res.match_ratio === null) {
+      throw new Error(`eval:match — unexpected null score (source=none) in a golden case`);
+    }
     const score = res.overall_score;
     const ok = inBand(score, pair.expected_overall);
     if (ok) inBandCount += 1;

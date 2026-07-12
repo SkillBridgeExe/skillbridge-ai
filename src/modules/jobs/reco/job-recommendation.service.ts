@@ -257,7 +257,7 @@ export class JobRecommendationService {
     const rankA = [...candidates]
       .sort(
         (a, b) =>
-          diffByJob.get(b.id)!.overall_score - diffByJob.get(a.id)!.overall_score ||
+          (diffByJob.get(b.id)!.overall_score ?? 0) - (diffByJob.get(a.id)!.overall_score ?? 0) ||
           a.id.localeCompare(b.id), // explicit tiebreak — equal scores rank by stable id
       )
       .map((j) => j.id);
@@ -373,7 +373,9 @@ export function buildJobRecommendation(
   experienceFit: ExperienceFit,
 ): JobRecommendation {
   const policy = recommendationSeniorityPolicy(experienceFit);
-  const recommendation_score = Math.round(diff.overall_score * policy.factor);
+  // ponytail: null overall_score (job with no scorable requirements) coerces to 0 — byte-identical
+  // to pre-TRUST-prime behavior for such jobs. Honest-null on job cards = RECOMMENDATION wave.
+  const recommendation_score = Math.round((diff.overall_score ?? 0) * policy.factor);
   // ponytail: unmet_deal_breakers is always [] here — pool jobs only carry job_skills (SkillDiffService
   // requirements), never the jd_dimensions block (deal_breaker/verdict) that only a pasted-JD match
   // extracts. Asymmetric vs. the gap-report path on purpose (see PR body); revisit if pool jobs ever
@@ -402,7 +404,7 @@ export function buildJobRecommendation(
     currency: job.currency,
     source_url: job.application_mode === 'EXTERNAL' ? job.source_url : null,
     posted_at: job.posted_at,
-    match_score: diff.overall_score,
+    match_score: diff.overall_score ?? 0,
     recommendation_score,
     severe_stretch: policy.severe_stretch,
     seniority_factor: policy.factor,

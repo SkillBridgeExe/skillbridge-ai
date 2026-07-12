@@ -67,11 +67,16 @@ export interface JdIntelligenceItem {
 export interface JdIntelligenceBlock {
   dimensions: JdIntelligenceItem[];
   note: string;
+  /** TRUST' T4: 'extracted' when ≥1 dimension was pulled; 'none_found' when the v2 extractor RAN but
+   *  returned no non-skill requirement (JD may not state any, OR the LLM missed it — honest, not a
+   *  claim of "no gap"). Absent on the v1 path (block omitted entirely). */
+  status?: 'extracted' | 'none_found';
 }
 
 export interface GapReportCore {
   target_role: string | null;
-  overall_score: number;
+  /** null when the match had no requirement basis (source none) — TRUST' honest-zero passthrough. */
+  overall_score: number | null;
   source_of_requirements: CvJdMatchParsedResponse['source_of_requirements'];
   explicit_gaps: MissingSkill[];
   proficiency_gaps: PartialSkill[];
@@ -103,6 +108,13 @@ const SENIORITY_GRADED_NOTE = {
 const JD_INTEL_NOTE = {
   vi: 'Đã chấm gap cho cấp độ/kinh nghiệm, ngôn ngữ, học vấn và lĩnh vực khi CV có tín hiệu tương ứng. Hình thức làm việc chỉ hiển thị (không chấm gap). Các mục không đủ tín hiệu phía CV được bỏ qua một cách trung thực.',
   en: 'Seniority, language, education and domain are graded when the CV carries a matching signal. Work mode is disclosure-only (not graded). Dimensions without enough CV-side signal are honestly omitted.',
+} as const;
+
+/** TRUST' T4 copy: the v2 extractor ran but pulled no non-skill requirement. Honest — could be that
+ *  the JD states none, or that the model missed one; either way it is NOT "no seniority/language gap". */
+const JD_INTEL_NONE_FOUND_NOTE = {
+  vi: 'Chưa trích xuất được yêu cầu phi kỹ năng nào (cấp độ, ngôn ngữ, học vấn, lĩnh vực) từ JD này. JD có thể không nêu, hoặc hệ thống chưa đọc được — đây không phải kết luận "không có yêu cầu nào".',
+  en: 'No non-skill requirements (seniority, language, education, domain) were extracted from this JD. The JD may state none, or the system may have missed them — this is not a conclusion that "there are none".',
 } as const;
 
 /** Human-readable CV-side signal per dimension (enums/derived values only — never raw CV text).
@@ -176,7 +188,7 @@ function buildJdIntelligence(
       verdict: isSeniorityGraded ? grade.verdict : null,
     };
   });
-  return { dimensions, note: JD_INTEL_NOTE[lang] };
+  return { dimensions, note: JD_INTEL_NOTE[lang], status: 'extracted' };
 }
 
 const EMPHASIS_JD_MIN = 2;
@@ -238,12 +250,16 @@ export function buildGapReportCore(
     ? ledger.items.filter((i) => i.strength === 'demonstrated').map((i) => i.skill_canonical)
     : [];
 
-  // PR3: build the JD-Intelligence disclosure block only when v2 extracted dimensions — OMITTED on
-  // the v1 path so legacy output is byte-identical (additive, cross-lane-safe).
+  // PR3: build the JD-Intelligence disclosure block when v2 extracted dimensions. TRUST' T4: when v2
+  // RAN but found none (jd_dimensions_attempted && empty), emit an honest 'none_found' disclosure
+  // instead of silently omitting — a missed non-skill requirement must not read as "no such gap".
+  // The v1 path (attempted falsy) still omits entirely so legacy output stays byte-identical.
   const jdDims = match.jd_dimensions ?? [];
-  const jd_intelligence = jdDims.length
+  const jd_intelligence: JdIntelligenceBlock | undefined = jdDims.length
     ? buildJdIntelligence(jdDims, cvSeniority, cvSignals, lang)
-    : undefined;
+    : match.jd_dimensions_attempted
+      ? { dimensions: [], note: JD_INTEL_NONE_FOUND_NOTE[lang], status: 'none_found' }
+      : undefined;
 
   // E5 (v2-flip): reuse the SAME gradeSeniority() decision jd_intelligence.dimensions[].verdict
   // already carries, so the two blocks can never disagree. null/'unknown' when ungradeable —
@@ -266,13 +282,18 @@ export function buildGapReportCore(
     .filter((d) => d.verdict === null)
     .map((d) => d.value_text);
 
-  const fit = classifyFit({
-    score: match.overall_score,
-    required_coverage: match.required_coverage,
-    seniority_verdict: seniorityVerdict,
-    unmet_deal_breakers: unmetDealBreakers,
-    unverified_deal_breakers: unverifiedDealBreakers,
-  });
+  // No score basis → no fit verdict; fabricating one from a null score would be the exact
+  // dishonesty TRUST' removes (fit stays optional on GapReportCore).
+  const fit =
+    match.overall_score === null
+      ? undefined
+      : classifyFit({
+          score: match.overall_score,
+          required_coverage: match.required_coverage,
+          seniority_verdict: seniorityVerdict,
+          unmet_deal_breakers: unmetDealBreakers,
+          unverified_deal_breakers: unverifiedDealBreakers,
+        });
 
   return {
     target_role: match.target_role,

@@ -7,9 +7,9 @@ export interface TailorChecklistResponseDto {
   actions: TailorAction[];
   /** false → the CV has no review/ledger yet; evidence-based rules (2,4) were skipped. */
   generated_with_ledger: boolean;
-  /** Echoed from the match for FE convenience — NEVER recomputed. */
+  /** Echoed from the match for FE convenience — NEVER recomputed. null = no requirement basis. */
   source_of_requirements: CvJdMatchParsedResponse['source_of_requirements'];
-  overall_score: number;
+  overall_score: number | null;
 }
 
 /**

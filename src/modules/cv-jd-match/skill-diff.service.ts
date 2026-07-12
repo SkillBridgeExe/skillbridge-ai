@@ -97,6 +97,13 @@ export const MATCH_TUNING: MatchTuning = {
   coverageCapSlope: 55,
 };
 
+/** Machine-readable degraded-state markers (TRUST' T2) — FE renders these as honest banners.
+ *  NO_REQUIREMENT_BASIS: no JD requirements AND no role rubric → nothing to score against, so
+ *  overall_score/match_ratio are null instead of a misleading hard 0.
+ *  CV_SKILLS_UNRECOGNIZED: the CV yielded raw skills but NONE normalized to taxonomy — the score
+ *  is computable but built on an empty CV-skill set (all-missing), so it must be flagged. */
+export type MatchDegradedReason = 'NO_REQUIREMENT_BASIS' | 'CV_SKILLS_UNRECOGNIZED';
+
 export interface DiffResult {
   matched_skills: MatchedSkill[];
   partial_skills: PartialSkill[];
@@ -108,8 +115,9 @@ export interface DiffResult {
   /** JD requirements that didn't normalize — same reason, flagged for review. */
   unnormalized_jd_requirements: UnnormalizedSkill[];
 
-  /** match_ratio = matched.length / required.length × 100 (0-100). */
-  match_ratio: number;
+  /** match_ratio = matched.length / required.length × 100 (0-100).
+   *  null when requirements_source === 'none' — no basis, no ratio (TRUST' honest-zero). */
+  match_ratio: number | null;
   /** Fraction of REQUIRED-importance skills met at level (0-1; 1 when the role has none). */
   required_coverage: number;
   /**
@@ -119,8 +127,12 @@ export interface DiffResult {
    *   strength          = 1 if met · (cv/required)^exponent if below · 0 if missing
    *   raw               = Σ(eff_w × strength) / Σ(eff_w) × 100
    *   overall           = min(raw, capBase + capSlope × required_coverage)
+   *  null when requirements_source === 'none' — scoring against nothing is not a 0, it is
+   *  "no score" (TRUST' honest-zero; the old hard 0 read as "terrible CV").
    */
-  overall_score: number;
+  overall_score: number | null;
+  /** Degraded-state markers (empty = healthy). See MatchDegradedReason. */
+  degraded_reasons: MatchDegradedReason[];
   /** Which source the required-skills set came from (telemetry / UI honesty). */
   requirements_source: 'jd_extraction' | 'role_rubric' | 'none';
   /**
@@ -335,13 +347,26 @@ export class SkillDiffService {
       });
     }
 
+    // TRUST' honest-zero: no requirement basis (no JD requirements AND no rubric) → null scores,
+    // never a fabricated hard 0; all-CV-skills-unrecognized → score stands but is flagged.
+    const degraded_reasons: MatchDegradedReason[] = [];
+    if ((args.cv_skills_raw ?? []).length > 0 && cvSkillsByCanonical.size === 0) {
+      degraded_reasons.push('CV_SKILLS_UNRECOGNIZED');
+    }
+    const noBasis = source === 'none';
+    if (noBasis) degraded_reasons.push('NO_REQUIREMENT_BASIS');
+
     const totalReqs = requirements.length;
-    const match_ratio = totalReqs > 0 ? Math.round((matched.length / totalReqs) * 100) : 0;
+    const match_ratio = noBasis
+      ? null
+      : totalReqs > 0
+        ? Math.round((matched.length / totalReqs) * 100)
+        : 0;
     const required_coverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
     const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
     // Soft cap: PREFERRED/NICE riches cannot carry a CV past what its REQUIRED coverage supports.
     const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
-    const overall_score = Math.round(Math.min(raw, cap));
+    const overall_score = noBasis ? null : Math.round(Math.min(raw, cap));
 
     // Inferred layer (display-only, post-score — touches NO scoring math).
     const cvCanonicals = [...cvSkillsByCanonical.keys()];
@@ -367,6 +392,7 @@ export class SkillDiffService {
       match_ratio,
       required_coverage: round3(required_coverage),
       overall_score,
+      degraded_reasons,
       requirements_source: source,
       rubric_band: bandUsed,
       scoring_breakdown: {

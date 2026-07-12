@@ -200,8 +200,8 @@ export class CvMatchesService {
           targetType: 'JOB_DESCRIPTION',
           jobDescriptionId: jd.id,
           aiResultId: ai.ai_result_id,
-          overallScore: this.score(parsed.overall_score),
-          semanticScore: this.score(matchRatio),
+          overallScore: this.scoreOrNull(parsed.overall_score),
+          semanticScore: this.scoreOrNull(matchRatio),
           atsScore: null,
           llmScore: null,
           ruleEngineScore: this.score(requiredCoveragePct),
@@ -720,11 +720,17 @@ export class CvMatchesService {
   }
 
   private buildScoreRows(matchId: string, parsed: CvJdMatchParsedResponse): CvMatchScoreEntity[] {
-    return [
-      this.scoreRow(matchId, 'overall_score', parsed.overall_score, 1),
-      this.scoreRow(matchId, 'match_ratio', parsed.match_ratio, null),
-      this.scoreRow(matchId, 'required_coverage', parsed.required_coverage * 100, null),
-    ];
+    // Null scores (no requirement basis — TRUST' honest-zero) get NO score rows: an absent
+    // criteria row is honest, a fabricated 0 row is not.
+    const rows: CvMatchScoreEntity[] = [];
+    if (parsed.overall_score !== null) {
+      rows.push(this.scoreRow(matchId, 'overall_score', parsed.overall_score, 1));
+    }
+    if (parsed.match_ratio !== null) {
+      rows.push(this.scoreRow(matchId, 'match_ratio', parsed.match_ratio, null));
+    }
+    rows.push(this.scoreRow(matchId, 'required_coverage', parsed.required_coverage * 100, null));
+    return rows;
   }
 
   private scoreRow(
@@ -795,8 +801,9 @@ export class CvMatchesService {
     };
     const weaknesses = Array.isArray(match.weaknesses) ? match.weaknesses : [];
     return {
-      overall_score: this.numberOrNull(match.overallScore) ?? 0,
-      match_ratio: this.numberOrNull(match.semanticScore) ?? 0,
+      // null-preserving (TRUST'): a stored NULL score means "no requirement basis", not 0.
+      overall_score: this.numberOrNull(match.overallScore),
+      match_ratio: this.numberOrNull(match.semanticScore),
       required_coverage: this.percentToRatio(match.ruleEngineScore) ?? 0,
       matched_skills: Array.isArray(match.strengths)
         ? (match.strengths as CvJdMatchParsedResponse['matched_skills'])
@@ -986,6 +993,11 @@ export class CvMatchesService {
 
   private score(value: number): string {
     return value.toFixed(2);
+  }
+
+  /** null-preserving variant: a null score (no requirement basis) persists as NULL, never "0.00". */
+  private scoreOrNull(value: number | null): string | null {
+    return value === null ? null : this.score(value);
   }
 
   private numberOrNull(value: string | number | null | undefined): number | null {

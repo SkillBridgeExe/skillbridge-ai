@@ -44,7 +44,12 @@ async function main(): Promise<void> {
       target_role: testCase.target_role,
       target_band: testCase.target_band,
     });
-    return evaluateRubricCaseResult(testCase, diff);
+    if (diff.overall_score === null) {
+      throw new Error(
+        `eval:rubric — unexpected null overall_score (source=none) in ${testCase.id}`,
+      );
+    }
+    return evaluateRubricCaseResult(testCase, { ...diff, overall_score: diff.overall_score });
   });
 
   console.log(
