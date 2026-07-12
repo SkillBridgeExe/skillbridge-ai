@@ -172,7 +172,10 @@ async function main(): Promise<void> {
 
     const gapItems = buildGapItems({ match, ledger, jdDimensions, cvSeniority });
     const severityByCanonical = new Map(gapItems.map((g) => [g.canonical_name, g.severity]));
-    const checklist = buildTailorChecklist(match, ledger, 'vi', severityByCanonical);
+    // ACTION' A2 mirror: non-skill gap items flow into the checklist as advice actions — the SAME
+    // filter gap-report.service.ts applies.
+    const nonSkillGaps = gapItems.filter((g) => g.type !== 'hard_skill' && g.type !== 'soft_skill');
+    const checklist = buildTailorChecklist(match, ledger, 'vi', severityByCanonical, nonSkillGaps);
     const patched = decorateWithPatch({ actions: checklist, gapItems, document: null, lang: 'vi' });
 
     // I2 (Wave IMPACT): merge deterministic what-if impact onto each action AFTER decorateWithPatch —
@@ -183,6 +186,8 @@ async function main(): Promise<void> {
     const missingCanonicals = new Set(match.missing_skills.map((m) => m.canonical_name));
     const partialCanonicals = new Set(match.partial_skills.map((p) => p.canonical_name));
     const actions: PatchedTailorAction[] = patched.map((a) => {
+      // A2 mirror: advice has no simulate path (the simulator would throw) — same skip as the service.
+      if (a.action_type === 'advice') return a;
       const gi = gapByCanonical.get(a.skill_canonical);
       if (!gi) return a;
       const joined =

@@ -1,4 +1,4 @@
-import { buildTailorChecklist, TailorAction } from './tailor-checklist';
+import { buildTailorChecklist, NonSkillGap, TailorAction } from './tailor-checklist';
 import { decorateWithPatch } from './cv-patch';
 import { CvJdMatchParsedResponse, KeywordFrequency } from './dto/cv-jd-match-response.dto';
 import { MatchedSkill, MissingSkill, PartialSkill } from './skill-diff.service';
@@ -9,11 +9,11 @@ import {
 } from '../../common/services/evidence-ledger';
 
 /**
- * Behavior-pinning spec for buildTailorChecklist (pure, no LLM/DB). Pins the CURRENT
- * bucket→cap→severity-sort pipeline exactly as shipped, including the known limitation that
- * per-bucket caps (MAX_MISSING=3 etc.) run BEFORE the severity sort — a 4th missing_required
- * can never surface, no matter how severe. If a test here breaks, the wire behavior of
- * GET tailor-checklist / gap-report recommended_actions changed.
+ * Behavior-pinning spec for buildTailorChecklist (pure, no LLM/DB). Severity mode (ACTION' A1)
+ * ranks the FULL uncapped candidate pool first, then applies the per-bucket caps as diversity
+ * constraints and MAX_TOTAL last — so the top action is always the top actionable gap. The legacy
+ * path (no severity map) keeps the old slice-per-bucket behavior byte-identical. If a test here
+ * breaks, the wire behavior of GET tailor-checklist / gap-report recommended_actions changed.
  */
 
 function missing(canonical: string, over: Partial<MissingSkill> = {}): MissingSkill {
@@ -194,7 +194,7 @@ describe('buildTailorChecklist', () => {
     expect(canonicals(out)).toEqual(['m1', 'm2', 'm3', 'e1', 'e2', 'f1', 'f2', 'f3']);
   });
 
-  it('CURRENT LIMITATION: bucket cap excludes 4th missing before severity sort', () => {
+  it("ACTION' A1: severity ranks the UNCAPPED pool — the 4th missing with top severity survives, the cap drops the least severe instead", () => {
     const match = matchOf({
       missing_skills: [
         missing('a', { weight: 0.9 }),
@@ -203,8 +203,8 @@ describe('buildTailorChecklist', () => {
         missing('d', { weight: 0.1 }),
       ],
     });
-    // 'd' is the single most severe gap — but MAX_MISSING=3 slices by weight FIRST,
-    // so it can never appear. Pinned on purpose; a fix would move the cap after the sort.
+    // 'd' is the single most severe gap. MAX_MISSING=3 is a diversity cap applied AFTER the
+    // global severity ranking, so 'd' leads and 'c' (least severe) is the one capped out.
     const severity = new Map([
       ['a', 0.2],
       ['b', 0.15],
@@ -213,6 +213,22 @@ describe('buildTailorChecklist', () => {
     ]);
 
     const out = buildTailorChecklist(match, null, 'vi', severity);
+
+    expect(canonicals(out)).toEqual(['d', 'a', 'b']);
+    expect(out[0].gap_severity).toBe(0.99);
+  });
+
+  it("ACTION' A1: legacy path (no severity map) still slices per-bucket by weight — byte-identical", () => {
+    const match = matchOf({
+      missing_skills: [
+        missing('a', { weight: 0.9 }),
+        missing('b', { weight: 0.8 }),
+        missing('c', { weight: 0.7 }),
+        missing('d', { weight: 0.1 }),
+      ],
+    });
+
+    const out = buildTailorChecklist(match, null, 'vi');
 
     expect(canonicals(out)).toEqual(['a', 'b', 'c']);
     expect(canonicals(out)).not.toContain('d');
@@ -260,6 +276,113 @@ describe('buildTailorChecklist', () => {
     expect(out[0].gap_severity).toBe(0.5);
     expect(out[1].gap_severity).toBe(0.5);
     expect(out[2]).not.toHaveProperty('gap_severity');
+  });
+
+  describe("advice actions (ACTION' A2 — non-skill gaps get a next step)", () => {
+    const seniorityGap = (over: Partial<NonSkillGap> = {}): NonSkillGap => ({
+      type: 'seniority',
+      canonical_name: 'seniority',
+      display_name: 'Cấp độ / kinh nghiệm',
+      importance: 'REQUIRED',
+      cv_status: 'missing',
+      cv_level: 2,
+      required_level: 4,
+      ...over,
+    });
+
+    it('a non-skill gap with top severity becomes action #1 as an advice action (no rewrite, no anchor)', () => {
+      const match = matchOf({ missing_skills: [missing('docker')] });
+      const severity = new Map([
+        ['docker', 0.3],
+        ['seniority', 0.9],
+      ]);
+
+      const out = buildTailorChecklist(match, null, 'vi', severity, [seniorityGap()]);
+
+      expect(out.map((a) => [a.action_type, a.skill_canonical])).toEqual([
+        ['advice', 'seniority'],
+        ['missing_required', 'docker'],
+      ]);
+      const advice = out[0];
+      expect(advice.rewrite_eligible).toBe(false);
+      expect(advice.anchor).toBeNull();
+      expect(advice.gap_severity).toBe(0.9);
+      expect(advice.cv_level).toBe(2);
+      expect(advice.required_level).toBe(4);
+      expect(advice.why).toContain('4/5');
+      expect(advice.why).toContain('2/5');
+    });
+
+    it('matched / work_mode non-skill gaps produce NO advice action', () => {
+      const match = matchOf({ missing_skills: [missing('docker')] });
+      const severity = new Map([
+        ['docker', 0.3],
+        ['seniority', 0.9],
+        ['language', 0.8],
+      ]);
+
+      const out = buildTailorChecklist(match, null, 'vi', severity, [
+        seniorityGap({ cv_status: 'matched' }),
+        seniorityGap({
+          type: 'work_mode',
+          canonical_name: 'work_mode',
+          display_name: 'Hình thức làm việc',
+        }),
+      ]);
+
+      expect(out.map((a) => a.action_type)).toEqual(['missing_required']);
+    });
+
+    it('no nonSkillGaps param → no advice actions (legacy + severity paths unchanged)', () => {
+      const match = matchOf({ missing_skills: [missing('docker')] });
+      const out = buildTailorChecklist(match, null, 'vi', new Map([['docker', 0.3]]));
+      expect(out.every((a) => a.action_type !== 'advice')).toBe(true);
+    });
+
+    it('language/education/domain advice carry localized vi/en copy without fabricated levels', () => {
+      const match = matchOf({});
+      const gaps: NonSkillGap[] = [
+        seniorityGap({
+          type: 'language',
+          canonical_name: 'language',
+          display_name: 'Tiếng Anh',
+          cv_level: null,
+          required_level: null,
+        }),
+        seniorityGap({
+          type: 'education',
+          canonical_name: 'education',
+          display_name: 'Học vấn / Bằng cấp',
+          cv_level: null,
+          required_level: null,
+        }),
+        seniorityGap({
+          type: 'domain',
+          canonical_name: 'domain',
+          display_name: 'Lĩnh vực',
+          cv_level: null,
+          required_level: null,
+        }),
+      ];
+      const severity = new Map([
+        ['language', 0.7],
+        ['education', 0.6],
+        ['domain', 0.5],
+      ]);
+
+      const vi = buildTailorChecklist(match, null, 'vi', severity, gaps);
+      const en = buildTailorChecklist(match, null, 'en', severity, gaps);
+
+      expect(vi.map((a) => a.skill_canonical)).toEqual(['language', 'education', 'domain']);
+      for (const a of vi) {
+        expect(a.action_type).toBe('advice');
+        expect(a.why.length).toBeGreaterThan(10);
+        expect(a.why).not.toContain('null');
+        expect(a.why).not.toContain('undefined');
+      }
+      expect(en[0].why).toMatch(/[a-z]/);
+      expect(en[0].why).not.toBe(vi[0].why);
+    });
   });
 
   it('action_id: NOT set by buildTailorChecklist — decorateWithPatch derives `${action_type}:${skill_canonical}`, unique per action', () => {
