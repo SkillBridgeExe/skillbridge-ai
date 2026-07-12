@@ -24,6 +24,32 @@ import { computeTextMetrics } from './text-metrics';
 
 export type ExtractionConfidence = 'high' | 'medium' | 'low';
 
+/** TRUST' T1 trust verdict the UI gates the score on:
+ *  - usable:   score normally.
+ *  - suspect:  score, but the UI MUST warn (one hard signal, or supporting-only signals).
+ *  - unusable: MULTIPLE hard signals agree the text can't be trusted → the UI must NOT show a
+ *    normal score without a prominent warning. A missing contact anchor alone can never reach here. */
+export type InputQuality = 'usable' | 'suspect' | 'unusable';
+
+/** Hard signals — each one alone means "double-check" (suspect); two agreeing means "unusable". */
+const HARD_FLAGS = new Set(['MOJIBAKE_HIGH', 'WORDLIKE_LOW', 'THIN_CONTENT', 'OCR_USED']);
+/** Supporting signals — enough for suspect, NEVER enough alone for unusable (Codex correction #2). */
+const SUPPORTING_FLAGS = new Set([
+  'MOJIBAKE_SLIGHT',
+  'WORDLIKE_WEAK',
+  'SPARSE_SECTIONS',
+  'NO_CONTACT_ANCHOR',
+]);
+
+/** Pure classifier: 3-state trust verdict from the machine flags. unusable requires ≥2 hard signals
+ *  to agree, so a single low-confidence signal (e.g. clean OCR) stays suspect, not unusable. */
+export function classifyInputQuality(flags: string[]): InputQuality {
+  const hard = flags.filter((f) => HARD_FLAGS.has(f)).length;
+  if (hard >= 2) return 'unusable';
+  if (hard === 1 || flags.some((f) => SUPPORTING_FLAGS.has(f))) return 'suspect';
+  return 'usable';
+}
+
 export interface ExtractionQuality {
   char_count: number;
   word_count: number;
@@ -38,6 +64,8 @@ export interface ExtractionQuality {
   skill_count: number;
   ocr_used: boolean;
   confidence: ExtractionConfidence;
+  /** 3-state trust verdict derived from `flags` — the field the UI gates the score on (T1). */
+  input_quality: InputQuality;
   /** Machine-readable signals that fired — NEVER fabricated, each maps to a true condition. */
   flags: string[];
 }
@@ -126,6 +154,7 @@ export function assessExtractionQuality(
     skill_count,
     ocr_used,
     confidence,
+    input_quality: classifyInputQuality(flags),
     flags,
   };
 }
