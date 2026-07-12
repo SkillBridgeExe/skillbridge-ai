@@ -6,7 +6,9 @@ describe('scoreChatToolsCase', () => {
       id: 't1',
       kind: 'cite-facts',
       parsed: {
-        message: 'ok',
+        // Advisor v2 serves verified model prose — the old 'ok' placeholder relied on the
+        // discarded-message template path.
+        message: 'GitHub của bạn tồn tại nhưng chưa có repo công khai nào.',
         cited_dimension: null,
         cited_gap_id: null,
         cited_other_match_index: null,
