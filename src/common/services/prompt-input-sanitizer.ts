@@ -15,7 +15,10 @@
 const INJECTION_PATTERNS: RegExp[] = [
   // English
   /\b(?:ignore|disregard|forget)\s+(?:(?:all|any|the|previous|above|prior|earlier)\s+)+(?:instructions?|prompts?|rules?)\b/gi,
-  /\bsystem\s+prompt\b/gi,
+  // exfiltration context required — "system prompt" alone is everyday work product on this
+  // platform ("Thiết kế system prompt cho chatbot RAG"), redacting the bare noun destroys
+  // legitimate prompt-engineering evidence (post-merge review finding).
+  /\b(?:reveal|show|print|display|output|repeat|leak|ignore)\b[^\n.]{0,30}?\bsystem\s+prompts?\b/gi,
   /\byou\s+are\s+now\b/gi,
   /\bnew\s+instructions?\s*:/gi,
   /^[ \t]*system\s*:/gim,
@@ -24,9 +27,12 @@ const INJECTION_PATTERNS: RegExp[] = [
   /<<\s*\/?\s*SYS\s*>>/gi,
   /\bpretend\s+(?:to\s+be|you\s+are)\b/gi,
   /\bjailbreak\b/gi,
-  // Vietnamese (multi-word phrases; no \b — JS word boundaries are unreliable around diacritics)
-  /(?:bỏ qua|quên|phớt lờ)\s+(?:hết\s+|tất cả\s+|mọi\s+|các\s+|những\s+)*(?:hướng dẫn|chỉ dẫn|chỉ thị|mệnh lệnh|quy tắc)/gi,
-  /bạn\s+(?:bây\s+)?giờ\s+là/gi,
+  // Vietnamese (multi-word phrases; no \b — JS word boundaries are unreliable around diacritics).
+  // "quy tắc" dropped from the noun list: "bỏ qua các quy tắc lỗi thời" is legitimate CV prose
+  // (business rules), unlike hướng dẫn/chỉ dẫn/chỉ thị/mệnh lệnh which are instruction-shaped.
+  /(?:bỏ qua|quên|phớt lờ)\s+(?:hết\s+|tất cả\s+|mọi\s+|các\s+|những\s+)*(?:hướng dẫn|chỉ dẫn|chỉ thị|mệnh lệnh)/giu,
+  // (?!\p{L}) so "bạn giờ là" never eats into "bạn giờ làm việc" (benefits phrasing in real JDs).
+  /bạn\s+(?:bây\s+)?giờ\s+là(?!\p{L})/giu,
   // imperative only — "đóng vai trò ..." ("play a role in the team") is everyday JD language
   /hãy\s+đóng\s+vai(?!\s*trò)/gi,
   /giả\s+vờ\s+(?:là|rằng|bạn)/gi,
