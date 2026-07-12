@@ -52,6 +52,122 @@
       ],
       "opts": { "prevScore": 65, "currScore": 70, "prevCoverage": 0.6, "currCoverage": 0.6, "templateChanged": true },
       "expect": { "closed": [], "improved": ["python"], "new": [], "evidence_recognized": [], "template_changed": true, "prev_score_null": true }
+    },
+    {
+      "name": "gap_worsened_matched_to_partial",
+      "prev": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "matched", "severity": 0, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 75, "currScore": 68, "prevCoverage": 0.7, "currCoverage": 0.6, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "gap_unchanged_severity_shift",
+      "prev": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 60, "currScore": 62, "prevCoverage": 0.5, "currCoverage": 0.5, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "overclaimed_to_matched_closed_and_recognized",
+      "prev": [
+        { "canonical_name": "python", "display_name": "Python", "cv_status": "overclaimed", "severity": 0.5, "evidence_risk": "unproven" }
+      ],
+      "curr": [
+        { "canonical_name": "python", "display_name": "Python", "cv_status": "matched", "severity": 0, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 55, "currScore": 72, "prevCoverage": 0.4, "currCoverage": 0.7, "templateChanged": false },
+      "expect": { "closed": ["python"], "improved": [], "new": [], "evidence_recognized": ["Python"] }
+    },
+    {
+      "name": "unproven_to_partial_improved_and_recognized",
+      "prev": [
+        { "canonical_name": "react", "display_name": "React", "cv_status": "unproven", "severity": 0.5, "evidence_risk": "unproven" }
+      ],
+      "curr": [
+        { "canonical_name": "react", "display_name": "React", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 58, "currScore": 64, "prevCoverage": 0.5, "currCoverage": 0.6, "templateChanged": false },
+      "expect": { "closed": [], "improved": ["react"], "new": [], "evidence_recognized": ["React"] }
+    },
+    {
+      "name": "evidence_risk_cleared_same_status",
+      "prev": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.4, "evidence_risk": "listed_only" }
+      ],
+      "curr": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.35, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 61, "currScore": 63, "prevCoverage": 0.55, "currCoverage": 0.55, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": ["Docker"] }
+    },
+    {
+      "name": "net_new_matched_skipped_new_gap_reported",
+      "prev": [],
+      "curr": [
+        { "canonical_name": "kubernetes", "display_name": "Kubernetes", "cv_status": "matched", "severity": 0, "evidence_risk": "none" },
+        { "canonical_name": "git", "display_name": "Git", "cv_status": "missing", "severity": 0.7, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 50, "currScore": 52, "prevCoverage": 0.4, "currCoverage": 0.45, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": ["git"], "evidence_recognized": [] }
+    },
+    {
+      "name": "mixed_transitions_one_scan",
+      "prev": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "missing", "severity": 0.8, "evidence_risk": "none" },
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.4, "evidence_risk": "listed_only" },
+        { "canonical_name": "react", "display_name": "React", "cv_status": "matched", "severity": 0, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" },
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "matched", "severity": 0, "evidence_risk": "none" },
+        { "canonical_name": "react", "display_name": "React", "cv_status": "partial", "severity": 0.2, "evidence_risk": "none" },
+        { "canonical_name": "aws", "display_name": "AWS", "cv_status": "missing", "severity": 0.9, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 57, "currScore": 66, "prevCoverage": 0.5, "currCoverage": 0.65, "templateChanged": false },
+      "expect": { "closed": ["sql"], "improved": ["docker"], "new": ["aws"], "evidence_recognized": ["SQL"] }
+    },
+    {
+      "name": "missing_to_unproven_improved_no_recognition",
+      "prev": [
+        { "canonical_name": "java", "display_name": "Java", "cv_status": "missing", "severity": 0.8, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "java", "display_name": "Java", "cv_status": "unproven", "severity": 0.5, "evidence_risk": "unproven" }
+      ],
+      "opts": { "prevScore": 48, "currScore": 53, "prevCoverage": 0.4, "currCoverage": 0.45, "templateChanged": false },
+      "expect": { "closed": [], "improved": ["java"], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "strengths_kept_plus_closed",
+      "prev": [
+        { "canonical_name": "git", "display_name": "Git", "cv_status": "matched", "severity": 0, "evidence_risk": "none" },
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "partial", "severity": 0.3, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "git", "display_name": "Git", "cv_status": "matched", "severity": 0, "evidence_risk": "none" },
+        { "canonical_name": "docker", "display_name": "Docker", "cv_status": "matched", "severity": 0, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": 70, "currScore": 78, "prevCoverage": 0.7, "currCoverage": 0.8, "templateChanged": false },
+      "expect": { "closed": ["docker"], "improved": [], "new": [], "evidence_recognized": [] }
+    },
+    {
+      "name": "prev_score_null_without_template_change",
+      "prev": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" }
+      ],
+      "curr": [
+        { "canonical_name": "sql", "display_name": "SQL", "cv_status": "partial", "severity": 0.4, "evidence_risk": "none" }
+      ],
+      "opts": { "prevScore": null, "currScore": 65, "prevCoverage": null, "currCoverage": 0.6, "templateChanged": false },
+      "expect": { "closed": [], "improved": [], "new": [], "evidence_recognized": [], "template_changed": false, "prev_score_null": true }
     }
   ]
 }

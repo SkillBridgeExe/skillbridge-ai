@@ -67,6 +67,125 @@
       "id": "vi-skill-years-trap",
       "jd_text": "Yêu cầu: tối thiểu 2 năm kinh nghiệm với ReactJS, sử dụng tốt TypeScript và Redux. Mô tả công việc: xây dựng tính năng cho ứng dụng web.",
       "expect_seniority": { "level_hint": null }
+    },
+    {
+      "id": "vi-lead-team-implied",
+      "jd_text": "Mô tả công việc: dẫn dắt team phát triển ứng dụng di động gồm 4-6 thành viên, chịu trách nhiệm định hướng kiến trúc, phân chia công việc và review code cho cả nhóm; làm việc trực tiếp với Product Owner để lên kế hoạch release hàng quý. Yêu cầu: tối thiểu 5+ năm kinh nghiệm phát triển mobile, trong đó có ít nhất 2 năm kinh nghiệm dẫn dắt team; thành thạo React Native hoặc Flutter; đã từng phát hành ứng dụng lên App Store và Google Play. Quyền lợi: lương thỏa thuận cạnh tranh, thưởng hiệu suất theo quý, bảo hiểm sức khỏe cao cấp, chế độ làm việc hybrid 3 ngày mỗi tuần.",
+      "expect_seniority": {
+        "level_hint": "LEAD"
+      }
+    },
+    {
+      "id": "en-frontend-tech-lead",
+      "jd_text": "We are hiring a Tech Lead for our frontend platform team. You will lead a squad of five engineers, own the technical roadmap for our design system, define coding standards, and run architecture reviews. Requirements: 7+ years of frontend development, proven experience leading engineering teams, deep knowledge of React, TypeScript and module federation, strong communication skills in English. You will work closely with product managers and designers to ship customer-facing features every two weeks. Benefits: competitive salary, annual performance bonus, premium healthcare for you and your family, 15 days of paid leave, and a yearly training budget.",
+      "expect_seniority": {
+        "level_hint": "LEAD"
+      }
+    },
+    {
+      "id": "vi-senior-devops-title-embedded",
+      "jd_text": "Tuyển Senior DevOps Engineer cho trung tâm dịch vụ đám mây. Mô tả công việc: xây dựng và vận hành hạ tầng Kubernetes trên AWS, thiết kế pipeline CI/CD cho hơn 20 service, tối ưu chi phí cloud, tham gia trực on-call theo lịch luân phiên. Yêu cầu: thành thạo Terraform, Docker, Kubernetes; kinh nghiệm giám sát hệ thống với Prometheus và Grafana; hiểu biết về bảo mật hạ tầng là một lợi thế. Quyền lợi: lương upto 60 triệu, thưởng tháng 13, laptop cấp riêng, khám sức khỏe định kỳ hàng năm, môi trường làm việc trẻ trung năng động.",
+      "expect_seniority": {
+        "level_hint": "SENIOR"
+      }
+    },
+    {
+      "id": "en-senior-security-explicit",
+      "jd_text": "Senior Security Engineer — Application Security. Job description: perform threat modeling and secure code reviews across our payment services, build automated SAST/DAST checks into the CI pipeline, respond to security incidents, and coach developers on secure coding practices. Requirements: at least 5 years of experience in application security or penetration testing, hands-on with Burp Suite, OWASP Top 10, and cloud security on AWS or GCP; security certifications such as OSCP are a plus. Benefits: competitive salary and equity, full insurance coverage, flexible remote policy, and a dedicated budget for security conferences and certifications.",
+      "expect_seniority": {
+        "level_hint": "SENIOR"
+      }
+    },
+    {
+      "id": "vi-middle-fullstack-title",
+      "jd_text": "Cần tuyển Middle Fullstack Developer (2-4 năm kinh nghiệm) cho dự án thương mại điện tử. Mô tả công việc: phát triển tính năng end-to-end từ API đến giao diện, viết unit test, tham gia thiết kế database, phối hợp với đội QA để đảm bảo chất lượng mỗi đợt release. Yêu cầu: thành thạo NodeJS và ReactJS, kinh nghiệm làm việc với PostgreSQL và Redis, biết triển khai ứng dụng trên Docker; đọc hiểu tài liệu kỹ thuật tiếng Anh. Quyền lợi: lương thỏa thuận theo năng lực, review lương 2 lần mỗi năm, thưởng dự án, du lịch công ty hàng năm, hỗ trợ ăn trưa và gửi xe.",
+      "expect_seniority": {
+        "level_hint": "MIDDLE"
+      }
+    },
+    {
+      "id": "en-junior-embedded-title",
+      "jd_text": "Junior Embedded Software Engineer. Job description: develop and test firmware for IoT sensor devices under the guidance of experienced engineers, write C/C++ code for ARM Cortex-M microcontrollers, participate in hardware bring-up sessions, and document test procedures. Requirements: up to 2 years of experience or strong academic projects in embedded systems, familiarity with UART, SPI and I2C protocols, basic knowledge of RTOS concepts, and willingness to learn. Benefits: structured mentorship program, salary range 12-18 million VND, annual health checkup, access to modern lab equipment, and a clear promotion path reviewed every six months.",
+      "expect_seniority": {
+        "level_hint": "JUNIOR"
+      }
+    },
+    {
+      "id": "vi-junior-pm-explicit",
+      "jd_text": "Tuyển Junior Product Manager (dưới 2 năm kinh nghiệm) cho nhóm sản phẩm ứng dụng học tập trực tuyến. Mô tả công việc: hỗ trợ thu thập và phân tích yêu cầu người dùng, viết user story và acceptance criteria, theo dõi số liệu sản phẩm trên dashboard, phối hợp với đội thiết kế và lập trình trong quy trình Agile. Yêu cầu: tốt nghiệp đại học khối kinh tế hoặc công nghệ thông tin, tư duy phân tích tốt, sử dụng thành thạo Excel và Figma cơ bản, tiếng Anh đọc viết tốt. Quyền lợi: lương 12-16 triệu, thưởng KPI hàng quý, được đào tạo bài bản về quản lý sản phẩm, văn phòng tại trung tâm quận 1.",
+      "expect_seniority": {
+        "level_hint": "JUNIOR"
+      }
+    },
+    {
+      "id": "vi-fresher-qa-moi-tot-nghiep",
+      "jd_text": "Công ty phần mềm đang mở rộng đội ngũ kiểm thử và tìm kiếm các bạn mới tốt nghiệp ngành công nghệ thông tin hoặc các ngành liên quan cho vị trí QA Engineer. Mô tả công việc: viết test case theo tài liệu yêu cầu, thực hiện kiểm thử thủ công trên web và mobile, ghi nhận và theo dõi bug trên Jira, hỗ trợ kiểm thử hồi quy trước mỗi đợt release. Yêu cầu: nắm vững kiến thức cơ bản về quy trình kiểm thử, tư duy logic, cẩn thận tỉ mỉ; chưa cần kinh nghiệm làm việc thực tế, sẽ được đào tạo từ đầu. Quyền lợi: lương khởi điểm 9-12 triệu, có mentor kèm cặp 1-1, xét lên chính thức sau 2 tháng thử việc.",
+      "expect_seniority": {
+        "level_hint": "FRESHER"
+      }
+    },
+    {
+      "id": "en-fresher-data-newgrad",
+      "jd_text": "Data Engineer — New Graduate Program 2026. We welcome fresh graduates who are passionate about data to join our 12-month rotation program. Job description: build and maintain data pipelines with Python and Airflow, write SQL transformations for the analytics warehouse, learn data modeling best practices from your assigned mentor, and rotate across ingestion, warehousing, and reporting teams. Requirements: a degree in computer science or a related field completed within the last 12 months, solid SQL fundamentals, basic Python, and eagerness to learn. Benefits: full-time contract from day one, structured training curriculum, monthly salary plus meal allowance, and a conversion review at the end of the program.",
+      "expect_seniority": {
+        "level_hint": "FRESHER"
+      }
+    },
+    {
+      "id": "vi-intern-ai-thuc-tap",
+      "jd_text": "Chương trình thực tập AI Engineer kỳ mùa thu dành cho sinh viên các trường đại học khối kỹ thuật. Mô tả công việc: hỗ trợ gán nhãn và làm sạch dữ liệu huấn luyện, chạy thử nghiệm fine-tune các mô hình ngôn ngữ nhỏ, viết script đánh giá chất lượng đầu ra của mô hình, tham gia họp nhóm nghiên cứu hàng tuần. Yêu cầu: đang là sinh viên năm 3 hoặc năm 4 ngành khoa học máy tính hoặc liên quan, biết Python và các thư viện như pandas, PyTorch cơ bản; có thể thực tập tối thiểu 3 buổi mỗi tuần. Quyền lợi: trợ cấp thực tập 4 triệu mỗi tháng, dấu xác nhận thực tập cho nhà trường, cơ hội trở thành nhân viên chính thức sau kỳ thực tập.",
+      "expect_seniority": {
+        "level_hint": "INTERN"
+      }
+    },
+    {
+      "id": "en-intern-security-summer",
+      "jd_text": "Summer Internship — Security Operations. Our security team is opening two internship positions for the summer term. Job description: assist analysts in triaging security alerts from the SIEM, help maintain phishing-simulation campaigns, write small automation scripts in Python to enrich alert data, and shadow incident-response drills. Requirements: currently enrolled in a university program in information security or computer science, understanding of basic networking concepts such as TCP/IP, DNS and HTTP, and curiosity about both offensive and defensive security. Benefits: monthly internship allowance, certificate of completion, mentor support throughout the term, and priority consideration for our graduate hiring round.",
+      "expect_seniority": {
+        "level_hint": "INTERN"
+      }
+    },
+    {
+      "id": "vi-company-age-trap",
+      "jd_text": "Công ty chúng tôi là doanh nghiệp công nghệ 10 năm tuổi trong lĩnh vực giải pháp đám mây, đang tìm kiếm DevOps Engineer cho văn phòng Hà Nội. Mô tả công việc: vận hành hệ thống trên nền tảng AWS, xây dựng pipeline CI/CD với GitLab, giám sát và cảnh báo sự cố, phối hợp với đội phát triển để tối ưu quy trình triển khai. Yêu cầu: sử dụng tốt Linux, Docker và Ansible; hiểu biết về mạng và bảo mật cơ bản; có tinh thần trách nhiệm cao. Quyền lợi: thưởng tháng 13, nghỉ phép 12 ngày mỗi năm, hoạt động teambuilding hai lần mỗi năm cùng toàn công ty.",
+      "expect_seniority": {
+        "level_hint": null
+      }
+    },
+    {
+      "id": "en-senior-management-stakeholder-trap",
+      "jd_text": "QA Engineer — E-commerce Platform. Job description: design test plans for weekly releases, execute manual and automated tests with Playwright, maintain the regression suite, and present quality metrics to senior management at the end of each sprint. Requirements: good understanding of the software testing life cycle, hands-on experience with API testing using Postman, ability to write clear bug reports, and a teamwork mindset. Benefits: 13th-month salary, flexible working hours, annual company trip, and free lunch at the office. Our hiring process includes one technical interview and one culture-fit conversation with the leadership team.",
+      "expect_seniority": {
+        "level_hint": null
+      }
+    },
+    {
+      "id": "vi-kinh-nghiem-loi-the-trap",
+      "jd_text": "Tuyển Data Analyst cho phòng phân tích kinh doanh. Mô tả công việc: xây dựng báo cáo doanh thu trên Power BI, viết truy vấn SQL để trích xuất dữ liệu từ kho dữ liệu trung tâm, phối hợp với các phòng ban để làm rõ nhu cầu số liệu, đề xuất cải tiến các dashboard hiện có. Yêu cầu: sử dụng thành thạo SQL và Excel, tư duy phân tích và trình bày số liệu rõ ràng; có kinh nghiệm làm việc với Power BI hoặc Tableau là một lợi thế. Quyền lợi: lương thỏa thuận, phụ cấp ăn trưa, bảo hiểm theo quy định, môi trường làm việc thân thiện, cơ hội tham gia các khóa đào tạo nội bộ.",
+      "expect_seniority": {
+        "level_hint": null
+      }
+    },
+    {
+      "id": "en-team-size-trap",
+      "jd_text": "Fullstack Developer. Join our product engineering group of 25 people, organized into three squads of eight. Job description: implement features across the stack with React and NestJS, collaborate in two-week sprints, participate in code reviews, and help keep our test coverage above 80 percent. Requirements: solid knowledge of JavaScript and TypeScript, familiarity with REST API design, understanding of relational databases, and good communication in English. Benefits: hybrid working model, MacBook provided, health insurance package, sponsored tickets to local tech meetups, and a self-service learning platform with unlimited courses.",
+      "expect_seniority": {
+        "level_hint": null
+      }
+    },
+    {
+      "id": "en-devops-tool-years-trap",
+      "jd_text": "DevOps Engineer — Infrastructure Team. Job description: manage our Kubernetes clusters across three environments, improve deployment automation, harden monitoring and alerting with Prometheus, and reduce infrastructure costs through right-sizing. Requirements: 4+ years working with Kubernetes and Terraform, 3+ years with AWS services such as EKS, RDS, and S3, scripting skills in Bash or Python, and experience operating production systems at scale. Benefits: remote-first policy, annual hardware budget, private health insurance, and a quarterly bonus tied to system uptime goals. We value clear written communication and careful post-incident reviews.",
+      "expect_seniority": {
+        "level_hint": null
+      }
+    },
+    {
+      "id": "vi-mobile-tech-years-trap",
+      "jd_text": "Tuyển Lập trình viên Mobile cho ứng dụng ví điện tử. Mô tả công việc: phát triển tính năng mới trên ứng dụng iOS và Android bằng React Native, tối ưu hiệu năng khởi động ứng dụng, tích hợp SDK thanh toán, phối hợp với đội backend để thống nhất API. Yêu cầu: 3 năm kinh nghiệm với React Native, đã từng làm việc với Redux hoặc Zustand, hiểu quy trình phát hành trên App Store và Google Play; biết Kotlin hoặc Swift là điểm cộng. Quyền lợi: lương thỏa thuận, thưởng nóng theo tính năng, bảo hiểm sức khỏe, câu lạc bộ thể thao do công ty tài trợ.",
+      "expect_seniority": {
+        "level_hint": null
+      }
     }
   ]
 }

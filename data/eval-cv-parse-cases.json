@@ -54,6 +54,362 @@
       "expect_language": "vi",
       "expect_sections": ["contact", "experience", "projects", "skills"],
       "text": "Đỗ Quang Huy\nFullstack Developer\nhuy.do@example.com | 0933 444 555 | Hà Nội\n\nKINH NGHIỆM\nCông ty Tiki — Fullstack Developer (08/2022 - nay)\n- Xây dựng tính năng giỏ hàng với React và Node.js\n- Viết test tự động với Jest đạt 75% coverage\n\nDỰ ÁN\nHệ thống quản lý kho (Nhóm 4 người)\n- Thiết kế cơ sở dữ liệu PostgreSQL và API với NestJS\n- Triển khai bằng Docker trên VPS\n\nKỸ NĂNG\nNgôn ngữ: JavaScript, TypeScript, SQL\nFramework: React, NestJS, Express\nCông cụ: Docker, Git"
+    },
+    {
+      "id": "vn_frontend_junior_colons",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Nguyễn Thị Mai\nLập trình viên Frontend\nEmail: mai.nguyen@example.com | SĐT: 0901 234 567 | Hà Nội\n\nTóm tắt:\nLập trình viên frontend 2 năm kinh nghiệm phát triển giao diện web với React và Vue. Yêu thích xây dựng sản phẩm có trải nghiệm người dùng mượt mà, chú trọng hiệu năng và khả năng truy cập.\n\nHọc vấn:\nHọc viện Công nghệ Bưu chính Viễn thông — Kỹ sư Công nghệ Thông tin (2018 - 2022), GPA 3.2/4.0\n\nKinh nghiệm:\nCông ty Cổ phần Giải pháp Sao Việt — Frontend Developer (10/2022 - nay)\n- Phát triển dashboard quản trị bằng React và TypeScript cho 5 khách hàng doanh nghiệp\n- Cải thiện điểm Lighthouse từ 62 lên 91 nhờ tối ưu bundle và lazy loading\n- Xây dựng thư viện component dùng chung với Storybook, giảm 30% thời gian phát triển giao diện mới\n- Phối hợp với designer qua Figma để bàn giao giao diện chính xác từng pixel\n\nKỹ năng:\nNgôn ngữ: JavaScript, TypeScript, HTML, CSS\nFramework: React, Vue, Tailwind CSS\nCông cụ: Git, Figma, Vite, Storybook\nKỹ năng mềm: Giao tiếp, Quản lý thời gian"
+    },
+    {
+      "id": "vn_qa_tester_istqb",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Vũ Thanh Tùng\nKỹ sư kiểm thử phần mềm (QA Engineer)\ntung.vu@example.com | 0912 345 678 | TP. Hồ Chí Minh\n\nTÓM TẮT\nKỹ sư QA 4 năm kinh nghiệm kiểm thử thủ công và tự động cho ứng dụng web và mobile. Có kinh nghiệm xây dựng quy trình kiểm thử từ đầu cho đội sản phẩm 20 người.\n\nKINH NGHIỆM\nCông ty TNHH Phần mềm Đại Dương — Senior QA Engineer (03/2022 - nay)\n- Thiết kế hơn 400 test case cho hệ thống thương mại điện tử, phát hiện 150 lỗi nghiêm trọng trước khi phát hành\n- Xây dựng bộ kiểm thử tự động với Playwright, giảm 60% thời gian chạy regression\n- Tích hợp kiểm thử tự động vào pipeline CI trên GitLab\nCông ty Viettel Solutions — QA Tester (06/2020 - 02/2022)\n- Kiểm thử chức năng và API cho ứng dụng chăm sóc khách hàng\n- Viết tài liệu kiểm thử và quản lý báo cáo lỗi trên Jira\n\nKỸ NĂNG\nKiểm thử: Thiết kế test case, API testing, Regression testing\nCông cụ: Playwright, Postman, Jira, GitLab CI\nNgôn ngữ lập trình: JavaScript, SQL\n\nCHỨNG CHỈ\nISTQB Certified Tester Foundation Level (2021)\nTOEIC 750 (2020)"
+    },
+    {
+      "id": "vn_data_analyst_activities",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills",
+        "activities"
+      ],
+      "text": "Hoàng Ngọc Anh\nChuyên viên phân tích dữ liệu\nngocanh.hoang@example.com | 0987 654 321 | Hà Nội\n\nTÓM TẮT\nData Analyst 3 năm kinh nghiệm biến dữ liệu kinh doanh thành báo cáo và insight cho đội ngũ quản lý. Thành thạo SQL, Power BI và Python.\n\nHỌC VẤN\nĐại học Kinh tế Quốc dân — Cử nhân Hệ thống Thông tin Quản lý (2016 - 2020)\n\nKINH NGHIỆM\nCông ty Cổ phần Bán lẻ Hoa Sen — Data Analyst (05/2021 - nay)\n- Xây dựng 15 dashboard Power BI theo dõi doanh thu và tồn kho cho 40 cửa hàng\n- Viết truy vấn SQL phân tích hành vi khách hàng, hỗ trợ chiến dịch tăng 12% tỷ lệ quay lại\n- Tự động hoá báo cáo tuần bằng Python, tiết kiệm 10 giờ làm việc mỗi tuần\n- Phối hợp với phòng marketing xây dựng mô hình phân khúc khách hàng RFM\n\nKỸ NĂNG\nPhân tích: SQL, Python (pandas), Excel nâng cao\nTrực quan hoá: Power BI, Tableau\nKỹ năng mềm: Thuyết trình, Tư duy phản biện\n\nHOẠT ĐỘNG\nThành viên ban tổ chức cộng đồng Data Việt — tổ chức 6 buổi workshop về phân tích dữ liệu (2023 - nay)\nTình nguyện viên dạy Excel cho sinh viên năm nhất tại câu lạc bộ Tin học (2019)"
+    },
+    {
+      "id": "vn_devops_no_summary_caps",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "education",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Lý Văn Đức\nKỹ sư DevOps\nduc.ly@example.com | 0934 567 890 | TP. Hồ Chí Minh\n\nKINH NGHIỆM\nCông ty FPT Software — DevOps Engineer (01/2022 - nay)\n- Vận hành hạ tầng Kubernetes cho 25 microservice phục vụ khách hàng Nhật Bản\n- Xây dựng pipeline CI/CD với GitLab CI và ArgoCD, rút ngắn thời gian triển khai từ 2 giờ xuống 15 phút\n- Thiết lập giám sát với Prometheus và Grafana, cấu hình cảnh báo qua Slack\n- Viết module Terraform quản lý hạ tầng AWS cho 3 môi trường\nCông ty TNHH Công nghệ Bình Minh — System Engineer (07/2020 - 12/2021)\n- Quản trị máy chủ Linux và cấu hình Nginx cho 10 website nội bộ\n- Tự động hoá backup cơ sở dữ liệu bằng script Bash\n\nHỌC VẤN\nĐại học Công nghệ Thông tin — ĐHQG TP.HCM — Kỹ sư Mạng máy tính (2016 - 2020)\n\nKỸ NĂNG\nHạ tầng: Kubernetes, Docker, AWS, Terraform\nCI/CD: GitLab CI, ArgoCD, Jenkins\nGiám sát: Prometheus, Grafana\nHệ điều hành: Linux (Ubuntu, CentOS)\n\nCHỨNG CHỈ\nCertified Kubernetes Administrator — CKA (CNCF, 2023)\nAWS Certified Solutions Architect - Associate (2022)"
+    },
+    {
+      "id": "vn_fresh_grad_no_experience",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "education",
+        "projects",
+        "skills"
+      ],
+      "text": "Trịnh Gia Bảo\nSinh viên mới tốt nghiệp — định hướng Backend Developer\nbao.trinh@example.com | 0905 111 222 | Cần Thơ\n\nHỌC VẤN\nĐại học Cần Thơ — Kỹ sư Kỹ thuật Phần mềm (2021 - 2025)\nGPA 3.5/4.0 — Đồ án tốt nghiệp đạt loại Giỏi\nHọc phần tiêu biểu: Cấu trúc dữ liệu, Cơ sở dữ liệu, Lập trình web nâng cao\n\nDỰ ÁN\nHệ thống đặt sân thể thao trực tuyến (Đồ án tốt nghiệp, nhóm 2 người)\n- Thiết kế API với NestJS và PostgreSQL, hỗ trợ đặt sân theo khung giờ\n- Cài đặt xác thực JWT và phân quyền theo vai trò\n- Triển khai lên Render với Docker, viết tài liệu API bằng Swagger\nỨng dụng ghi chú Markdown (Cá nhân)\n- Xây dựng ứng dụng web với React và IndexedDB hoạt động được khi offline\n- Viết 40 unit test với Vitest, đạt coverage 82%\nBot Discord điểm danh lớp học (Cá nhân)\n- Lập trình bot bằng Python, tự động ghi điểm danh vào Google Sheets\n\nKỸ NĂNG\nNgôn ngữ: JavaScript, TypeScript, Python, SQL\nFramework: NestJS, React\nCông cụ: Git, Docker, Postman\nNgoại ngữ: Tiếng Anh (đọc tài liệu kỹ thuật tốt)"
+    },
+    {
+      "id": "vn_intern_tester_thin",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "education",
+        "skills"
+      ],
+      "text": "Phan Thị Kim Ngân\nSinh viên năm ba — tìm vị trí thực tập Tester\nngan.phan@example.com | 0916 888 999 | Đà Nẵng\n\nHỌC VẤN\nĐại học Duy Tân — Cử nhân Công nghệ Phần mềm (2023 - 2027, đang học năm ba)\nGPA hiện tại: 3.1/4.0\nHọc phần đã hoàn thành: Nhập môn kiểm thử phần mềm, Cơ sở dữ liệu, Lập trình hướng đối tượng, Mạng máy tính, Phân tích thiết kế hệ thống\nHọc bổng khuyến khích học tập học kỳ 1 năm học 2024-2025\nĐiểm học phần Nhập môn kiểm thử phần mềm: 9.0/10\n\nKỸ NĂNG\nKiểm thử: Viết test case cơ bản, kiểm thử thủ công theo checklist, phân loại mức độ lỗi\nCông cụ: Excel, Jira (mức cơ bản), Postman\nNgôn ngữ lập trình: Java (căn bản), SQL\nNgoại ngữ: Tiếng Anh giao tiếp cơ bản, đang luyện thi TOEIC\nKỹ năng mềm: Cẩn thận, tỉ mỉ, chịu khó học hỏi, làm việc nhóm qua các bài tập lớn trên lớp"
+    },
+    {
+      "id": "vn_business_analyst_titlecase",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Đặng Minh Châu\nChuyên viên phân tích nghiệp vụ (Business Analyst)\nchau.dang@example.com | 0977 123 456 | Hà Nội\n\nTóm Tắt\nBusiness Analyst 5 năm kinh nghiệm trong mảng ngân hàng số và thương mại điện tử. Là cầu nối giữa đội kinh doanh và đội phát triển, chuyên viết tài liệu yêu cầu và mô hình hoá quy trình nghiệp vụ.\n\nKinh Nghiệm Làm Việc\nNgân hàng số VietBank Digital — Senior Business Analyst (04/2022 - nay)\n- Thu thập và phân tích yêu cầu cho tính năng mở tài khoản trực tuyến eKYC\n- Viết tài liệu SRS và user story cho 8 squad phát triển\n- Mô hình hoá quy trình nghiệp vụ bằng BPMN, giảm 20% vòng lặp trao đổi giữa các phòng ban\nCông ty Cổ phần Thương mại Điện tử An Phát — Business Analyst (06/2019 - 03/2022)\n- Phân tích yêu cầu module quản lý đơn hàng và vận chuyển\n- Tổ chức UAT với người dùng cuối, nghiệm thu 12 tính năng lớn\n\nHọc Vấn\nĐại học Ngoại thương — Cử nhân Quản trị Kinh doanh (2014 - 2018)\n\nKỹ Năng\nNghiệp vụ: Viết SRS, User story, BPMN, tổ chức UAT\nCông cụ: Jira, Confluence, Figma, SQL cơ bản\nKỹ năng mềm: Đàm phán, Thuyết trình, Quản lý stakeholder"
+    },
+    {
+      "id": "vn_embedded_page_artifacts",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "noisy_artifacts",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Bùi Quốc Thái\nKỹ sư phần mềm nhúng\nthai.bui@example.com | 0908 222 333 | TP. Hồ Chí Minh\n\nTrang 1/2\n\nTÓM TẮT\nKỹ sư embedded 4 năm kinh nghiệm phát triển firmware cho thiết bị IoT và điều khiển công nghiệp trên nền vi điều khiển ARM Cortex-M.\n\nHỌC VẤN\nĐại học Bách Khoa TP.HCM — Kỹ sư Điện tử - Viễn thông (2015 - 2020)\n\nKINH NGHIỆM\nCông ty TNHH Thiết bị Thông minh Việt — Embedded Software Engineer (08/2020 - nay)\n- Phát triển firmware C cho thiết bị đo điện năng dùng STM32, kết nối LoRaWAN\n- Viết driver giao tiếp SPI, I2C, UART cho 6 dòng cảm biến khác nhau\n- Tối ưu tiêu thụ năng lượng, kéo dài thời lượng pin thiết bị từ 6 tháng lên 14 tháng\n- Xây dựng bootloader hỗ trợ cập nhật firmware từ xa qua mạng (FOTA)\n- Phối hợp với đội phần cứng để bring-up 3 board mạch mới\n\nTrang 2/2\n\nKỸ NĂNG\nNgôn ngữ: C, C++, Python\nNền tảng: STM32, ESP32, FreeRTOS\nCông cụ: Keil, PlatformIO, máy hiện sóng, Git\nGiao thức: MQTT, LoRaWAN, Modbus"
+    },
+    {
+      "id": "vn_game_dev_star_bullets",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "projects",
+        "skills"
+      ],
+      "text": "Ngô Hải Long\nGame Developer (Unity)\nlong.ngo@example.com | 0919 444 555 | Hà Nội\n\nTÓM TẮT\nLập trình viên game 3 năm kinh nghiệm với Unity, đã phát hành 4 game mobile đạt tổng cộng hơn 2 triệu lượt tải. Đam mê gameplay programming và tối ưu hiệu năng trên thiết bị tầm trung.\n\nKINH NGHIỆM\nStudio Game Sáng Tạo — Unity Developer (09/2022 - nay)\n* Phát triển gameplay cho game casual puzzle đạt 1,5 triệu lượt tải trên Google Play\n* Tối ưu draw call và bộ nhớ, tăng FPS trung bình từ 40 lên 58 trên thiết bị tầm trung\n* Tích hợp SDK quảng cáo và xây dựng hệ thống nhiệm vụ hằng ngày giữ chân người chơi\n\nDỰ ÁN CÁ NHÂN\nGame platformer 2D \"Mèo Phiêu Lưu\"\n* Tự thiết kế và lập trình toàn bộ với Unity, phát hành miễn phí trên itch.io\n* Xây dựng level editor cho phép người chơi tự tạo màn chơi\nGame jam GMTK 2024\n* Hoàn thành game trong 48 giờ cùng nhóm 3 người, xếp hạng top 15% hạng mục gameplay\n\nKỸ NĂNG\nNgôn ngữ: C#, C++ (cơ bản)\nEngine: Unity, Godot (cơ bản)\nCông cụ: Git, Blender (cơ bản), Photoshop"
+    },
+    {
+      "id": "vn_sysadmin_table_skills",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "table_flattened",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "education",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Trương Công Vinh\nQuản trị hệ thống (System Administrator)\nvinh.truong@example.com | 0966 777 888 | Biên Hoà, Đồng Nai\n\nKINH NGHIỆM\nCông ty Cổ phần Sản xuất Thép Nam Á — System Administrator (02/2019 - nay)\n- Quản trị 30 máy chủ Windows Server và Linux cho nhà máy 800 nhân viên\n- Triển khai hệ thống ảo hoá VMware vSphere, hợp nhất 18 máy chủ vật lý xuống còn 6\n- Thiết lập backup theo nguyên tắc 3-2-1 với Veeam, phục hồi thành công sau sự cố ransomware năm 2023\n- Quản lý Active Directory, GPO và hệ thống email nội bộ cho toàn công ty\n\nKỸ NĂNG\nHạng mục | Chi tiết\nHệ điều hành | Windows Server 2019/2022, Ubuntu Server, CentOS\nẢo hoá | VMware vSphere, Hyper-V\nMạng | Cấu hình switch, VLAN, firewall pfSense\nBackup | Veeam, script PowerShell\nGiám sát | Zabbix, Grafana\n\nHỌC VẤN\nCao đẳng Kỹ thuật Cao Thắng — Quản trị mạng máy tính (2015 - 2018)\n\nCHỨNG CHỈ\nMCSA Windows Server 2016 (Microsoft, 2019)\nCCNA Routing and Switching (Cisco, 2018)"
+    },
+    {
+      "id": "vn_uiux_designer_activities",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "projects",
+        "skills",
+        "activities"
+      ],
+      "text": "Lương Thuỳ Dung\nUI/UX Designer\ndung.luong@example.com | 0903 555 666 | TP. Hồ Chí Minh\n\nTÓM TẮT\nUI/UX Designer 3 năm kinh nghiệm thiết kế sản phẩm số cho fintech và edtech. Tin rằng thiết kế tốt bắt đầu từ nghiên cứu người dùng, không phải từ màu sắc.\n\nKINH NGHIỆM\nCông ty Fintech Ví Xanh — Product Designer (07/2022 - nay)\n- Thiết kế lại luồng chuyển tiền, giảm 35% tỷ lệ bỏ dở giao dịch\n- Xây dựng design system 120 component trên Figma dùng chung cho 3 đội sản phẩm\n- Thực hiện 25 buổi phỏng vấn người dùng và usability test định kỳ hằng quý\n\nDỰ ÁN\nRedesign ứng dụng học tiếng Anh EngBuddy (freelance)\n- Nghiên cứu đối thủ, dựng wireframe và prototype tương tác trong 6 tuần\n- Tỷ lệ giữ chân người dùng ngày 7 tăng từ 18% lên 27% sau khi phát hành bản mới\n\nKỸ NĂNG\nThiết kế: Figma, wireframing, prototyping, design system\nNghiên cứu: Phỏng vấn người dùng, usability testing, A/B testing\nKhác: HTML/CSS cơ bản, kỹ năng thuyết trình\n\nHOẠT ĐỘNG\nDiễn giả tại meetup UX Đà Nẵng 2024 — chủ đề \"Design system cho startup nhỏ\"\nMentor thiết kế cho 5 sinh viên qua chương trình mentorship của cộng đồng Designer Việt (2023 - nay)"
+    },
+    {
+      "id": "vn_bridge_engineer_jlpt",
+      "lang": "vi",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Cao Xuân Phúc\nKỹ sư cầu nối (Bridge Software Engineer)\nphuc.cao@example.com | 0928 999 000 | Hà Nội\n\nTÓM TẮT\nBrSE 5 năm kinh nghiệm làm việc với khách hàng Nhật Bản, vừa lập trình vừa quản lý giao tiếp giữa đội offshore Việt Nam và khách hàng. Tiếng Nhật N2, từng onsite Tokyo 1 năm.\n\nKINH NGHIỆM\nCông ty FPT Software — Bridge Engineer (03/2021 - nay)\n- Cầu nối cho dự án hệ thống quản lý bảo hiểm, đội 18 kỹ sư, khách hàng tại Tokyo\n- Dịch và làm rõ yêu cầu từ tài liệu tiếng Nhật, viết spec kỹ thuật cho đội phát triển\n- Onsite tại Tokyo 12 tháng, trực tiếp họp báo cáo tiến độ với khách hàng hằng tuần\n- Lập trình Java Spring Boot cho các module nghiệp vụ phức tạp\nCông ty TNHH Giải pháp Phần mềm Sakura — Java Developer (06/2019 - 02/2021)\n- Phát triển ứng dụng web nội bộ bằng Java và Oracle Database\n\nKỸ NĂNG\nNgôn ngữ lập trình: Java, SQL, JavaScript\nFramework: Spring Boot, JSF\nNgoại ngữ: Tiếng Nhật (N2, giao tiếp công việc), Tiếng Anh (đọc tài liệu)\n\nCHỨNG CHỈ\nJLPT N2 (2020)\nOracle Certified Professional Java SE 11 (2021)"
+    },
+    {
+      "id": "en_ios_mid_dot_bullets",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "projects",
+        "skills"
+      ],
+      "text": "Emma Walsh\niOS Developer\nemma.walsh@example.com | +1 555 0142 | Austin, TX\n\nSUMMARY\niOS developer with 4 years of experience shipping consumer apps in Swift. Strong focus on smooth UI, offline-first architecture, and App Store release discipline.\n\nEXPERIENCE\nBrightPath Apps — iOS Developer (2021 - Present)\n• Own the fitness-tracking app used by 300k monthly users; maintained a 4.7-star App Store rating\n• Migrated the codebase from UIKit to SwiftUI across 60+ screens over 9 months\n• Built an offline sync engine with Core Data and background tasks, cutting sync errors by 45%\n• Set up CI with Fastlane and GitHub Actions for automated TestFlight builds\n\nPROJECTS\nPocketRecipe (personal, App Store)\n• Recipe manager with CloudKit sync and home-screen widgets; 12k downloads\n• Implemented in SwiftUI with the Composable Architecture\n\nSKILLS\nLanguages: Swift, Objective-C (legacy maintenance)\nFrameworks: SwiftUI, UIKit, Combine, Core Data\nTools: Xcode, Fastlane, Instruments, Git"
+    },
+    {
+      "id": "en_data_engineer_certs",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Noah Kim\nData Engineer\nnoah.kim@example.com | +1 555 0177 | Seattle, WA\n\nSUMMARY\nData engineer with 6 years building batch and streaming pipelines on cloud data platforms. Comfortable owning pipelines end to end, from ingestion to warehouse modeling.\n\nEXPERIENCE\nNorthwind Analytics — Senior Data Engineer (2022 - Present)\n- Designed a streaming ingestion platform on Kafka and Spark handling 80M events per day\n- Migrated the legacy warehouse to Snowflake, cutting query costs by 35%\n- Built dbt models powering 200+ dashboards for finance and marketing teams\nHarborData Inc — Data Engineer (2019 - 2022)\n- Maintained Airflow DAGs orchestrating 120 daily jobs across three environments\n- Implemented data-quality checks that caught schema drift before it reached reports\n\nSKILLS\nLanguages: Python, SQL, Scala\nPlatforms: Snowflake, Kafka, Spark, Airflow, dbt\nCloud: AWS (S3, Glue, Redshift)\n\nCERTIFICATIONS\nSnowPro Core Certification (Snowflake, 2023)\nAWS Certified Data Analytics - Specialty (2022)"
+    },
+    {
+      "id": "en_security_analyst_soc",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "certifications"
+      ],
+      "text": "Priya Raman\nSecurity Analyst\npriya.raman@example.com | +65 555 0133 | Singapore\n\nSUMMARY\nSecurity analyst with 5 years across SOC operations and vulnerability management. Experienced in incident response for cloud-heavy environments.\n\nEXPERIENCE\nSentinelGuard Security — Security Analyst II (2022 - Present)\n- Triage and investigate around 50 SIEM alerts daily across 12 enterprise clients\n- Led containment for a phishing-driven credential compromise affecting 200 mailboxes\n- Wrote 30+ Sigma detection rules, raising the true-positive rate from 61% to 84%\n- Run quarterly vulnerability scans and coordinate remediation with engineering teams\nFirstLine IT Services — SOC Analyst (2020 - 2022)\n- Monitored endpoint and network alerts on a 24/7 rotation\n- Documented incident-response runbooks later adopted across the SOC team\n\nSKILLS\nSecurity: SIEM (Splunk, Sentinel), incident response, threat hunting\nTools: Nessus, Burp Suite, Wireshark, CrowdStrike\nScripting: Python, PowerShell\n\nCERTIFICATIONS\nCompTIA Security+ (2020)\nGIAC Certified Incident Handler - GCIH (2023)"
+    },
+    {
+      "id": "en_product_owner_saas",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Daniel Foster\nProduct Owner\ndaniel.foster@example.com | +44 555 0166 | London, UK\n\nSUMMARY\nProduct owner with 7 years in B2B SaaS, translating messy stakeholder needs into shippable roadmaps. Data-informed, engineer-friendly, allergic to feature bloat.\n\nEXPERIENCE\nLedgerFlow — Senior Product Owner (2021 - Present)\n- Own the invoicing module; grew activation rate from 32% to 51% in one year\n- Run discovery interviews with 15+ customers per quarter and maintain a scored backlog\n- Shipped a permissions revamp that cut enterprise onboarding time from 3 weeks to 4 days\n- Coordinate two feature squads (11 engineers) working against quarterly OKRs\nBrightOffice Software — Product Analyst (2018 - 2021)\n- Built funnel dashboards in Mixpanel that surfaced a 40% drop-off at signup step 3\n- Wrote user stories and acceptance criteria for the CRM team\n\nEDUCATION\nUniversity of Manchester — BSc Business Information Systems (2014 - 2017)\n\nSKILLS\nProduct: Roadmapping, discovery interviews, A/B testing, backlog management\nTools: Jira, Mixpanel, Figma, SQL (intermediate)\nSoft skills: Stakeholder management, public speaking"
+    },
+    {
+      "id": "en_qa_automation_two_column",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "two_column_flattened",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Olivia Bennett\nQA Automation Engineer\n\nCONTACT\nolivia.bennett@example.com\n+61 555 0188\nMelbourne, Australia\n\nSKILLS\nAutomation: Selenium, Cypress, Playwright\nLanguages: Java, JavaScript, Python\nCI/CD: Jenkins, GitHub Actions\nOther: API testing, SQL, Agile/Scrum\n\nEXPERIENCE\nSouthern Cross Digital — QA Automation Engineer (2021 - Present)\n- Built a Cypress end-to-end suite of 350 tests covering the checkout flow, cutting release regression time from 3 days to 6 hours\n- Introduced contract testing with Pact between 8 microservices, catching breaking changes before deployment\n- Mentor two manual testers transitioning into automation roles\nMelville Insurance Tech — Manual QA Tester (2019 - 2021)\n- Executed regression cycles for a policy management platform used by 300 brokers\n- Logged and verified 600+ defects in Jira across four major releases\n\nEDUCATION\nRMIT University — Bachelor of Information Technology (2015 - 2018)"
+    },
+    {
+      "id": "en_student_thin_no_projects",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "education",
+        "skills"
+      ],
+      "text": "Lucas Meyer\nComputer Science Student — seeking a backend internship\nlucas.meyer@example.com | +49 555 0122 | Berlin, Germany\n\nEDUCATION\nTechnical University of Berlin — BSc Computer Science (2023 - present, 5th semester)\nCurrent grade average: 1.9 (German scale)\nCompleted coursework: Algorithms and Data Structures, Databases, Operating Systems, Software Engineering, Computer Networks, Theoretical Computer Science\nTeaching assistant for the first-year programming course, two semesters (Java): ran weekly tutorials for 25 students and graded assignments\nExchange semester at KTH Stockholm planned for autumn 2026\n\nSKILLS\nProgramming: Java, Python, C (coursework level)\nDatabases: PostgreSQL, basic SQL query optimization\nTools: Git, Linux command line, Docker (basic), IntelliJ IDEA\nLanguages: German (native), English (C1)\nSoft skills: Explaining technical concepts clearly, reliable teamwork from semester-long group assignments"
+    },
+    {
+      "id": "en_ai_engineer_rag",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "projects",
+        "skills"
+      ],
+      "text": "Sofia Almeida\nAI Engineer\nsofia.almeida@example.com | +351 555 0155 | Lisbon, Portugal\n\nSUMMARY\nAI engineer with 3 years building LLM-powered features and classical ML pipelines in production. Pragmatic about evaluation: no metric, no merge.\n\nEDUCATION\nInstituto Superior Tecnico — MSc Data Science (2019 - 2021)\n\nEXPERIENCE\nAtlantica Labs — AI Engineer (2022 - Present)\n- Built a retrieval-augmented support assistant answering 5k tickets per month with 78% deflection\n- Designed an offline eval harness with 400 labeled cases; blocked 3 regressions before release\n- Fine-tuned a sentence-embedding model, improving retrieval recall@5 from 0.71 to 0.86\n- Deployed models with FastAPI and Docker on AWS ECS with canary rollouts\n\nPROJECTS\nprompt-lint (open source, 1.2k GitHub stars)\n- CLI that catches common prompt-template bugs; adopted in 40+ repositories\nKaggle tabular playground series\n- Top 5% finish using gradient boosting and careful cross-validation\n\nSKILLS\nML: PyTorch, scikit-learn, embeddings, RAG, evaluation design\nEngineering: Python, FastAPI, Docker, PostgreSQL\nCloud: AWS (ECS, S3, Lambda)"
+    },
+    {
+      "id": "en_fullstack_meetup_activities",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "activities"
+      ],
+      "text": "Ryan O'Connor\nFullstack Developer\nryan.oconnor@example.com | +1 555 0111 | Toronto, Canada\n\nSUMMARY\nFullstack developer with 5 years across startups, equally comfortable in React components and Postgres query plans. Ships small, measures, iterates.\n\nEXPERIENCE\nMapleStack Software — Fullstack Developer (2022 - Present)\n- Lead developer on a B2B scheduling product (React, Node.js, PostgreSQL) serving 900 businesses\n- Reduced p95 API latency from 1.4s to 320ms by fixing N+1 queries and adding read replicas\n- Introduced feature flags and trunk-based development, doubling deploy frequency\nLakeview Digital Agency — Web Developer (2019 - 2022)\n- Delivered 20+ client sites and web apps on React and Django\n- Built a shared component library reused across 8 client projects\n\nSKILLS\nFrontend: React, TypeScript, Tailwind CSS\nBackend: Node.js, Express, Django, PostgreSQL\nInfra: Docker, AWS, GitHub Actions\n\nACTIVITIES\nCo-organizer of a Toronto JavaScript meetup (2023 - present), hosting 6 events per year\nVolunteer mentor at a local coding bootcamp, guiding 10 career changers through capstone projects\nConference talk at ConFoo 2025: \"Feature flags without the flag soup\""
+    },
+    {
+      "id": "en_junior_gamedev_page_noise",
+      "lang": "en",
+      "source": "synthetic",
+      "layout": "noisy_artifacts",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "education",
+        "experience",
+        "projects",
+        "skills"
+      ],
+      "text": "Mia Torres\nJunior Game Developer\nmia.torres@example.com | +1 555 0190 | Portland, OR\n\nPage 1 of 2\n\nEDUCATION\nOregon State University — BSc Computer Science, Game Development option (2020 - 2024)\nSenior capstone won the department showcase audience award\n\nEXPERIENCE\nPinewood Interactive — Game Programming Intern (Summer 2023)\n- Implemented enemy AI behaviors in Unreal Engine 5 using behavior trees\n- Fixed 30+ gameplay bugs from the QA backlog during a 12-week internship\n- Profiled and optimized particle effects, recovering 8ms of frame time on console targets\n\nPage 2 of 2\n\nPROJECTS\nEcho Depths (capstone, team of 5)\n- 2.5D underwater exploration game in Unity; owned player movement and camera systems\n- Shipped a public demo with 5k downloads on itch.io\nGame jam entries (Ludum Dare 54 and 55)\n- Completed two solo jam games in 72 hours each, both built in Godot\n\nSKILLS\nEngines: Unity, Unreal Engine 5, Godot\nLanguages: C#, C++, GDScript\nTools: Git, Perforce, Blender (basic)"
+    },
+    {
+      "id": "en_body_vi_headers_devops",
+      "lang": "mixed",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "en",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills"
+      ],
+      "text": "David Nguyen\nDevOps Engineer\ndavid.nguyen@example.com | 0945 666 777 | Ho Chi Minh City\n\nTÓM TẮT\nDevOps engineer with 4 years of experience running Kubernetes platforms for fintech products. Works daily with international teams in English and prefers boring, reliable infrastructure.\n\nKINH NGHIỆM\nSaigon Fintech Hub — DevOps Engineer (2022 - Present)\n- Operate a 3-cluster Kubernetes platform hosting 40 services with 99.95% uptime\n- Cut monthly cloud spend by 28% through rightsizing and spot instances\n- Built GitOps deployment flows with ArgoCD adopted by 6 product teams\n- Wrote incident runbooks and ran game days that halved mean time to recovery\nVietDev Solutions — Site Reliability Engineer (2020 - 2022)\n- Automated infrastructure provisioning with Terraform across multiple AWS accounts\n- Owned the on-call rotation; wrote postmortems and cut repeat incidents by half\n\nKỸ NĂNG\nPlatform: Kubernetes, Docker, ArgoCD, Helm\nCloud: AWS, Terraform, CloudWatch\nScripting: Bash, Python, Go (basic)"
+    },
+    {
+      "id": "vi_body_en_headers_data_engineer",
+      "lang": "mixed",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "education",
+        "experience",
+        "skills"
+      ],
+      "text": "Võ Thị Lan Chi\nData Engineer\nlanchi.vo@example.com | 0956 123 789 | Hà Nội\n\nSUMMARY\nKỹ sư dữ liệu 3 năm kinh nghiệm xây dựng pipeline dữ liệu cho mảng bán lẻ và logistics. Quen thuộc với cả xử lý batch và streaming trên hạ tầng cloud.\n\nEXPERIENCE\nCông ty Cổ phần Logistics Nhanh — Data Engineer (04/2022 - nay)\n- Xây dựng pipeline Airflow xử lý dữ liệu đơn hàng từ 5 nguồn, hơn 3 triệu bản ghi mỗi ngày\n- Thiết kế mô hình dữ liệu trên BigQuery phục vụ 30 dashboard vận hành\n- Chuẩn hoá quy trình kiểm tra chất lượng dữ liệu, giảm 70% sự cố báo cáo sai số liệu\n- Phối hợp với đội phân tích để tài liệu hoá toàn bộ bảng dữ liệu quan trọng\n\nEDUCATION\nĐại học Bách Khoa Hà Nội — Kỹ sư Khoa học Máy tính (2015 - 2020)\n\nSKILLS\nNgôn ngữ: Python, SQL\nNền tảng: Airflow, BigQuery, Kafka, dbt\nCloud: Google Cloud Platform\nKỹ năng mềm: Tài liệu hoá, phối hợp liên phòng ban"
+    },
+    {
+      "id": "vi_body_en_headers_frontend_activities",
+      "lang": "mixed",
+      "source": "synthetic",
+      "layout": "single_column",
+      "expect_language": "vi",
+      "expect_sections": [
+        "contact",
+        "summary",
+        "experience",
+        "skills",
+        "activities"
+      ],
+      "text": "Đinh Tuấn Kiệt\nFrontend Developer\nkiet.dinh@example.com | 0968 345 012 | Đà Nẵng\n\nSUMMARY\nLập trình viên frontend 2 năm kinh nghiệm, chuyên React và hệ sinh thái TypeScript. Thích tối ưu trải nghiệm người dùng và tham gia hoạt động cộng đồng lập trình địa phương.\n\nEXPERIENCE\nCông ty TNHH Công nghệ Biển Đông — Frontend Developer (06/2023 - nay)\n- Phát triển giao diện đặt phòng khách sạn với React và Next.js phục vụ 200 đối tác\n- Cải thiện Core Web Vitals: LCP giảm từ 4,2 giây xuống 1,8 giây trên trang chi tiết phòng\n- Viết test component với React Testing Library, đạt coverage 70%\n- Tham gia review code và xây dựng convention chung cho đội frontend 5 người\n\nSKILLS\nNgôn ngữ: JavaScript, TypeScript, HTML, CSS\nFramework: React, Next.js, Tailwind CSS\nCông cụ: Git, Figma, Vite\n\nACTIVITIES\nThành viên ban tổ chức Google Developer Group Đà Nẵng — hỗ trợ tổ chức DevFest 2024 với 400 người tham dự\nChia sẻ tại meetup React Đà Nẵng chủ đề \"Tối ưu Core Web Vitals cho web Việt\"\nDạy lập trình web miễn phí cho học sinh THPT vào cuối tuần (2024 - nay)"
     }
   ]
 }
