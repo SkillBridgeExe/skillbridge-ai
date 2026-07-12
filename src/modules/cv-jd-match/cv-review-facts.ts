@@ -19,6 +19,17 @@ import { RawCvSkill } from './skill-diff.service';
 
 export type ReviewSkills = CvReviewParsedResponse['ats_extracted']['skills_extracted'];
 
+/**
+ * RECOMMENDATION' (R2/R3) — label of WHAT entered a surfaced job score, so no surface shows a
+ * number the user can misread as a fuller verdict than it is:
+ *   'skills_only'                    — skill diff only (apply/match path; reco when seniority unknown).
+ *   'skills_and_seniority'           — a real seniority verdict entered the ranking score.
+ *   'skills_seniority_dealbreakers'  — reserved: requires jd_dimensions/deal-breaker data, which no
+ *                                      pool job (NATIVE or scraped) carries today. Never emitted —
+ *                                      pinned by test so nobody fakes a dim-verified verdict (R3).
+ */
+export type ScoreBasis = 'skills_only' | 'skills_and_seniority' | 'skills_seniority_dealbreakers';
+
 /** Minimal query surface satisfied by BOTH DatabaseService (raw pg) and a TypeORM DataSource. */
 export interface SqlQueryable {
   query(

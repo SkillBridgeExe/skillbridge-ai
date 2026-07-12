@@ -281,6 +281,15 @@ describe('CandidateJobService', () => {
     );
   });
 
+  it("matchJob labels its result score_basis='skills_only' (R2 — apply path has no seniority or deal-breaker input)", async () => {
+    const { service } = matchJobService({ reviewRows: [] });
+
+    const result = await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(result.score_basis).toBe('skills_only');
+    expect(result.overall_score).toBe(80);
+  });
+
   it('withdraws an owned application and schedules PII purge 90 days later', async () => {
     const applications = repo<JobApplicationEntity>();
     const events = repo<JobApplicationStatusEventEntity>();

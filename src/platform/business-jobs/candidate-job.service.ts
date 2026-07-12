@@ -18,8 +18,12 @@ import { SavedJobEntity } from '../../database/entities/saved-job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
-import { RawCvSkill, SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
-import { loadLatestReviewSkills, toRawCvSkills } from '../../modules/cv-jd-match/cv-review-facts';
+import { DiffResult, RawCvSkill, SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import {
+  loadLatestReviewSkills,
+  toRawCvSkills,
+  ScoreBasis,
+} from '../../modules/cv-jd-match/cv-review-facts';
 import { CvPdfRendererService } from '../cvs/cv-pdf-renderer.service';
 import { ApplyToJobDto } from './dto/business-jobs.dto';
 import { BusinessJobsMaintenanceService } from './business-jobs-maintenance.service';
@@ -244,7 +248,9 @@ export class CandidateJobService {
       // null-safe: a no-basis match (null score) persists as SQL NULL, not the string "null".
       // matchResult is still stored so the UI can inspect degraded_reasons.
       application.matchScore = toMatchScoreColumn(match.overall_score);
-      application.matchScoringVersion = 'skill-diff-v1';
+      // v2 = R1 input basis change (presence-only → proficiency-aware review facts). Rows scored
+      // before/after are not comparable 1:1 — keep the version honest for anyone querying them.
+      application.matchScoringVersion = 'skill-diff-v2';
       application.matchResult = match;
       application.matchComputedAt = new Date();
     } catch {
@@ -412,8 +418,11 @@ export class CandidateJobService {
     );
   }
 
-  private computeMatch(cvSkillsRaw: RawCvSkill[], version: JobPostVersionEntity) {
-    return this.skillDiff.diff({
+  private computeMatch(
+    cvSkillsRaw: RawCvSkill[],
+    version: JobPostVersionEntity,
+  ): DiffResult & { score_basis: ScoreBasis } {
+    const diff = this.skillDiff.diff({
       cv_skills_raw: cvSkillsRaw,
       jd_requirements_raw: version.skills.map((skill) => ({
         name: skill.canonicalName,
@@ -423,6 +432,9 @@ export class CandidateJobService {
       })),
       target_role: version.roleCode,
     });
+    // R2: this surface never grades seniority or deal-breakers — label it so the FE cannot present
+    // the number as a fuller verdict than it is (reco cards carry 'skills_and_seniority').
+    return { ...diff, score_basis: 'skills_only' };
   }
 
   private async snapshotCv(userId: string, applicationId: string, cv: CvEntity) {

@@ -7,7 +7,11 @@ import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.se
 import { proficiencyHintForLevel } from '../../../common/services/proficiency-calibration';
 import { rrfFuse } from './rrf';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
-import { loadLatestReviewSkills, toRawCvSkills } from '../../cv-jd-match/cv-review-facts';
+import {
+  loadLatestReviewSkills,
+  toRawCvSkills,
+  ScoreBasis,
+} from '../../cv-jd-match/cv-review-facts';
 import {
   deriveCvSeniority,
   computeExperienceFit,
@@ -72,6 +76,11 @@ export interface JobRecommendation {
    *  Optional (additive, same convention as jd_dimensions?/inferred_skills? elsewhere) — always
    *  populated on the live path, only absent for pre-A1 reconstructed/cached rows. */
   fit?: FitVerdict;
+  /** RECOMMENDATION' (R2/R3): what entered recommendation_score — 'skills_and_seniority' when a
+   *  real seniority verdict applied, 'skills_only' when seniority was unknown (factor 1). The
+   *  deal-breaker basis is never emitted here (pool jobs carry no jd_dimensions). Optional for the
+   *  same additive/cached-row convention as `fit`. */
+  score_basis?: ScoreBasis;
 }
 
 export interface JobRecommendationResponse {
@@ -385,5 +394,9 @@ export function buildJobRecommendation(
     scoring_breakdown: diff.scoring_breakdown,
     experience_fit: experienceFit,
     fit,
+    // R2/R3: verdict unknown ⇒ the policy factor was 1 and seniority contributed nothing — the
+    // honest basis is skills_only. Deal-breaker basis is unreachable here by construction (see
+    // the unmet_deal_breakers:[] note above).
+    score_basis: experienceFit.verdict === 'unknown' ? 'skills_only' : 'skills_and_seniority',
   };
 }
