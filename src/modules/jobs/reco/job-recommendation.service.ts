@@ -7,8 +7,11 @@ import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.se
 import { proficiencyHintForLevel } from '../../../common/services/proficiency-calibration';
 import { rrfFuse } from './rrf';
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
-import { CvReviewParsedResponse } from '../../cv-review/dto/cv-review-response.dto';
-import { BillingFeatureKey } from '../../../common/constants/billing.constants';
+import {
+  loadLatestReviewSkills,
+  toRawCvSkills,
+  ScoreBasis,
+} from '../../cv-jd-match/cv-review-facts';
 import {
   deriveCvSeniority,
   computeExperienceFit,
@@ -18,6 +21,10 @@ import {
   CvSeniority,
 } from '../../../common/services/seniority';
 import { classifyFit, FitVerdict } from '../../gap-engine/fit-strategy';
+import {
+  fetchLatestInterviewSignalsForUser,
+  InterviewSignalMap,
+} from '../../../platform/interviews/interview-signals';
 
 export interface JobRecommendation {
   job_id: string;
@@ -73,6 +80,16 @@ export interface JobRecommendation {
    *  Optional (additive, same convention as jd_dimensions?/inferred_skills? elsewhere) — always
    *  populated on the live path, only absent for pre-A1 reconstructed/cached rows. */
   fit?: FitVerdict;
+  /** RECOMMENDATION' (R2/R3): what entered recommendation_score — 'skills_and_seniority' when a
+   *  real seniority verdict applied, 'skills_only' when seniority was unknown (factor 1). The
+   *  deal-breaker basis is never emitted here (pool jobs carry no jd_dimensions). Optional for the
+   *  same additive/cached-row convention as `fit`. */
+  score_basis?: ScoreBasis;
+  /** R4 (RECOMMENDATION'): requirements of THIS job the user's latest COMPLETED interview flagged
+   *  as knowledge/evidence gaps (risk 0-1, worst per skill; session_ref = session id prefix).
+   *  CONFIDENCE OVERLAY ONLY — never raises or lowers ranking in v1 (a weak interview must not
+   *  silently bury a job). Absent when no completed interview, no overlap, or lookup failed. */
+  interview_signals?: Array<{ skill_canonical: string; risk: number; session_ref: string }>;
 }
 
 export interface JobRecommendationResponse {
@@ -230,12 +247,14 @@ export class JobRecommendationService {
 
     // TRUST (B1): score jobs with the user's REAL proficiency from their latest CV review —
     // the same input class cv-jd-match uses — instead of presence-only (everything level 3).
-    // ponytail: falls back to presence-only when no review exists (fresh CV, review failed).
-    const reviewSkills = await this.loadLatestReviewSkills(userId, cvId);
-    const cvSkillsRaw: RawCvSkill[] =
-      reviewSkills && reviewSkills.length > 0
-        ? reviewSkills.map((s) => ({ name: s.name, proficiency_hint: s.proficiency_hint }))
-        : cvCanonicals.map((name) => ({ name }));
+    // Falls back to presence-only when no review exists (fresh CV, review failed).
+    // R1: shared fact builder — the candidate apply/match path builds its facts the same way.
+    const reviewSkills = await loadLatestReviewSkills(this.db, userId, cvId);
+    const cvSkillsRaw: RawCvSkill[] = toRawCvSkills(reviewSkills, cvCanonicals);
+
+    // R4: latest completed interview (any match) → per-skill risk map, fetched ONCE per request.
+    // Confidence overlay only — it never enters rankA/rankB/RRF/rerank below. Never-throw.
+    const interviewSignals = await fetchLatestInterviewSignalsForUser(this.db, userId);
 
     // 3. Signal A — deterministic skill match per candidate (pure code, reproducible).
     const diffByJob = new Map<string, ReturnType<SkillDiffService['diff']>>();
@@ -320,47 +339,11 @@ export class JobRecommendationService {
         offset + i + 1,
         simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
         fitByJob.get(jobId)!,
+        interviewSignals,
       ),
     );
 
     return { cv_id: cvId, pool_size: candidates.length, total, limit, offset, recommendations };
-  }
-
-  /**
-   * TRUST (B1) — latest cv_review's proficiency-bearing skills for (user, cv). Returns
-   * `ats_extracted.skills_extracted` (CvSkillExtracted[]: {name, proficiency_hint, evidence_text})
-   * — the SAME shape cv-jd-match's LLM extraction produces (RawCvSkill) and InterviewPlanService
-   * already consumes this exact way (`review.ats_extracted?.skills_extracted`). null when no
-   * review exists yet (fresh CV, review failed) — caller falls back to presence-only.
-   *
-   * SQL is an EXACT mirror of CvsService.getLatestReview, duplicated (not imported) on purpose:
-   * this service has no DI on CvsService/TypeORM repos (raw db.query only throughout), so
-   * injecting CvsService would be new module coupling for one query. Same move
-   * TailorVerifierService made to dodge the CvsModule↔CvMatchesModule cycle — see its comment in
-   * tailor-verifier.service.ts. Keep the two in sync if either query changes.
-   */
-  private async loadLatestReviewSkills(
-    userId: string,
-    cvId: string,
-  ): Promise<CvReviewParsedResponse['ats_extracted']['skills_extracted'] | null> {
-    const rows = await this.db.query<{ parsed_response: CvReviewParsedResponse | null }>(
-      `
-        SELECT ar.parsed_response
-        FROM ai_results ar
-        INNER JOIN ai_requests req ON req.id = ar.ai_request_id
-        INNER JOIN cvs c
-          ON c.id = (req.request_payload -> 'payload' ->> 'cv_id')::uuid
-         AND c.user_id = ar.user_id
-         AND c.deleted_at IS NULL
-        WHERE ar.user_id = $1
-          AND ar.result_type = $2
-          AND req.request_payload -> 'payload' ->> 'cv_id' = $3
-        ORDER BY ar.created_at DESC
-        LIMIT 1
-      `,
-      [userId, BillingFeatureKey.CV_REVIEW, cvId],
-    );
-    return rows[0]?.parsed_response?.ats_extracted?.skills_extracted ?? null;
   }
 }
 
@@ -371,7 +354,18 @@ export function buildJobRecommendation(
   rank: number,
   semanticSimilarity: number | null,
   experienceFit: ExperienceFit,
+  interviewSignals?: InterviewSignalMap,
 ): JobRecommendation {
+  // R4: intersect the user's latest-interview risk map with THIS job's requirements. Annotation
+  // only — computed after every score above is final, omitted (not []) when nothing overlaps.
+  const interview_signals = interviewSignals
+    ? job.skills
+        .filter((s) => interviewSignals.has(s.canonical))
+        .map((s) => {
+          const signal = interviewSignals.get(s.canonical)!;
+          return { skill_canonical: s.canonical, risk: signal.risk, session_ref: signal.ref };
+        })
+    : [];
   const policy = recommendationSeniorityPolicy(experienceFit);
   // ponytail: null overall_score (job with no scorable requirements) coerces to 0 — byte-identical
   // to pre-TRUST-prime behavior for such jobs. Honest-null on job cards = RECOMMENDATION wave.
@@ -425,5 +419,10 @@ export function buildJobRecommendation(
     scoring_breakdown: diff.scoring_breakdown,
     experience_fit: experienceFit,
     fit,
+    // R2/R3: verdict unknown ⇒ the policy factor was 1 and seniority contributed nothing — the
+    // honest basis is skills_only. Deal-breaker basis is unreachable here by construction (see
+    // the unmet_deal_breakers:[] note above).
+    score_basis: experienceFit.verdict === 'unknown' ? 'skills_only' : 'skills_and_seniority',
+    ...(interview_signals.length > 0 ? { interview_signals } : {}),
   };
 }

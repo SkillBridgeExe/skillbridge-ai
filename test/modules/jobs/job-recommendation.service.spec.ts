@@ -133,3 +133,80 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
     );
   });
 });
+
+/**
+ * R4 (RECOMMENDATION') — the user's LATEST completed interview annotates job cards whose
+ * requirements it flagged (knowledge/evidence gaps). CONFIDENCE OVERLAY ONLY: it must never
+ * change scores or ranking in v1 (a weak interview must not silently bury a job), and any
+ * lookup failure degrades to "no overlay".
+ */
+describe('JobRecommendationService — R4 interview signal overlay', () => {
+  const SESSION_ROW = {
+    id: 'abcdef12-3456-7890-abcd-ef1234567890',
+    gap_items: [
+      {
+        weakness_type: 'knowledge_gap',
+        display_name: 'React',
+        skill_canonical: 'react',
+        severity: 0.8,
+      },
+    ],
+  };
+
+  function makeR4Service(options: { signalRows?: unknown[]; signalReject?: boolean }) {
+    const row = {
+      ...CANDIDATE_ROW,
+      skills: [{ canonical: 'react', importance: 'REQUIRED', min_level: null }],
+    };
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }]) // cvRows
+      .mockResolvedValueOnce([{ canonical_name: 'react' }]) // cvSkillRows
+      .mockResolvedValueOnce([row]) // candidates
+      .mockResolvedValueOnce([]); // latest-review skills
+    if (options.signalReject) query.mockRejectedValueOnce(new Error('signals query down'));
+    else query.mockResolvedValueOnce(options.signalRows ?? []); // R4 latest interview session
+    return new JobRecommendationService(
+      { query } as never,
+      { get: jest.fn().mockReturnValue(undefined) } as never,
+      { embed: jest.fn().mockRejectedValue(new Error('no vectors in test')) } as never,
+      { diff: jest.fn().mockReturnValue(DIFF_STUB) } as never,
+      { getByCanonical: jest.fn().mockReturnValue(undefined) } as never,
+    );
+  }
+
+  it('annotates a job whose requirement the latest completed interview flagged', async () => {
+    const res = await makeR4Service({ signalRows: [SESSION_ROW] }).recommendForCv(
+      USER_ID,
+      CV_ID,
+      {},
+    );
+
+    expect(res.recommendations[0].interview_signals).toEqual([
+      { skill_canonical: 'react', risk: 0.8, session_ref: 'abcdef12' },
+    ]);
+  });
+
+  it('is annotation-only: scores and rank identical with and without signals; absent when none', async () => {
+    const withSignals = await makeR4Service({ signalRows: [SESSION_ROW] }).recommendForCv(
+      USER_ID,
+      CV_ID,
+      {},
+    );
+    const without = await makeR4Service({}).recommendForCv(USER_ID, CV_ID, {});
+
+    expect(without.recommendations[0].interview_signals).toBeUndefined();
+    const strip = (rec: (typeof withSignals)['recommendations'][number]) => {
+      const { interview_signals: _signals, ...rest } = rec;
+      return rest;
+    };
+    expect(withSignals.recommendations.map(strip)).toEqual(without.recommendations.map(strip));
+  });
+
+  it('never throws: signal lookup failure degrades to no overlay', async () => {
+    const res = await makeR4Service({ signalReject: true }).recommendForCv(USER_ID, CV_ID, {});
+
+    expect(res.recommendations).toHaveLength(1);
+    expect(res.recommendations[0].interview_signals).toBeUndefined();
+  });
+});
