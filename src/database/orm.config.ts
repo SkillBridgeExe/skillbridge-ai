@@ -1,4 +1,5 @@
 import { DataSourceOptions } from 'typeorm';
+import { assertNotAccidentalProdDb } from './prod-db-guard';
 
 /**
  * Single source of TypeORM connection options, shared by:
@@ -9,6 +10,9 @@ import { DataSourceOptions } from 'typeorm';
  * Migrations). Never auto-sync a shared/prod schema.
  */
 export function buildDataSourceOptions(env: NodeJS.ProcessEnv = process.env): DataSourceOptions {
+  // Covers the app runtime AND the migration CLI: a dev machine cannot open (or migrate) the
+  // production database by accident — see prod-db-guard.ts.
+  assertNotAccidentalProdDb(env.DATABASE_URL, env);
   return {
     type: 'postgres',
     url: env.DATABASE_URL,

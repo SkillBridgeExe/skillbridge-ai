@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { assertNotAccidentalProdDb, isDeliberateProdOverride } from '../../database/prod-db-guard';
 
 /**
  * Thin Postgres wrapper around pg.Pool.
@@ -31,6 +32,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!url) {
       this.logger.warn('DATABASE_URL is empty; DatabaseService is disabled.');
       return;
+    }
+
+    // A local run must never open the PRODUCTION database by accident (2026-07-10 incident).
+    assertNotAccidentalProdDb(url);
+    if (isDeliberateProdOverride()) {
+      this.logger.warn(
+        'ALLOW_PROD_DB=1 — this process is DELIBERATELY using the PRODUCTION database.',
+      );
     }
 
     this.pool = new Pool({
