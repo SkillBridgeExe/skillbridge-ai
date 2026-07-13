@@ -227,6 +227,7 @@ export class ListApplicationsQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(['SUBMITTED', 'IN_REVIEW', 'SHORTLISTED', 'REJECTED', 'WITHDRAWN'])
   status?: JobApplicationStatus;
+  @IsOptional() @IsIn(['ACTIVE']) pipeline?: 'ACTIVE';
   @IsOptional() @IsString() @MaxLength(255) search?: string;
   @IsOptional() @IsIn(['NEWEST', 'OLDEST', 'MATCH_DESC']) sort: 'NEWEST' | 'OLDEST' | 'MATCH_DESC' =
     'NEWEST';

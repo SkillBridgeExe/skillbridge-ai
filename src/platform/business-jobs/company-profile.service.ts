@@ -21,6 +21,9 @@ import {
   DownloadedFile,
   GcsStorageService,
 } from '../../infrastructure/storage/gcs-storage.service';
+import { businessProfileBlockers, domainsMatch } from './business-profile-readiness';
+
+export { domainsMatch } from './business-profile-readiness';
 
 export interface UpdateCompanyInput {
   companyName?: string;
@@ -242,16 +245,7 @@ export class CompanyProfileService {
         message: 'Suspended business profiles cannot be submitted',
       });
     }
-    if (
-      !profile.workEmailVerifiedAt ||
-      !profile.contactName ||
-      !company.name ||
-      !company.website ||
-      !profile.workEmailDomain ||
-      !domainsMatch(company.website, profile.workEmailDomain) ||
-      !company.industryCode ||
-      !company.shortDescription
-    ) {
+    if (businessProfileBlockers(profile, company).length > 0) {
       throw new BadRequestException({
         errorCode: 'COMPANY_REVIEW_REQUIRED',
         message: 'Complete the company profile and verify the work email before submission',
@@ -397,20 +391,6 @@ export class CompanyProfileService {
       errorCode: 'BUSINESS_PROFILE_NOT_FOUND',
       message: 'Business profile not found',
     });
-  }
-}
-
-export function domainsMatch(website: string, emailHost: string): boolean {
-  try {
-    const websiteHost = new URL(website).hostname.toLowerCase().replace(/^www\./, '');
-    const mailHost = emailHost.toLowerCase().replace(/^www\./, '');
-    return (
-      websiteHost === mailHost ||
-      websiteHost.endsWith(`.${mailHost}`) ||
-      mailHost.endsWith(`.${websiteHost}`)
-    );
-  } catch {
-    return false;
   }
 }
 

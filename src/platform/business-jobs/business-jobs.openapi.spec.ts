@@ -5,9 +5,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBusinessJobsService } from './admin-business-jobs.service';
 import { BusinessApplicationService } from './business-application.service';
+import { BusinessDashboardService } from './business-dashboard.service';
 import {
   AdminBusinessJobsController,
   BusinessApplicationsController,
+  BusinessDashboardController,
   BusinessCompanyController,
   BusinessWorkEmailVerificationController,
   BusinessJobsController,
@@ -39,6 +41,7 @@ describe('business jobs OpenAPI contract', () => {
         BusinessWorkEmailVerificationController,
         BusinessJobsController,
         BusinessApplicationsController,
+        BusinessDashboardController,
         AdminBusinessJobsController,
       ],
       providers: [
@@ -47,6 +50,7 @@ describe('business jobs OpenAPI contract', () => {
         { provide: CompanyProfileService, useValue: {} },
         { provide: BusinessJobService, useValue: {} },
         { provide: BusinessApplicationService, useValue: {} },
+        { provide: BusinessDashboardService, useValue: {} },
         { provide: AdminBusinessJobsService, useValue: {} },
         RolesGuard,
         service,
@@ -86,6 +90,7 @@ describe('business jobs OpenAPI contract', () => {
     ['POST', '/api/business/company/work-email/send-verification'],
     ['POST', '/api/business/company/work-email/verify'],
     ['POST', '/api/business/company/submit'],
+    ['GET', '/api/business/dashboard'],
     ['GET', '/api/business/jobs'],
     ['POST', '/api/business/jobs'],
     ['GET', '/api/business/jobs/{jobId}'],

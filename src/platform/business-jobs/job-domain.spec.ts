@@ -7,6 +7,7 @@ import {
   publicSalary,
   proficiencyHintForLevel,
   retentionDateForApplication,
+  safeApplication,
 } from './job-domain';
 
 describe('business jobs domain policies', () => {
@@ -141,5 +142,36 @@ describe('business jobs domain policies', () => {
         jobEndedAt: new Date('2026-02-01T00:00:00.000Z'),
       }).toISOString(),
     ).toBe('2026-05-02T00:00:00.000Z');
+  });
+
+  it('returns a safe application with a normalized match explanation', () => {
+    expect(
+      safeApplication({
+        id: 'application-1',
+        cvStorageObjectKey: 'private/cv.pdf',
+        cvChecksumSha256: 'secret-checksum',
+        matchStatus: 'READY' as const,
+        matchScore: '91.25',
+        matchScoringVersion: 'skill-diff-v2',
+        matchErrorCode: null,
+        matchResult: { score_basis: 'skills_only', matched_skills: [] },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        id: 'application-1',
+        matchExplanation: expect.objectContaining({ status: 'READY', score: 91.25 }),
+      }),
+    );
+    expect(
+      safeApplication({
+        cvStorageObjectKey: 'private/cv.pdf',
+        cvChecksumSha256: 'secret-checksum',
+        matchStatus: 'PENDING' as const,
+        matchScore: null,
+        matchScoringVersion: null,
+        matchErrorCode: null,
+        matchResult: null,
+      }),
+    ).not.toEqual(expect.objectContaining({ cvStorageObjectKey: expect.anything() }));
   });
 });

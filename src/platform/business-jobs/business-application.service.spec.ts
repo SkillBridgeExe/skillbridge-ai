@@ -65,4 +65,77 @@ describe('BusinessApplicationService', () => {
       }),
     );
   });
+
+  it('lists only active-pipeline applicants when requested', async () => {
+    const applications = repo<JobApplicationEntity>();
+    const jobs = repo<JobEntity>();
+    const profiles = repo<BusinessProfileEntity>();
+    profiles.findOne.mockResolvedValue({ companyId: 'company-1' } as BusinessProfileEntity);
+    jobs.findOne.mockResolvedValue({
+      id: 'job-1',
+      companyId: 'company-1',
+      sourceType: 'employer',
+    } as JobEntity);
+    applications.findAndCount.mockResolvedValue([[], 0]);
+    const service = new BusinessApplicationService(
+      applications,
+      repo<JobApplicationStatusEventEntity>(),
+      jobs,
+      profiles,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await service.listForJob('business-1', 'job-1', {
+      page: 1,
+      limit: 20,
+      sort: 'MATCH_DESC',
+      pipeline: 'ACTIVE',
+    } as never);
+
+    const options = applications.findAndCount.mock.calls[0][0];
+    expect((options?.where as unknown as { status: { value: string[] } }).status.value).toEqual([
+      'SUBMITTED',
+      'IN_REVIEW',
+      'SHORTLISTED',
+    ]);
+    expect(options?.order).toEqual({
+      matchScore: { direction: 'DESC', nulls: 'LAST' },
+      submittedAt: 'DESC',
+    });
+  });
+
+  it('rejects ambiguous status and pipeline filters', async () => {
+    const applications = repo<JobApplicationEntity>();
+    const jobs = repo<JobEntity>();
+    const profiles = repo<BusinessProfileEntity>();
+    profiles.findOne.mockResolvedValue({ companyId: 'company-1' } as BusinessProfileEntity);
+    jobs.findOne.mockResolvedValue({
+      id: 'job-1',
+      companyId: 'company-1',
+      sourceType: 'employer',
+    } as JobEntity);
+    const service = new BusinessApplicationService(
+      applications,
+      repo<JobApplicationStatusEventEntity>(),
+      jobs,
+      profiles,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(
+      service.listForJob('business-1', 'job-1', {
+        page: 1,
+        limit: 20,
+        sort: 'NEWEST',
+        pipeline: 'ACTIVE',
+        status: 'SUBMITTED',
+      } as never),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'VALIDATION_ERROR' }),
+    });
+  });
 });
