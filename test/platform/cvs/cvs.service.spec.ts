@@ -251,6 +251,65 @@ describe('CvsService R1 completion behavior', () => {
     buffer: Buffer.from('%PDF-1.4'),
   } as Express.Multer.File;
 
+  describe('list', () => {
+    const uploadedCv = {
+      id: 'cv-uploaded',
+      userId: 'u1',
+      title: 'Uploaded CV',
+      originalFileName: 'uploaded.pdf',
+      fileType: 'application/pdf',
+      fileSize: 2048,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      targetRole: 'frontend_developer',
+      isOcrOnly: false,
+      atsReadabilityScore: '82.50',
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-02T00:00:00.000Z'),
+    };
+
+    it('filters uploaded CVs before pagination and exposes the history discriminator', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findAndCount.mockResolvedValue([[uploadedCv], 1]);
+
+      const result = await service.list('u1', {
+        page: 2,
+        limit: 5,
+        cvKind: 'UPLOADED',
+      });
+
+      expect(cvsRepo.findAndCount).toHaveBeenCalledWith({
+        where: { userId: 'u1', cvKind: 'UPLOADED' },
+        order: { createdAt: 'DESC' },
+        skip: 5,
+        take: 5,
+      });
+      expect(result.items[0]).toMatchObject({
+        id: 'cv-uploaded',
+        cvKind: 'UPLOADED',
+        atsReadabilityScore: 82.5,
+        updatedAt: '2026-06-02T00:00:00.000Z',
+      });
+    });
+
+    it('sorts builder history by the last edit time', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findAndCount.mockResolvedValue([
+        [{ ...uploadedCv, id: 'cv-built', cvKind: 'BUILT' }],
+        1,
+      ]);
+
+      await service.list('u1', { page: 1, limit: 20, cvKind: 'BUILT' });
+
+      expect(cvsRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'u1', cvKind: 'BUILT' },
+          order: { updatedAt: 'DESC', createdAt: 'DESC' },
+        }),
+      );
+    });
+  });
+
   it('persists targetRole on upload and records consent audit', async () => {
     const { service, cvsRepo, consentAudits } = build();
 

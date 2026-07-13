@@ -1,6 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { ConflictException } from '@nestjs/common';
 import type { JobApplicationStatus } from '../../database/entities/job-application.entity';
+import {
+  buildApplicationMatchExplanation,
+  type ApplicationMatchStatus,
+} from './application-match-explanation';
 
 export type { JobApplicationStatus } from '../../database/entities/job-application.entity';
 
@@ -178,8 +182,25 @@ export function proficiencyHintForLevel(
 }
 
 export function safeApplication<
-  T extends { cvStorageObjectKey?: unknown; cvChecksumSha256?: unknown },
+  T extends {
+    cvStorageObjectKey?: unknown;
+    cvChecksumSha256?: unknown;
+    matchStatus?: ApplicationMatchStatus;
+    matchScore?: string | number | null;
+    matchScoringVersion?: string | null;
+    matchErrorCode?: string | null;
+    matchResult?: unknown;
+  },
 >(application: T) {
   const { cvStorageObjectKey: _storageKey, cvChecksumSha256: _checksum, ...safe } = application;
-  return safe;
+  return {
+    ...safe,
+    matchExplanation: buildApplicationMatchExplanation({
+      matchStatus: application.matchStatus ?? 'PENDING',
+      matchScore: application.matchScore ?? null,
+      matchScoringVersion: application.matchScoringVersion ?? null,
+      matchErrorCode: application.matchErrorCode ?? null,
+      matchResult: application.matchResult,
+    }),
+  };
 }

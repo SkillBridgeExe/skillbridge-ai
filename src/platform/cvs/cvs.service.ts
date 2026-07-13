@@ -17,7 +17,7 @@ import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
-import { CvEntity } from '../../database/entities/cv.entity';
+import { CvEntity, CvKind } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { CvVersionEntity, CvVersionOrigin } from '../../database/entities/cv-version.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
@@ -299,11 +299,14 @@ export class CvsService {
 
   async list(
     userId: string,
-    options: { page: number; limit: number; cvKind?: CvEntity['cvKind'] },
+    options: { page: number; limit: number; cvKind?: CvKind },
   ): Promise<{ items: CvListItemDto[]; total: number; page: number; limit: number }> {
     const [items, total] = await this.cvs.findAndCount({
-      where: options.cvKind ? { userId, cvKind: options.cvKind } : { userId },
-      order: { createdAt: 'DESC' },
+      where: { userId, ...(options.cvKind ? { cvKind: options.cvKind } : {}) },
+      order:
+        options.cvKind === 'BUILT'
+          ? { updatedAt: 'DESC', createdAt: 'DESC' }
+          : { createdAt: 'DESC' },
       skip: (options.page - 1) * options.limit,
       take: options.limit,
     });
