@@ -646,7 +646,13 @@ export class InterviewsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const [items, total] = await this.sessions.findAndCount({
-      where: { userId },
+      where: query.scoredOnly
+        ? {
+            userId,
+            status: 'COMPLETED',
+            overallScore: Not(IsNull()),
+          }
+        : { userId },
       order: { startedAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,

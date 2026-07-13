@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -37,6 +38,12 @@ function toRoundedNumber(value: unknown): unknown {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return numeric;
   return Math.round(numeric * 100) / 100;
+}
+
+function toOptionalBoolean(value: unknown): unknown {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return value;
 }
 
 export class StartPlatformInterviewDto {
@@ -195,6 +202,15 @@ export class InterviewListQueryDto {
   @Min(1)
   @Max(10)
   limit: number = 10;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Return only completed sessions that have an overall score.',
+  })
+  @Transform(({ obj, key }) => toOptionalBoolean((obj as Record<string, unknown>)[key]))
+  @IsOptional()
+  @IsBoolean()
+  scoredOnly?: boolean;
 }
 
 export interface RealtimeClientSecretDto {

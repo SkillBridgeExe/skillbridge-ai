@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { LessThan } from 'typeorm';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
@@ -141,6 +141,39 @@ describe('InterviewsService', () => {
       expect.objectContaining({ skip: 0, take: 10 }),
     );
     expect(response).toEqual({ items: [], total: 0, page: 1, limit: 10 });
+  });
+
+  it('filters scored interview history before pagination', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    sessions.findAndCount.mockResolvedValue([[], 12]);
+    const service = new InterviewsService(
+      sessions as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const response = await service.list(userId, {
+      page: 2,
+      limit: 5,
+      scoredOnly: true,
+    } as never);
+
+    expect(sessions.findAndCount).toHaveBeenCalledWith({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        overallScore: Not(IsNull()),
+      },
+      order: { startedAt: 'DESC' },
+      skip: 5,
+      take: 5,
+    });
+    expect(response).toEqual({ items: [], total: 12, page: 2, limit: 5 });
   });
 
   it('starts a CV/JD-backed hybrid interview session and stores the first turn', async () => {

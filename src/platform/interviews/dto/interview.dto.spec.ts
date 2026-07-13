@@ -30,12 +30,24 @@ describe('InterviewListQueryDto', () => {
   });
 
   it.each([
+    ['true', true],
+    ['false', false],
+  ])('transforms scoredOnly=%s into a boolean', async (value, expected) => {
+    await expect(transform({ scoredOnly: value })).resolves.toEqual({
+      page: 1,
+      limit: 10,
+      scoredOnly: expected,
+    });
+  });
+
+  it.each([
     ['page zero', { page: '0' }],
     ['negative page', { page: '-1' }],
     ['decimal page', { page: '1.5' }],
     ['non-numeric page', { page: 'first' }],
     ['limit zero', { limit: '0' }],
     ['limit above 10', { limit: '11' }],
+    ['invalid scored-only filter', { scoredOnly: 'yes' }],
   ])('rejects %s', async (_name, query) => {
     await expect(transform(query)).rejects.toBeInstanceOf(BadRequestException);
   });
