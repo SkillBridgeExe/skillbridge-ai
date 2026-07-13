@@ -1,6 +1,7 @@
 import { ObjectLiteral, Repository } from 'typeorm';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { CompanyEntity } from '../../database/entities/company.entity';
 import { JobApplicationStatusEventEntity } from '../../database/entities/job-application-status-event.entity';
 import { JobApplicationEntity } from '../../database/entities/job-application.entity';
 import { JobPostVersionEntity } from '../../database/entities/job-post-version.entity';
@@ -45,6 +46,69 @@ function repo<T extends ObjectLiteral>() {
 }
 
 describe('CandidateJobService', () => {
+  it('adds job summaries to my applications with batched repository reads', async () => {
+    const jobs = repo<JobEntity>();
+    const companies = repo<CompanyEntity>();
+    const applications = repo<JobApplicationEntity>();
+    applications.findAndCount.mockResolvedValue([
+      [
+        {
+          id: 'application-1',
+          jobId: 'job-1',
+          candidateUserId: 'user-1',
+          status: 'SUBMITTED',
+          submittedAt: new Date('2026-07-01T00:00:00.000Z'),
+        } as JobApplicationEntity,
+      ],
+      1,
+    ]);
+    jobs.find.mockResolvedValue([
+      {
+        id: 'job-1',
+        companyId: 'company-1',
+        slug: 'frontend-engineer',
+        title: 'Frontend Engineer',
+        location: 'Ho Chi Minh City',
+      } as JobEntity,
+    ]);
+    companies.find.mockResolvedValue([
+      { id: 'company-1', name: 'SkillBridge Labs' } as CompanyEntity,
+    ]);
+    const service = new CandidateJobService(
+      jobs,
+      companies,
+      repo<JobPostVersionEntity>(),
+      repo<SavedJobEntity>(),
+      applications,
+      repo<JobApplicationStatusEventEntity>(),
+      repo<JobReportEntity>(),
+      repo<CvEntity>(),
+      repo<CvSkillEntity>(),
+      repo<SkillEntity>(),
+      repo<UserEntity>(),
+      {} as never,
+      {} as never,
+      {} as never,
+      { query: jest.fn() } as never,
+      { processNotificationEvent: jest.fn() } as never,
+    );
+
+    const result = await service.listMyApplications('user-1');
+
+    expect(jobs.find).toHaveBeenCalledTimes(1);
+    expect(companies.find).toHaveBeenCalledTimes(1);
+    expect(result.items[0]).toMatchObject({
+      id: 'application-1',
+      job: {
+        id: 'job-1',
+        slug: 'frontend-engineer',
+        title: 'Frontend Engineer',
+        companyName: 'SkillBridge Labs',
+        location: 'Ho Chi Minh City',
+      },
+    });
+  });
+
   it('does not expose hidden salary or internal crawler fields from saved jobs', () => {
     const safe = safeSavedJob({
       id: 'job-1',
@@ -164,6 +228,7 @@ describe('CandidateJobService', () => {
     const savedJobs = repo<SavedJobEntity>();
     const service = new CandidateJobService(
       jobs,
+      repo<CompanyEntity>(),
       repo<JobPostVersionEntity>(),
       savedJobs,
       repo<JobApplicationEntity>(),
@@ -231,6 +296,7 @@ describe('CandidateJobService', () => {
     };
     const service = new CandidateJobService(
       jobs,
+      repo<CompanyEntity>(),
       versions,
       repo<SavedJobEntity>(),
       repo<JobApplicationEntity>(),
@@ -323,6 +389,7 @@ describe('CandidateJobService', () => {
     };
     const service = new CandidateJobService(
       repo<JobEntity>(),
+      repo<CompanyEntity>(),
       repo<JobPostVersionEntity>(),
       repo<SavedJobEntity>(),
       applications,

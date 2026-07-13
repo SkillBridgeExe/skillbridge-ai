@@ -10,6 +10,7 @@ import { createHash, randomUUID } from 'crypto';
 import { DataSource, In, Repository } from 'typeorm';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { CompanyEntity } from '../../database/entities/company.entity';
 import { JobApplicationStatusEventEntity } from '../../database/entities/job-application-status-event.entity';
 import { JobApplicationEntity } from '../../database/entities/job-application.entity';
 import { JobPostVersionEntity } from '../../database/entities/job-post-version.entity';
@@ -48,6 +49,7 @@ export class CandidateJobService {
 
   constructor(
     @InjectRepository(JobEntity) private readonly jobs: Repository<JobEntity>,
+    @InjectRepository(CompanyEntity) private readonly companies: Repository<CompanyEntity>,
     @InjectRepository(JobPostVersionEntity)
     private readonly versions: Repository<JobPostVersionEntity>,
     @InjectRepository(SavedJobEntity) private readonly savedJobs: Repository<SavedJobEntity>,
@@ -311,7 +313,39 @@ export class CandidateJobService {
       skip: (Math.max(page, 1) - 1) * take,
       take,
     });
-    return { items: items.map(safeApplication), total, page: Math.max(page, 1), limit: take };
+    const jobs = items.length
+      ? await this.jobs.find({
+          where: { id: In([...new Set(items.map((item) => item.jobId))]) },
+        })
+      : [];
+    const companies = jobs.length
+      ? await this.companies.find({
+          where: { id: In([...new Set(jobs.map((job) => job.companyId))]) },
+        })
+      : [];
+    const companyNameById = new Map(companies.map((company) => [company.id, company.name]));
+    const jobById = new Map(jobs.map((job) => [job.id, job]));
+
+    return {
+      items: items.map((application) => {
+        const job = jobById.get(application.jobId);
+        return {
+          ...safeApplication(application),
+          job: job
+            ? {
+                id: job.id,
+                slug: job.slug,
+                title: job.title,
+                companyName: companyNameById.get(job.companyId) ?? null,
+                location: job.location,
+              }
+            : null,
+        };
+      }),
+      total,
+      page: Math.max(page, 1),
+      limit: take,
+    };
   }
 
   async getMyApplication(userId: string, applicationId: string) {

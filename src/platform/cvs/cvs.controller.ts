@@ -142,7 +142,7 @@ export class CvsController {
   @ApiOperation({
     summary: 'List CVs for the current user',
     description:
-      'Returns paginated CV summary records. Use cvKind=BUILT for CV Studio drafts. Full review content is returned by GET /api/cvs/{id}.',
+      'Returns paginated CV summary records, optionally filtered by upload or builder origin. Full review content is returned by GET /api/cvs/{id}.',
   })
   @ApiQuery({
     name: 'page',
@@ -155,7 +155,7 @@ export class CvsController {
     name: 'cvKind',
     required: false,
     enum: ['UPLOADED', 'BUILT'],
-    description: 'Optional CV kind filter. CV Studio uses BUILT.',
+    description: 'Filter CVs by uploaded diagnosis history or builder edit history.',
   })
   list(@CurrentUser() user: JwtUser, @Query() query: CvListQueryDto) {
     return this.cvs.list(user.userId, query);
