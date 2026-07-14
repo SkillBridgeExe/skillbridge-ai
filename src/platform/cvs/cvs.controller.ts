@@ -33,6 +33,8 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { EvaluateSectionRequestDto } from '../../modules/cv-builder/dto/evaluate-section.dto';
 import { RewriteRequestDto } from '../../modules/cv-builder/dto/rewrite.dto';
+import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
+import { RoadmapFromMatchDto } from '../cv-matches/dto/roadmap-from-match.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import {
   AssistantAnalyzeRequestDto,
@@ -334,6 +336,35 @@ export class CvsController {
     @Body() dto: StoryReadinessRequestDto,
   ): Promise<StoryReadinessResponseDto> {
     return this.cvs.computeStoryReadiness(user.userId, id, dto);
+  }
+
+  @Get(':id/role-roadmap/options')
+  @ApiOperation({ summary: 'Preview learnable roadmap skill options from CV and selected role' })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'role', required: true })
+  @ApiQuery({ name: 'band', required: false, enum: ['intern', 'fresher', 'mid'] })
+  roleRoadmapOptions(
+    @CurrentUser() user: JwtUser,
+    @Param('id') cvId: string,
+    @Query('role') roleCode: string,
+    @Query('band') band?: 'intern' | 'fresher' | 'mid',
+  ) {
+    return this.cvs.getRoleRoadmapOptions(user.userId, cvId, roleCode, band ?? 'fresher');
+  }
+
+  @Post(':id/role-roadmap')
+  @ApiOperation({ summary: 'Generate a learning roadmap from CV and selected role baseline' })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'role', required: true })
+  @ApiQuery({ name: 'band', required: false, enum: ['intern', 'fresher', 'mid'] })
+  roleRoadmap(
+    @CurrentUser() user: JwtUser,
+    @Param('id') cvId: string,
+    @Query('role') roleCode: string,
+    @Query('band') band: 'intern' | 'fresher' | 'mid' | undefined,
+    @Body() dto: RoadmapFromMatchDto,
+  ): Promise<ComposedRoadmap> {
+    return this.cvs.generateRoleRoadmap(user.userId, cvId, roleCode, band ?? 'fresher', dto);
   }
 
   @Post(':id/builder/story/apply-preview')

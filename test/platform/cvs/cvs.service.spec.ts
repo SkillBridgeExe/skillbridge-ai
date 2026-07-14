@@ -1326,6 +1326,184 @@ describe('CvsService R1 completion behavior', () => {
     });
   });
 
+  describe('getRoleRoadmapOptions', () => {
+    it('returns learnable role-baseline options sorted by priority descending', async () => {
+      const { service } = build();
+      jest.spyOn(service, 'computeStoryReadiness').mockResolvedValueOnce({
+        readiness: 40,
+        band: 'starting',
+        overall_score: 40,
+        required_coverage: 0,
+        matched_count: 0,
+        missing_count: 2,
+        role_has_rubric: true,
+        roadmap_pointer: { route: '', payload: {} },
+        gap_items: [
+          {
+            requirement_id: 'role:hard_skill:docker',
+            source: 'role_rubric',
+            type: 'hard_skill',
+            canonical_name: 'docker',
+            display_name: 'Docker',
+            importance: 'PREFERRED',
+            cv_status: 'partial',
+            cv_level: 1,
+            required_level: 2,
+            gap_levels: 1,
+            satisfied_by: null,
+            evidence_refs: [],
+            evidence_risk: 'none',
+            fixability: 'learn',
+            market_demand: null,
+            severity: 0.4,
+            confidence: 0.9,
+            recommended_next_action: 'learn',
+          },
+          {
+            requirement_id: 'role:hard_skill:react_testing',
+            source: 'role_rubric',
+            type: 'hard_skill',
+            canonical_name: 'react_testing',
+            display_name: 'React Testing',
+            importance: 'REQUIRED',
+            cv_status: 'missing',
+            cv_level: 0,
+            required_level: 3,
+            gap_levels: 3,
+            satisfied_by: null,
+            evidence_refs: [],
+            evidence_risk: 'none',
+            fixability: 'learn',
+            market_demand: null,
+            severity: 0.9,
+            confidence: 0.9,
+            recommended_next_action: 'learn',
+          },
+        ],
+      });
+
+      const result = await service.getRoleRoadmapOptions(
+        'u1',
+        'cv1',
+        'frontend_developer',
+        'fresher',
+      );
+
+      expect(result.source).toMatchObject({
+        type: 'role_baseline',
+        id: 'cv1:frontend_developer:fresher',
+      });
+      expect(result.options.map((item) => item.skill_canonical)).toEqual([
+        'react_testing',
+        'docker',
+      ]);
+      expect(result.options[0]).toMatchObject({
+        estimated_hours: 24,
+        selected_by_default: true,
+      });
+    });
+
+    it('generates and persists a role-baseline roadmap without a JD match', async () => {
+      const { service, entitlements, reservation } = build();
+      const roadmapComposer = {
+        compose: jest.fn().mockResolvedValue({
+          budget_hours: 4,
+          steps: [{ skill_canonical: 'react_testing', display_name: 'React Testing' }],
+          sessions: [{ id: 'roadmap-w1-s1-react-testing' }],
+          not_feasible_items: [],
+          ai_summary: 'Role-baseline roadmap.',
+          source_refs: [
+            {
+              type: 'role_baseline',
+              id: 'cv1:frontend_developer:fresher',
+              label: 'frontend_developer',
+              reason: 'Missing or partial skill found from selected role baseline.',
+            },
+          ],
+        }),
+      };
+      const learningRoadmaps = {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        create: jest.fn((value) => value),
+        save: jest.fn().mockResolvedValue({ id: 'roadmap-1' }),
+      };
+      (service as unknown as { roadmapComposer?: unknown }).roadmapComposer = roadmapComposer;
+      (service as unknown as { learningRoadmaps?: unknown }).learningRoadmaps = learningRoadmaps;
+
+      jest.spyOn(service, 'computeStoryReadiness').mockResolvedValueOnce({
+        readiness: 40,
+        band: 'starting',
+        overall_score: 40,
+        required_coverage: 0,
+        matched_count: 0,
+        missing_count: 1,
+        role_has_rubric: true,
+        roadmap_pointer: { route: '', payload: {} },
+        gap_items: [
+          {
+            requirement_id: 'role:hard_skill:react_testing',
+            source: 'role_rubric',
+            type: 'hard_skill',
+            canonical_name: 'react_testing',
+            display_name: 'React Testing',
+            importance: 'REQUIRED',
+            cv_status: 'missing',
+            cv_level: 0,
+            required_level: 3,
+            gap_levels: 3,
+            satisfied_by: null,
+            evidence_refs: [],
+            evidence_risk: 'none',
+            fixability: 'learn',
+            market_demand: null,
+            severity: 0.9,
+            confidence: 0.9,
+            recommended_next_action: 'learn',
+          },
+        ],
+      });
+
+      const result = await (
+        service as unknown as {
+          generateRoleRoadmap: (
+            userId: string,
+            cvId: string,
+            roleCode: string,
+            band: 'intern' | 'fresher' | 'mid',
+            dto: { minutes_per_session: number; sessions_per_week: number },
+          ) => Promise<unknown>;
+        }
+      ).generateRoleRoadmap('u1', 'cv1', 'frontend_developer', 'fresher', {
+        minutes_per_session: 60,
+        sessions_per_week: 4,
+      });
+
+      expect(entitlements.reserveUsage).toHaveBeenCalledWith(
+        'u1',
+        BillingFeatureKey.ROADMAP_GENERATE,
+        { sourceType: 'cv', sourceId: 'cv1' },
+      );
+      expect(roadmapComposer.compose).toHaveBeenCalledWith(
+        expect.objectContaining({
+          budget: expect.objectContaining({ minutes_per_session: 60, sessions_per_week: 4 }),
+          sourceRefs: [
+            expect.objectContaining({
+              type: 'role_baseline',
+              id: 'cv1:frontend_developer:fresher',
+            }),
+          ],
+        }),
+      );
+      expect(learningRoadmaps.update).toHaveBeenCalledWith(
+        { userId: 'u1', active: true },
+        { active: false },
+      );
+      expect(learningRoadmaps.save).toHaveBeenCalled();
+      expect(reservation.confirm).toHaveBeenCalledWith({ sourceType: 'cv', sourceId: 'cv1' });
+      expect(result).toEqual(expect.objectContaining({ budget_hours: 4 }));
+    });
+  });
+
   describe('applyStoryPreview', () => {
     it('throws NotFound when cv not owned', async () => {
       const { service, cvsRepo } = build();

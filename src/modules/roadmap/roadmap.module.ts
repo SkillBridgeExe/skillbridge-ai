@@ -8,6 +8,7 @@ import { LearningResourceMatcherService } from './learning-resource-matcher.serv
 import { RoadmapComposerService } from './roadmap-composer.service';
 import { LearningResourceRetriever } from './learning-resource-retriever.service';
 import { RagModule } from '../rag/rag.module';
+import { DisplayTranslationService } from './display-translation.service';
 
 @Module({
   imports: [RagModule, TypeOrmModule.forFeature([UserLearningPreferenceEntity])],
@@ -19,9 +20,15 @@ import { RagModule } from '../rag/rag.module';
     LearningResourceMatcherService,
     RoadmapComposerService,
     LearningResourceRetriever,
+    DisplayTranslationService,
   ],
   // LearningResourceRetriever is exported so the RAG-PR2 learning-chat module can consume it.
   // RoadmapComposerService is exported for platform adapters that compose deterministic roadmaps.
-  exports: [RoadmapService, RoadmapComposerService, LearningResourceRetriever],
+  exports: [
+    RoadmapService,
+    RoadmapComposerService,
+    LearningResourceRetriever,
+    DisplayTranslationService,
+  ],
 })
 export class RoadmapModule {}

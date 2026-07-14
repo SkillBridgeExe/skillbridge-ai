@@ -1,4 +1,14 @@
-import { IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /**
  * Body for POST /api/cv-matches/:matchId/roadmap.
@@ -23,6 +33,42 @@ export class RoadmapFromMatchDto {
   @IsOptional()
   @IsIn(['vi', 'en', 'both'])
   language_pref?: 'vi' | 'en' | 'both';
+
+  @IsOptional()
+  @IsInt()
+  @Min(15)
+  @Max(240)
+  minutes_per_session?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(35)
+  sessions_per_week?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  study_days_per_week?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selected_skill_order?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  excluded_skills?: string[];
+
+  @IsOptional()
+  @IsObject()
+  selected_resources?: Record<string, string[]>;
+
+  @IsOptional()
+  @IsBoolean()
+  translate_display?: boolean;
 
   @IsOptional()
   @IsString()

@@ -28,6 +28,7 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListQueryDto } from './dto/cv-match-list-query.dto';
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
+import { RoadmapOptionsResponseDto } from './dto/roadmap-options.dto';
 import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { CvMatchesService } from './cv-matches.service';
 import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
@@ -237,6 +238,18 @@ export class CvMatchReportsController {
   ) {
     if (!this.unifiedPlan) throw new Error('Unified plan dependency is not configured');
     return this.unifiedPlan.get(user.userId, matchId, sessionId);
+  }
+
+  @Get(':matchId/roadmap/options')
+  @ApiOperation({
+    summary: 'Preview learnable roadmap skill options from a match before generation',
+  })
+  @ApiParam({ name: 'matchId', format: 'uuid' })
+  roadmapOptionsFromMatch(
+    @CurrentUser() user: JwtUser,
+    @Param('matchId') matchId: string,
+  ): Promise<RoadmapOptionsResponseDto> {
+    return this.matches.getRoadmapOptionsFromMatch(user.userId, matchId);
   }
 
   @Post(':matchId/roadmap')

@@ -66,8 +66,43 @@ export interface ComposedRoadmapStep {
       | 'low_confidence'
     >
   >;
+  source_refs?: RoadmapSourceRef[];
+  translated_display?: RoadmapTranslatedDisplay;
   recommended_courses?: ScoredCourse[];
   lesson_content?: SkillBridgeLessonContent;
+}
+
+export type RoadmapSourceType = 'jd_match' | 'role_baseline';
+
+export interface RoadmapSourceRef {
+  type: RoadmapSourceType;
+  id: string;
+  label?: string;
+  reason: string;
+}
+
+export interface RoadmapTranslatedDisplay {
+  locale: 'vi' | 'en';
+  title?: string;
+  description?: string;
+  reason?: string;
+  summary?: string;
+}
+
+export interface RoadmapSession {
+  id: string;
+  week_number: number;
+  session_index: number;
+  lane_index: number;
+  suggested_day_of_week: number;
+  duration_minutes: number;
+  title: string;
+  mode: 'single_skill' | 'bundled_skills' | 'mini_project';
+  skill_canonicals: string[];
+  primary_skill: string;
+  resource_ids: string[];
+  source_refs: RoadmapSourceRef[];
+  translated_display?: RoadmapTranslatedDisplay;
 }
 
 export interface NotFeasibleItem {
@@ -80,7 +115,9 @@ export interface NotFeasibleItem {
 export interface ComposedRoadmap {
   budget_hours: number;
   steps: ComposedRoadmapStep[];
+  sessions?: RoadmapSession[];
   not_feasible_items: NotFeasibleItem[];
   ai_summary: string;
   no_learning_gaps?: boolean;
+  source_refs?: RoadmapSourceRef[];
 }

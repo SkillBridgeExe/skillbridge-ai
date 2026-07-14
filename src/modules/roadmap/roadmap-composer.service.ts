@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { GapItem } from '../gap-engine/gap-item';
 import type { UnifiedDevelopmentPlanItem } from '../gap-report/unified-plan';
 import type { ScoredCourse } from './course-matcher.service';
@@ -8,10 +8,12 @@ import { scoreResource, type LanguagePref, type ScoredResource } from './learnin
 import {
   ComposedRoadmap,
   ComposedRoadmapStep,
-  NotFeasibleItem,
+  RoadmapSourceRef,
   toFeasibilityInputs,
 } from './roadmap-composer';
+import { planRoadmapSchedule } from './schedule-planner';
 import { getSkillBridgeLessonContent } from './skillbridge-lesson-content';
+import { DisplayTranslationService } from './display-translation.service';
 
 const LEARN_SOURCE_TYPES = ['course', 'official_doc', 'video', 'exercise', 'mini_project'] as const;
 const MAX_RESOURCES_PER_STEP = 30;
@@ -19,15 +21,60 @@ const MAX_RECOMMENDED_COURSES_PER_STEP = 30;
 
 @Injectable()
 export class RoadmapComposerService {
-  constructor(private readonly matcher: LearningResourceMatcherService) {}
+  constructor(
+    private readonly matcher: LearningResourceMatcherService,
+    @Optional() private readonly displayTranslation?: DisplayTranslationService,
+  ) {}
 
-  compose(input: {
+  previewResourceOptions(
+    skills: Array<{ skill_canonical: string; required_level?: number | null }>,
+    languagePref: LanguagePref = 'both',
+  ): Map<string, Array<Pick<ScoredResource, 'id' | 'source_type' | 'title' | 'url' | 'is_internal' | 'description' | 'duration_minutes' | 'outcome_type'>>> {
+    const requests = skills.map((skill) => ({
+      skill_canonical_name: skill.skill_canonical,
+      required_level: skill.required_level ?? 3,
+    }));
+    const matched = this.matcher.matchResources(requests, {
+      sourceTypes: [...LEARN_SOURCE_TYPES],
+      langPref: languagePref,
+      preferLanguageIfAvailable: languagePref !== 'both',
+    });
+
+    return new Map(
+      matched.per_skill.map((item) => [
+        item.skill_canonical_name,
+        keepOnePrimaryVideo(item.resources)
+          .slice(0, MAX_RESOURCES_PER_STEP)
+          .map((resource) => ({
+            id: resource.id,
+            source_type: resource.source_type,
+            title: resource.title,
+            url: resource.url,
+            is_internal: resource.is_internal,
+            description: resource.description,
+            duration_minutes: resource.duration_minutes,
+            outcome_type: resource.outcome_type,
+          })),
+      ]),
+    );
+  }
+
+  async compose(input: {
     learnItems: UnifiedDevelopmentPlanItem[];
     gapItems: GapItem[];
     budget: FeasibilityBudget;
     languagePref?: LanguagePref;
-  }): ComposedRoadmap {
-    const feasibilityInputs = toFeasibilityInputs(input.learnItems, input.gapItems);
+    selectedSkillOrder?: string[];
+    excludedSkills?: string[];
+    selectedResources?: Record<string, string[]>;
+    sourceRefs?: RoadmapSourceRef[];
+    translateDisplay?: boolean;
+  }): Promise<ComposedRoadmap> {
+    const learnItems = applySkillSelection(input.learnItems, {
+      selectedSkillOrder: input.selectedSkillOrder,
+      excludedSkills: input.excludedSkills,
+    });
+    const feasibilityInputs = toFeasibilityInputs(learnItems, input.gapItems);
     const matchRequests = feasibilityInputs.map((item) => ({
       skill_canonical_name: item.skill_canonical,
       required_level: item.required_level,
@@ -35,6 +82,7 @@ export class RoadmapComposerService {
     const matched = this.matcher.matchResources(matchRequests, {
       sourceTypes: [...LEARN_SOURCE_TYPES],
       langPref: input.languagePref ?? 'both',
+      preferLanguageIfAvailable: (input.languagePref ?? 'both') !== 'both',
     });
     const resourcesBySkill = new Map(
       matched.per_skill.map(
@@ -46,23 +94,11 @@ export class RoadmapComposerService {
       resource_hours: primaryResourceHours(resourcesBySkill.get(item.skill_canonical) ?? []),
     }));
     const plan = planFeasibility(withResourceHours, input.budget);
-    const inputsBySkill = new Map(withResourceHours.map((item) => [item.skill_canonical, item]));
+    const planItems = orderBySelectedSkill(plan.items, input.selectedSkillOrder);
 
     const steps: ComposedRoadmapStep[] = [];
-    const not_feasible_items: NotFeasibleItem[] = [];
 
-    for (const item of plan.items) {
-      // Honest feasibility: items the planner could not fit into the hour budget are surfaced
-      // as not_feasible_items (with a fallback track) instead of being promised as steps.
-      if (item.verdict === 'not_feasible_before_deadline') {
-        not_feasible_items.push({
-          skill_canonical: item.skill_canonical,
-          display_name: item.display_name,
-          reason: 'ran_out_of_budget',
-          fallback: fallbackFor(inputsBySkill.get(item.skill_canonical)),
-        });
-        continue;
-      }
+    for (const item of planItems) {
       const skillResources = resourcesBySkill.get(item.skill_canonical) ?? [];
       const hasVideo = skillResources.some((r) => r.source_type === 'video');
       if (!hasVideo && typeof this.matcher.allResources === 'function') {
@@ -97,7 +133,16 @@ export class RoadmapComposerService {
           skillResources.push(scoredVideo);
         }
       }
-      const boundedSkillResources = keepOnePrimaryVideo(skillResources).slice(
+      const selectedResourceIds = input.selectedResources?.[item.skill_canonical];
+      const chosenSkillResources =
+        selectedResourceIds && selectedResourceIds.length > 0
+          ? skillResources.filter((resource) => selectedResourceIds.includes(resource.id))
+          : skillResources;
+      const languageSafeResources = preferDisplayLanguageResources(
+        chosenSkillResources,
+        input.languagePref ?? 'both',
+      );
+      const boundedSkillResources = keepOnePrimaryVideo(languageSafeResources).slice(
         0,
         MAX_RESOURCES_PER_STEP,
       );
@@ -118,13 +163,25 @@ export class RoadmapComposerService {
         low_confidence: resource.low_confidence,
       }));
 
+      const translated_display =
+        input.translateDisplay && input.languagePref === 'vi'
+          ? await this.displayTranslation?.translateDisplay({
+              locale: 'vi',
+              title: item.display_name,
+              description: resources[0]?.description,
+              reason: `Recommended for ${item.display_name}.`,
+            })
+          : undefined;
+
       steps.push({
         skill_canonical: item.skill_canonical,
         display_name: item.display_name,
-        strategy: item.strategy,
+        strategy: 'deep_build',
         estimated_hours: item.estimated_hours,
         priority: item.priority,
         resources,
+        source_refs: input.sourceRefs,
+        translated_display,
         recommended_courses: boundedSkillResources
           .filter((resource) => resource.source_type === 'course')
           .slice(0, MAX_RECOMMENDED_COURSES_PER_STEP)
@@ -138,11 +195,92 @@ export class RoadmapComposerService {
 
     const ai_summary =
       steps.length === 0
-        ? 'No learnable gaps fit the available time; focus on interview practice and honest CV framing.'
-        : `Focus on ${steps.length} skill${steps.length > 1 ? 's' : ''} in ${plan.budget_hours}h.`;
+        ? 'No selected learnable gaps yet.'
+        : `Focus on ${steps.length} selected skill${steps.length > 1 ? 's' : ''}.`;
 
-    return { budget_hours: plan.budget_hours, steps, not_feasible_items, ai_summary };
+    return {
+      budget_hours: plan.budget_hours,
+      steps,
+      sessions: planRoadmapSchedule(steps, input.budget),
+      not_feasible_items: [],
+      ai_summary,
+      source_refs: input.sourceRefs,
+    };
   }
+}
+
+function applySkillSelection(
+  learnItems: UnifiedDevelopmentPlanItem[],
+  input: Pick<
+    Parameters<RoadmapComposerService['compose']>[0],
+    'selectedSkillOrder' | 'excludedSkills'
+  >,
+): UnifiedDevelopmentPlanItem[] {
+  const excluded = new Set((input.excludedSkills ?? []).map((item) => item.toLowerCase()));
+  const order = new Map(
+    (input.selectedSkillOrder ?? []).map((skill, index) => [skill.toLowerCase(), index]),
+  );
+
+  return [...learnItems]
+    .filter((item) => !excluded.has(canonicalOf(item).toLowerCase()))
+    .sort((a, b) => {
+      const ai = order.get(canonicalOf(a).toLowerCase());
+      const bi = order.get(canonicalOf(b).toLowerCase());
+      if (ai != null && bi != null) return ai - bi;
+      if (ai != null) return -1;
+      if (bi != null) return 1;
+      return 0;
+    });
+}
+
+function preferDisplayLanguageResources(
+  resources: ScoredResource[],
+  languagePref: LanguagePref,
+): ScoredResource[] {
+  const safeResources = resources.filter(isSafeDisplayResource);
+  if (languagePref === 'both') return safeResources.length > 0 ? safeResources : resources;
+
+  const preferredSafe = safeResources.filter((resource) => resource.language === languagePref);
+  if (preferredSafe.length > 0) return preferredSafe;
+
+  const preferred = resources.filter((resource) => resource.language === languagePref);
+  if (preferred.length > 0) return preferred;
+
+  return safeResources.length > 0 ? safeResources : resources;
+}
+
+function isSafeDisplayResource(resource: ScoredResource): boolean {
+  if (resource.source_type !== 'course') return true;
+  const title = resource.title.toLowerCase();
+  const url = resource.url?.toLowerCase() ?? '';
+  if (/[\u0400-\u04ff\u0600-\u06ff]/u.test(resource.title)) return false;
+  if (/-fr(?:$|[/?#])|[/?&]lang=fr\b/.test(url)) return false;
+  return !/\b(cr\u00e9er|creer|comp\u00e9tences|competences|utilisateur|dynamiques|notions|cl\u00e9s|cles|entreprise)\b/i.test(
+    title,
+  );
+}
+
+function canonicalOf(item: UnifiedDevelopmentPlanItem): string {
+  return item.skill_canonical ?? item.display_name;
+}
+
+function orderBySelectedSkill<T extends { skill_canonical: string }>(
+  items: T[],
+  selectedSkillOrder: string[] | undefined,
+): T[] {
+  if (!selectedSkillOrder?.length) return items;
+  const order = new Map(
+    selectedSkillOrder.map((skill, index) => [skill.toLowerCase(), index]),
+  );
+
+  return [...items].sort((a, b) => {
+    const ai = order.get(a.skill_canonical.toLowerCase());
+    const bi = order.get(b.skill_canonical.toLowerCase());
+    if (ai != null && bi != null) return ai - bi;
+    if (ai != null) return -1;
+    if (bi != null) return 1;
+    return 0;
+  });
 }
 
 function primaryResourceHours(resources: ScoredResource[]): number | null {
@@ -158,14 +296,6 @@ function keepOnePrimaryVideo(resources: ScoredResource[]): ScoredResource[] {
     hasVideo = true;
     return true;
   });
-}
-
-function fallbackFor(
-  item: ReturnType<typeof toFeasibilityInputs>[number] | undefined,
-): NotFeasibleItem['fallback'] {
-  if (item?.interview_confirmed) return 'interview_practice';
-  if (item?.needs_evidence) return 'cv_fix';
-  return 'crash_prep';
 }
 
 function toRecommendedCourse(resource: ScoredResource): ScoredCourse {

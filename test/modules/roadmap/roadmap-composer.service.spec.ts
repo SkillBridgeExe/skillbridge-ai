@@ -81,11 +81,9 @@ const gap = (skill: string, over: Partial<GapItem> = {}): GapItem =>
 describe('RoadmapComposerService.compose', () => {
   beforeEach(() => matcher.matchResources.mockClear());
 
-  it('attaches curated resources to feasible steps and lists not_feasible honestly', () => {
+  it('attaches curated resources and schedules every selected skill', async () => {
     const svc = new RoadmapComposerService(matcher as never);
-    // 30h budget: react (20.8h) fits, rust (another 20.8h) does not — rust must be
-    // reported in not_feasible_items instead of silently promised as a step.
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9), learn('rust', 0.4)],
       gapItems: [gap('react'), gap('rust')],
       budget: { available_days: 30, hours_per_week: 7 },
@@ -108,15 +106,11 @@ describe('RoadmapComposerService.compose', () => {
     });
     expect(out.steps[0].resources[0].low_confidence).toBe(true);
     expect(out.steps[0].recommended_courses?.map((course) => course.id)).toEqual(['r1']);
-    expect(out.steps.map((item) => item.skill_canonical)).not.toContain('rust');
-    expect(out.not_feasible_items).toEqual([
-      {
-        skill_canonical: 'rust',
-        display_name: 'rust',
-        reason: 'ran_out_of_budget',
-        fallback: 'crash_prep',
-      },
-    ]);
+    expect(out.steps.map((item) => item.skill_canonical)).toContain('rust');
+    expect(out.sessions?.map((session) => session.primary_skill)).toEqual(
+      expect.arrayContaining(['react', 'rust']),
+    );
+    expect(out.not_feasible_items).toEqual([]);
     expect(out.ai_summary.length).toBeGreaterThan(0);
     expect(matcher.matchResources).toHaveBeenCalledWith(
       [
@@ -126,13 +120,14 @@ describe('RoadmapComposerService.compose', () => {
       {
         sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'],
         langPref: 'both',
+        preferLanguageIfAvailable: false,
       },
     );
   });
 
-  it('passes the requested language preference into resource matching', () => {
+  it('passes the requested language preference into resource matching', async () => {
     const svc = new RoadmapComposerService(matcher as never);
-    svc.compose({
+    await svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react')],
       budget: { available_days: 30, hours_per_week: 7 },
@@ -144,11 +139,12 @@ describe('RoadmapComposerService.compose', () => {
       {
         sourceTypes: ['course', 'official_doc', 'video', 'exercise', 'mini_project'],
         langPref: 'en',
+        preferLanguageIfAvailable: true,
       },
     );
   });
 
-  it('does not let recommended course payload grow past 30 courses per step', () => {
+  it('does not let recommended course payload grow past 30 courses per step', async () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [
         {
@@ -186,7 +182,7 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react')],
       budget: { available_days: 30, hours_per_week: 7 },
@@ -196,7 +192,7 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.steps[0].recommended_courses?.at(-1)?.id).toBe('react-30');
   });
 
-  it('keeps only one primary video resource per skill step', () => {
+  it('keeps only one primary video resource per skill step', async () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [
         {
@@ -286,7 +282,7 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react')],
       budget: { available_days: 30, hours_per_week: 7 },
@@ -298,7 +294,7 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.steps[0].resources.map((resource) => resource.id)).toContain('react-course');
   });
 
-  it('uses the primary matched resource duration as feasibility floor before selecting steps', () => {
+  it('uses the primary matched resource duration as feasibility floor before selecting steps', async () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [
         {
@@ -363,11 +359,9 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react', { required_level: 3, cv_level: 2 })],
-      // 42.9h budget: the 30h resource floor must fit as a step (and carry the floored hours);
-      // a tighter budget would honestly push it into not_feasible_items instead.
       budget: { available_days: 30, hours_per_week: 10 },
     });
 
@@ -376,14 +370,14 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.not_feasible_items).toEqual([]);
   });
 
-  it('moves items that do not fit the budget into not_feasible_items with an honest fallback', () => {
+  it('keeps selected items schedulable regardless of the total budget estimate', async () => {
     matcher.matchResources.mockReturnValueOnce({
       per_skill: [],
       uncovered_skills: [],
     });
 
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [{ ...learn('communication', 0.9), source: 'both' }, learn('portfolio', 0.8)],
       gapItems: [
         gap('communication', { evidence_risk: 'none', required_level: 5, cv_level: 0 }),
@@ -392,27 +386,42 @@ describe('RoadmapComposerService.compose', () => {
       budget: { available_days: 1, hours_per_week: 1 },
     });
 
-    expect(out.steps).toEqual([]);
-    expect(out.not_feasible_items).toEqual([
-      {
-        skill_canonical: 'communication',
-        display_name: 'communication',
-        reason: 'ran_out_of_budget',
-        fallback: 'interview_practice',
-      },
-      {
-        skill_canonical: 'portfolio',
-        display_name: 'portfolio',
-        reason: 'ran_out_of_budget',
-        fallback: 'cv_fix',
-      },
-    ]);
-    expect(out.ai_summary).toContain('No learnable gaps fit the available time');
+    expect(out.steps.map((step) => step.skill_canonical)).toEqual(['communication', 'portfolio']);
+    expect(out.sessions?.map((session) => session.primary_skill)).toEqual(
+      expect.arrayContaining(['communication', 'portfolio']),
+    );
+    expect(out.not_feasible_items).toEqual([]);
+    expect(out.ai_summary).toContain('Focus on 2 selected skills');
   });
 
-  it('keeps every item as a step when the budget is roomy (unchanged happy path)', () => {
+  it('keeps the user-selected skill order when scheduling parallel lanes', async () => {
+    matcher.matchResources.mockReturnValueOnce({
+      per_skill: [],
+      uncovered_skills: [],
+    });
+
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
+      learnItems: [learn('java', 0.95), learn('swift', 0.2), learn('kotlin', 0.8)],
+      gapItems: [gap('java'), gap('swift'), gap('kotlin')],
+      budget: {
+        minutes_per_session: 120,
+        sessions_per_week: 10,
+        study_days_per_week: 5,
+      },
+      selectedSkillOrder: ['swift', 'kotlin', 'java'],
+    });
+
+    expect(out.steps.map((step) => step.skill_canonical)).toEqual(['swift', 'kotlin', 'java']);
+    expect(out.sessions?.slice(0, 2).map((session) => session.primary_skill)).toEqual([
+      'swift',
+      'kotlin',
+    ]);
+  });
+
+  it('keeps every item as a step when the budget is roomy (unchanged happy path)', async () => {
+    const svc = new RoadmapComposerService(matcher as never);
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9), learn('rust', 0.4)],
       gapItems: [gap('react'), gap('rust')],
       budget: { available_days: 60, hours_per_week: 7 },
@@ -423,16 +432,42 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.not_feasible_items).toEqual([]);
   });
 
-  it('marks feasible items as crash_prep on a short timeline (planner strategy, not recomputed)', () => {
+  it('keeps selected items on the deep-build strategy even on a short timeline', async () => {
     const svc = new RoadmapComposerService(matcher as never);
-    const out = svc.compose({
+    const out = await svc.compose({
       learnItems: [learn('react', 0.9)],
       gapItems: [gap('react', { required_level: 3, cv_level: 2 })],
       budget: { available_days: 7, hours_per_week: 20 },
     });
 
     expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
-    expect(out.steps[0].strategy).toBe('crash_prep');
+    expect(out.steps[0].strategy).toBe('deep_build');
     expect(out.not_feasible_items).toEqual([]);
+  });
+
+  it('adds translated display metadata when requested for Vietnamese output', async () => {
+    const displayTranslation = {
+      translateDisplay: jest.fn(async (input) => ({
+        ...input,
+        title: 'React da dich',
+      })),
+    };
+    const svc = new RoadmapComposerService(matcher as never, displayTranslation as never);
+
+    const out = await svc.compose({
+      learnItems: [learn('react', 0.9)],
+      gapItems: [gap('react')],
+      budget: { available_days: 30, hours_per_week: 7 },
+      languagePref: 'vi',
+      translateDisplay: true,
+    });
+
+    expect(displayTranslation.translateDisplay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locale: 'vi',
+        title: 'react',
+      }),
+    );
+    expect(out.steps[0].translated_display).toMatchObject({ title: 'React da dich' });
   });
 });

@@ -72,7 +72,7 @@ function build() {
   const platformCvs = { getLatestReview: jest.fn().mockResolvedValue(null) };
   const roadmap = { generate: jest.fn() };
   const composer: jest.Mocked<Pick<RoadmapComposerService, 'compose'>> = {
-    compose: jest.fn<ComposedRoadmap, [RoadmapComposerInput]>().mockReturnValue({
+    compose: jest.fn<Promise<ComposedRoadmap>, [RoadmapComposerInput]>().mockResolvedValue({
       budget_hours: 34.3,
       steps: [],
       not_feasible_items: [],
@@ -173,7 +173,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
   });
 
   it('honest empty-state when there are no learning gaps', async () => {
-    const { service, roadmap, composer, reservation, gapReport } = build();
+    const { service, roadmap, composer, entitlements, reservation, gapReport } = build();
     gapReport.build.mockResolvedValue(
       report({
         gap_items: [gap({ fixability: 'rewrite' }), gap({ fixability: 'add_evidence' })],
@@ -186,7 +186,7 @@ describe('CvMatchesService.generateRoadmapFromMatch - deterministic composer flo
     expect(composer.compose).not.toHaveBeenCalled();
     expect(out.no_learning_gaps).toBe(true);
     expect(out.steps).toEqual([]);
-    // The honest empty-state is still a delivered gap analysis — the charge stands.
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
     expect(reservation.refund).not.toHaveBeenCalled();
   });
 

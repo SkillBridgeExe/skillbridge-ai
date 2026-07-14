@@ -9,6 +9,7 @@ import { ImpactCalibrationEntity } from '../../database/entities/impact-calibrat
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
+import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import { UserLearningPreferenceEntity } from '../../database/entities/user-learning-preference.entity';
 import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { GapReportModule } from '../../modules/gap-report/gap-report.module';
@@ -42,6 +43,7 @@ import { UnifiedPlanService } from './unified-plan.service';
       // V2 (Wave VALUE_CHAIN): read-only lookup of the user's learning progress rows
       // (getProgress's mastered-learning pre-pass → ProgressReport.learning_completed).
       LearningSessionProgressEntity,
+      LearningRoadmapEntity,
     ]),
     CvJdMatchModule,
     BillingModule,

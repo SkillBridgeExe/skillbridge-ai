@@ -2,6 +2,7 @@ import {
   estimatedHours,
   priorityOf,
   planFeasibility,
+  budgetHours,
   FeasibilityGapInput,
 } from '../../../src/modules/roadmap/feasibility-planner';
 
@@ -103,5 +104,22 @@ describe('planFeasibility', () => {
     );
     expect(out.items[0].verdict).toBe('not_feasible_before_deadline');
     expect(out.items[0].strategy).toBe('crash_prep');
+  });
+});
+
+describe('budgetHours', () => {
+  it('uses session budget when minutes_per_session and sessions_per_week are provided', () => {
+    expect(budgetHours({ minutes_per_session: 60, sessions_per_week: 4 })).toBe(4);
+    expect(budgetHours({ minutes_per_session: 45, sessions_per_week: 3 })).toBe(2.3);
+  });
+
+  it('treats session budget as weekly capacity across the available days', () => {
+    expect(budgetHours({ available_days: 30, minutes_per_session: 120, sessions_per_week: 15 })).toBe(
+      128.6,
+    );
+  });
+
+  it('keeps legacy available_days and hours_per_week budget fallback', () => {
+    expect(budgetHours({ available_days: 30, hours_per_week: 8 })).toBe(34.3);
   });
 });

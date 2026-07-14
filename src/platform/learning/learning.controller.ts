@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
@@ -9,8 +9,13 @@ import {
   PatchLearningChecklistItemDto,
   UpdateLearningSessionProgressDto,
 } from './dto/session-progress.dto';
+import {
+  PatchRoadmapScheduleDto,
+  TranslateDisplayRequestDto,
+} from './dto/learning-roadmap.dto';
 import { LearningChatPlatformService } from './learning-chat-platform.service';
 import { LearningSessionProgressService } from './session-progress.service';
+import { LearningRoadmapPlatformService } from './learning-roadmap.service';
 
 @ApiTags('Learning')
 @Public()
@@ -86,5 +91,51 @@ export class LearningSessionProgressController {
     @Body() dto: PatchLearningChecklistItemDto,
   ) {
     return this.sessionProgress.patchChecklistItem(user.userId, sessionId, itemId, dto);
+  }
+}
+
+@ApiTags('Learning')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'))
+@Controller('api/learning/roadmaps')
+export class LearningRoadmapController {
+  constructor(private readonly roadmaps: LearningRoadmapPlatformService) {}
+
+  @Get('active')
+  @ApiOperation({ summary: 'Get the active persisted learning roadmap' })
+  getActive(@CurrentUser() user: JwtUser) {
+    return this.roadmaps.getActive(user.userId);
+  }
+
+  @Delete('active')
+  @ApiOperation({ summary: 'Clear the current user learning roadmap and session progress' })
+  clearActive(@CurrentUser() user: JwtUser) {
+    return this.roadmaps.clearActive(user.userId);
+  }
+
+  @Patch(':roadmapId/schedule')
+  @ApiOperation({ summary: 'Patch the persisted learning roadmap schedule' })
+  patchSchedule(
+    @CurrentUser() user: JwtUser,
+    @Param('roadmapId') roadmapId: string,
+    @Body() dto: PatchRoadmapScheduleDto,
+  ) {
+    return this.roadmaps.patchSchedule(user.userId, roadmapId, dto.schedule);
+  }
+}
+
+@ApiTags('Learning')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'))
+@Controller('api/learning')
+export class LearningDisplayTranslationController {
+  constructor(private readonly roadmaps: LearningRoadmapPlatformService) {}
+
+  @Post('translate-display')
+  @ApiOperation({ summary: 'Translate short learning display text on demand' })
+  translateDisplay(@Body() dto: TranslateDisplayRequestDto) {
+    return this.roadmaps.translateDisplayItems(dto);
   }
 }

@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
@@ -59,6 +61,10 @@ import { StoryReadinessRequestDto, StoryReadinessResponseDto } from './dto/story
 import { SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
 import { CvJdMatchParsedResponse } from '../../modules/cv-jd-match/dto/cv-jd-match-response.dto';
 import { buildGapItems } from '../../modules/gap-engine/gap-item';
+import { buildUnifiedPlan } from '../../modules/gap-report/unified-plan';
+import { ComposedRoadmap } from '../../modules/roadmap/roadmap-composer';
+import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
+import { budgetHours, type FeasibilityBudget } from '../../modules/roadmap/feasibility-planner';
 import { computeReadiness, cvSkillsFromDoc } from '../../modules/cv-builder/readiness';
 import { StoryApplyRequestDto, StoryApplyResponseDto } from './dto/story-apply.dto';
 import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-extract.dto';
@@ -78,6 +84,12 @@ import {
 } from '../../modules/github-evidence/github-evidence.service';
 import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-plan.dto';
 import { InterviewPlanService } from '../../modules/interview/interview-plan.service';
+import {
+  RoadmapOptionsResponseDto,
+  RoadmapSkillOptionDto,
+  RoadmapSourceRefDto,
+} from '../cv-matches/dto/roadmap-options.dto';
+import { RoadmapFromMatchDto } from '../cv-matches/dto/roadmap-from-match.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
@@ -144,6 +156,10 @@ export class CvsService {
     // via CvsModule; the `?` only satisfies TS (it trails the optionals above) and lets unit tests
     // omit it — it is NOT @Optional() for Nest, so a dropped provider fails boot loudly.
     private readonly questionGenerator?: CvQuestionGeneratorService,
+    @Optional() private readonly roadmapComposer?: RoadmapComposerService,
+    @Optional()
+    @InjectRepository(LearningRoadmapEntity)
+    private readonly learningRoadmaps?: Repository<LearningRoadmapEntity>,
   ) {}
 
   async create(
@@ -708,6 +724,122 @@ export class CvsService {
     };
   }
 
+  async getRoleRoadmapOptions(
+    userId: string,
+    cvId: string,
+    roleCode: string,
+    band: 'intern' | 'fresher' | 'mid' = 'fresher',
+  ): Promise<RoadmapOptionsResponseDto> {
+    const readiness = await this.computeStoryReadiness(userId, cvId, {
+      role_code: roleCode,
+      band,
+    });
+    const source: RoadmapSourceRefDto = {
+      type: 'role_baseline',
+      id: `${cvId}:${roleCode}:${band}`,
+      label: roleCode,
+      reason: 'Missing or partial skill found from selected role baseline.',
+    };
+    const learnable = readiness.gap_items
+      .filter((gap) => gap.fixability === 'learn')
+      .filter((gap) => gap.cv_status === 'missing' || gap.cv_status === 'partial')
+      .filter((gap) => gap.gap_levels > 0);
+    const options = learnable
+      .map((gap) => ({
+        skill_canonical: gap.canonical_name,
+        display_name: gap.display_name,
+        priority: gap.severity,
+        estimated_hours: Math.max(1, Math.round(gap.gap_levels * 8)),
+        required_level: gap.required_level,
+        cv_level: gap.cv_level,
+        importance: gap.importance,
+        selected_by_default: true,
+        source,
+      }))
+      .sort((a, b) => b.priority - a.priority);
+    this.attachResourceOptions(options);
+
+    return {
+      source,
+      options,
+      no_learning_gaps: learnable.length === 0,
+    };
+  }
+
+  async generateRoleRoadmap(
+    userId: string,
+    cvId: string,
+    roleCode: string,
+    band: 'intern' | 'fresher' | 'mid' = 'fresher',
+    dto: RoadmapFromMatchDto = {},
+  ): Promise<ComposedRoadmap> {
+    const readiness = await this.computeStoryReadiness(userId, cvId, {
+      role_code: roleCode,
+      band,
+    });
+    const sourceRef: RoadmapSourceRefDto = {
+      type: 'role_baseline',
+      id: `${cvId}:${roleCode}:${band}`,
+      label: roleCode,
+      reason: 'Missing or partial skill found from selected role baseline.',
+    };
+    const budget: FeasibilityBudget = {
+      available_days: dto.available_days ?? 30,
+      hours_per_week: dto.hours_per_week ?? 8,
+      minutes_per_session: dto.minutes_per_session,
+      sessions_per_week: dto.sessions_per_week,
+      study_days_per_week: dto.study_days_per_week,
+    };
+    const plan = buildUnifiedPlan({
+      matchId: sourceRef.id,
+      sessionId: null,
+      gapItems: readiness.gap_items,
+      interviewItems: [],
+      actions: [],
+    });
+
+    if (plan.learn_items.length === 0) {
+      return {
+        budget_hours: budgetHours(budget),
+        steps: [],
+        sessions: [],
+        not_feasible_items: [],
+        ai_summary:
+          'No learnable role-baseline gaps were found for this CV and target role.',
+        no_learning_gaps: true,
+        source_refs: [sourceRef],
+      };
+    }
+
+    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
+      sourceType: 'cv',
+      sourceId: cvId,
+    });
+    try {
+      if (!this.roadmapComposer) {
+        throw new Error('Roadmap composer dependency is not configured');
+      }
+
+      const roadmap = await this.roadmapComposer.compose({
+        learnItems: plan.learn_items,
+        gapItems: readiness.gap_items,
+        budget,
+        languagePref: dto.language_pref ?? 'both',
+        selectedSkillOrder: dto.selected_skill_order,
+        excludedSkills: dto.excluded_skills,
+        selectedResources: dto.selected_resources,
+        sourceRefs: [sourceRef],
+        translateDisplay: dto.translate_display,
+      });
+      await this.persistActiveRoadmap(userId, roadmap);
+      await usage.confirm({ sourceType: 'cv', sourceId: cvId });
+      return roadmap;
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
+  }
+
   /**
    * Companion Turn-2: verify ownership + quota, then ground-rewrite one bullet. A delivered patch
    * consumes CV_BUILDER_REWRITE quota; a re-ask / degraded / ungrounded response is free (no LLM value).
@@ -1234,6 +1366,39 @@ export class CvsService {
 
   private cloneDocument(document: CanonicalCvDocument): CanonicalCvDocument {
     return JSON.parse(JSON.stringify(document)) as CanonicalCvDocument;
+  }
+
+  private async persistActiveRoadmap(userId: string, roadmap: ComposedRoadmap): Promise<void> {
+    if (!this.learningRoadmaps) return;
+    await this.learningRoadmaps.update({ userId, active: true }, { active: false });
+    await this.learningRoadmaps.save(
+      this.learningRoadmaps.create({
+        userId,
+        active: true,
+        sourceRefs: roadmap.source_refs ?? [],
+        composedRoadmap: roadmap,
+        schedule: roadmap.sessions ?? [],
+      }),
+    );
+  }
+
+  private attachResourceOptions(options: RoadmapSkillOptionDto[]): void {
+    if (
+      !this.roadmapComposer ||
+      typeof this.roadmapComposer.previewResourceOptions !== 'function' ||
+      options.length === 0
+    ) {
+      return;
+    }
+    const resources = this.roadmapComposer.previewResourceOptions(
+      options.map((option) => ({
+        skill_canonical: option.skill_canonical,
+        required_level: option.required_level,
+      })),
+    );
+    options.forEach((option) => {
+      option.resources = resources.get(option.skill_canonical) ?? [];
+    });
   }
 
   private toResponse(

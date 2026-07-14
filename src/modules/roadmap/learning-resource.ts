@@ -172,7 +172,11 @@ export function scoreResource(
 export function matchResources(
   catalog: LearningResource[],
   requests: ResourceMatchRequest[],
-  opts?: { sourceTypes?: ResourceSourceType[]; langPref?: LanguagePref },
+  opts?: {
+    sourceTypes?: ResourceSourceType[];
+    langPref?: LanguagePref;
+    preferLanguageIfAvailable?: boolean;
+  },
 ): LearningResourceMatchResult {
   const allowed = opts?.sourceTypes ? new Set(opts.sourceTypes) : null;
   const langPref: LanguagePref = opts?.langPref ?? 'both';
@@ -193,7 +197,12 @@ export function matchResources(
   for (const req of requests) {
     const candidates = index.get(req.skill_canonical_name) ?? [];
     const verified = candidates.filter((c) => c.resource.validation_status === 'verified');
-    const usable = verified.length > 0 ? verified : candidates; // pending only as fallback
+    const baseUsable = verified.length > 0 ? verified : candidates; // pending only as fallback
+    const preferredLanguage =
+      opts?.preferLanguageIfAvailable && langPref !== 'both'
+        ? baseUsable.filter((c) => c.resource.language === langPref)
+        : [];
+    const usable = preferredLanguage.length > 0 ? preferredLanguage : baseUsable;
     if (usable.length === 0) {
       uncovered_skills.push(req.skill_canonical_name);
       per_skill.push({

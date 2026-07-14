@@ -15,8 +15,11 @@ export interface FeasibilityGapInput {
 }
 
 export interface FeasibilityBudget {
-  available_days: number;
-  hours_per_week: number;
+  available_days?: number;
+  hours_per_week?: number;
+  minutes_per_session?: number;
+  sessions_per_week?: number;
+  study_days_per_week?: number;
 }
 
 // Documented defaults — calibrate in LR-PR3.
@@ -32,6 +35,17 @@ const IMPORTANCE_WEIGHT: Record<GapImportance, number> = {
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
+
+export function budgetHours(budget: FeasibilityBudget): number {
+  if (budget.minutes_per_session && budget.sessions_per_week) {
+    const weeklyHours = (budget.minutes_per_session * budget.sessions_per_week) / 60;
+    if (budget.available_days) return round1((budget.available_days * weeklyHours) / 7);
+    return round1(weeklyHours);
+  }
+  const days = budget.available_days ?? 30;
+  const hours = budget.hours_per_week ?? 8;
+  return round1((days * hours) / 7);
+}
 
 /** Harder targets cost a bit more per level: L1→1.0, L5→1.4. */
 const difficultyMult = (requiredLevel: number): number =>
@@ -96,8 +110,8 @@ export function planFeasibility(
   gaps: FeasibilityGapInput[],
   budget: FeasibilityBudget,
 ): FeasibilityResult {
-  const budget_hours = round1((budget.available_days * budget.hours_per_week) / 7);
-  const shortTimeline = budget.available_days <= SHORT_TIMELINE_DAYS;
+  const budget_hours = budgetHours(budget);
+  const shortTimeline = (budget.available_days ?? 30) <= SHORT_TIMELINE_DAYS;
 
   const ranked = gaps
     .map((g) => ({ gap: g, hours: estimatedHours(g), priority: priorityOf(g) }))

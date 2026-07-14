@@ -20,6 +20,7 @@ import { ImpactCalibrationEntity } from '../../database/entities/impact-calibrat
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
+import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import {
   LearningLanguagePref,
   UserLearningPreferenceEntity,
@@ -58,9 +59,15 @@ import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
 import { CvMatchListItemDto, CvMatchResponseDto } from './dto/cv-match-response.dto';
 import { RoadmapFromMatchDto } from './dto/roadmap-from-match.dto';
+import {
+  RoadmapOptionsResponseDto,
+  RoadmapSkillOptionDto,
+  RoadmapSourceRefDto,
+} from './dto/roadmap-options.dto';
 import { InterviewPlanFromMatchDto } from './dto/interview-plan-from-match.dto';
 import { JdTextExtractorService } from './jd-text-extractor.service';
 import { jdContentHash } from './jd-content-hash';
+import { budgetHours, type FeasibilityBudget } from '../../modules/roadmap/feasibility-planner';
 
 const MAX_JD_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_JD_TEXT_LENGTH = 60_000;
@@ -143,6 +150,9 @@ export class CvMatchesService {
     // used ONLY by getProgress's mastered-learning pre-pass (fetchMasteredCanonicals).
     @InjectRepository(LearningSessionProgressEntity)
     private readonly learningProgress?: Repository<LearningSessionProgressEntity>,
+    @Optional()
+    @InjectRepository(LearningRoadmapEntity)
+    private readonly learningRoadmaps?: Repository<LearningRoadmapEntity>,
   ) {}
 
   async createMatch(
@@ -392,6 +402,35 @@ export class CvMatchesService {
     return this.platformCvs.getLatestReview(userId, match.cvId);
   }
 
+  async getRoadmapOptionsFromMatch(
+    userId: string,
+    matchId: string,
+  ): Promise<RoadmapOptionsResponseDto> {
+    const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
+    const report = await this.buildGapReportFromParsed(userId, match, parsed);
+    const plan = buildUnifiedPlan({
+      matchId,
+      sessionId: null,
+      gapItems: report.gap_items,
+      interviewItems: [],
+      actions: report.recommended_actions,
+    });
+    const source: RoadmapSourceRefDto = {
+      type: 'jd_match',
+      id: matchId,
+      label: parsed.target_role ?? undefined,
+      reason: 'Missing or partial skill found from CV/JD gap report.',
+    };
+    const options = this.toRoadmapSkillOptions(plan.learn_items, report.gap_items, source);
+    this.attachResourceOptions(options);
+
+    return {
+      source,
+      options,
+      no_learning_gaps: options.length === 0,
+    };
+  }
+
   async getProgress(userId: string, matchId: string): Promise<ProgressReport> {
     const { match: current, parsed: currParsed } = await this.loadOwnedMatchParsedResponse(
       userId,
@@ -485,49 +524,68 @@ export class CvMatchesService {
     dto: RoadmapFromMatchDto,
   ): Promise<ComposedRoadmap> {
     const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
+    const report = await this.buildGapReportFromParsed(userId, match, parsed);
+    const plan = buildUnifiedPlan({
+      matchId,
+      sessionId: null,
+      gapItems: report.gap_items,
+      interviewItems: [],
+      actions: report.recommended_actions,
+    });
+    const preferences = await this.learningPreferences?.findOne({ where: { userId } });
+    const budget: FeasibilityBudget = {
+      available_days: dto.available_days ?? preferences?.availableDays ?? 30,
+      hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
+      minutes_per_session: dto.minutes_per_session,
+      sessions_per_week: dto.sessions_per_week,
+      study_days_per_week: dto.study_days_per_week,
+    };
+    const languagePref: LearningLanguagePref =
+      dto.language_pref ?? preferences?.languagePref ?? 'both';
+    const sourceRef: RoadmapSourceRefDto = {
+      type: 'jd_match',
+      id: matchId,
+      label: parsed.target_role ?? undefined,
+      reason: 'Missing or partial skill found from CV/JD gap report.',
+    };
+
+    if (plan.learn_items.length === 0) {
+      return {
+        budget_hours: budgetHours(budget),
+        steps: [],
+        sessions: [],
+        not_feasible_items: [],
+        ai_summary:
+          'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
+        no_learning_gaps: true,
+        source_refs: [sourceRef],
+      };
+    }
+
     // Atomic charge-first reserve (race-free); refunded on any failure below.
     const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
       sourceType: 'cv_match',
       sourceId: matchId,
     });
     try {
-      const report = await this.buildGapReportFromParsed(userId, match, parsed);
-      const plan = buildUnifiedPlan({
-        matchId,
-        sessionId: null,
-        gapItems: report.gap_items,
-        interviewItems: [],
-        actions: report.recommended_actions,
-      });
-      const preferences = await this.learningPreferences?.findOne({ where: { userId } });
-      const budget = {
-        available_days: dto.available_days ?? preferences?.availableDays ?? 30,
-        hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
-      };
-      const languagePref: LearningLanguagePref =
-        dto.language_pref ?? preferences?.languagePref ?? 'both';
-
-      if (plan.learn_items.length === 0) {
-        return {
-          budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
-          steps: [],
-          not_feasible_items: [],
-          ai_summary:
-            'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
-          no_learning_gaps: true,
-        };
-      }
-
       if (!this.roadmapComposer) {
         throw new Error('Roadmap composer dependency is not configured');
       }
 
-      return await this.roadmapComposer.compose({
+      const roadmap = await this.roadmapComposer.compose({
         learnItems: plan.learn_items,
         gapItems: report.gap_items,
         budget,
         languagePref,
+        selectedSkillOrder: dto.selected_skill_order,
+        excludedSkills: dto.excluded_skills,
+        selectedResources: dto.selected_resources,
+        sourceRefs: [sourceRef],
+        translateDisplay: dto.translate_display,
       });
+      await this.persistActiveRoadmap(userId, roadmap);
+      await usage.confirm({ sourceType: 'cv_match', sourceId: matchId });
+      return roadmap;
     } catch (error) {
       await usage.refund();
       throw error;
@@ -1010,6 +1068,73 @@ export class CvMatchesService {
     return value
       .map((item) => objectLike(item).display_name)
       .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  }
+
+  private async persistActiveRoadmap(userId: string, roadmap: ComposedRoadmap): Promise<void> {
+    if (!this.learningRoadmaps) return;
+    await this.learningRoadmaps.update({ userId, active: true }, { active: false });
+    await this.learningRoadmaps.save(
+      this.learningRoadmaps.create({
+        userId,
+        active: true,
+        sourceRefs: roadmap.source_refs ?? [],
+        composedRoadmap: roadmap,
+        schedule: roadmap.sessions ?? [],
+      }),
+    );
+  }
+
+  private toRoadmapSkillOptions(
+    learnItems: Array<{
+      skill_canonical?: string | null;
+      display_name: string;
+      severity: number;
+    }>,
+    gapItems: SkillBridgeGapReport['gap_items'],
+    source: RoadmapSourceRefDto,
+  ): RoadmapSkillOptionDto[] {
+    const byCanonical = new Map(
+      gapItems
+        .filter((item) => item.canonical_name)
+        .map((item) => [item.canonical_name.toLowerCase(), item]),
+    );
+
+    return learnItems
+      .map((item) => {
+        const canonical = item.skill_canonical ?? item.display_name;
+        const gap = byCanonical.get(canonical.toLowerCase());
+        return {
+          skill_canonical: canonical,
+          display_name: item.display_name,
+          priority: gap?.severity ?? item.severity,
+          estimated_hours: Math.max(1, Math.round((gap?.gap_levels ?? 1) * 8)),
+          required_level: gap?.required_level ?? null,
+          cv_level: gap?.cv_level ?? null,
+          importance: gap?.importance,
+          selected_by_default: true,
+          source,
+        };
+      })
+      .sort((a, b) => b.priority - a.priority);
+  }
+
+  private attachResourceOptions(options: RoadmapSkillOptionDto[]): void {
+    if (
+      !this.roadmapComposer ||
+      typeof this.roadmapComposer.previewResourceOptions !== 'function' ||
+      options.length === 0
+    ) {
+      return;
+    }
+    const resources = this.roadmapComposer.previewResourceOptions(
+      options.map((option) => ({
+        skill_canonical: option.skill_canonical,
+        required_level: option.required_level,
+      })),
+    );
+    options.forEach((option) => {
+      option.resources = resources.get(option.skill_canonical) ?? [];
+    });
   }
 }
 

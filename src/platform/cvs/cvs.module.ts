@@ -5,6 +5,7 @@ import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
@@ -12,6 +13,7 @@ import { CvJdMatchModule } from '../../modules/cv-jd-match/cv-jd-match.module';
 import { CvReviewModule } from '../../modules/cv-review/cv-review.module';
 import { GithubEvidenceModule } from '../../modules/github-evidence/github-evidence.module';
 import { InterviewModule } from '../../modules/interview/interview.module';
+import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
 import { TracingModule } from '../../modules/tracing/tracing.module';
 import { BillingModule } from '../billing/billing.module';
 import { TailorVerifierModule } from '../tailor-verifier/tailor-verifier.module';
@@ -34,11 +36,13 @@ import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
       SkillEntity,
       CvConsentAuditEntity,
       AiResultEntity,
+      LearningRoadmapEntity,
     ]),
     StorageModule,
     CvReviewModule,
     CvBuilderModule,
     InterviewModule,
+    RoadmapModule,
     GithubEvidenceModule,
     BillingModule,
     // Self-sufficient DI for CV analysis usage counting; @Global, so idempotent.
