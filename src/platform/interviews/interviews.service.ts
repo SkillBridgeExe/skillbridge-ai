@@ -35,12 +35,14 @@ import {
   buildInterviewAgenda,
   decideTurnWithTrace,
   DepthSignal,
+  drillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
   InterviewState,
   InterviewTurnTrace,
+  isGroundedFollowUp,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -301,6 +303,37 @@ export class InterviewsService {
     }
 
     firstMessage = this.openingInterviewerMessage(language);
+    firstQuestion = firstTopic.seed_question;
+    let openerAiRequestId: string | null = null;
+    if (this.interviewChain) {
+      // I-REAL-2: personalize the opener — ground the first question in the candidate's
+      // CV/JD topic instead of asking the raw seed. Best-effort: start must NEVER fail
+      // because the chain is down; any error falls back to the seed question.
+      try {
+        const opener = await this.interviewChain.ask(userId, {
+          sessionId: session.id,
+          turnOrder: 1,
+          decision: 'opener',
+          language: this.language(language),
+          seniorityTarget: firstTopic.seniority_target,
+          currentTopic: this.topicForPrompt(firstTopic),
+          currentThread: firstTopic.what_to_probe,
+          recentQa: [],
+          runningNotes: [],
+          prevTopicOutcome: '',
+          topicPhase: firstTopic.phase,
+        });
+        if (opener.question) {
+          firstQuestion = opener.question;
+          openerAiRequestId = opener.aiRequestId;
+          if (opener.aiMessage) firstMessage = opener.aiMessage;
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Opener chain call failed for session ${session.id}; using seed question: ${(err as Error).message}`,
+        );
+      }
+    }
     await this.turns.save(
       this.turns.create({
         sessionId: session.id,
@@ -308,9 +341,9 @@ export class InterviewsService {
         phase: firstTopic.phase,
         topicPhase: firstTopic.phase,
         modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-        aiRequestId: null,
+        aiRequestId: openerAiRequestId,
         interviewerMessage: firstMessage,
-        interviewerQuestion: firstTopic.seed_question,
+        interviewerQuestion: firstQuestion,
         currentThread: firstTopic.what_to_probe,
         skillCanonical: firstTopic.skill_canonical,
         questionBankItemId: firstTopic.question_bank_item_id ?? null,
@@ -318,7 +351,6 @@ export class InterviewsService {
       }),
     );
 
-    firstQuestion = firstTopic.seed_question;
     phase = firstTopic.phase;
     session.totalQuestionsPlanned = agenda.turn_budget;
     const realtime = await this.createRealtimeIfNeeded(
@@ -502,6 +534,17 @@ export class InterviewsService {
         }
       }
 
+      // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
+      // derived from the follow-up count on this topic (first follow-up = application, then
+      // tradeoff → edge_failure → design; early-career caps at tradeoff).
+      const ladderRung =
+        action === 'drill' || action === 'push_harder'
+          ? drillLadderRung(Math.max(0, updatedState.drill_depth - 1), askTopic.seniority_target)
+          : null;
+      if (ladderRung) {
+        turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
+      }
+
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
       ask = await this.interviewChain!.ask(userId, {
         sessionId: session.id,
@@ -514,6 +557,8 @@ export class InterviewsService {
         recentQa,
         runningNotes: updatedState.running_notes,
         prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+        ladderRung,
+        topicPhase: askTopic.phase,
       });
       if (!ask.question) {
         // the chain gave no question → the seed question is asked instead (see nextQuestion
@@ -523,6 +568,18 @@ export class InterviewsService {
           confidence: 'low',
           reasons: [...turnTrace.reasons, 'fallback_seed_question'],
         };
+      } else if (action === 'drill' || action === 'push_harder') {
+        // I-REAL-2 anti-template guard: a follow-up that shares no content term with the
+        // candidate's answer/thread/topic is template-shaped — flag it (observability only).
+        const grounded = isGroundedFollowUp(ask.question, [
+          userAnswer,
+          updatedState.current_thread,
+          askTopic.display_name,
+          ...this.topicTerms(askTopic),
+        ]);
+        if (!grounded) {
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'generic_follow_up_risk'] };
+        }
       }
     }
 
