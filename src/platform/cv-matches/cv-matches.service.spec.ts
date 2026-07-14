@@ -1,10 +1,10 @@
 import { Repository } from 'typeorm';
-import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
+import { GapItem } from '../../modules/gap-engine/gap-item';
 import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import { CvMatchesService } from './cv-matches.service';
 
@@ -21,6 +21,28 @@ function repo<T extends object>(): RepoMock<T> {
     save: jest.fn((input) => Promise.resolve(input)),
   } as unknown as RepoMock<T>;
 }
+
+const learnableGap = (): GapItem =>
+  ({
+    requirement_id: 'jd:hard_skill:typescript',
+    source: 'jd',
+    type: 'hard_skill',
+    canonical_name: 'typescript',
+    display_name: 'TypeScript',
+    importance: 'REQUIRED',
+    cv_status: 'missing',
+    cv_level: null,
+    required_level: 4,
+    gap_levels: 4,
+    satisfied_by: null,
+    evidence_refs: [],
+    evidence_risk: 'none',
+    fixability: 'learn',
+    market_demand: null,
+    severity: 0.9,
+    confidence: 1,
+    recommended_next_action: 'Learn TypeScript fundamentals',
+  }) as GapItem;
 
 function setup(
   opts: {
@@ -51,7 +73,16 @@ function setup(
     }),
   };
   const platformCvs = { getLatestReview: jest.fn().mockResolvedValue(null) };
-  const roadmapComposer = { compose: jest.fn() };
+  const roadmapComposer = {
+    compose: jest.fn().mockResolvedValue({
+      budget_hours: 2,
+      steps: [],
+      sessions: [],
+      not_feasible_items: [],
+      ai_summary: 'Roadmap ready',
+      source_refs: [],
+    }),
+  };
   const interviewPlan = { phrasePlan: jest.fn() };
   const service = new CvMatchesService(
     cvs as unknown as Repository<CvEntity>,
@@ -103,43 +134,45 @@ function setup(
 }
 
 describe('CvMatchesService roadmap quota', () => {
-  it('reserves roadmap quota atomically before roadmap generation and keeps the charge', async () => {
+  it('returns no-gaps without charging when there are no learnable gaps', async () => {
     const { service, entitlements, reservation, gapReport, roadmapComposer } = setup();
 
     const result = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
 
-    expect(entitlements.reserveUsage).toHaveBeenCalledWith(
-      'user-1',
-      BillingFeatureKey.ROADMAP_GENERATE,
-      { sourceType: 'cv_match', sourceId: 'match-1' },
-    );
-    expect(entitlements.reserveUsage.mock.invocationCallOrder[0]).toBeLessThan(
-      gapReport.build.mock.invocationCallOrder[0],
-    );
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
     expect(reservation.refund).not.toHaveBeenCalled();
     expect(roadmapComposer.compose).not.toHaveBeenCalled();
+    expect(gapReport.build).toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ no_learning_gaps: true }));
   });
 
-  it('does not build a gap report when roadmap quota is exhausted', async () => {
-    const { service, entitlements, reservation, gapReport, platformCvs } = setup();
+  it('does not compose a roadmap when quota is exhausted after finding learnable gaps', async () => {
+    const { service, entitlements, reservation, gapReport, roadmapComposer } = setup();
+    gapReport.build.mockResolvedValueOnce({
+      target_role: 'frontend_developer',
+      gap_items: [learnableGap()],
+    });
     entitlements.reserveUsage.mockRejectedValue(new Error('quota exhausted'));
 
     await expect(service.generateRoadmapFromMatch('user-1', 'match-1', {})).rejects.toThrow(
       'quota exhausted',
     );
 
-    expect(platformCvs.getLatestReview).not.toHaveBeenCalled();
-    expect(gapReport.build).not.toHaveBeenCalled();
+    expect(gapReport.build).toHaveBeenCalled();
+    expect(roadmapComposer.compose).not.toHaveBeenCalled();
     expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('refunds the reserved charge when roadmap generation fails after the reserve', async () => {
-    const { service, reservation, gapReport } = setup();
-    gapReport.build.mockRejectedValue(new Error('gap report unavailable'));
+    const { service, reservation, gapReport, roadmapComposer } = setup();
+    gapReport.build.mockResolvedValueOnce({
+      target_role: 'frontend_developer',
+      gap_items: [learnableGap()],
+    });
+    roadmapComposer.compose.mockRejectedValueOnce(new Error('composer unavailable'));
 
     await expect(service.generateRoadmapFromMatch('user-1', 'match-1', {})).rejects.toThrow(
-      'gap report unavailable',
+      'composer unavailable',
     );
 
     expect(reservation.refund).toHaveBeenCalledTimes(1);

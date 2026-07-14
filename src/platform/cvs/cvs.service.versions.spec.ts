@@ -11,7 +11,7 @@ import { CvsService } from './cvs.service';
  */
 describe('CvsService versions', () => {
   const CV_SKILLS_ARG_INDEX = 1;
-  const CV_VERSIONS_ARG_INDEX = 23; // trailing optional constructor param
+  const CV_VERSIONS_ARG_INDEX = 25; // trailing optional constructor param
 
   function makeCv(overrides: Record<string, unknown> = {}) {
     return {
@@ -40,7 +40,7 @@ describe('CvsService versions', () => {
     versionsRepo: Record<string, jest.Mock>,
     cvSkillsRepo: Record<string, jest.Mock> = { find: jest.fn().mockResolvedValue([]) },
   ): CvsService {
-    const args: unknown[] = new Array(24).fill(undefined);
+    const args: unknown[] = new Array(26).fill(undefined);
     args[0] = cvsRepo;
     args[CV_SKILLS_ARG_INDEX] = cvSkillsRepo;
     args[CV_VERSIONS_ARG_INDEX] = versionsRepo;
