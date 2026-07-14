@@ -260,3 +260,138 @@ describe('scoreInterviewProductionCase — score bands', () => {
     expect(bad.mismatches.join(' ')).toContain('overall');
   });
 });
+
+describe('scoreInterviewProductionCase — I-CONSIST consistency guard', () => {
+  it('caps an evasive-but-high labeled score and requires the cap to be declared', () => {
+    const undeclared = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            depth_signal: 'evasive',
+            score: 90,
+            expected_decision: 'drill',
+            expected_score_band: [55, 65],
+          }),
+        ],
+      }),
+    );
+    expect(undeclared.pass).toBe(false);
+    expect(undeclared.mismatches.join(' ')).toContain('score_capped_evasive');
+
+    const declared = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            depth_signal: 'evasive',
+            score: 90,
+            expected_decision: 'drill',
+            expected_caps: ['score_capped_evasive'],
+            expected_score_band: [55, 65],
+          }),
+        ],
+      }),
+    );
+    expect(declared.mismatches).toEqual([]);
+    expect(declared.pass).toBe(true);
+  });
+
+  it('caps an off-topic answer at the poor ceiling and aggregates the reconciled score', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            score: 78,
+            depth_signal: 'adequate',
+            insight: { off_topic: true },
+            expected_decision: 'drill',
+            expected_caps: ['score_capped_off_topic'],
+            expected_score_band: [35, 45],
+          }),
+        ],
+        expected_overall_band: [35, 45],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+    expect(out.overall).toBeLessThanOrEqual(40);
+  });
+
+  it('fails the case when a declared cap does not fire (stale corpus label)', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            score: 45,
+            depth_signal: 'shallow',
+            expected_caps: ['score_capped_shallow'],
+          }),
+        ],
+      }),
+    );
+    expect(out.pass).toBe(false);
+    expect(out.mismatches.join(' ')).toMatch(/caps \[\] != expected \[score_capped_shallow\]/);
+  });
+});
+
+describe('scoreInterviewProductionCase — I-INTEL concept anchoring', () => {
+  const REDIS_ANSWER =
+    'We put a Redis cache in front of the report queries with a five minute TTL, and I added a Kafka consumer that invalidates entries on writes.';
+
+  it('picks the grounded concept as the drill anchor and never re-drills it', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer: REDIS_ANSWER,
+            depth_signal: 'adequate',
+            recognized_concepts: ['Redis cache', 'Kafka consumer', 'not in the answer'],
+            expected_decision: 'drill',
+            expected_anchor: 'Redis cache',
+          }),
+          turn({
+            answer: REDIS_ANSWER,
+            depth_signal: 'adequate',
+            drill_depth: 1,
+            recognized_concepts: ['Redis cache', 'Kafka consumer'],
+            expected_decision: 'drill',
+            expected_anchor: 'Kafka consumer',
+          }),
+        ],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+  });
+
+  it('fails the case when the code picks a different anchor than labeled', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer: REDIS_ANSWER,
+            recognized_concepts: ['Redis cache'],
+            expected_decision: 'drill',
+            expected_anchor: 'Kafka consumer',
+          }),
+        ],
+      }),
+    );
+    expect(out.pass).toBe(false);
+    expect(out.mismatches.join(' ')).toMatch(/anchor Redis cache != expected Kafka consumer/);
+  });
+
+  it('expects null anchor on a vague answer (nothing concrete to anchor on)', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer:
+              'I usually just try things until they work and read whatever docs I can find about it.',
+            jd_terms: ['Redis'],
+            expected_decision: 'drill',
+            expected_anchor: null,
+          }),
+        ],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+  });
+});

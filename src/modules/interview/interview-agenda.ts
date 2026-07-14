@@ -1,3 +1,4 @@
+import { NAMED_TECH } from './answer-analyzer';
 import { InterviewFocusArea } from './interview-planner';
 
 export type InterviewPhase =
@@ -165,6 +166,8 @@ export interface InterviewState {
   uncovered_topic_ids: string[];
   turns_used: number;
   evasive_streak: number;
+  /** I-INTEL: concepts already anchor-drilled this session — optional (legacy sessions lack it). */
+  probed_anchors?: string[];
 }
 
 /**
@@ -305,6 +308,60 @@ export function isGroundedFollowUp(question: string, contextTexts: string[]): bo
   return tokenizeConcept(question).some(
     (token) => token.length >= 4 && !GAP_FILLER.has(token) && contextTokens.has(token),
   );
+}
+
+// ---------------------------------------------------------------------------
+// I-INTEL — concept-anchored drilling
+// ---------------------------------------------------------------------------
+
+export interface DrillAnchorInput {
+  answer: string;
+  /** Call A recognizedConcepts, ALREADY grounded by filterRecognizedConcepts. */
+  recognized_concepts: string[];
+  jd_terms: string[];
+  /** anchors already drilled this session (never re-drill the same concept). */
+  probed_anchors: string[];
+}
+
+export interface DrillAnchorResult {
+  anchor: string | null;
+  candidates: string[];
+}
+
+/**
+ * Pick the concept the next drill/push question must anchor on — the thing the candidate
+ * actually SAID, not the generic topic. Priority: grounded recognized concepts (model-judged,
+ * code-verified present in the answer) → JD terms the answer mentioned → known named tech in
+ * the answer. Deterministic, session-deduped via probed_anchors. Same honest ASCII tokenizer
+ * limits as isGroundedFollowUp: VI phrases anchor through recognized_concepts (not re-checked
+ * against the answer), which filterRecognizedConcepts has already grounded.
+ */
+export function pickDrillAnchor(input: DrillAnchorInput): DrillAnchorResult {
+  const answerTokens = new Set(tokenizeConcept(input.answer));
+  const probed = new Set(input.probed_anchors.map((anchor) => anchor.trim().toLowerCase()));
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+
+  const substantive = (concept: string): boolean =>
+    tokenizeConcept(concept).some((token) => token.length >= 3 && !GAP_FILLER.has(token));
+
+  const consider = (concept: string, mustAppearInAnswer: boolean): void => {
+    const trimmed = concept.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key) || probed.has(key) || !substantive(trimmed)) return;
+    if (mustAppearInAnswer) {
+      const tokens = tokenizeConcept(trimmed);
+      if (tokens.length === 0 || !tokens.every((token) => answerTokens.has(token))) return;
+    }
+    seen.add(key);
+    candidates.push(trimmed);
+  };
+
+  for (const concept of input.recognized_concepts) consider(concept, false);
+  for (const term of input.jd_terms) consider(term, true);
+  for (const tech of NAMED_TECH) consider(tech, true);
+
+  return { anchor: candidates[0] ?? null, candidates: candidates.slice(0, 5) };
 }
 
 export function filterRecognizedConcepts(

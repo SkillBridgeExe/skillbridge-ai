@@ -7,6 +7,7 @@ import {
   filterGroundedGaps,
   filterRecognizedConcepts,
   isGroundedFollowUp,
+  pickDrillAnchor,
   TURN_BUDGET_BY_TIER,
 } from '../../../src/modules/interview/interview-agenda';
 
@@ -394,5 +395,70 @@ describe('filterGroundedGaps', () => {
     expect(filterGroundedGaps(['REACT rendering was vague'], universe)).toEqual([
       'REACT rendering was vague',
     ]);
+  });
+});
+
+describe('pickDrillAnchor (I-INTEL concept-anchored drilling)', () => {
+  const REDIS_ANSWER =
+    'We cache the report queries in Redis with a five minute TTL, and I added a Kafka consumer to invalidate entries on writes.';
+
+  it('anchors on a grounded recognized concept first', () => {
+    const out = pickDrillAnchor({
+      answer: REDIS_ANSWER,
+      recognized_concepts: ['Redis cache', 'Kafka consumer'],
+      jd_terms: ['PostgreSQL', 'Redis'],
+      probed_anchors: [],
+    });
+    expect(out.anchor).toBe('Redis cache');
+    expect(out.candidates).toContain('Kafka consumer');
+  });
+
+  it('never re-drills a probed anchor (case-insensitive) — moves to the next candidate', () => {
+    const out = pickDrillAnchor({
+      answer: REDIS_ANSWER,
+      recognized_concepts: ['Redis cache', 'Kafka consumer'],
+      jd_terms: [],
+      probed_anchors: ['redis cache'],
+    });
+    expect(out.anchor).toBe('Kafka consumer');
+  });
+
+  it('falls back to a JD term present in the answer, then to a named tech', () => {
+    const jdFallback = pickDrillAnchor({
+      answer: 'I mostly tuned the PostgreSQL indexes for the reporting tables.',
+      recognized_concepts: [],
+      jd_terms: ['PostgreSQL', 'Kubernetes'],
+      probed_anchors: [],
+    });
+    expect(jdFallback.anchor).toBe('PostgreSQL');
+
+    const techFallback = pickDrillAnchor({
+      answer: 'The workers talk to each other over kafka topics.',
+      recognized_concepts: [],
+      jd_terms: ['GraphQL'],
+      probed_anchors: [],
+    });
+    expect(techFallback.anchor).toBe('kafka');
+  });
+
+  it('returns null for a vague answer with nothing concrete to anchor on', () => {
+    const out = pickDrillAnchor({
+      answer: 'I usually just try to make things work and learn as I go, it depends a lot.',
+      recognized_concepts: [],
+      jd_terms: ['Redis'],
+      probed_anchors: [],
+    });
+    expect(out.anchor).toBeNull();
+    expect(out.candidates).toEqual([]);
+  });
+
+  it('ignores degenerate concepts (too short / filler-only)', () => {
+    const out = pickDrillAnchor({
+      answer: 'We did it in go and it was ok.',
+      recognized_concepts: ['it', 'ok'],
+      jd_terms: [],
+      probed_anchors: [],
+    });
+    expect(out.anchor).toBeNull();
   });
 });

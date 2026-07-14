@@ -208,6 +208,10 @@ export interface InterviewAskInput {
   ladderRung?: DrillLadderRung | null;
   /** I-REAL-2: agenda topic phase — SCENARIO activates the incident-simulation instruction. */
   topicPhase?: string | null;
+  /** I-INTEL: concept from the candidate's LAST answer the drill/push question must anchor on. */
+  drillAnchor?: string | null;
+  /** I-INTEL: the last answer had nothing concrete — demand ONE real example instead. */
+  demandExample?: boolean;
 }
 
 /** rung → what the next drill/push question must target (CODE-owned, mirrors the ladder). */
@@ -226,6 +230,18 @@ const SCENARIO_INSTRUCTION =
   "candidate's last action: reveal ONE short new fact or symptom that plausibly follows from " +
   'what they just did, then ask what they do next. Never restart or switch incidents, never ' +
   'reveal the root cause yourself.';
+
+/** I-INTEL: anchor instruction template — the concept is code-picked, the phrasing is the LLM's. */
+const drillAnchorInstruction = (anchor: string): string =>
+  `ANCHOR: the candidate's last answer mentioned "${anchor}". The follow-up MUST probe "${anchor}" ` +
+  'exactly as THEY used it, at the drill-focus rung above — like a real interviewer: how it is ' +
+  'invalidated/kept correct, where it goes stale or breaks, what they rejected instead, when NOT ' +
+  'to use it. Do NOT fall back to a generic topic question.';
+
+const EXAMPLE_DEMAND_INSTRUCTION =
+  'The last answer offered nothing concrete to probe. Ask for ONE specific, real example from ' +
+  'their own experience on this thread (what they built/broke/measured) — not a definition, not ' +
+  'theory. Keep it to a single question.';
 
 export interface InterviewAskOutput {
   aiRequestId: string;
@@ -339,6 +355,10 @@ export class InterviewChainLlmService {
         prev_topic_outcome: input.prevTopicOutcome,
         drill_focus: input.ladderRung ? DRILL_FOCUS[input.ladderRung] : '',
         scenario_instruction: input.topicPhase === 'SCENARIO' ? SCENARIO_INSTRUCTION : '',
+        drill_anchor_instruction: input.drillAnchor
+          ? drillAnchorInstruction(input.drillAnchor)
+          : '',
+        example_demand_instruction: input.demandExample ? EXAMPLE_DEMAND_INSTRUCTION : '',
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASK, promptVars);

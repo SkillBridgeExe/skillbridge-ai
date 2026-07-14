@@ -67,6 +67,10 @@ export class InterviewTurnEntity {
   @Column({ type: 'jsonb', nullable: true })
   insight!: unknown | null;
 
+  /** per-turn decision trace (I-CONSIST-2) — action, reasons (incl. guard slugs), confidence. */
+  @Column({ type: 'jsonb', name: 'turn_trace', nullable: true })
+  turnTrace!: unknown | null;
+
   @Column({ type: 'text', name: 'current_thread', nullable: true })
   currentThread!: string | null;
 

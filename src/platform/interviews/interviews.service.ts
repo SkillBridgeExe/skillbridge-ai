@@ -43,6 +43,7 @@ import {
   InterviewState,
   InterviewTurnTrace,
   isGroundedFollowUp,
+  pickDrillAnchor,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -61,6 +62,8 @@ import { AnswerInsightService } from '../../modules/interview/answer-insight.ser
 import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
   explainInterviewScore,
+  reconcileAnswerScore,
+  reconcileDepthSignal,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -104,6 +107,14 @@ const STANDARD_INTERVIEW_HARD_TURN_CAP = 20;
 const PREMIUM_INTERVIEW_HARD_TURN_CAP = 30;
 const MAX_ANSWER_HISTORY_TURNS = 6;
 const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
+
+/** compact trace slug for an anchored drill (I-INTEL), e.g. `anchor_redis_cache`. */
+const anchorTraceSlug = (anchor: string): string =>
+  `anchor_${anchor
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32)}`;
 const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
   /Cuộc phỏng vấn bằng tiếng Việt/i,
   /Giữ nguyên dấu tiếng Việt/i,
@@ -444,6 +455,20 @@ export class InterviewsService {
     );
     const [assessment, insight] = await Promise.all([assessmentPromise, insightPromise]);
     const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, userAnswer);
+    // I-CONSIST: reconcile LLM self-contradictions BEFORE anything consumes them — the depth
+    // guard first (a "deep" too-short answer downgrades to adequate, so it neither out-weighs
+    // real answers nor triggers push_harder), then the score caps. Decision, persistence, and
+    // aggregation only ever see the reconciled values.
+    const depthGuard = reconcileDepthSignal({
+      depth_signal: assessment.depthSignal,
+      is_too_short: signals.flags.is_too_short,
+    });
+    const scoreGuard = reconcileAnswerScore({
+      score: assessment.score,
+      depth_signal: depthGuard.depth_signal,
+      off_topic: insight.off_topic,
+    });
+    const guardReasons = [...depthGuard.reasons, ...scoreGuard.reasons];
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
@@ -457,6 +482,8 @@ export class InterviewsService {
     let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
     let turnTrace: InterviewTurnTrace;
+    let drillAnchor: string | null = null;
+    let demandExample = false;
     const wrapTrace = (reason: string): InterviewTurnTrace => ({
       action: 'wrap',
       phase: topic.phase,
@@ -484,7 +511,7 @@ export class InterviewsService {
       turnTrace = wrapTrace('time_limit');
     } else {
       const decided = decideTurnWithTrace({
-        signal: assessment.depthSignal,
+        signal: depthGuard.depth_signal,
         drill_depth: nextState.drill_depth,
         drill_budget: topic.drill_budget,
         turns_used: nextState.turns_used,
@@ -545,6 +572,31 @@ export class InterviewsService {
         turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
       }
 
+      // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
+      // a drill with nothing concrete to anchor on demands one real example instead.
+      // SCENARIO is exempt — the incident chain owns the follow-up shape there.
+      if ((action === 'drill' || action === 'push_harder') && askTopic.phase !== 'SCENARIO') {
+        drillAnchor = pickDrillAnchor({
+          answer: userAnswer,
+          recognized_concepts: recognized,
+          jd_terms: this.topicTerms(askTopic),
+          probed_anchors: updatedState.probed_anchors ?? [],
+        }).anchor;
+        if (drillAnchor) {
+          updatedState = {
+            ...updatedState,
+            probed_anchors: [...(updatedState.probed_anchors ?? []), drillAnchor],
+          };
+          turnTrace = {
+            ...turnTrace,
+            reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
+          };
+        } else if (signals.flags.no_concrete_example) {
+          demandExample = true;
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'demand_concrete_example'] };
+        }
+      }
+
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
       ask = await this.interviewChain!.ask(userId, {
         sessionId: session.id,
@@ -556,9 +608,11 @@ export class InterviewsService {
         currentThread: updatedState.current_thread,
         recentQa,
         runningNotes: updatedState.running_notes,
-        prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+        prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
         ladderRung,
         topicPhase: askTopic.phase,
+        drillAnchor,
+        demandExample,
       });
       if (!ask.question) {
         // the chain gave no question → the seed question is asked instead (see nextQuestion
@@ -583,11 +637,16 @@ export class InterviewsService {
       }
     }
 
+    if (guardReasons.length > 0) {
+      turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...guardReasons] };
+    }
+
+    current.turnTrace = turnTrace;
     current.userAnswerText = userAnswer;
     current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.aiRequestId = assessment.aiRequestId;
-    current.perQuestionScore = this.score(assessment.score);
+    current.perQuestionScore = this.score(scoreGuard.score);
     current.strengths = recognized;
     // Grounded like `recognized` above: a gap can't be required to appear in the answer
     // (it names what's missing), so anchor it to the topic universe instead — the asked
@@ -599,7 +658,7 @@ export class InterviewsService {
       ...(topic.expected_signals ?? []),
     ]);
     current.topicPhase = topic.phase;
-    current.depthSignal = assessment.depthSignal;
+    current.depthSignal = depthGuard.depth_signal;
     current.signals = signals;
     current.insight = insight;
     current.currentThread = assessment.currentThread || updatedState.current_thread;
@@ -1196,10 +1255,14 @@ export class InterviewsService {
     };
   }
 
-  private prevTopicOutcome(topic: AgendaTopic, assessment: InterviewAssessOutput): string {
+  private prevTopicOutcome(
+    topic: AgendaTopic,
+    assessment: InterviewAssessOutput,
+    effectiveDepth?: string,
+  ): string {
     return [
       topic.display_name,
-      assessment.depthSignal,
+      effectiveDepth ?? assessment.depthSignal,
       assessment.claimStatus !== 'ok' ? assessment.claimStatus : '',
       assessment.note,
     ]
@@ -1363,8 +1426,16 @@ export class InterviewsService {
         },
         userId,
       );
-      score = assessment.score;
-      depthSignal = assessment.depthSignal;
+      // same I-CONSIST guards as the live answer path — recomputed turns get reconciled too.
+      depthSignal = reconcileDepthSignal({
+        depth_signal: assessment.depthSignal,
+        is_too_short: signals.flags.is_too_short,
+      }).depth_signal;
+      score = reconcileAnswerScore({
+        score: assessment.score,
+        depth_signal: depthSignal,
+        off_topic: insight.off_topic,
+      }).score;
       turn.aiRequestId = turn.aiRequestId ?? assessment.aiRequestId;
       turn.perQuestionScore = this.score(score);
       turn.depthSignal = depthSignal;
@@ -2262,6 +2333,7 @@ export class InterviewsService {
       depthSignal: turn.depthSignal,
       signals: turn.signals,
       insight: turn.insight,
+      turnTrace: turn.turnTrace ?? null,
       currentThread: turn.currentThread,
       skillCanonical: turn.skillCanonical,
       questionBankItemId: turn.questionBankItemId ?? null,
