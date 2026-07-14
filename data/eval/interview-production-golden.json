@@ -1,0 +1,655 @@
+{
+  "cases": [
+    {
+      "id": "fe-fresher-react-shallow-answer",
+      "locale": "en",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Fresher CV: one class exercise with React, no production experience.",
+      "jd_summary": "Frontend engineer (React, Hooks, Redux) for a product team.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you manage state in a React app?",
+          "answer": "I think React state is just useState. I have only touched it in class exercises, nothing real yet.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": ["React", "Hooks", "Redux"],
+          "depth_signal": "shallow",
+          "score": 45,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "expected_flags": ["too_short", "missing_example", "hedging_present", "jd_coverage_low"],
+          "forbidden_flags": ["quantified"],
+          "expected_score_band": [35, 60]
+        },
+        {
+          "question": "What actually happens when you call setState?",
+          "answer": "We just call setState and it re-renders. Honestly that is all I know, I have not gone deeper than the basics.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": ["React", "Hooks", "Redux"],
+          "depth_signal": "shallow",
+          "score": 40,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "expected_flags": ["missing_example"],
+          "expected_score_band": [30, 55]
+        },
+        {
+          "question": "If you had to learn the missing pieces for this JD, where would you start?",
+          "answer": "I would look at the React docs about Hooks and try useEffect, but I have not used Redux at all.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": ["React", "Hooks", "Redux"],
+          "depth_signal": "adequate",
+          "score": 55,
+          "drill_depth": 2,
+          "drill_budget": 3,
+          "expected_decision": "advance",
+          "expected_score_band": [45, 70]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "react" }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [42, 54]
+    },
+    {
+      "id": "be-junior-api-debugging",
+      "locale": "en",
+      "target_role": "backend_engineer",
+      "seniority": "junior",
+      "cv_summary": "Junior backend developer, one year on a Node.js order service.",
+      "jd_summary": "Backend engineer, Node.js APIs, SQL performance work.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Tell me about a production API problem you debugged.",
+          "answer": "When our orders API started returning 500s under load, I was responsible for finding the cause. I checked the logs, reproduced it locally, and found a missing database index. I added the index and as a result latency dropped by 40%.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "nodejs",
+          "display_name": "API debugging (Node.js)",
+          "jd_terms": ["API", "logs", "index"],
+          "depth_signal": "adequate",
+          "score": 70,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": ["quantified", "star_complete"],
+          "forbidden_flags": ["missing_example", "too_short", "jd_coverage_low"],
+          "expected_score_band": [60, 80]
+        },
+        {
+          "question": "And if the index had not fixed it, what would your next steps have been?",
+          "answer": "If the index had not fixed it, I would profile the query plan with EXPLAIN and check connection pool exhaustion. Last time I did that kind of tuning we cut p95 latency from 900ms to 200ms.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "nodejs",
+          "display_name": "API debugging (Node.js)",
+          "jd_terms": ["EXPLAIN", "query plan"],
+          "depth_signal": "adequate",
+          "score": 72,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "expected_decision": "advance",
+          "expected_flags": ["quantified"],
+          "expected_score_band": [60, 85]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "nodejs" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "nodejs" },
+        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+      ],
+      "expected_overall_band": [65, 77]
+    },
+    {
+      "id": "ai-app-rag-hallucination-tradeoff",
+      "locale": "en",
+      "target_role": "ai_engineer",
+      "seniority": "mid",
+      "cv_summary": "AI application engineer, two years building retrieval-augmented features.",
+      "jd_summary": "AI engineer for a RAG product: retrieval quality, hallucination control, eval.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How did you keep the RAG feature from hallucinating?",
+          "answer": "I built the retrieval pipeline with pgvector and chunked documents at 500 tokens. In our eval set we cut hallucinated answers by half, and the tradeoff was higher latency on long queries.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "rag",
+          "display_name": "RAG / retrieval quality",
+          "jd_terms": ["pgvector", "chunking", "latency"],
+          "depth_signal": "deep",
+          "score": 85,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "push_harder",
+          "expected_flags": ["quantified"],
+          "forbidden_flags": ["missing_example"],
+          "expected_score_band": [75, 95]
+        },
+        {
+          "question": "Push on that: what still gets through the grounding check?",
+          "answer": "For hallucinations specifically, I added a grounding check that rejects answers with no citation, and we log every rejected answer so we can tune the retriever. The failure mode left is stale documents, so we now re-embed the corpus nightly.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "rag",
+          "display_name": "RAG / retrieval quality",
+          "jd_terms": ["grounding", "citation"],
+          "depth_signal": "deep",
+          "score": 88,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "model_output": {
+            "talking_point": "project",
+            "relevance": 90,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+          },
+          "expected_decision": "push_harder",
+          "expected_score_band": [78, 98]
+        },
+        {
+          "question": "What is the retrieval tradeoff you watch most?",
+          "answer": "The main tradeoff I keep in mind is recall versus precision in the retriever; when we tightened filters we improved precision but lost coverage on edge cases, so I keep an eval set to catch that regression.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "rag",
+          "display_name": "RAG / retrieval quality",
+          "jd_terms": ["recall", "precision"],
+          "depth_signal": "deep",
+          "score": 86,
+          "drill_depth": 2,
+          "drill_budget": 3,
+          "expected_decision": "advance",
+          "expected_flags": ["quantified"],
+          "expected_score_band": [76, 96]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "rag" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "rag" },
+        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+      ],
+      "expected_overall_band": [80, 92]
+    },
+    {
+      "id": "mobile-intern-i-dont-know",
+      "locale": "en",
+      "target_role": "mobile_developer",
+      "seniority": "intern",
+      "cv_summary": "Mobile intern candidate, coursework only, one small Android app.",
+      "jd_summary": "Android intern: Kotlin, Coroutines, Flow, suspend functions.",
+      "turn_budget": 6,
+      "turns": [
+        {
+          "question": "How do Kotlin coroutines handle cancellation?",
+          "answer": "I am sorry, I do not really know how Coroutines work in Kotlin yet. We only covered the basics in school and I have not used them in an app.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "kotlin",
+          "display_name": "Kotlin coroutines",
+          "jd_terms": ["Coroutines", "Flow", "suspend"],
+          "depth_signal": "evasive",
+          "score": 20,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "evasive_streak": 0,
+          "expected_decision": "drill",
+          "expected_flags": ["missing_example", "jd_coverage_low"],
+          "expected_score_band": [10, 35]
+        },
+        {
+          "question": "No problem — can you reason about what cancellation would need to work?",
+          "answer": "Honestly no, I would have to study it first before I could say anything useful.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "kotlin",
+          "display_name": "Kotlin coroutines",
+          "jd_terms": ["Coroutines", "Flow", "suspend"],
+          "depth_signal": "evasive",
+          "score": 15,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "evasive_streak": 1,
+          "expected_decision": "advance",
+          "expected_flags": ["too_short", "jd_coverage_low"],
+          "expected_score_band": [5, 30]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "kotlin" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "kotlin" }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [12, 25]
+    },
+    {
+      "id": "qa-automation-flaky-scenario",
+      "locale": "en",
+      "target_role": "qa_engineer",
+      "seniority": "mid",
+      "cv_summary": "QA automation engineer, three years, owns a CI test suite.",
+      "jd_summary": "QA automation: stabilize CI, flaky test strategy, reporting.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Your nightly suite starts flaking. Walk me through what you do.",
+          "answer": "When our nightly suite went flaky, I quarantined the flaky specs first, added retries only for network-bound tests, and put the flake rate on a dashboard. Over two sprints we reduced the flake rate from 8 percent to 1 percent.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "test-automation",
+          "display_name": "Flaky test strategy",
+          "jd_terms": ["flaky", "retries", "CI"],
+          "depth_signal": "adequate",
+          "score": 75,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": ["quantified"],
+          "forbidden_flags": ["missing_example"],
+          "expected_score_band": [65, 85]
+        },
+        {
+          "question": "What is the downside of retries, and how do you keep them honest?",
+          "answer": "The tradeoff with retries is that they can hide real race conditions, so I only retry tests that fail on network timeouts, and every retried pass is still reported so we do not lose the signal.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "test-automation",
+          "display_name": "Flaky test strategy",
+          "jd_terms": ["retries", "race conditions"],
+          "depth_signal": "adequate",
+          "score": 72,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "expected_decision": "advance",
+          "expected_score_band": [60, 85]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [68, 80]
+    },
+    {
+      "id": "data-analyst-sql-case",
+      "locale": "en",
+      "target_role": "data_analyst",
+      "seniority": "junior",
+      "cv_summary": "Junior data analyst, strong spreadsheets, basic SQL reporting.",
+      "jd_summary": "Data analyst: SQL aggregation, window functions, query performance.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How would you build a daily orders report that stays fast?",
+          "answer": "I would use SQL with GROUP BY to aggregate daily orders, and when the report got slow I added an index on the date column, which improved the report from 40 seconds to about 4.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "sql",
+          "display_name": "SQL reporting",
+          "jd_terms": ["SQL", "index", "GROUP BY"],
+          "depth_signal": "adequate",
+          "score": 68,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": ["quantified"],
+          "forbidden_flags": ["jd_coverage_low", "missing_example"],
+          "expected_score_band": [58, 80]
+        },
+        {
+          "question": "How would you compute a running total per customer?",
+          "answer": "I have not used window functions much, to be honest. For running totals I usually export the data and do it in a spreadsheet instead.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "sql",
+          "display_name": "SQL reporting",
+          "jd_terms": ["window functions", "CTE", "query plan"],
+          "depth_signal": "shallow",
+          "score": 45,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "expected_decision": "advance",
+          "expected_flags": ["missing_example", "jd_coverage_low"],
+          "expected_score_band": [35, 60]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "sql" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "sql" }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [53, 65]
+    },
+    {
+      "id": "vi-answer-english-jd",
+      "locale": "vi",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Sinh viên năm cuối, mới học React qua đồ án môn học.",
+      "jd_summary": "Frontend engineer (React, Redux, TypeScript) — JD tiếng Anh.",
+      "turn_budget": 6,
+      "turns": [
+        {
+          "question": "Em đã dùng React ở đâu và làm được gì với nó?",
+          "answer": "Kiểu như em có dùng React trong đồ án môn học, kiểu như nó cũng chạy được, đại loại là em chưa đi làm thật bao giờ, kiểu như em mới học thôi ạ.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": ["React", "Redux", "TypeScript"],
+          "depth_signal": "shallow",
+          "score": 40,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": ["filler_high", "missing_example", "jd_coverage_low"],
+          "forbidden_flags": ["quantified"],
+          "expected_score_band": [30, 55]
+        },
+        {
+          "question": "Vậy nếu component render chậm thì em xử lý thế nào?",
+          "answer": "Dạ em không chắc, chắc là em phải tìm hiểu thêm rồi mới trả lời được ạ.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": ["React", "Redux", "TypeScript"],
+          "depth_signal": "evasive",
+          "score": 25,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "evasive_streak": 0,
+          "expected_decision": "advance",
+          "expected_flags": ["hedging_present", "too_short", "jd_coverage_low"],
+          "expected_score_band": [10, 40]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "react" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "react" },
+        { "weakness_type": "communication_gap", "skill_canonical": null }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [28, 40]
+    },
+    {
+      "id": "senior-strong-answer-wrap",
+      "locale": "en",
+      "target_role": "backend_engineer",
+      "seniority": "senior",
+      "cv_summary": "Senior backend engineer, event-driven systems at scale.",
+      "jd_summary": "Senior backend: Kafka pipelines, delivery semantics, throughput.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Walk me through the delivery semantics you chose for your event pipeline.",
+          "answer": "I designed the event pipeline on Kafka and chose at-least-once delivery with idempotent consumers, because exactly-once semantics would have cost too much throughput for our workload. We handle about 50k requests per minute and duplicate incidents went to zero after we shipped the idempotency keys.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kafka",
+          "display_name": "Kafka / delivery semantics",
+          "jd_terms": ["Kafka", "idempotent", "throughput"],
+          "depth_signal": "deep",
+          "score": 90,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "push_harder",
+          "expected_flags": ["quantified"],
+          "forbidden_flags": ["missing_example", "jd_coverage_low"],
+          "expected_score_band": [80, 100]
+        },
+        {
+          "question": "Last one before we wrap: what would you do differently?",
+          "answer": "Looking back, the main thing I would improve is the replay tooling; when we needed to reprocess a day of events we had to write ad-hoc scripts, so I would invest in a proper replay service with idempotency guarantees end to end.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kafka",
+          "display_name": "Kafka / delivery semantics",
+          "jd_terms": ["replay", "idempotency"],
+          "depth_signal": "deep",
+          "score": 88,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "turns_used": 7,
+          "model_output": {
+            "talking_point": "project",
+            "relevance": 92,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+          },
+          "expected_decision": "wrap",
+          "expected_score_band": [78, 98]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        { "weakness_type": "knowledge_gap", "skill_canonical": "kafka" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "kafka" },
+        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+      ],
+      "expected_overall_band": [84, 94]
+    },
+    {
+      "id": "off-topic-answer",
+      "locale": "en",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Fresher CV, hobbyist background, little formal frontend work.",
+      "jd_summary": "Frontend engineer: CSS layout with Flexbox and Grid.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you approach a responsive page layout in CSS?",
+          "answer": "Outside of work I mostly play and mod video games, and honestly that is where I spend my energy; I have a whole Discord community around it and we talk strategy every night.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "css",
+          "display_name": "CSS layout",
+          "jd_terms": ["CSS", "Flexbox", "Grid"],
+          "depth_signal": "shallow",
+          "score": 25,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "goal",
+            "relevance": 15,
+            "clarity": "adequate",
+            "off_topic": true,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+          },
+          "expected_decision": "drill",
+          "expected_flags": ["missing_example", "jd_coverage_low"],
+          "expected_score_band": [15, 40]
+        },
+        {
+          "question": "Let me bring us back to the question: how would you lay out this page?",
+          "answer": "Sorry, on the CSS side: I lay out pages with Flexbox for rows and Grid when I need two-dimensional layout, and I check overflow on small screens first.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "css",
+          "display_name": "CSS layout",
+          "jd_terms": ["CSS", "Flexbox", "Grid"],
+          "depth_signal": "adequate",
+          "score": 55,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "expected_decision": "advance",
+          "forbidden_flags": ["jd_coverage_low"],
+          "expected_score_band": [45, 70]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "communication_gap", "skill_canonical": null },
+        { "weakness_type": "knowledge_gap", "skill_canonical": "css" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "css" }
+      ],
+      "expected_overall_band": [37, 49]
+    },
+    {
+      "id": "overclaimed-cv-skill",
+      "locale": "en",
+      "target_role": "backend_engineer",
+      "seniority": "mid",
+      "cv_summary": "CV claims expert-level Kubernetes; no concrete project detail listed.",
+      "jd_summary": "Backend engineer: Kubernetes operations, Helm, network policies.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Your CV says expert Kubernetes — tell me about the hardest problem you solved with it.",
+          "answer": "I am an expert in Kubernetes, I know everything about it — deployments, scaling, operators, all of it. It is definitely my strongest skill and I never really hit problems I cannot solve.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kubernetes",
+          "display_name": "Kubernetes",
+          "jd_terms": ["Kubernetes", "Helm", "network policies"],
+          "depth_signal": "shallow",
+          "score": 35,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "skill",
+            "relevance": 70,
+            "clarity": "adequate",
+            "off_topic": false,
+            "confidence_tone": "over",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+          },
+          "expected_decision": "drill",
+          "expected_flags": ["missing_example", "jd_coverage_low"],
+          "forbidden_flags": ["quantified"],
+          "expected_score_band": [25, 50]
+        },
+        {
+          "question": "Give me one specific incident: what broke, and what did you do?",
+          "answer": "I mean I deploy things all the time and it basically always works. Like I said, I know it deeply, you can trust me on that.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kubernetes",
+          "display_name": "Kubernetes",
+          "jd_terms": ["Kubernetes", "Helm", "network policies"],
+          "depth_signal": "shallow",
+          "score": 30,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "skill",
+            "relevance": 40,
+            "clarity": "adequate",
+            "off_topic": false,
+            "confidence_tone": "over",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+          },
+          "expected_decision": "advance",
+          "expected_flags": ["missing_example"],
+          "expected_score_band": [20, 45]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "evidence_gap", "skill_canonical": "kubernetes" },
+        { "weakness_type": "knowledge_gap", "skill_canonical": "kubernetes" }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [27, 39]
+    },
+    {
+      "id": "good-star-behavioral",
+      "locale": "en",
+      "target_role": "frontend_engineer",
+      "seniority": "mid",
+      "cv_summary": "Mid frontend engineer, owns the checkout surface.",
+      "jd_summary": "Frontend engineer, ownership of user-facing incidents.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Tell me about a time a release did not go as planned.",
+          "answer": "When our release broke the checkout page, I was responsible for the hotfix. I implemented a rollback within the hour and wrote a regression test the same day. As a result checkout recovered and our error rate improved from 5% to 0.1%.",
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "jd_terms": [],
+          "depth_signal": "deep",
+          "score": 85,
+          "drill_depth": 0,
+          "drill_budget": 1,
+          "model_output": {
+            "talking_point": "impact",
+            "relevance": 90,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+          },
+          "expected_decision": "advance",
+          "expected_flags": ["star_complete", "quantified"],
+          "forbidden_flags": ["star_missing_result", "missing_example"],
+          "expected_score_band": [75, 95]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        { "weakness_type": "behavioral_gap", "skill_canonical": null },
+        { "weakness_type": "communication_gap", "skill_canonical": null }
+      ],
+      "expected_overall_band": [80, 90]
+    },
+    {
+      "id": "rambling-answer",
+      "locale": "en",
+      "target_role": "fullstack_engineer",
+      "seniority": "junior",
+      "cv_summary": "Junior fullstack developer, mostly REST experience, reads about GraphQL.",
+      "jd_summary": "Fullstack engineer: GraphQL API design, Apollo, caching, schema design.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "What is your experience with GraphQL?",
+          "answer": "So GraphQL, yeah, I have read a lot about it and I follow a few people who write about APIs, and honestly there is a lot to say, like the way you can ask for exactly the fields you want, which is nice because sometimes with normal endpoints you get these huge responses and you do not need most of it, and then there is the whole thing about resolvers, which I understand conceptually, like each field can have its own resolver and that is powerful but also, from what I have read, it can get slow if you are not careful, and people talk about the N plus one problem a lot, which I think I understand, and there are libraries that help with that, and also the tooling is really nice, the playground and so on, so overall I feel like I know the landscape pretty well even though most of my reading is blog posts and talks.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "graphql",
+          "display_name": "GraphQL",
+          "jd_terms": ["GraphQL", "Apollo", "caching", "schema design"],
+          "depth_signal": "shallow",
+          "score": 40,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": ["rambling_risk", "missing_example", "jd_coverage_low", "hedging_present"],
+          "forbidden_flags": ["quantified", "too_short"],
+          "expected_score_band": [30, 55]
+        },
+        {
+          "question": "So hands-on: have you actually run a GraphQL server yourself?",
+          "answer": "Mostly reading, yes. At my last job the API team owned GraphQL so I never touched the resolvers myself.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "graphql",
+          "display_name": "GraphQL",
+          "jd_terms": ["GraphQL", "Apollo", "caching", "schema design"],
+          "depth_signal": "shallow",
+          "score": 42,
+          "drill_depth": 1,
+          "drill_budget": 2,
+          "expected_decision": "advance",
+          "expected_flags": ["too_short", "missing_example", "jd_coverage_low"],
+          "expected_score_band": [32, 55]
+        }
+      ],
+      "expected_final_gaps": [
+        { "weakness_type": "communication_gap", "skill_canonical": null },
+        { "weakness_type": "knowledge_gap", "skill_canonical": "graphql" },
+        { "weakness_type": "evidence_gap", "skill_canonical": "graphql" }
+      ],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [35, 47]
+    }
+  ]
+}
