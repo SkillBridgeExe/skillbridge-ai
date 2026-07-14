@@ -1,3 +1,4 @@
+import { maskPii } from '../../common/services/pii-mask';
 import { DepthSignal, EARLY_CAREER_BANDS, InterviewPhase } from './interview-agenda';
 
 export type Dimension =
@@ -198,4 +199,127 @@ export function aggregateInterviewScore(input: {
   );
 
   return { overall, overall_band: band(overall), dimensions, role_family, scored_answers };
+}
+
+// ---------------------------------------------------------------------------
+// Wave I-SCORE — evidence-based score explanation
+// ---------------------------------------------------------------------------
+
+/** an AnswerScore that can also carry the (raw) answer text + question link for evidence quotes. */
+export interface AnswerEvidence extends AnswerScore {
+  /** raw answer text — masked + truncated into evidence_quote here, never stored raw. */
+  evidence_excerpt?: string;
+  linked_question_id?: string;
+}
+
+export type ScoreUncertainty = 'low' | 'medium' | 'high';
+
+export interface ScoreExplanation {
+  dimension: Dimension;
+  score: number;
+  band: ScoreBand;
+  weight: number;
+  /** BARS band anchor + dimension lens — CODE-owned strings, mirrors interview_assess_v1. */
+  rubric_anchor: string;
+  /** strongest contributing answer, masked + truncated; null when no answer text exists. */
+  evidence_quote: string | null;
+  linked_question_id: string | null;
+  uncertainty: ScoreUncertainty;
+  /** set only for below-solid bands — honest, dimension-specific, never hiring-outcome language. */
+  improvement_hint: string | null;
+}
+
+/** mirrors interview-gap.ts EVIDENCE_MAX. */
+const EXPLANATION_EVIDENCE_MAX = 280;
+
+/** BARS anchors (mirror interview_assess_v1's four levels — held in code, never the LLM). */
+const BAND_ANCHORS: Record<ScoreBand, string> = {
+  poor: 'poor (0-40): incorrect, evasive, or no real substance on this dimension',
+  borderline: 'borderline (41-60): partially right but shallow or missing the key idea',
+  solid: 'solid (61-80): correct and clear, real understanding appropriate to the level',
+  outstanding:
+    'outstanding (81-100): depth, trade-offs, edge cases, or judgement beyond the baseline',
+};
+
+const DIMENSION_LENS: Record<Dimension, string> = {
+  technical_depth: 'accuracy and depth of the concept itself',
+  problem_solving: 'reasoning, trade-offs, and how they approach or debug it',
+  communication: 'clarity, structure, and concision',
+  evidence_credibility: 'whether answers substantiate real CV claims with concrete substance',
+  role_fit: 'whether demonstrated depth and ownership match the target seniority',
+};
+
+/** hints for below-solid bands only — communication signals, never psychological claims. */
+const DIMENSION_HINTS: Record<Dimension, string> = {
+  technical_depth: 'Re-study the core concept and practice explaining how it works under the hood.',
+  problem_solving:
+    'Practice walking through debugging steps out loud and naming the trade-off of each option.',
+  communication: 'Structure answers (STAR for stories), lead with the point, and cut filler.',
+  evidence_credibility:
+    'Back each claim with one concrete project example and a measurable result.',
+  role_fit: 'Bring ownership stories whose scope matches the target level.',
+};
+
+/** evidence mass (sum of depth weights) → base uncertainty; missing quote bumps one level. */
+const UNCERTAINTY_LOW_MASS = 1.5;
+const UNCERTAINTY_MEDIUM_MASS = 0.75;
+
+function baseUncertainty(weightSum: number): ScoreUncertainty {
+  if (weightSum >= UNCERTAINTY_LOW_MASS) return 'low';
+  if (weightSum >= UNCERTAINTY_MEDIUM_MASS) return 'medium';
+  return 'high';
+}
+
+function bumpUncertainty(value: ScoreUncertainty): ScoreUncertainty {
+  return value === 'low' ? 'medium' : 'high';
+}
+
+/**
+ * Deterministic per-dimension score explanation over the SAME aggregation the final score uses —
+ * explanations can never disagree with the score because both come from one pass. The evidence
+ * quote is the strongest contributing answer (highest depth weight, then score, then order),
+ * masked + truncated. Uncertainty is evidence-mass-based and rises when no quotable text exists.
+ */
+export function explainInterviewScore(input: {
+  answers: AnswerEvidence[];
+  role: string;
+  seniority: string;
+}): { score: InterviewScore; explanations: ScoreExplanation[] } {
+  const score = aggregateInterviewScore(input);
+
+  const explanations = score.dimensions.map((d): ScoreExplanation => {
+    const contributors = input.answers.filter((a) =>
+      topicDimensions(a.topic_phase).includes(d.dimension),
+    );
+    const weightSum = contributors.reduce((s, a) => s + (DEPTH_WEIGHT[a.depth_signal] ?? 0.5), 0);
+    const best = contributors.reduce<AnswerEvidence | null>((acc, a) => {
+      if (!acc) return a;
+      const wA = DEPTH_WEIGHT[a.depth_signal] ?? 0.5;
+      const wAcc = DEPTH_WEIGHT[acc.depth_signal] ?? 0.5;
+      if (wA > wAcc) return a;
+      if (wA === wAcc && a.score > acc.score) return a;
+      return acc;
+    }, null);
+
+    const rawQuote = best?.evidence_excerpt?.trim() ?? '';
+    const evidence_quote = rawQuote ? maskPii(rawQuote).slice(0, EXPLANATION_EVIDENCE_MAX) : null;
+
+    let uncertainty = baseUncertainty(weightSum);
+    if (!evidence_quote) uncertainty = bumpUncertainty(uncertainty);
+
+    const belowSolid = d.band === 'poor' || d.band === 'borderline';
+    return {
+      dimension: d.dimension,
+      score: d.score,
+      band: d.band,
+      weight: d.weight,
+      rubric_anchor: `${BAND_ANCHORS[d.band]} — ${d.dimension}: ${DIMENSION_LENS[d.dimension]}`,
+      evidence_quote,
+      linked_question_id: evidence_quote ? (best?.linked_question_id ?? null) : null,
+      uncertainty,
+      improvement_hint: belowSolid ? DIMENSION_HINTS[d.dimension] : null,
+    };
+  });
+
+  return { score, explanations };
 }

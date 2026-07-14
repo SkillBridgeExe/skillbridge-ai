@@ -2881,6 +2881,21 @@ describe('InterviewsService', () => {
     expect(response.status).toBe('COMPLETED');
     expect(response.turns).toHaveLength(1);
     expect(response.finalScore).toMatchObject({ overall: 82 });
+    // Wave I-SCORE: per-dimension explanations ride inside finalScore, additively.
+    expect(response.finalScore).toMatchObject({
+      score_explanations: expect.arrayContaining([
+        expect.objectContaining({
+          dimension: 'technical_depth',
+          score: 82,
+          band: 'outstanding',
+          rubric_anchor: expect.stringContaining('outstanding'),
+          evidence_quote: expect.stringContaining('React Query'),
+          linked_question_id: 'turn-1',
+          uncertainty: 'medium',
+          improvement_hint: null,
+        }),
+      ]),
+    });
     expect(response.coaching).toEqual(coaching);
   });
 

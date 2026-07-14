@@ -58,7 +58,7 @@ import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
 import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
-  aggregateInterviewScore,
+  explainInterviewScore,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -621,13 +621,17 @@ export class InterviewsService {
 
     const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
     const difficulty = this.resolveSessionInterviewDifficulty(session);
-    const score = aggregateInterviewScore({
+    // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
+    // quotes (masked inside the module) — score and explanations come from ONE pass.
+    const { score, explanations } = explainInterviewScore({
       answers: analyses
         .filter((item) => item.score !== null && item.depthSignal !== null)
         .map((item) => ({
           topic_phase: item.topicPhase,
           score: item.score as number,
           depth_signal: item.depthSignal as DepthSignal,
+          evidence_excerpt: item.turn.userAnswerText ?? undefined,
+          linked_question_id: item.turn.id,
         })),
       role: session.targetRole,
       seniority: difficulty.level,
@@ -668,7 +672,9 @@ export class InterviewsService {
     session.status = 'COMPLETED';
     session.endedAt = endedAt;
     session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
-    session.finalScore = score;
+    // additive: score_explanations rides inside the finalScore jsonb; existing consumers of
+    // overall/dimensions/role_family are untouched.
+    session.finalScore = { ...score, score_explanations: explanations };
     session.gapItems = interviewGaps;
     session.devPlan = plan;
     session.coaching = coaching;
