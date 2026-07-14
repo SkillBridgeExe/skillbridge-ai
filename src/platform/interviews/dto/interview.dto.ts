@@ -241,6 +241,8 @@ export interface InterviewTurnDto {
   depthSignal: string | null;
   signals: unknown;
   insight: unknown;
+  /** persisted per-turn decision trace (I-CONSIST-2) — additive, null on legacy turns. */
+  turnTrace: unknown;
   currentThread: string | null;
   skillCanonical: string | null;
   questionBankItemId: string | null;
