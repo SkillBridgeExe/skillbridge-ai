@@ -1987,6 +1987,18 @@ describe('InterviewsService', () => {
     });
     expect(response.turnTrace?.confidence).toBe('low');
     expect(response.turnTrace?.reasons).toContain('fallback_seed_question');
+    // Wave I-VOICE: code-counted communication facts ride along into the assess call.
+    expect(chain.assess).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        communicationFacts: expect.objectContaining({
+          word_count: expect.any(Number),
+          filler_count: expect.any(Number),
+          speaking_rate_wpm: expect.any(Number),
+          answer_length_band: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('asks one closing prompt inside the closing time window without ending immediately', async () => {
