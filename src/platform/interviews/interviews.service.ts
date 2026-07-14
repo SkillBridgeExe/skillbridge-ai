@@ -33,13 +33,14 @@ import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-inter
 import {
   AgendaTopic,
   buildInterviewAgenda,
-  decideTurn,
+  decideTurnWithTrace,
   DepthSignal,
   filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
   InterviewState,
+  InterviewTurnTrace,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -417,21 +418,34 @@ export class InterviewsService {
     let finishReason: InterviewFinishReason = null;
     let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
+    let turnTrace: InterviewTurnTrace;
+    const wrapTrace = (reason: string): InterviewTurnTrace => ({
+      action: 'wrap',
+      phase: topic.phase,
+      topic_id: topic.id,
+      reasons: [reason],
+      depth: nextState.drill_depth,
+      remaining_turn_budget: Math.max(0, hardCap - nextState.turns_used),
+      confidence: 'high',
+    });
 
     if (nextState.turns_used >= hardCap) {
       turnDecision = 'finish';
       finishReason = 'SAFETY_CAP';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('safety_cap');
     } else if (this.isClosingTurn(current)) {
       turnDecision = 'finish';
       finishReason = 'TIME_LIMIT';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('time_limit');
     } else if (this.shouldFinishForTime(secondsRemaining)) {
       turnDecision = 'finish';
       finishReason = 'TIME_LIMIT';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('time_limit');
     } else {
-      const rawAction = decideTurn({
+      const decided = decideTurnWithTrace({
         signal: assessment.depthSignal,
         drill_depth: nextState.drill_depth,
         drill_budget: topic.drill_budget,
@@ -439,7 +453,11 @@ export class InterviewsService {
         turn_budget: hardCap + 2,
         evasive_streak: nextState.evasive_streak,
         seniority_target: topic.seniority_target,
+        phase: topic.phase,
+        topic_id: topic.id,
       });
+      const rawAction = decided.action;
+      turnTrace = decided.trace;
       const nextTopic = rawAction === 'advance' ? this.nextTopic(agenda, topic.id) : null;
 
       if (this.shouldAskClosingQuestion(secondsRemaining)) {
@@ -452,6 +470,7 @@ export class InterviewsService {
         };
         turnDecision = 'closing_prompt';
         nextQuestionKind = 'closing';
+        turnTrace = { ...turnTrace, action: 'wrap', reasons: ['time_low_closing_question'] };
       } else {
         const exhaustedTopics = rawAction === 'advance' && !nextTopic;
         action = rawAction === 'wrap' || exhaustedTopics ? 'drill' : rawAction;
@@ -464,6 +483,17 @@ export class InterviewsService {
               ? 'adaptive_follow_up'
               : 'continue_topic';
         nextQuestionKind = action === 'advance' ? 'transition' : 'follow_up';
+        if (action !== rawAction) {
+          // decision was overridden to keep the interview coherent — trace must say so.
+          turnTrace = {
+            ...turnTrace,
+            action: 'drill',
+            reasons: [
+              ...turnTrace.reasons,
+              exhaustedTopics ? 'topics_exhausted_adaptive_follow_up' : 'wrap_deferred_follow_up',
+            ],
+          };
+        }
       }
 
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
@@ -479,6 +509,15 @@ export class InterviewsService {
         runningNotes: updatedState.running_notes,
         prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
       });
+      if (!ask.question) {
+        // the chain gave no question → the seed question is asked instead (see nextQuestion
+        // below). Label it honestly: low-confidence fallback, never a silent degrade.
+        turnTrace = {
+          ...turnTrace,
+          confidence: 'low',
+          reasons: [...turnTrace.reasons, 'fallback_seed_question'],
+        };
+      }
     }
 
     current.userAnswerText = userAnswer;
@@ -546,6 +585,7 @@ export class InterviewsService {
       turnDecision,
       finishReason,
       nextQuestionKind,
+      turnTrace,
     };
   }
 
