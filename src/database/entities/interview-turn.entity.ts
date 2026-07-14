@@ -98,6 +98,14 @@ export class InterviewTurnEntity {
   @Column({ type: 'int', name: 'duration_seconds', nullable: true })
   durationSeconds!: number | null;
 
+  /** P3: ms from mic-open to first speech (client-measured, voice mode). */
+  @Column({ type: 'int', name: 'response_delay_ms', nullable: true })
+  responseDelayMs!: number | null;
+
+  /** P3: STT transcript segments in the answer — long-pause proxy (voice mode). */
+  @Column({ type: 'int', name: 'transcript_segments', nullable: true })
+  transcriptSegments!: number | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
 

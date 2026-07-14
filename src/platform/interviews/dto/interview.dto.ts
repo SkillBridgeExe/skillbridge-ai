@@ -132,6 +132,24 @@ export class AnswerPlatformInterviewDto {
   @IsInt()
   @Min(0)
   durationSeconds?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    description: 'P3: ms from mic-open to first speech, client-measured (voice mode).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  responseDelayMs?: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description: 'P3: STT transcript segments in this answer (long-pause proxy, voice mode).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  transcriptSegments?: number;
 }
 
 export class LiveInterviewTurnDto {
@@ -252,6 +270,9 @@ export interface InterviewTurnDto {
   askedAt: string;
   answeredAt: string | null;
   durationSeconds: number | null;
+  /** P3 speech timing (voice mode) — null on text/legacy turns. */
+  responseDelayMs: number | null;
+  transcriptSegments: number | null;
 }
 
 export interface InterviewSessionDto {

@@ -108,3 +108,43 @@ describe('buildCommunicationSignals — no psychology, ever', () => {
     }
   });
 });
+
+describe('buildCommunicationSignals — P3 voice-quality timing metrics', () => {
+  const SIGNALS = analyzeAnswerSignals({
+    answer:
+      'Basically we cache the report queries, and honestly I think the TTL is like five minutes, you know, it works fine for the dashboards we ship.',
+    question: 'How is caching set up?',
+    jd_terms: [],
+    language: 'en',
+  });
+
+  it('computes filler-per-minute alongside WPM when duration is present', () => {
+    const out = buildCommunicationSignals(SIGNALS, { duration_seconds: 30 });
+    expect(out.speaking_rate_wpm).toBeGreaterThan(0);
+    expect(out.filler_per_minute).toBe(Math.round((SIGNALS.filler.count / 30) * 60 * 10) / 10);
+    expect(out.unavailable_reason).toBeUndefined();
+  });
+
+  it('reports client-measured response delay and transcript segments when provided', () => {
+    const out = buildCommunicationSignals(SIGNALS, {
+      duration_seconds: 30,
+      response_delay_ms: 2400,
+      transcript_segments: 3,
+    });
+    expect(out.response_delay_seconds).toBe(2.4);
+    expect(out.transcript_segments).toBe(3);
+  });
+
+  it('never fakes timing: no duration → no rate metrics, and bad delay/segment values are dropped', () => {
+    const out = buildCommunicationSignals(SIGNALS, {
+      duration_seconds: 0,
+      response_delay_ms: -5,
+      transcript_segments: 0,
+    });
+    expect(out.speaking_rate_wpm).toBeUndefined();
+    expect(out.filler_per_minute).toBeUndefined();
+    expect(out.response_delay_seconds).toBeUndefined();
+    expect(out.transcript_segments).toBeUndefined();
+    expect(out.unavailable_reason).toBe('no_timing_data');
+  });
+});
