@@ -212,6 +212,74 @@ describe('InterviewChainLlmService.ask', () => {
     });
   });
 
+  it('passes the drill-ladder focus into the prompt for the given rung', async () => {
+    const { service, prompts } = build({
+      ai_message: '',
+      question: 'Why not a write-through cache?',
+    });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'drill',
+      language: 'en',
+      seniorityTarget: 'senior',
+      currentTopic: { id: 'topic-react', display_name: 'React Query' },
+      currentThread: 'React Query cache invalidation',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      ladderRung: 'tradeoff',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(vars.drill_focus)).toContain('WHY');
+    expect(String(vars.scenario_instruction)).toBe('');
+  });
+
+  it('activates the incident-simulation instruction only for SCENARIO topics', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'What do you check next?' });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 5,
+      decision: 'drill',
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'scenario-1', display_name: 'Scenario: React' },
+      currentThread: 'incident handling on React',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      topicPhase: 'SCENARIO',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(vars.scenario_instruction)).toContain('INCIDENT SIMULATION');
+    expect(String(vars.scenario_instruction)).toContain('ONE short new fact');
+  });
+
+  it('renders empty ladder/scenario vars for legacy callers', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'Next question?' });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'advance',
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-x', display_name: 'X' },
+      currentThread: 'x',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(vars.drill_focus).toBe('');
+    expect(vars.scenario_instruction).toBe('');
+  });
+
   it('drops question-like ai messages in Vietnamese mode while keeping a Vietnamese technical question', async () => {
     const { service } = build({
       ai_message:

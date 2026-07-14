@@ -3,7 +3,7 @@ import { maskPiiDeep } from '../../common/services/pii-mask';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../../modules/prompts/prompts.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
-import { DepthSignal, TurnAction } from '../../modules/interview/interview-agenda';
+import { DepthSignal, DrillLadderRung, TurnAction } from '../../modules/interview/interview-agenda';
 import { CommunicationSignals } from '../../modules/interview/communication-metrics';
 
 const PROMPT_ASSESS = 'interview_assess_v1';
@@ -204,7 +204,28 @@ export interface InterviewAskInput {
   recentQa: unknown;
   runningNotes: string[];
   prevTopicOutcome: string;
+  /** I-REAL-2: code-owned drill-ladder rung the next drill/push question must target. */
+  ladderRung?: DrillLadderRung | null;
+  /** I-REAL-2: agenda topic phase — SCENARIO activates the incident-simulation instruction. */
+  topicPhase?: string | null;
 }
+
+/** rung → what the next drill/push question must target (CODE-owned, mirrors the ladder). */
+const DRILL_FOCUS: Record<DrillLadderRung, string> = {
+  application:
+    'target HOW they actually did or would do it — concrete steps, real commands, code-level detail',
+  tradeoff: 'target WHY — the alternatives they rejected and the trade-off that decided it',
+  edge_failure:
+    'target WHERE IT BREAKS — edge cases, failure modes, and what they would monitor for it',
+  design:
+    'target SCALE AND DESIGN — how the approach must change at 10x load or under new constraints',
+};
+
+const SCENARIO_INSTRUCTION =
+  'This topic is a LIVE INCIDENT SIMULATION. Advance the SAME incident based on the ' +
+  "candidate's last action: reveal ONE short new fact or symptom that plausibly follows from " +
+  'what they just did, then ask what they do next. Never restart or switch incidents, never ' +
+  'reveal the root cause yourself.';
 
 export interface InterviewAskOutput {
   aiRequestId: string;
@@ -316,6 +337,8 @@ export class InterviewChainLlmService {
         recent_qa: JSON.stringify(input.recentQa),
         running_notes: JSON.stringify(input.runningNotes),
         prev_topic_outcome: input.prevTopicOutcome,
+        drill_focus: input.ladderRung ? DRILL_FOCUS[input.ladderRung] : '',
+        scenario_instruction: input.topicPhase === 'SCENARIO' ? SCENARIO_INSTRUCTION : '',
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASK, promptVars);

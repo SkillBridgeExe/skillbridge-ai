@@ -603,6 +603,64 @@
       "expected_overall_band": [80, 90]
     },
     {
+      "id": "scenario-incident-chain",
+      "locale": "en",
+      "target_role": "backend_engineer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, owns an orders service on Postgres.",
+      "jd_summary": "Backend engineer: production ownership, incident response, SQL performance.",
+      "turn_budget": 12,
+      "turns": [
+        {
+          "question": "Picture a real incident: order latency just spiked in production and users are affected. What do you do first?",
+          "answer": "First I would check the error rate and the logs for the orders service, confirm the blast radius, and roll back the last deploy if the spike lines up with it.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgres",
+          "display_name": "Scenario: Postgres incident",
+          "jd_terms": ["logs", "deploy"],
+          "depth_signal": "adequate",
+          "score": 70,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "forbidden_flags": ["too_short"],
+          "expected_score_band": [60, 80]
+        },
+        {
+          "question": "The rollback did not help — the logs show timeouts. What now?",
+          "answer": "The logs show timeouts to the database, so I would check the connection pool metrics and the active query count, and look for a lock or a slow query that started around the deploy.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgres",
+          "display_name": "Scenario: Postgres incident",
+          "jd_terms": ["database", "query"],
+          "depth_signal": "adequate",
+          "score": 72,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "expected_score_band": [60, 85]
+        },
+        {
+          "question": "You find one query scanning a full table. Close it out.",
+          "answer": "Root cause was a missing index after the migration. I added the index back, latency went from 900ms to 120ms, and I wrote a post-incident note so migrations get a query-plan check in CI.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgres",
+          "display_name": "Scenario: Postgres incident",
+          "jd_terms": ["index", "migration"],
+          "depth_signal": "deep",
+          "score": 85,
+          "drill_depth": 2,
+          "drill_budget": 3,
+          "expected_decision": "advance",
+          "expected_flags": ["quantified"],
+          "expected_score_band": [75, 95]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
+      "expected_overall_band": [71, 83]
+    },
+    {
       "id": "rambling-answer",
       "locale": "en",
       "target_role": "fullstack_engineer",
