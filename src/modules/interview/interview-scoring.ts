@@ -202,6 +202,61 @@ export function aggregateInterviewScore(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Wave I-CONSIST — depth-vs-score consistency guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Band-aligned ceilings for LLM self-contradictions (Call A gives score AND depth_signal in one
+ * pass; off_topic comes from the independent L2 judge). A contradiction is capped, never re-scored:
+ *  - off_topic → poor ceiling: an answer that did not address THIS question cannot score above poor
+ *    on it, whatever its content quality;
+ *  - evasive → borderline ceiling (not poor: depth-weighting already discounts evasive ×0.3, and a
+ *    partially-evasive answer can still be partially right);
+ *  - shallow → solid ceiling: the outstanding anchor REQUIRES depth/trade-offs, so shallow+81+ is
+ *    a contradiction by the rubric's own definition.
+ */
+export const OFF_TOPIC_SCORE_CAP = 40;
+export const EVASIVE_SCORE_CAP = 60;
+export const SHALLOW_SCORE_CAP = 80;
+
+export interface ScoreReconciliation {
+  /** the score production consumes (capped when contradictory). */
+  score: number;
+  raw_score: number;
+  capped: boolean;
+  /** compact trace slugs, same channel as InterviewTurnTrace.reasons. */
+  reasons: string[];
+}
+
+/**
+ * Deterministic consistency guard between the LLM's own judgments. Cap-only (never raises a
+ * score), applied at the single chokepoint where a per-answer score enters persistence — so
+ * aggregation, explanations, and coaching all see the reconciled value.
+ */
+export function reconcileAnswerScore(input: {
+  score: number;
+  depth_signal: DepthSignal;
+  off_topic: boolean;
+}): ScoreReconciliation {
+  const caps: Array<{ cap: number; reason: string }> = [];
+  if (input.off_topic) caps.push({ cap: OFF_TOPIC_SCORE_CAP, reason: 'score_capped_off_topic' });
+  if (input.depth_signal === 'evasive') {
+    caps.push({ cap: EVASIVE_SCORE_CAP, reason: 'score_capped_evasive' });
+  }
+  if (input.depth_signal === 'shallow') {
+    caps.push({ cap: SHALLOW_SCORE_CAP, reason: 'score_capped_shallow' });
+  }
+  const fired = caps.filter((c) => input.score > c.cap);
+  const score = fired.reduce((s, c) => Math.min(s, c.cap), input.score);
+  return {
+    score,
+    raw_score: input.score,
+    capped: fired.length > 0,
+    reasons: fired.map((c) => c.reason),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Wave I-SCORE — evidence-based score explanation
 // ---------------------------------------------------------------------------
 

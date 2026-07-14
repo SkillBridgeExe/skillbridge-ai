@@ -61,6 +61,7 @@ import { AnswerInsightService } from '../../modules/interview/answer-insight.ser
 import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
   explainInterviewScore,
+  reconcileAnswerScore,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -444,6 +445,13 @@ export class InterviewsService {
     );
     const [assessment, insight] = await Promise.all([assessmentPromise, insightPromise]);
     const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, userAnswer);
+    // I-CONSIST: cap LLM self-contradictions (evasive/shallow-but-high, off-topic-but-high)
+    // BEFORE the score is persisted — aggregation/explanations only ever see the reconciled value.
+    const scoreGuard = reconcileAnswerScore({
+      score: assessment.score,
+      depth_signal: assessment.depthSignal,
+      off_topic: insight.off_topic,
+    });
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
@@ -583,11 +591,15 @@ export class InterviewsService {
       }
     }
 
+    if (scoreGuard.capped) {
+      turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...scoreGuard.reasons] };
+    }
+
     current.userAnswerText = userAnswer;
     current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.aiRequestId = assessment.aiRequestId;
-    current.perQuestionScore = this.score(assessment.score);
+    current.perQuestionScore = this.score(scoreGuard.score);
     current.strengths = recognized;
     // Grounded like `recognized` above: a gap can't be required to appear in the answer
     // (it names what's missing), so anchor it to the topic universe instead — the asked
@@ -1363,8 +1375,13 @@ export class InterviewsService {
         },
         userId,
       );
-      score = assessment.score;
       depthSignal = assessment.depthSignal;
+      // same I-CONSIST guard as the live answer path — recomputed turns get reconciled too.
+      score = reconcileAnswerScore({
+        score: assessment.score,
+        depth_signal: depthSignal,
+        off_topic: insight.off_topic,
+      }).score;
       turn.aiRequestId = turn.aiRequestId ?? assessment.aiRequestId;
       turn.perQuestionScore = this.score(score);
       turn.depthSignal = depthSignal;
