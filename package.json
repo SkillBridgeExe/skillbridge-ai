@@ -39,6 +39,7 @@
     "eval:answer-insight": "ts-node -r tsconfig-paths/register src/calibration/eval-answer-insight.ts",
     "eval:interview-gaps": "ts-node -r tsconfig-paths/register src/calibration/eval-interview-gaps.ts",
     "eval:interview-coaching": "ts-node -r tsconfig-paths/register src/calibration/eval-interview-coaching.ts",
+    "eval:interview-production": "ts-node -r tsconfig-paths/register src/calibration/eval-interview-production.ts",
     "eval:learning": "ts-node -r tsconfig-paths/register src/calibration/eval-learning.ts",
     "eval:curation": "ts-node -r tsconfig-paths/register src/calibration/eval-curation.ts",
     "eval:cv-assistant": "ts-node -r tsconfig-paths/register src/calibration/eval-cv-assistant-turns.ts",
