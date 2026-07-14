@@ -56,6 +56,7 @@ import {
 } from '../../modules/interview/answer-analyzer';
 import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
+import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
   aggregateInterviewScore,
   Dimension,
@@ -393,6 +394,11 @@ export class InterviewsService {
       currentThread: state.current_thread || topic.what_to_probe,
       drillDepth: state.drill_depth,
       recentQa,
+      // code-counted facts the model must not recount (Wave I-VOICE). Not persisted: a pure
+      // projection of the stored signals + durationSeconds, recomputable at any time.
+      communicationFacts: buildCommunicationSignals(signals, {
+        duration_seconds: dto.durationSeconds ?? null,
+      }),
     });
     const insightPromise = this.answerInsight!.judge(
       {

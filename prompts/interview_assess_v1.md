@@ -19,6 +19,10 @@ Assess the candidate's most recent answer.
 
 {{recent_qa}}
 
+## Deterministic communication facts (code-counted — ground truth, `null` if not measured)
+
+{{communication_facts}}
+
 ## How to score (BARS — raise the bar with {{seniority_target}})
 
 Score the latest answer 0–100 on the **{{target_dimension}}** dimension, using anchored levels. "Solid" for a fresher is NOT "solid" for a senior — calibrate the bar to the band.
@@ -58,3 +62,4 @@ Dimension lens for `{{target_dimension}}`:
 - `current_thread`: name the precise sub-thread to drill next (stay in the concept's world — one level deeper, not a sibling topic).
 - `gaps_revealed`: specific weaknesses THIS answer exposed, grounded; `[]` if none.
 - `note`: ≤1 short bullet worth remembering for a later callback (a claim, a contradiction), or `""`.
+- The communication facts above are counted BY CODE and are ground truth: do NOT recount, estimate, or contradict them. Use them only as context (e.g. for the `communication` lens). They are communication signals, NEVER personality or emotional facts — do not infer confidence or personality from them.
