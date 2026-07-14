@@ -86,7 +86,8 @@
     "gen:synthetic-cvs": "ts-node -r tsconfig-paths/register src/tools/gen-synthetic-cvs.ts",
     "ab:match-template": "ts-node -r tsconfig-paths/register src/calibration/ab-match-template.ts",
     "report:unnormalized": "ts-node -r tsconfig-paths/register src/calibration/report-unnormalized.ts",
-    "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts"
+    "calibrate:panel": "ts-node -r tsconfig-paths/register src/calibration/llm-panel.ts",
+    "seed:question-bank": "ts-node -r tsconfig-paths/register src/tools/seed-question-bank.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",

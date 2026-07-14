@@ -132,7 +132,7 @@ async function seedSkills(skills: Repository<SkillEntity>): Promise<void> {
   }
 }
 
-async function seedInterviewQuestionBank(
+export async function seedInterviewQuestionBank(
   questions: Repository<InterviewQuestionBankItemEntity>,
 ): Promise<void> {
   for (const seed of buildInterviewQuestionBankSeeds()) {
