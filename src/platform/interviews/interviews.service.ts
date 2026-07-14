@@ -438,9 +438,11 @@ export class InterviewsService {
       drillDepth: state.drill_depth,
       recentQa,
       // code-counted facts the model must not recount (Wave I-VOICE). Not persisted: a pure
-      // projection of the stored signals + durationSeconds, recomputable at any time.
+      // projection of the stored signals + timing columns, recomputable at any time.
       communicationFacts: buildCommunicationSignals(signals, {
         duration_seconds: dto.durationSeconds ?? null,
+        response_delay_ms: dto.responseDelayMs ?? null,
+        transcript_segments: dto.transcriptSegments ?? null,
       }),
     });
     const insightPromise = this.answerInsight!.judge(
@@ -665,6 +667,8 @@ export class InterviewsService {
     current.skillCanonical = topic.skill_canonical;
     current.answeredAt = new Date();
     current.durationSeconds = dto.durationSeconds ?? null;
+    current.responseDelayMs = dto.responseDelayMs ?? null;
+    current.transcriptSegments = dto.transcriptSegments ?? null;
     await this.turns.save(current);
 
     let nextTurn: InterviewTurnEntity | null = null;
@@ -2343,6 +2347,8 @@ export class InterviewsService {
       askedAt: this.dateIso(turn.askedAt ?? turn.createdAt),
       answeredAt: turn.answeredAt ? turn.answeredAt.toISOString() : null,
       durationSeconds: turn.durationSeconds,
+      responseDelayMs: turn.responseDelayMs ?? null,
+      transcriptSegments: turn.transcriptSegments ?? null,
     };
   }
 
