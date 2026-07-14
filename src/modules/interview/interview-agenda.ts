@@ -35,9 +35,7 @@ export interface InterviewAgenda {
   uncovered: AgendaTopic[];
 }
 
-export const TURN_BUDGET_BY_TIER: Record<string, number> = { free: 6, paid: 10 };
-
-const MAX_DRILL = 3;
+export const TURN_BUDGET_BY_TIER: Record<string, number> = { free: 6, paid: 12 };
 const FOCUS_PRIORITY: Record<InterviewFocusArea['focus_type'], number> = {
   gap_probe: 4,
   evidence_probe: 3,
@@ -58,7 +56,10 @@ export function buildInterviewAgenda(input: {
 }): InterviewAgenda {
   const turn_budget = Math.max(4, Math.floor(input.turnBudget));
   const includeExtras = turn_budget > 7;
-  const reserved = includeExtras ? 4 : 2;
+  // extras budgets: screening 1 + scenario CHAIN 3 + behavioral 1 + closing slack 1 (I-REAL-2).
+  const reserved = includeExtras ? 6 : 2;
+  // paid earns the 4-rung drill ladder (application→tradeoff→edge→design); free keeps breadth.
+  const maxDrill = includeExtras ? 4 : 3;
 
   const toTopic = (
     focus: InterviewFocusArea,
@@ -93,7 +94,7 @@ export function buildInterviewAgenda(input: {
       uncovered.push(toTopic(item.focus, item.priority, item.index, 1));
       continue;
     }
-    const budget = Math.min(MAX_DRILL, remaining);
+    const budget = Math.min(maxDrill, remaining);
     kept.push(toTopic(item.focus, item.priority, item.index, budget));
     remaining -= budget;
   }
@@ -125,9 +126,11 @@ export function buildInterviewAgenda(input: {
       source: 'gap',
       priority: top.priority,
       seniority_target: input.seniority,
-      drill_budget: 1,
-      what_to_probe: `applied reasoning on ${top.display_name}`,
-      seed_question: `Let's make it concrete around ${top.display_name}: walk me through how you would approach it on a real task.`,
+      // 3-turn incident CHAIN (I-REAL-2): the ask prompt evolves the same incident each turn
+      // based on the candidate's last action — a mini-simulation, not a one-off question.
+      drill_budget: 3,
+      what_to_probe: `incident handling and real working process on ${top.display_name}`,
+      seed_question: `Picture a real incident: something around ${top.display_name} just broke in production and users are affected. Walk me through exactly what you would do first.`,
     });
   }
 
@@ -269,6 +272,39 @@ export function decideTurnWithTrace(
       confidence: 'high',
     },
   };
+}
+
+/**
+ * Drill ladder (I-REAL-2): the CODE-owned rung a drill/push question should target at a given
+ * depth — how a real interviewer climbs: how they did it → why this over X → where it breaks →
+ * how it changes at scale. Early-career bands cap at `tradeoff` (fair bar, no design grilling).
+ * The rung is derived from state, never the LLM, so the ladder cannot drift.
+ */
+export type DrillLadderRung = 'application' | 'tradeoff' | 'edge_failure' | 'design';
+
+const DRILL_LADDER: DrillLadderRung[] = ['application', 'tradeoff', 'edge_failure', 'design'];
+const EARLY_CAREER_LADDER: DrillLadderRung[] = ['application', 'application', 'tradeoff'];
+
+export function drillLadderRung(drillDepth: number, seniorityTarget: string): DrillLadderRung {
+  const ladder = EARLY_CAREER_BANDS.has(seniorityTarget.trim().toLowerCase())
+    ? EARLY_CAREER_LADDER
+    : DRILL_LADDER;
+  return ladder[Math.max(0, Math.min(drillDepth, ladder.length - 1))];
+}
+
+/**
+ * Anti-template guard (I-REAL-2): a drill/push follow-up must reuse at least one content term
+ * from the candidate's answer / current thread / topic terms — a question with zero overlap is
+ * template-shaped ("tell me about your strengths") and gets flagged in the turn trace. Same
+ * tokenizer and honest ASCII limits as filterRecognizedConcepts; overlap is a narrowing signal,
+ * not proof of quality.
+ */
+export function isGroundedFollowUp(question: string, contextTexts: string[]): boolean {
+  const contextTokens = new Set(contextTexts.flatMap(tokenizeConcept));
+  if (contextTokens.size === 0) return false;
+  return tokenizeConcept(question).some(
+    (token) => token.length >= 4 && !GAP_FILLER.has(token) && contextTokens.has(token),
+  );
 }
 
 export function filterRecognizedConcepts(
