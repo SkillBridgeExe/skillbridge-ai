@@ -12,8 +12,8 @@ import {
  * gates decisions, flags, gaps, forbidden claims, and score bands. No LLM, no network.
  */
 
-/** guard against accidental corpus truncation — I-CONSIST grew the corpus to 31 cases. */
-const MIN_CASES = 31;
+/** guard against accidental corpus truncation — I-INTEL grew the corpus to 32 cases. */
+const MIN_CASES = 32;
 
 function main(): void {
   const file = join(process.cwd(), 'data', 'eval', 'interview-production-golden.json');

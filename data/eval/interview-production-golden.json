@@ -2242,6 +2242,72 @@
         80,
         90
       ]
+    },
+    {
+      "id": "intel-anchor-drill-chain",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, owns the reporting service.",
+      "jd_summary": "Backend engineer: caching, event-driven invalidation.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How did you speed up the reporting endpoints?",
+          "answer": "We put a Redis cache in front of the report queries with a five minute TTL, and I added a Kafka consumer that invalidates entries on writes.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "redis",
+          "display_name": "Redis caching",
+          "jd_terms": [
+            "Redis",
+            "cache"
+          ],
+          "depth_signal": "adequate",
+          "score": 68,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "recognized_concepts": [
+            "Redis cache",
+            "Kafka consumer"
+          ],
+          "expected_decision": "drill",
+          "expected_anchor": "Redis cache",
+          "expected_score_band": [
+            63,
+            73
+          ]
+        },
+        {
+          "question": "How is that Redis cache invalidated exactly?",
+          "answer": "The Kafka consumer listens to the write topic and deletes the affected Redis cache keys, and I set the TTL as a safety net in case an event is lost.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "redis",
+          "display_name": "Redis caching",
+          "jd_terms": [
+            "Redis",
+            "cache"
+          ],
+          "depth_signal": "adequate",
+          "score": 74,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "recognized_concepts": [
+            "Redis cache",
+            "Kafka consumer"
+          ],
+          "expected_decision": "drill",
+          "expected_anchor": "Kafka consumer",
+          "expected_score_band": [
+            69,
+            79
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        66,
+        76
+      ]
     }
   ]
 }

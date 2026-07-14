@@ -331,3 +331,67 @@ describe('scoreInterviewProductionCase — I-CONSIST consistency guard', () => {
     expect(out.mismatches.join(' ')).toMatch(/caps \[\] != expected \[score_capped_shallow\]/);
   });
 });
+
+describe('scoreInterviewProductionCase — I-INTEL concept anchoring', () => {
+  const REDIS_ANSWER =
+    'We put a Redis cache in front of the report queries with a five minute TTL, and I added a Kafka consumer that invalidates entries on writes.';
+
+  it('picks the grounded concept as the drill anchor and never re-drills it', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer: REDIS_ANSWER,
+            depth_signal: 'adequate',
+            recognized_concepts: ['Redis cache', 'Kafka consumer', 'not in the answer'],
+            expected_decision: 'drill',
+            expected_anchor: 'Redis cache',
+          }),
+          turn({
+            answer: REDIS_ANSWER,
+            depth_signal: 'adequate',
+            drill_depth: 1,
+            recognized_concepts: ['Redis cache', 'Kafka consumer'],
+            expected_decision: 'drill',
+            expected_anchor: 'Kafka consumer',
+          }),
+        ],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+  });
+
+  it('fails the case when the code picks a different anchor than labeled', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer: REDIS_ANSWER,
+            recognized_concepts: ['Redis cache'],
+            expected_decision: 'drill',
+            expected_anchor: 'Kafka consumer',
+          }),
+        ],
+      }),
+    );
+    expect(out.pass).toBe(false);
+    expect(out.mismatches.join(' ')).toMatch(/anchor Redis cache != expected Kafka consumer/);
+  });
+
+  it('expects null anchor on a vague answer (nothing concrete to anchor on)', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            answer:
+              'I usually just try things until they work and read whatever docs I can find about it.',
+            jd_terms: ['Redis'],
+            expected_decision: 'drill',
+            expected_anchor: null,
+          }),
+        ],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+  });
+});

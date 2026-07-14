@@ -1,6 +1,13 @@
 import { analyzeAnswerSignals, AnswerSignals, Language } from './answer-analyzer';
 import { AnswerInsight, groundAnswerInsight } from './answer-insight';
-import { decideTurn, DepthSignal, InterviewPhase, TurnAction } from './interview-agenda';
+import {
+  decideTurn,
+  DepthSignal,
+  filterRecognizedConcepts,
+  InterviewPhase,
+  pickDrillAnchor,
+  TurnAction,
+} from './interview-agenda';
 import { InterviewGapItem, InterviewGapWeaknessType } from './interview-gap';
 import { AnswerGapContext, deriveInterviewGaps } from './interview-gap-derive';
 import {
@@ -70,6 +77,13 @@ export interface ProductionTurnCase {
    * Omit = [] = no cap may fire.
    */
   expected_caps?: string[];
+  /** labeled raw Call A recognizedConcepts — grounded for real via filterRecognizedConcepts. */
+  recognized_concepts?: string[];
+  /**
+   * I-INTEL: the anchor pickDrillAnchor must choose on a drill/push turn (null = must choose
+   * none). Omitted = not checked. Probed anchors accumulate across the case's turns.
+   */
+  expected_anchor?: string | null;
 }
 
 export interface GapExpectation {
@@ -188,6 +202,7 @@ export function scoreInterviewProductionCase(
   const contexts: AnswerGapContext[] = [];
   const answers: AnswerScore[] = [];
   const notes: Array<{ turn: number; note: string }> = [];
+  const probedAnchors: string[] = [];
 
   c.turns.forEach((t, index) => {
     const turnNo = index + 1;
@@ -221,6 +236,25 @@ export function scoreInterviewProductionCase(
     const accepted = [t.expected_decision, ...(t.accept_decisions ?? [])];
     if (!accepted.includes(decision)) {
       mismatches.push(`turn ${turnNo} decision ${decision} != expected ${accepted.join('/')}`);
+    }
+
+    // I-INTEL anchor selection runs FOR REAL (code-owned), mirroring the service: raw labeled
+    // recognizedConcepts grounded via filterRecognizedConcepts, probed anchors accumulated
+    // across the case, SCENARIO exempt (incident chain owns the follow-up shape).
+    let anchor: string | null = null;
+    if ((decision === 'drill' || decision === 'push_harder') && t.topic_phase !== 'SCENARIO') {
+      anchor = pickDrillAnchor({
+        answer: t.answer,
+        recognized_concepts: filterRecognizedConcepts(t.recognized_concepts ?? [], t.answer),
+        jd_terms: t.jd_terms ?? [],
+        probed_anchors: probedAnchors,
+      }).anchor;
+      if (anchor) probedAnchors.push(anchor);
+    }
+    if (t.expected_anchor !== undefined && anchor !== t.expected_anchor) {
+      mismatches.push(
+        `turn ${turnNo} anchor ${anchor ?? 'null'} != expected ${t.expected_anchor ?? 'null'}`,
+      );
     }
 
     for (const flag of t.expected_flags ?? []) {
