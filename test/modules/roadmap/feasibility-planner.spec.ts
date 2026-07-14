@@ -114,9 +114,9 @@ describe('budgetHours', () => {
   });
 
   it('treats session budget as weekly capacity across the available days', () => {
-    expect(budgetHours({ available_days: 30, minutes_per_session: 120, sessions_per_week: 15 })).toBe(
-      128.6,
-    );
+    expect(
+      budgetHours({ available_days: 30, minutes_per_session: 120, sessions_per_week: 15 }),
+    ).toBe(128.6);
   });
 
   it('keeps legacy available_days and hours_per_week budget fallback', () => {

@@ -956,8 +956,7 @@ export class CvsService {
         steps: [],
         sessions: [],
         not_feasible_items: [],
-        ai_summary:
-          'No learnable role-baseline gaps were found for this CV and target role.',
+        ai_summary: 'No learnable role-baseline gaps were found for this CV and target role.',
         no_learning_gaps: true,
         source_refs: [sourceRef],
       };

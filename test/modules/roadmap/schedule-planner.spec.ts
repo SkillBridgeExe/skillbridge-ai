@@ -23,10 +23,11 @@ const step = (
 
 describe('planRoadmapSchedule', () => {
   it('bundles small related skills into one session when they fit the session duration', () => {
-    const sessions = planRoadmapSchedule(
-      [step('html', 0.4), step('css', 0.4), step('react', 2)],
-      { minutes_per_session: 120, sessions_per_week: 10, study_days_per_week: 5 },
-    );
+    const sessions = planRoadmapSchedule([step('html', 0.4), step('css', 0.4), step('react', 2)], {
+      minutes_per_session: 120,
+      sessions_per_week: 10,
+      study_days_per_week: 5,
+    });
 
     expect(sessions[0]).toMatchObject({
       mode: 'bundled_skills',
@@ -42,10 +43,11 @@ describe('planRoadmapSchedule', () => {
   });
 
   it('interleaves long skills and places two 2-hour modules on each study day for a 4h/day budget', () => {
-    const sessions = planRoadmapSchedule(
-      [step('typescript', 4), step('react', 4)],
-      { minutes_per_session: 120, sessions_per_week: 10, study_days_per_week: 5 },
-    );
+    const sessions = planRoadmapSchedule([step('typescript', 4), step('react', 4)], {
+      minutes_per_session: 120,
+      sessions_per_week: 10,
+      study_days_per_week: 5,
+    });
 
     expect(sessions.map((session) => session.title)).toEqual([
       'typescript 1/2',
@@ -72,28 +74,17 @@ describe('planRoadmapSchedule', () => {
       'nextjs 2/2',
     ]);
     expect(sessions.map((session) => session.suggested_day_of_week).slice(0, 6)).toEqual([
-      1,
-      1,
-      1,
-      2,
-      2,
-      2,
+      1, 1, 1, 2, 2, 2,
     ]);
-    expect(sessions.map((session) => session.lane_index).slice(0, 6)).toEqual([
-      0,
-      1,
-      2,
-      0,
-      1,
-      2,
-    ]);
+    expect(sessions.map((session) => session.lane_index).slice(0, 6)).toEqual([0, 1, 2, 0, 1, 2]);
   });
 
   it('does not spend multiple same-day lanes on the same long skill', () => {
-    const sessions = planRoadmapSchedule(
-      [step('kotlin', 6)],
-      { minutes_per_session: 120, sessions_per_week: 15, study_days_per_week: 5 },
-    );
+    const sessions = planRoadmapSchedule([step('kotlin', 6)], {
+      minutes_per_session: 120,
+      sessions_per_week: 15,
+      study_days_per_week: 5,
+    });
 
     expect(sessions.map((session) => session.title)).toEqual([
       'kotlin 1/3',

@@ -1,9 +1,5 @@
 import type { FeasibilityBudget } from './feasibility-planner';
-import type {
-  ComposedRoadmapStep,
-  RoadmapSession,
-  RoadmapSourceRef,
-} from './roadmap-composer';
+import type { ComposedRoadmapStep, RoadmapSession, RoadmapSourceRef } from './roadmap-composer';
 
 const DEFAULT_MINUTES_PER_SESSION = 120;
 const DEFAULT_SESSIONS_PER_WEEK = 14;
@@ -38,7 +34,9 @@ export function planRoadmapSchedule(
           mode: 'bundled_skills',
           skill_canonicals: bundle.map((step) => step.skill_canonical),
           primary_skill: bundle[0].skill_canonical,
-          resource_ids: unique(bundle.flatMap((step) => step.resources.map((resource) => resource.id))),
+          resource_ids: unique(
+            bundle.flatMap((step) => step.resources.map((resource) => resource.id)),
+          ),
           source_refs: uniqueSourceRefs(bundle.flatMap((step) => step.source_refs ?? [])),
         },
       ]);

@@ -29,7 +29,22 @@ export class RoadmapComposerService {
   previewResourceOptions(
     skills: Array<{ skill_canonical: string; required_level?: number | null }>,
     languagePref: LanguagePref = 'both',
-  ): Map<string, Array<Pick<ScoredResource, 'id' | 'source_type' | 'title' | 'url' | 'is_internal' | 'description' | 'duration_minutes' | 'outcome_type'>>> {
+  ): Map<
+    string,
+    Array<
+      Pick<
+        ScoredResource,
+        | 'id'
+        | 'source_type'
+        | 'title'
+        | 'url'
+        | 'is_internal'
+        | 'description'
+        | 'duration_minutes'
+        | 'outcome_type'
+      >
+    >
+  > {
     const requests = skills.map((skill) => ({
       skill_canonical_name: skill.skill_canonical,
       required_level: skill.required_level ?? 3,
@@ -269,9 +284,7 @@ function orderBySelectedSkill<T extends { skill_canonical: string }>(
   selectedSkillOrder: string[] | undefined,
 ): T[] {
   if (!selectedSkillOrder?.length) return items;
-  const order = new Map(
-    selectedSkillOrder.map((skill, index) => [skill.toLowerCase(), index]),
-  );
+  const order = new Map(selectedSkillOrder.map((skill, index) => [skill.toLowerCase(), index]));
 
   return [...items].sort((a, b) => {
     const ai = order.get(a.skill_canonical.toLowerCase());

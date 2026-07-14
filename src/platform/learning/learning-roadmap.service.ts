@@ -60,20 +60,19 @@ export class LearningRoadmapPlatformService {
     const items = await Promise.all(
       dto.items.map(async (item) => ({
         id: item.id,
-        translated_display:
-          (await this.displayTranslation?.translateDisplay({
-            locale: dto.locale,
-            title: item.title,
-            description: item.description,
-            reason: item.reason,
-            summary: item.summary,
-          })) ?? {
-            locale: dto.locale,
-            title: item.title,
-            description: item.description,
-            reason: item.reason,
-            summary: item.summary,
-          },
+        translated_display: (await this.displayTranslation?.translateDisplay({
+          locale: dto.locale,
+          title: item.title,
+          description: item.description,
+          reason: item.reason,
+          summary: item.summary,
+        })) ?? {
+          locale: dto.locale,
+          title: item.title,
+          description: item.description,
+          reason: item.reason,
+          summary: item.summary,
+        },
       })),
     );
 

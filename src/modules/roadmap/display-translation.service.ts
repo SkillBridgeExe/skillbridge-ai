@@ -10,7 +10,7 @@ export interface DisplayTranslationInput {
   summary?: string;
 }
 
-export interface DisplayTranslationOutput extends DisplayTranslationInput {}
+export type DisplayTranslationOutput = DisplayTranslationInput;
 
 @Injectable()
 export class DisplayTranslationService {
@@ -138,7 +138,9 @@ function translateTitleVi(title: string): string {
   const exactWithoutBrackets = EXACT_TITLE_TRANSLATIONS_VI.get(titleWithoutBrackets);
   if (exactWithoutBrackets) return exactWithoutBrackets;
 
-  const beginnerMatch = titleWithoutBrackets.match(/^(.+?)\s+(?:Tutorial|Course)\s+for\s+Beginners$/i);
+  const beginnerMatch = titleWithoutBrackets.match(
+    /^(.+?)\s+(?:Tutorial|Course)\s+for\s+Beginners$/i,
+  );
   if (beginnerMatch) {
     const tech = normalizeTechTerm(beginnerMatch[1]);
     if (tech) return `Học ${tech} cơ bản cho người mới`;
