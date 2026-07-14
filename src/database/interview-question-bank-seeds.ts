@@ -2,6 +2,7 @@ import { InterviewType } from './entities/interview-session.entity';
 import { InterviewFocusArea } from '../modules/interview/interview-planner';
 import { InterviewPhase } from '../modules/interview/interview-agenda';
 import { Dimension } from '../modules/interview/interview-scoring';
+import { buildHandAuthoredScenarioQuestions } from './interview-question-bank-scenarios';
 
 export const QUESTION_BANK_TARGET_ROLES = [
   'backend_developer',
@@ -19,8 +20,10 @@ export type QuestionBankLanguage = 'vi' | 'en';
 
 export const QUESTION_BANK_LOGICAL_COUNTS = {
   common: 10,
-  skill: 30,
-  scenario: 10,
+  // 30 generated + 2 hand-authored (tradeoff + mini design, P2)
+  skill: 32,
+  // 10 generated + 1 hand-authored debug incident (P2)
+  scenario: 11,
   behavioral: 10,
 } as const;
 
@@ -61,7 +64,7 @@ interface SkillDefinition {
   signal: string;
 }
 
-interface LogicalQuestion {
+export interface LogicalQuestion {
   questionKey: string;
   targetRole: QuestionBankTargetRole;
   interviewType: InterviewType;
@@ -283,7 +286,11 @@ const ROLES: RoleDefinition[] = [
 ];
 
 export function buildInterviewQuestionBankSeeds(): InterviewQuestionBankSeed[] {
-  return ROLES.flatMap((role) => buildLogicalQuestions(role)).flatMap(toLanguageRows);
+  return [
+    // P2: hand-authored real-situation scenarios first — priority 1500+ beats every template.
+    ...buildHandAuthoredScenarioQuestions(),
+    ...ROLES.flatMap((role) => buildLogicalQuestions(role)),
+  ].flatMap(toLanguageRows);
 }
 
 function buildLogicalQuestions(role: RoleDefinition): LogicalQuestion[] {
