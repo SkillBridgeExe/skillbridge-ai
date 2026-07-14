@@ -292,7 +292,7 @@ const LANG_TABLES: Record<Language, LangTable> = {
  * example (review-locked) — it must combine with an action/project cue, or the answer must carry a
  * number/percent/quantified-result. This list is language-agnostic.
  */
-const NAMED_TECH = [
+export const NAMED_TECH = [
   'react',
   'vue',
   'angular',

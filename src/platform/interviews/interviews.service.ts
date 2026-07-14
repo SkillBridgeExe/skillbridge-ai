@@ -43,6 +43,7 @@ import {
   InterviewState,
   InterviewTurnTrace,
   isGroundedFollowUp,
+  pickDrillAnchor,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -106,6 +107,14 @@ const STANDARD_INTERVIEW_HARD_TURN_CAP = 20;
 const PREMIUM_INTERVIEW_HARD_TURN_CAP = 30;
 const MAX_ANSWER_HISTORY_TURNS = 6;
 const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
+
+/** compact trace slug for an anchored drill (I-INTEL), e.g. `anchor_redis_cache`. */
+const anchorTraceSlug = (anchor: string): string =>
+  `anchor_${anchor
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32)}`;
 const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
   /Cuộc phỏng vấn bằng tiếng Việt/i,
   /Giữ nguyên dấu tiếng Việt/i,
@@ -473,6 +482,8 @@ export class InterviewsService {
     let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
     let turnTrace: InterviewTurnTrace;
+    let drillAnchor: string | null = null;
+    let demandExample = false;
     const wrapTrace = (reason: string): InterviewTurnTrace => ({
       action: 'wrap',
       phase: topic.phase,
@@ -561,6 +572,31 @@ export class InterviewsService {
         turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
       }
 
+      // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
+      // a drill with nothing concrete to anchor on demands one real example instead.
+      // SCENARIO is exempt — the incident chain owns the follow-up shape there.
+      if ((action === 'drill' || action === 'push_harder') && askTopic.phase !== 'SCENARIO') {
+        drillAnchor = pickDrillAnchor({
+          answer: userAnswer,
+          recognized_concepts: recognized,
+          jd_terms: this.topicTerms(askTopic),
+          probed_anchors: updatedState.probed_anchors ?? [],
+        }).anchor;
+        if (drillAnchor) {
+          updatedState = {
+            ...updatedState,
+            probed_anchors: [...(updatedState.probed_anchors ?? []), drillAnchor],
+          };
+          turnTrace = {
+            ...turnTrace,
+            reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
+          };
+        } else if (signals.flags.no_concrete_example) {
+          demandExample = true;
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'demand_concrete_example'] };
+        }
+      }
+
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
       ask = await this.interviewChain!.ask(userId, {
         sessionId: session.id,
@@ -575,6 +611,8 @@ export class InterviewsService {
         prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
         ladderRung,
         topicPhase: askTopic.phase,
+        drillAnchor,
+        demandExample,
       });
       if (!ask.question) {
         // the chain gave no question → the seed question is asked instead (see nextQuestion
