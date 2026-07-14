@@ -256,6 +256,35 @@ export function reconcileAnswerScore(input: {
   };
 }
 
+export interface DepthReconciliation {
+  /** the depth signal production consumes (downgraded when contradictory). */
+  depth_signal: DepthSignal;
+  downgraded: boolean;
+  /** compact trace slugs, same channel as InterviewTurnTrace.reasons. */
+  reasons: string[];
+}
+
+/**
+ * Depth guard (I-CONSIST-2): a "deep" label on a too-short answer (<20 words, L1-counted) is a
+ * contradiction — the outstanding/deep bar requires trade-offs and substance a 20-word answer
+ * cannot carry. Downgrade to 'adequate' so a suspect deep neither earns the 1.0 aggregation
+ * weight nor triggers push_harder drilling. Single tight rule on purpose: length is the only
+ * L1 signal that can safely refute depth (a crisp 25-word answer without an example CAN be deep).
+ */
+export function reconcileDepthSignal(input: {
+  depth_signal: DepthSignal;
+  is_too_short: boolean;
+}): DepthReconciliation {
+  if (input.depth_signal === 'deep' && input.is_too_short) {
+    return {
+      depth_signal: 'adequate',
+      downgraded: true,
+      reasons: ['depth_downgraded_thin_answer'],
+    };
+  }
+  return { depth_signal: input.depth_signal, downgraded: false, reasons: [] };
+}
+
 // ---------------------------------------------------------------------------
 // Wave I-SCORE — evidence-based score explanation
 // ---------------------------------------------------------------------------

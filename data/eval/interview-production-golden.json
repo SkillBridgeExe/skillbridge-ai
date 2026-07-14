@@ -2200,6 +2200,48 @@
         55,
         65
       ]
+    },
+    {
+      "id": "guard-deep-label-on-thin-answer",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, CV lists Kafka event pipelines.",
+      "jd_summary": "Backend engineer: Kafka, event-driven design.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you guarantee ordering across Kafka partitions?",
+          "answer": "You just use one partition key so everything stays ordered per key.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kafka",
+          "display_name": "Kafka",
+          "jd_terms": [
+            "Kafka",
+            "partitions"
+          ],
+          "depth_signal": "deep",
+          "score": 85,
+          "drill_depth": 0,
+          "drill_budget": 4,
+          "expected_decision": "drill",
+          "expected_caps": [
+            "depth_downgraded_thin_answer"
+          ],
+          "expected_flags": [
+            "too_short"
+          ],
+          "expected_score_band": [
+            80,
+            90
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        80,
+        90
+      ]
     }
   ]
 }

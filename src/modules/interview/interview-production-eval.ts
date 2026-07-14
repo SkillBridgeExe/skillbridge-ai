@@ -3,7 +3,12 @@ import { AnswerInsight, groundAnswerInsight } from './answer-insight';
 import { decideTurn, DepthSignal, InterviewPhase, TurnAction } from './interview-agenda';
 import { InterviewGapItem, InterviewGapWeaknessType } from './interview-gap';
 import { AnswerGapContext, deriveInterviewGaps } from './interview-gap-derive';
-import { aggregateInterviewScore, AnswerScore, reconcileAnswerScore } from './interview-scoring';
+import {
+  aggregateInterviewScore,
+  AnswerScore,
+  reconcileAnswerScore,
+  reconcileDepthSignal,
+} from './interview-scoring';
 
 /**
  * Interview Production Eval — Wave I-TRUST: `scoreInterviewProductionCase`.
@@ -197,8 +202,15 @@ export function scoreInterviewProductionCase(
       ...t.insight,
     };
 
+    // I-CONSIST-2 depth guard runs FOR REAL: a labeled "deep" on a too-short answer downgrades
+    // before it can steer the decision or out-weigh real answers in aggregation.
+    const depthRecon = reconcileDepthSignal({
+      depth_signal: t.depth_signal,
+      is_too_short: signals.flags.is_too_short,
+    });
+
     const decision = decideTurn({
-      signal: t.depth_signal,
+      signal: depthRecon.depth_signal,
       drill_depth: t.drill_depth,
       drill_budget: t.drill_budget,
       turns_used: t.turns_used ?? index,
@@ -226,16 +238,17 @@ export function scoreInterviewProductionCase(
     // aggregates the reconciled value, so the eval must too.
     const recon = reconcileAnswerScore({
       score: t.score,
-      depth_signal: t.depth_signal,
+      depth_signal: depthRecon.depth_signal,
       off_topic: insight.off_topic,
     });
+    const firedReasons = [...depthRecon.reasons, ...recon.reasons];
     const expectedCaps = t.expected_caps ?? [];
     if (
-      recon.reasons.length !== expectedCaps.length ||
-      recon.reasons.some((r, i) => r !== expectedCaps[i])
+      firedReasons.length !== expectedCaps.length ||
+      firedReasons.some((r, i) => r !== expectedCaps[i])
     ) {
       mismatches.push(
-        `turn ${turnNo} caps [${recon.reasons.join(',')}] != expected [${expectedCaps.join(',')}]`,
+        `turn ${turnNo} caps [${firedReasons.join(',')}] != expected [${expectedCaps.join(',')}]`,
       );
     }
 
@@ -254,7 +267,11 @@ export function scoreInterviewProductionCase(
       signals,
       insight,
     });
-    answers.push({ topic_phase: t.topic_phase, score: recon.score, depth_signal: t.depth_signal });
+    answers.push({
+      topic_phase: t.topic_phase,
+      score: recon.score,
+      depth_signal: depthRecon.depth_signal,
+    });
     if (insight.note) notes.push({ turn: turnNo, note: insight.note });
   });
 

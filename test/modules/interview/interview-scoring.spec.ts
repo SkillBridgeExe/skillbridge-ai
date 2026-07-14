@@ -6,6 +6,7 @@ import {
   aggregateInterviewScore,
   explainInterviewScore,
   reconcileAnswerScore,
+  reconcileDepthSignal,
   AnswerEvidence,
   Dimension,
   RoleFamily,
@@ -318,5 +319,29 @@ describe('reconcileAnswerScore (consistency guard)', () => {
     const r = reconcileAnswerScore({ score: 10, depth_signal: 'evasive', off_topic: true });
     expect(r.score).toBe(10);
     expect(r.capped).toBe(false);
+  });
+});
+
+describe('reconcileDepthSignal (I-CONSIST-2 depth guard)', () => {
+  it('downgrades a "deep" label on a too-short answer to adequate', () => {
+    const r = reconcileDepthSignal({ depth_signal: 'deep', is_too_short: true });
+    expect(r.depth_signal).toBe('adequate');
+    expect(r.downgraded).toBe(true);
+    expect(r.reasons).toEqual(['depth_downgraded_thin_answer']);
+  });
+
+  it('keeps "deep" when the answer has real length', () => {
+    const r = reconcileDepthSignal({ depth_signal: 'deep', is_too_short: false });
+    expect(r.depth_signal).toBe('deep');
+    expect(r.downgraded).toBe(false);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it('never touches non-deep signals — a short evasive answer stays evasive', () => {
+    for (const signal of ['shallow', 'adequate', 'evasive'] as const) {
+      const r = reconcileDepthSignal({ depth_signal: signal, is_too_short: true });
+      expect(r.depth_signal).toBe(signal);
+      expect(r.downgraded).toBe(false);
+    }
   });
 });

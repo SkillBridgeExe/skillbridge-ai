@@ -62,6 +62,7 @@ import { buildCommunicationSignals } from '../../modules/interview/communication
 import {
   explainInterviewScore,
   reconcileAnswerScore,
+  reconcileDepthSignal,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -445,13 +446,20 @@ export class InterviewsService {
     );
     const [assessment, insight] = await Promise.all([assessmentPromise, insightPromise]);
     const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, userAnswer);
-    // I-CONSIST: cap LLM self-contradictions (evasive/shallow-but-high, off-topic-but-high)
-    // BEFORE the score is persisted — aggregation/explanations only ever see the reconciled value.
+    // I-CONSIST: reconcile LLM self-contradictions BEFORE anything consumes them — the depth
+    // guard first (a "deep" too-short answer downgrades to adequate, so it neither out-weighs
+    // real answers nor triggers push_harder), then the score caps. Decision, persistence, and
+    // aggregation only ever see the reconciled values.
+    const depthGuard = reconcileDepthSignal({
+      depth_signal: assessment.depthSignal,
+      is_too_short: signals.flags.is_too_short,
+    });
     const scoreGuard = reconcileAnswerScore({
       score: assessment.score,
-      depth_signal: assessment.depthSignal,
+      depth_signal: depthGuard.depth_signal,
       off_topic: insight.off_topic,
     });
+    const guardReasons = [...depthGuard.reasons, ...scoreGuard.reasons];
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
@@ -492,7 +500,7 @@ export class InterviewsService {
       turnTrace = wrapTrace('time_limit');
     } else {
       const decided = decideTurnWithTrace({
-        signal: assessment.depthSignal,
+        signal: depthGuard.depth_signal,
         drill_depth: nextState.drill_depth,
         drill_budget: topic.drill_budget,
         turns_used: nextState.turns_used,
@@ -564,7 +572,7 @@ export class InterviewsService {
         currentThread: updatedState.current_thread,
         recentQa,
         runningNotes: updatedState.running_notes,
-        prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+        prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
         ladderRung,
         topicPhase: askTopic.phase,
       });
@@ -591,10 +599,11 @@ export class InterviewsService {
       }
     }
 
-    if (scoreGuard.capped) {
-      turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...scoreGuard.reasons] };
+    if (guardReasons.length > 0) {
+      turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...guardReasons] };
     }
 
+    current.turnTrace = turnTrace;
     current.userAnswerText = userAnswer;
     current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
@@ -611,7 +620,7 @@ export class InterviewsService {
       ...(topic.expected_signals ?? []),
     ]);
     current.topicPhase = topic.phase;
-    current.depthSignal = assessment.depthSignal;
+    current.depthSignal = depthGuard.depth_signal;
     current.signals = signals;
     current.insight = insight;
     current.currentThread = assessment.currentThread || updatedState.current_thread;
@@ -1208,10 +1217,14 @@ export class InterviewsService {
     };
   }
 
-  private prevTopicOutcome(topic: AgendaTopic, assessment: InterviewAssessOutput): string {
+  private prevTopicOutcome(
+    topic: AgendaTopic,
+    assessment: InterviewAssessOutput,
+    effectiveDepth?: string,
+  ): string {
     return [
       topic.display_name,
-      assessment.depthSignal,
+      effectiveDepth ?? assessment.depthSignal,
       assessment.claimStatus !== 'ok' ? assessment.claimStatus : '',
       assessment.note,
     ]
@@ -1375,8 +1388,11 @@ export class InterviewsService {
         },
         userId,
       );
-      depthSignal = assessment.depthSignal;
-      // same I-CONSIST guard as the live answer path — recomputed turns get reconciled too.
+      // same I-CONSIST guards as the live answer path — recomputed turns get reconciled too.
+      depthSignal = reconcileDepthSignal({
+        depth_signal: assessment.depthSignal,
+        is_too_short: signals.flags.is_too_short,
+      }).depth_signal;
       score = reconcileAnswerScore({
         score: assessment.score,
         depth_signal: depthSignal,
@@ -2279,6 +2295,7 @@ export class InterviewsService {
       depthSignal: turn.depthSignal,
       signals: turn.signals,
       insight: turn.insight,
+      turnTrace: turn.turnTrace ?? null,
       currentThread: turn.currentThread,
       skillCanonical: turn.skillCanonical,
       questionBankItemId: turn.questionBankItemId ?? null,
