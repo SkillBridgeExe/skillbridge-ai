@@ -50,6 +50,10 @@ export interface OcrRescueMeta {
   ocr?: TextMetrics;
   decision: 'kept_original' | 'used_ocr';
   reason?: OcrRescueReason;
+  /** set only when the primary attempt timed out and a lower-DPI retry ran. */
+  retried?: boolean;
+  /** DPI of the attempt that produced this outcome; set only on the retry path. */
+  dpiUsed?: number;
 }
 
 export interface ScannedPdfOcrResult {
@@ -66,6 +70,8 @@ interface OcrFallbackConfig {
   timeoutMs: number;
   maxPdfBytes: number;
   dpi: number;
+  /** lower DPI for the single timeout retry; 0 disables the retry. */
+  retryDpi: number;
 }
 
 /** A running OCR job: a result promise plus a hard-terminate handle. The seam for unit tests. */
@@ -93,6 +99,7 @@ export class ScannedPdfOcrService {
       timeoutMs: config.get<number>('ocrFallback.timeoutMs') ?? 25000,
       maxPdfBytes: config.get<number>('ocrFallback.maxPdfBytes') ?? 10485760,
       dpi: config.get<number>('ocrFallback.dpi') ?? 200,
+      retryDpi: config.get<number>('ocrFallback.retryDpi') ?? 120,
     };
   }
 
@@ -184,36 +191,75 @@ export class ScannedPdfOcrService {
     if (!this.cfg.enabled) return keep('disabled', false);
     if (buffer.length > this.cfg.maxPdfBytes) return keep('oversized');
 
-    const run = this.runOcr(buffer, this.cfg.maxPages, this.cfg.dpi);
+    let attempt = await this.attemptOcr(buffer, this.cfg.dpi);
+    // Timeout-only retry: a dense scan that blows the budget at full DPI usually fits at a lower
+    // one (~(retryDpi/dpi)² of the pixels). Errors do NOT retry — same input, same failure.
+    let retryMeta: Pick<OcrRescueMeta, 'retried' | 'dpiUsed'> = {};
+    if (attempt.kind === 'timeout' && this.cfg.retryDpi > 0 && this.cfg.retryDpi < this.cfg.dpi) {
+      this.logger.warn(
+        `OCR timed out at ${this.cfg.dpi} DPI after ${this.cfg.timeoutMs}ms; retrying once at ${this.cfg.retryDpi} DPI.`,
+      );
+      retryMeta = { retried: true, dpiUsed: this.cfg.retryDpi };
+      attempt = await this.attemptOcr(buffer, this.cfg.retryDpi);
+    }
+
+    if (attempt.kind === 'timeout') return keep('timeout', true, retryMeta);
+    if (attempt.kind === 'err') {
+      this.logger.warn(`OCR rescue failed (${attempt.stage ?? 'unknown'}): ${attempt.message}`);
+      return keep(attempt.stage === 'ocr' ? 'ocr_failed' : 'render_failed', true, retryMeta);
+    }
+
+    const { text, pages, renderMs, ocrMs } = attempt;
+    if (!text || text.trim().length === 0) {
+      return keep('empty_render', true, { pagesRendered: pages, renderMs, ocrMs, ...retryMeta });
+    }
+    const ocr = computeTextMetrics(text, scan);
+    const d = this.decide(original, ocr);
+    const base = {
+      attempted: true,
+      pagesRendered: pages,
+      renderMs,
+      ocrMs,
+      original,
+      ocr,
+      ...retryMeta,
+    };
+    return d.useOcr
+      ? { text, ocrUsed: true, metadata: { ...base, decision: 'used_ocr' } }
+      : {
+          text: originalText,
+          ocrUsed: false,
+          metadata: { ...base, decision: 'kept_original', reason: d.reason },
+        };
+  }
+
+  /**
+   * One render+OCR attempt at the given DPI, raced against the timeout budget. Never throws;
+   * the worker is hard-terminated in the finally on every path (success/timeout/error).
+   */
+  private async attemptOcr(
+    buffer: Buffer,
+    dpi: number,
+  ): Promise<
+    | { kind: 'ok'; text: string; pages: number; renderMs: number; ocrMs: number }
+    | { kind: 'timeout' }
+    | { kind: 'err'; stage?: string; message: string }
+  > {
+    const run = this.runOcr(buffer, this.cfg.maxPages, dpi);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<typeof TIMEOUT>((res) => {
       timer = setTimeout(() => res(TIMEOUT), this.cfg.timeoutMs);
     });
-
     try {
       const raced = await Promise.race([run.result, timeout]);
-      if (raced === TIMEOUT) return keep('timeout');
-
-      const { text, pages, renderMs, ocrMs } = raced;
-      if (!text || text.trim().length === 0) {
-        return keep('empty_render', true, { pagesRendered: pages, renderMs, ocrMs });
-      }
-      const ocr = computeTextMetrics(text, scan);
-      const d = this.decide(original, ocr);
-      const base = { attempted: true, pagesRendered: pages, renderMs, ocrMs, original, ocr };
-      return d.useOcr
-        ? { text, ocrUsed: true, metadata: { ...base, decision: 'used_ocr' } }
-        : {
-            text: originalText,
-            ocrUsed: false,
-            metadata: { ...base, decision: 'kept_original', reason: d.reason },
-          };
+      if (raced === TIMEOUT) return { kind: 'timeout' };
+      return { kind: 'ok', ...raced };
     } catch (e) {
-      const stage = (e as { stage?: string }).stage;
-      this.logger.warn(
-        `OCR rescue failed (${stage ?? 'unknown'}): ${e instanceof Error ? e.message : String(e)}`,
-      );
-      return keep(stage === 'ocr' ? 'ocr_failed' : 'render_failed');
+      return {
+        kind: 'err',
+        stage: (e as { stage?: string }).stage,
+        message: e instanceof Error ? e.message : String(e),
+      };
     } finally {
       if (timer) clearTimeout(timer);
       await run.terminate().catch(() => undefined); // hard-kill the thread on every path

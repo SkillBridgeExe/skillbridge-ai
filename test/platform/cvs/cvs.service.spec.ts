@@ -1,5 +1,8 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { BillingFeatureKey } from '../../../src/common/constants/billing.constants';
+import { CvEntity } from '../../../src/database/entities/cv.entity';
+import { CvSkillEntity } from '../../../src/database/entities/cv-skill.entity';
+import { SkillEntity } from '../../../src/database/entities/skill.entity';
 import { CvsService } from '../../../src/platform/cvs/cvs.service';
 
 describe('CvsService R1 completion behavior', () => {
@@ -60,7 +63,29 @@ describe('CvsService R1 completion behavior', () => {
         createdAt: input.createdAt ?? now,
         updatedAt: now,
       })),
-      findOne: jest.fn(),
+      // Default models the DB after a row was created: lookups BY ID hit (reviewCv's identity
+      // read needs the row it just wrote), probes by contentHash/fingerprint miss. Tests that
+      // need a specific row (or a 404) override with mockResolvedValue as before.
+      findOne: jest.fn(
+        async (opts?: { where?: Record<string, unknown> }): Promise<unknown> =>
+          opts?.where?.id
+            ? {
+                id: opts.where.id,
+                userId: (opts.where.userId as string) ?? 'u1',
+                title: 'CV',
+                parsedText: 'parsed cv text',
+                parsedJson: null,
+                cvKind: 'UPLOADED',
+                language: 'vi',
+                isOcrOnly: false,
+                atsReadabilityScore: null,
+                targetRole: null,
+                createdAt: now,
+                updatedAt: now,
+                deletedAt: null,
+              }
+            : undefined,
+      ) as jest.Mock,
       findAndCount: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
       softDelete: jest.fn(),
@@ -74,6 +99,20 @@ describe('CvsService R1 completion behavior', () => {
     };
     const skillsRepo = {
       find: jest.fn().mockResolvedValue([]),
+    };
+    // Keep derived cv_skills in the same guarded transaction as the document identity check.
+    // This mirrors the real TypeORM repositories and lets autosave tests exercise the sync path.
+    (cvsRepo as { manager?: unknown }).manager = {
+      transaction: jest.fn(async (fn) =>
+        fn({
+          getRepository: (entity: unknown) => {
+            if (entity === CvEntity) return cvsRepo;
+            if (entity === CvSkillEntity) return cvSkillsRepo;
+            if (entity === SkillEntity) return skillsRepo;
+            return undefined;
+          },
+        }),
+      ),
     };
     const storage = {
       buildCvObjectKey: jest.fn().mockReturnValue('cvs/u1/cv-1/sample.pdf'),
@@ -211,6 +250,65 @@ describe('CvsService R1 completion behavior', () => {
     size: 1024,
     buffer: Buffer.from('%PDF-1.4'),
   } as Express.Multer.File;
+
+  describe('list', () => {
+    const uploadedCv = {
+      id: 'cv-uploaded',
+      userId: 'u1',
+      title: 'Uploaded CV',
+      originalFileName: 'uploaded.pdf',
+      fileType: 'application/pdf',
+      fileSize: 2048,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      targetRole: 'frontend_developer',
+      isOcrOnly: false,
+      atsReadabilityScore: '82.50',
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-02T00:00:00.000Z'),
+    };
+
+    it('filters uploaded CVs before pagination and exposes the history discriminator', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findAndCount.mockResolvedValue([[uploadedCv], 1]);
+
+      const result = await service.list('u1', {
+        page: 2,
+        limit: 5,
+        cvKind: 'UPLOADED',
+      });
+
+      expect(cvsRepo.findAndCount).toHaveBeenCalledWith({
+        where: { userId: 'u1', cvKind: 'UPLOADED' },
+        order: { createdAt: 'DESC' },
+        skip: 5,
+        take: 5,
+      });
+      expect(result.items[0]).toMatchObject({
+        id: 'cv-uploaded',
+        cvKind: 'UPLOADED',
+        atsReadabilityScore: 82.5,
+        updatedAt: '2026-06-02T00:00:00.000Z',
+      });
+    });
+
+    it('sorts builder history by the last edit time', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findAndCount.mockResolvedValue([
+        [{ ...uploadedCv, id: 'cv-built', cvKind: 'BUILT' }],
+        1,
+      ]);
+
+      await service.list('u1', { page: 1, limit: 20, cvKind: 'BUILT' });
+
+      expect(cvsRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'u1', cvKind: 'BUILT' },
+          order: { updatedAt: 'DESC', createdAt: 'DESC' },
+        }),
+      );
+    });
+  });
 
   it('persists targetRole on upload and records consent audit', async () => {
     const { service, cvsRepo, consentAudits } = build();
@@ -502,23 +600,26 @@ describe('CvsService R1 completion behavior', () => {
 
     await service.updateBuilderDraft('u1', 'draft-1', {
       parsedJson: parsedReview.document,
-      title: 'Updated Draft',
+      title: 'Updated Draft', // stale clients still send it — must be ignored
       targetRole: 'backend_developer',
     });
 
-    expect(cvsRepo.save).toHaveBeenCalledWith(
+    // Column-scoped UPDATE: autosave writes only the columns it owns…
+    expect(cvsRepo.update).toHaveBeenCalledWith(
+      'draft-1',
       expect.objectContaining({
-        id: 'draft-1',
         parsedJson: parsedReview.document,
-        title: 'Updated Draft',
         targetRole: 'backend_developer',
       }),
     );
+    // …and NEVER the title — that column is owned by rename (PATCH /api/cvs/:id).
+    expect(cvsRepo.update.mock.calls[0][1]).not.toHaveProperty('title');
+    expect(cvsRepo.save).not.toHaveBeenCalled();
   });
 
   it('builder autosave re-syncs cv_skills from the edited document (job-rec reads them)', async () => {
     const { service, cvsRepo, skillNormalizer } = build();
-    cvsRepo.findOne.mockResolvedValue({
+    const draft = {
       id: 'draft-1',
       userId: 'u1',
       title: 'Draft',
@@ -528,6 +629,13 @@ describe('CvsService R1 completion behavior', () => {
       targetRole: null,
       createdAt: now,
       updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(draft);
+    // The production path is a column-scoped UPDATE. Reflect that DB mutation in this unit mock
+    // so the guarded derived-skill sync sees the just-persisted canonical document.
+    cvsRepo.update.mockImplementation(async (_id, patch) => {
+      Object.assign(draft, patch);
+      return { affected: 1 };
     });
 
     await service.updateBuilderDraft('u1', 'draft-1', {
@@ -975,6 +1083,40 @@ describe('CvsService R1 completion behavior', () => {
         target_role: 'backend_developer',
       }),
     );
+  });
+
+  it('analyze yields — no doc/skills write — when the document changes during the model call', async () => {
+    const { service, cvsRepo, cvSkillsRepo, cvReview, aiResults } = build();
+    const preDoc = { ...parsedReview.document, summary: 'pre-analysis summary' };
+    const cvRow = {
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: preDoc,
+      cvKind: 'UPLOADED',
+      fileType: 'application/pdf',
+      isOcrOnly: false,
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    };
+    cvsRepo.findOne.mockResolvedValue(cvRow);
+    aiResults.manager.query.mockResolvedValue([]); // no cached review — the model must run
+    // A restore commits while the model call is in flight.
+    cvReview.review.mockImplementationOnce(async () => {
+      cvRow.parsedJson = { ...preDoc, summary: 'restored during analysis' };
+      return { parsed_response: parsedReview };
+    });
+
+    const response = await service.rerunReview('u1', 'cv-1');
+
+    // The fresher document wins — the stale analysis persists NOTHING (invariant: cv_skills
+    // must always represent the stored parsed_json)…
+    expect(cvsRepo.update).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.delete).not.toHaveBeenCalled();
+    expect(cvSkillsRepo.save).not.toHaveBeenCalled();
+    // …but the analysis result itself is still returned for display.
+    expect(response.review).toEqual(parsedReview);
   });
 
   it('generates an interview plan from the latest review and records interview quota', async () => {

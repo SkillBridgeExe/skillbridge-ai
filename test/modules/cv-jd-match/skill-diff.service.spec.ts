@@ -54,8 +54,8 @@ describe('SkillDiffService step-5 formula', () => {
       ]),
       target_role: 'qa_tester',
     });
-    expect(full.overall_score).toBeGreaterThan(noPreferred.overall_score);
-    expect(noPreferred.overall_score - noRequired.overall_score).toBeGreaterThanOrEqual(2);
+    expect(full.overall_score!).toBeGreaterThan(noPreferred.overall_score!);
+    expect(noPreferred.overall_score! - noRequired.overall_score!).toBeGreaterThanOrEqual(2);
   });
 
   it('partial credit is convex: NOVICE-everywhere scores far below linear credit', () => {
@@ -114,7 +114,7 @@ describe('SkillDiffService step-5 formula', () => {
       cv_skills_raw: cv([...base, ['Docker', 'ADVANCED'], ['Unity', 'ADVANCED']]),
       target_role: 'data_analyst',
     });
-    expect(withBonus.overall_score).toBeGreaterThanOrEqual(plain.overall_score);
+    expect(withBonus.overall_score!).toBeGreaterThanOrEqual(plain.overall_score!);
     expect(withBonus.bonus_skills.map((b) => b.canonical_name)).toEqual(
       expect.arrayContaining(['docker', 'unity']),
     );
@@ -397,7 +397,7 @@ describe('SkillDiffService — seniority bands + OR-group', () => {
     const jsFresher = fresher.matched_skills.find((x) => x.canonical_name === 'javascript');
     expect(jsMid).toBeDefined(); // cv3 vs req4 @mid = partial
     expect(jsFresher).toBeDefined(); // cv3 vs req3 @fresher = matched
-    expect(fresher.overall_score).toBeGreaterThan(mid.overall_score);
+    expect(fresher.overall_score!).toBeGreaterThan(mid.overall_score!);
   });
 
   it('reports rubric_band on the rubric path and null on the JD path', () => {
@@ -455,5 +455,142 @@ describe('SkillDiffService — seniority bands + OR-group', () => {
     expect(group).toBeDefined();
     expect(group?.display_name).toContain('Swift');
     expect(group?.display_name).toContain('Kotlin');
+  });
+});
+
+/**
+ * EXPLAIN' E1: per-skill weighted math in scoring_breakdown — the FE renders
+ * "skill X contributed Y/Z points because REQUIRED × weight" without knowing MATCH_TUNING.
+ */
+describe("SkillDiffService — per-skill weighted math (EXPLAIN' E1)", () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('per_skill covers every requirement; effective_weight = weight × importance multiplier; status mirrors the diff arrays', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'React', proficiency_hint: 'ADVANCED' },
+        { name: 'Git', proficiency_hint: 'NOVICE' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    const per = res.scoring_breakdown.per_skill!;
+    expect(per).toBeDefined();
+    expect(per.length).toBe(res.scoring_breakdown.total_requirements);
+    for (const p of per) {
+      expect(p.effective_weight).toBeCloseTo(
+        p.weight * MATCH_TUNING.importanceMultiplier[p.importance],
+        3,
+      );
+    }
+    const react = per.find((p) => p.canonical_name === 'react');
+    expect(react?.status).toBe('matched');
+    expect(react?.strength).toBe(1);
+    const git = per.find((p) => p.canonical_name === 'git');
+    expect(git?.status).toBe('partial'); // NOVICE 2 vs required — convex strength in (0,1)
+    expect(git!.strength).toBeGreaterThan(0);
+    expect(git!.strength).toBeLessThan(1);
+    const missing = per.filter((p) => p.status === 'missing');
+    expect(missing.length).toBe(res.missing_skills.length);
+    for (const m of missing) expect(m.strength).toBe(0);
+  });
+
+  it('Σ points_earned reproduces raw_weighted_score and Σ points_possible ≈ 100 (pre-cap math is auditable)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'React', proficiency_hint: 'ADVANCED' },
+        { name: 'JavaScript', proficiency_hint: 'INTERMEDIATE' },
+        { name: 'Git', proficiency_hint: 'NOVICE' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    const per = res.scoring_breakdown.per_skill!;
+    const earned = per.reduce((s, p) => s + p.points_earned, 0);
+    const possible = per.reduce((s, p) => s + p.points_possible, 0);
+    expect(earned).toBeCloseTo(res.scoring_breakdown.raw_weighted_score, 1);
+    expect(possible).toBeCloseTo(100, 1);
+  });
+
+  it('source none → per_skill is empty (no fabricated math)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'role_that_has_no_rubric_xyz',
+    });
+    expect(res.scoring_breakdown.per_skill).toEqual([]);
+  });
+});
+
+describe('SkillDiffService — TRUST honest-zero + degraded_reasons', () => {
+  let diff: SkillDiffService;
+
+  beforeAll(async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    diff = new SkillDiffService(normalizer, rubrics);
+  });
+
+  it('source none (no JD, no rubric role) → null scores + NO_REQUIREMENT_BASIS, never a hard 0', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'role_that_has_no_rubric_xyz',
+    });
+    expect(res.requirements_source).toBe('none');
+    expect(res.overall_score).toBeNull();
+    expect(res.match_ratio).toBeNull();
+    expect(res.degraded_reasons).toContain('NO_REQUIREMENT_BASIS');
+  });
+
+  it('JD provided but zero requirements normalize AND no rubric → none arm goes null too', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      jd_requirements_raw: [
+        { name: 'self-motivated team player', importance_hint: 'REQUIRED' },
+        { name: 'good communication vibes', importance_hint: 'PREFERRED' },
+      ],
+    });
+    expect(res.requirements_source).toBe('none');
+    expect(res.overall_score).toBeNull();
+    expect(res.degraded_reasons).toContain('NO_REQUIREMENT_BASIS');
+  });
+
+  it('all CV skills outside taxonomy → CV_SKILLS_UNRECOGNIZED flag, score still computed (all-missing)', () => {
+    const res = diff.diff({
+      cv_skills_raw: [
+        { name: 'zzz-proprietary-tool-9000', proficiency_hint: 'ADVANCED' },
+        { name: 'quantum flux capaciting', proficiency_hint: 'BEGINNER' },
+      ],
+      target_role: 'frontend_developer',
+    });
+    expect(res.requirements_source).toBe('role_rubric');
+    expect(res.degraded_reasons).toContain('CV_SKILLS_UNRECOGNIZED');
+    expect(res.overall_score).toBe(0); // computable — honest 0 vs a real rubric, but flagged
+    expect(res.unnormalized_cv_skills.length).toBe(2);
+    expect(res.matched_skills.length + res.partial_skills.length).toBe(0);
+  });
+
+  it('healthy path → degraded_reasons is empty and scores are numbers', () => {
+    const res = diff.diff({
+      cv_skills_raw: [{ name: 'React', proficiency_hint: 'ADVANCED' }],
+      target_role: 'frontend_developer',
+    });
+    expect(res.degraded_reasons).toEqual([]);
+    expect(typeof res.overall_score).toBe('number');
+    expect(typeof res.match_ratio).toBe('number');
+  });
+
+  it('empty CV skill list does NOT flag CV_SKILLS_UNRECOGNIZED (nothing to recognize)', () => {
+    const res = diff.diff({ cv_skills_raw: [], target_role: 'frontend_developer' });
+    expect(res.degraded_reasons).toEqual([]);
   });
 });

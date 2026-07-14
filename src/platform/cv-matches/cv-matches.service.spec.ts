@@ -299,7 +299,11 @@ describe('CvMatchesService interview signals (V1, Wave VALUE_CHAIN)', () => {
     expect(interviewSessions.findOne).toHaveBeenCalledTimes(1);
     const call = gapReport.build.mock.calls[0][0];
     expect(call.interviewSignals).toBeInstanceOf(Map);
-    expect(call.interviewSignals.get('sql')).toEqual({ risk: 0.8, ref: 'sess-abc' });
+    expect(call.interviewSignals.get('sql')).toEqual({
+      risk: 0.8,
+      ref: 'sess-abc',
+      display: 'SQL',
+    });
     expect(call.interviewSignals.size).toBe(1);
   });
 

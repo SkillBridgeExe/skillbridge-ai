@@ -15,12 +15,40 @@
  * re-tune once a layout-diverse corpus exists; see eval:extractors disclaimer):
  *   LOW    : mojibake_ratio > 0.02  OR  wordlike_ratio < 0.55  OR  char_count < 200  OR  ocr_used
  *   MEDIUM : mojibake_ratio > 0.005 OR  wordlike_ratio < 0.72  OR  section_count < 3
+ *            OR  no contact anchor (name AND email both missing — an OpenResume-style parse-failure
+ *            proxy: a real CV almost always yields at least one, so neither surviving parse == suspect)
  *   HIGH   : everything else
  */
 import { CanonicalCvDocument } from '../types/canonical-cv';
 import { computeTextMetrics } from './text-metrics';
 
 export type ExtractionConfidence = 'high' | 'medium' | 'low';
+
+/** TRUST' T1 trust verdict the UI gates the score on:
+ *  - usable:   score normally.
+ *  - suspect:  score, but the UI MUST warn (one hard signal, or supporting-only signals).
+ *  - unusable: MULTIPLE hard signals agree the text can't be trusted → the UI must NOT show a
+ *    normal score without a prominent warning. A missing contact anchor alone can never reach here. */
+export type InputQuality = 'usable' | 'suspect' | 'unusable';
+
+/** Hard signals — each one alone means "double-check" (suspect); two agreeing means "unusable". */
+const HARD_FLAGS = new Set(['MOJIBAKE_HIGH', 'WORDLIKE_LOW', 'THIN_CONTENT', 'OCR_USED']);
+/** Supporting signals — enough for suspect, NEVER enough alone for unusable (Codex correction #2). */
+const SUPPORTING_FLAGS = new Set([
+  'MOJIBAKE_SLIGHT',
+  'WORDLIKE_WEAK',
+  'SPARSE_SECTIONS',
+  'NO_CONTACT_ANCHOR',
+]);
+
+/** Pure classifier: 3-state trust verdict from the machine flags. unusable requires ≥2 hard signals
+ *  to agree, so a single low-confidence signal (e.g. clean OCR) stays suspect, not unusable. */
+export function classifyInputQuality(flags: string[]): InputQuality {
+  const hard = flags.filter((f) => HARD_FLAGS.has(f)).length;
+  if (hard >= 2) return 'unusable';
+  if (hard === 1 || flags.some((f) => SUPPORTING_FLAGS.has(f))) return 'suspect';
+  return 'usable';
+}
 
 export interface ExtractionQuality {
   char_count: number;
@@ -36,6 +64,8 @@ export interface ExtractionQuality {
   skill_count: number;
   ocr_used: boolean;
   confidence: ExtractionConfidence;
+  /** 3-state trust verdict derived from `flags` — the field the UI gates the score on (T1). */
+  input_quality: InputQuality;
   /** Machine-readable signals that fired — NEVER fabricated, each maps to a true condition. */
   flags: string[];
 }
@@ -83,6 +113,9 @@ export function assessExtractionQuality(
   const metrics = computeTextMetrics(text, opts.scan ?? (() => []));
   const section_count = countSections(document);
   const skill_count = opts.scan ? metrics.skillsFound : declaredSkillCount(document);
+  // OpenResume-style cheap parse-failure proxy: a well-formed CV almost always yields a name or an
+  // email; losing BOTH usually means the parser mis-read the layout, not that the CV lacks contact.
+  const no_contact_anchor = !document.contact.name && !document.contact.email;
 
   const flags: string[] = [];
   if (ocr_used) flags.push('OCR_USED');
@@ -92,6 +125,7 @@ export function assessExtractionQuality(
   if (metrics.wordlikeRatio < WORDLIKE_LOW) flags.push('WORDLIKE_LOW');
   else if (metrics.wordlikeRatio < WORDLIKE_WEAK) flags.push('WORDLIKE_WEAK');
   if (section_count < SPARSE_SECTIONS) flags.push('SPARSE_SECTIONS');
+  if (no_contact_anchor) flags.push('NO_CONTACT_ANCHOR');
 
   let confidence: ExtractionConfidence = 'high';
   if (
@@ -104,7 +138,8 @@ export function assessExtractionQuality(
   } else if (
     metrics.mojibakeRatio > MOJIBAKE_SLIGHT ||
     metrics.wordlikeRatio < WORDLIKE_WEAK ||
-    section_count < SPARSE_SECTIONS
+    section_count < SPARSE_SECTIONS ||
+    no_contact_anchor
   ) {
     confidence = 'medium';
   }
@@ -119,6 +154,7 @@ export function assessExtractionQuality(
     skill_count,
     ocr_used,
     confidence,
+    input_quality: classifyInputQuality(flags),
     flags,
   };
 }

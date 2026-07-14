@@ -81,6 +81,60 @@ describe('InterviewChainLlmService.assess', () => {
     );
   });
 
+  it('passes deterministic communication facts into the prompt as code-owned ground truth', async () => {
+    const { service, prompts } = build(parsed);
+
+    await service.assess('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 2,
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-react', display_name: 'React Query' },
+      targetDimension: 'communication',
+      currentThread: 'React Query',
+      drillDepth: 1,
+      recentQa: [{ order: 2, question: 'Q', answer: 'A' }],
+      communicationFacts: {
+        word_count: 42,
+        sentence_count: 3,
+        filler_count: 5,
+        filler_terms: ['basically'],
+        hedging_count: 1,
+        repeated_terms: ['caching'],
+        jd_term_hits: ['React'],
+        jd_term_misses: ['GraphQL'],
+        star: { situation: true, task: false, action: true, result: false },
+        answer_length_band: 'ideal',
+        unavailable_reason: 'no_timing_data',
+      },
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    const facts = JSON.parse(vars.communication_facts as string) as Record<string, unknown>;
+    expect(facts.word_count).toBe(42);
+    expect(facts.filler_count).toBe(5);
+    expect(facts.jd_term_misses).toEqual(['GraphQL']);
+  });
+
+  it('renders communication_facts as null when no facts are provided (legacy callers)', async () => {
+    const { service, prompts } = build(parsed);
+
+    await service.assess('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 2,
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-react', display_name: 'React Query' },
+      targetDimension: 'technical_depth',
+      currentThread: 'React Query',
+      drillDepth: 1,
+      recentQa: [{ order: 2, question: 'Q', answer: 'A' }],
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(vars.communication_facts).toBe('null');
+  });
+
   it('masks PII before prompt render and trace persistence', async () => {
     const { service, prompts, tracing } = build(parsed);
 
@@ -156,6 +210,74 @@ describe('InterviewChainLlmService.ask', () => {
       aiMessage: 'Thanks, let us go one level deeper.',
       question: 'What invalidation trade-off did you choose?',
     });
+  });
+
+  it('passes the drill-ladder focus into the prompt for the given rung', async () => {
+    const { service, prompts } = build({
+      ai_message: '',
+      question: 'Why not a write-through cache?',
+    });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'drill',
+      language: 'en',
+      seniorityTarget: 'senior',
+      currentTopic: { id: 'topic-react', display_name: 'React Query' },
+      currentThread: 'React Query cache invalidation',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      ladderRung: 'tradeoff',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(vars.drill_focus)).toContain('WHY');
+    expect(String(vars.scenario_instruction)).toBe('');
+  });
+
+  it('activates the incident-simulation instruction only for SCENARIO topics', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'What do you check next?' });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 5,
+      decision: 'drill',
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'scenario-1', display_name: 'Scenario: React' },
+      currentThread: 'incident handling on React',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      topicPhase: 'SCENARIO',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(vars.scenario_instruction)).toContain('INCIDENT SIMULATION');
+    expect(String(vars.scenario_instruction)).toContain('ONE short new fact');
+  });
+
+  it('renders empty ladder/scenario vars for legacy callers', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'Next question?' });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'advance',
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-x', display_name: 'X' },
+      currentThread: 'x',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(vars.drill_focus).toBe('');
+    expect(vars.scenario_instruction).toBe('');
   });
 
   it('drops question-like ai messages in Vietnamese mode while keeping a Vietnamese technical question', async () => {

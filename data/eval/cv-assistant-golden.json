@@ -160,6 +160,154 @@
       },
       "expect_chips_a": ["React", "Vue", "CSS"],
       "expect_chips_b": ["Node", "SQL", "Docker"]
+    },
+    {
+      "id": "rewrite-accept-shorten-keeps-own-number", "kind": "rewrite", "language": "en",
+      "before": "Built an internal reporting dashboard for the operations team and reduced report generation time by 30%.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built a reporting dashboard, cutting generation time by 30%.",
+      "model_used_facts": ["built"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-reject-fabricated-employer", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard at Nova Dynamics.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-url", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard (github.com/demo-repo).",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-certificate", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard as a certified engineer.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-certificate-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ, có chứng chỉ AWS.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-date", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard in 2023.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-date-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ từ 2022 đến 2023.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-month-en", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard in January.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-relative-date-en", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard last summer.",
+      "model_used_facts": ["built"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-month-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ vào tháng Ba.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-reject-fabricated-relative-date-vi", "kind": "rewrite", "language": "vi",
+      "before": "Em làm dashboard nội bộ.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Xây dashboard nội bộ từ năm ngoái.",
+      "model_used_facts": ["xây"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-accept-user-given-month", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard since January.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard since January.",
+      "model_used_facts": ["built"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-accept-modal-may-not-a-date", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "action", "option_id": "built" }],
+      "model_after": "Built an internal dashboard that may serve reports faster.",
+      "model_used_facts": ["built"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-reject-ats-keyword-injection", "kind": "rewrite", "language": "en",
+      "before": "Maintained internal services.",
+      "answers": [{ "gap": "tech", "option_id": "backend", "detail": "Node.js" }],
+      "model_after": "Maintained internal services using Node.js and Kubernetes.",
+      "model_used_facts": ["Node.js"],
+      "expect_ok": false
+    },
+    {
+      "id": "rewrite-accept-generic-caps-not-entity", "kind": "rewrite", "language": "en",
+      "before": "Built a REST API service for order processing.",
+      "answers": [{ "gap": "result", "option_id": "faster" }],
+      "model_after": "Built a REST API service for order processing, making it faster.",
+      "model_used_facts": ["faster"],
+      "expect_ok": true
+    },
+    {
+      "id": "rewrite-accept-user-clarify-fact", "kind": "rewrite", "language": "en",
+      "before": "Worked on an internal dashboard.",
+      "answers": [{ "gap": "user_clarify", "option_id": "other", "detail": "cut report time by 30%" }],
+      "model_after": "Improved an internal dashboard, cutting report time by 30%.",
+      "model_used_facts": ["cut report time by 30%"],
+      "expect_ok": true
+    },
+    {
+      "id": "explain-weak-bullet-en", "kind": "explanation", "language": "en",
+      "section": "experience", "text": "Worked on the project.",
+      "expected_signals": ["missing_action", "missing_tech", "missing_result"]
+    },
+    {
+      "id": "explain-partial-bullet-vi", "kind": "explanation", "language": "vi",
+      "section": "projects", "text": "Xây dashboard nội bộ với React.",
+      "expected_signals": ["missing_result"]
+    },
+    {
+      "id": "explain-weak-summary-vi", "kind": "explanation", "language": "vi",
+      "section": "summary", "text": "Chăm chỉ và ham học hỏi.",
+      "expected_signals": ["missing_role", "missing_tech", "weak_evidence"]
+    },
+    {
+      "id": "explain-strong-bullet-en", "kind": "explanation", "language": "en",
+      "section": "experience", "text": "Optimized PostgreSQL queries and reduced latency by 30%.",
+      "expected_signals": []
     }
   ]
 }

@@ -5,13 +5,25 @@ import { DisplayTranslationService } from '../../../src/modules/roadmap/display-
 describe('LearningRoadmapPlatformService', () => {
   const repo = () => ({
     findOne: jest.fn(),
+    delete: jest.fn(),
     save: jest.fn(async (entity) => entity),
   });
+
+  const serviceWith = (
+    roadmaps = repo(),
+    progress = repo(),
+    displayTranslation?: { translateDisplay: jest.Mock },
+  ) =>
+    new LearningRoadmapPlatformService(
+      roadmaps as never,
+      progress as never,
+      displayTranslation as never,
+    );
 
   it('returns the active roadmap for a user', async () => {
     const roadmaps = repo();
     roadmaps.findOne.mockResolvedValueOnce({ id: 'roadmap-1', userId: 'user-1', active: true });
-    const service = new LearningRoadmapPlatformService(roadmaps as never);
+    const service = serviceWith(roadmaps);
 
     await expect(service.getActive('user-1')).resolves.toMatchObject({ id: 'roadmap-1' });
     expect(roadmaps.findOne).toHaveBeenCalledWith({
@@ -27,7 +39,7 @@ describe('LearningRoadmapPlatformService', () => {
       active: true,
       schedule: [],
     });
-    const service = new LearningRoadmapPlatformService(roadmaps as never);
+    const service = serviceWith(roadmaps);
     const schedule = [{ id: 's1', week_number: 1, session_index: 1, suggested_day_of_week: 2 }];
 
     const result = await service.patchSchedule('user-1', 'roadmap-1', schedule);
@@ -42,7 +54,7 @@ describe('LearningRoadmapPlatformService', () => {
   it('throws when patching a missing or inactive roadmap', async () => {
     const roadmaps = repo();
     roadmaps.findOne.mockResolvedValueOnce(null);
-    const service = new LearningRoadmapPlatformService(roadmaps as never);
+    const service = serviceWith(roadmaps);
 
     await expect(service.patchSchedule('user-1', 'roadmap-1', [])).rejects.toBeInstanceOf(
       NotFoundException,
@@ -57,10 +69,7 @@ describe('LearningRoadmapPlatformService', () => {
         title: `VI ${input.title}`,
       })),
     };
-    const service = new LearningRoadmapPlatformService(
-      roadmaps as never,
-      displayTranslation as never,
-    );
+    const service = serviceWith(roadmaps, repo(), displayTranslation);
 
     const result = await service.translateDisplayItems({
       locale: 'vi',

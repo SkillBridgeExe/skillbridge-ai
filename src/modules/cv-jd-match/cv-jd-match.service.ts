@@ -256,6 +256,7 @@ export class CvJdMatchService {
       const parsed: CvJdMatchParsedResponse = {
         overall_score: diff.overall_score,
         match_ratio: diff.match_ratio,
+        degraded_reasons: diff.degraded_reasons,
         required_coverage: diff.required_coverage,
         matched_skills: diff.matched_skills,
         partial_skills: diff.partial_skills,
@@ -267,6 +268,7 @@ export class CvJdMatchService {
         scoring_breakdown: diff.scoring_breakdown,
         inferred_skills: diff.inferred_skills,
         jd_dimensions: extraction.jd_dimensions,
+        jd_dimensions_attempted: input.scoring_template_code === 'cv_jd_match_v2',
         source_of_requirements: sourceOfRequirements,
         fell_back_to_rubric: fellBackToRubric,
         target_role: input.target_role ?? null,
@@ -287,7 +289,7 @@ export class CvJdMatchService {
             : JSON.stringify(rawResponseForTrace),
         ),
         parsedResponse: maskPiiDeep(parsed),
-        totalScore: diff.overall_score,
+        totalScore: diff.overall_score ?? undefined,
         tokenUsage: llmTelemetry.totalTokens,
       });
 

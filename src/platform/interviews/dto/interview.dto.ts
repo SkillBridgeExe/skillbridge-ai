@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
@@ -23,7 +24,10 @@ import {
   InterviewVoice,
 } from '../../../database/entities/interview-session.entity';
 import { InterviewTurnPhase } from '../../../database/entities/interview-turn.entity';
-import { InterviewPhase as AgendaInterviewPhase } from '../../../modules/interview/interview-agenda';
+import {
+  InterviewPhase as AgendaInterviewPhase,
+  InterviewTurnTrace,
+} from '../../../modules/interview/interview-agenda';
 
 const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
@@ -37,6 +41,12 @@ function toRoundedNumber(value: unknown): unknown {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return numeric;
   return Math.round(numeric * 100) / 100;
+}
+
+function toOptionalBoolean(value: unknown): unknown {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return value;
 }
 
 export class StartPlatformInterviewDto {
@@ -195,6 +205,15 @@ export class InterviewListQueryDto {
   @Min(1)
   @Max(10)
   limit: number = 10;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Return only completed sessions that have an overall score.',
+  })
+  @Transform(({ obj, key }) => toOptionalBoolean((obj as Record<string, unknown>)[key]))
+  @IsOptional()
+  @IsBoolean()
+  scoredOnly?: boolean;
 }
 
 export interface RealtimeClientSecretDto {
@@ -287,6 +306,11 @@ export interface AnswerInterviewResponseDto {
     | 'finish';
   finishReason?: 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
   nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
+  /**
+   * Wave I-REAL: WHY the engine picked this turn action — compact reason slugs, never the prompt
+   * or model chain. Optional/additive: absent on legacy sessions (old agenda-less paths).
+   */
+  turnTrace?: InterviewTurnTrace | null;
 }
 
 export interface InterviewDetailResponseDto extends InterviewSessionDto {

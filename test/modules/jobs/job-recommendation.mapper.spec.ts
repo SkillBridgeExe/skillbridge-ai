@@ -131,6 +131,66 @@ describe('buildJobRecommendation', () => {
     );
   });
 
+  it("R2/R3: score_basis labels what entered the score — verdict known → 'skills_and_seniority', unknown (scraped job, no level) → 'skills_only', never a fake deal-breaker basis", async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    const diffSvc = new SkillDiffService(normalizer, rubrics);
+
+    const diff = diffSvc.diff({
+      cv_skills_raw: [{ name: 'React' }],
+      jd_requirements_raw: [{ name: 'React', importance_hint: 'REQUIRED' }],
+    });
+
+    const job = {
+      id: 'job-3',
+      slug: 'fe-dev-job-3',
+      application_mode: 'EXTERNAL' as const,
+      saved: false,
+      title: 'FE Dev',
+      company_name: 'Acme',
+      location: null,
+      role_code: 'frontend_developer',
+      experience_level: null,
+      salary_min: null,
+      salary_max: null,
+      salary_visible: false,
+      currency: 'VND',
+      source_url: 'https://x',
+      posted_at: null,
+      skills: [],
+    };
+
+    // Scraped job with no experience_level → verdict unknown → seniority contributed NOTHING
+    // (factor 1), so the honest basis is skills_only. Pool jobs never carry jd_dimensions, so the
+    // deal-breaker basis must never be emitted (R3 — never pretend a scraped job was dim-verified).
+    const unknownFit: ExperienceFit = {
+      cv_seniority: 'junior',
+      job_level: null,
+      verdict: 'unknown',
+      confidence: 'low',
+    };
+    const scraped = buildJobRecommendation(job, diff, 1, null, unknownFit);
+    expect(scraped.score_basis).toBe('skills_only');
+
+    const knownFit: ExperienceFit = {
+      cv_seniority: 'fresher',
+      job_level: 'SENIOR',
+      verdict: 'stretch',
+      confidence: 'high',
+    };
+    const demoted = buildJobRecommendation(
+      { ...job, experience_level: 'SENIOR' },
+      diff,
+      1,
+      null,
+      knownFit,
+    );
+    expect(demoted.score_basis).toBe('skills_and_seniority');
+  });
+
   it('E5: seniority_factor is 1 and level_gap matches policy when the candidate fits', async () => {
     const taxonomy = new SkillTaxonomyService();
     await taxonomy.onModuleInit();

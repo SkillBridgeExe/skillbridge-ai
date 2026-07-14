@@ -565,6 +565,43 @@ describe('CvMatchesService', () => {
         expect.objectContaining({ match: expect.objectContaining({ overall_score: 82 }) }),
       );
     });
+
+    // TRUST' P1: a reconstructed legacy row with NULL scores means "no requirement basis". It must
+    // NOT keep claiming source='jd_extraction' (which reads as "scored vs your pasted JD") — that
+    // was the exact honest-zero lie. It must surface source='none' + NO_REQUIREMENT_BASIS.
+    it("reconstructs a NULL-score legacy row as source='none' + NO_REQUIREMENT_BASIS (never fake jd_extraction)", async () => {
+      const { service, matchesRepo, gapReport } = build();
+      matchesRepo.findOne.mockResolvedValue({
+        ...storedMatch,
+        aiResultId: null,
+        overallScore: null,
+        semanticScore: null,
+      });
+
+      await service.getGapReport('user-1', 'match-1', 'vi');
+
+      expect(gapReport.build).toHaveBeenCalledWith(
+        expect.objectContaining({
+          match: expect.objectContaining({
+            overall_score: null,
+            match_ratio: null,
+            source_of_requirements: 'none',
+            degraded_reasons: expect.arrayContaining(['NO_REQUIREMENT_BASIS']),
+          }),
+        }),
+      );
+    });
+
+    it('a healthy reconstructed row keeps source=jd_extraction and adds no degraded_reasons', async () => {
+      const { service, matchesRepo, gapReport } = build();
+      matchesRepo.findOne.mockResolvedValue({ ...storedMatch, aiResultId: null });
+
+      await service.getGapReport('user-1', 'match-1', 'vi');
+
+      const arg = gapReport.build.mock.calls[0][0].match;
+      expect(arg.source_of_requirements).toBe('jd_extraction');
+      expect(arg.degraded_reasons ?? []).not.toContain('NO_REQUIREMENT_BASIS');
+    });
   });
 
   /** T7 — seniority band passthrough: the API caller picks the yardstick (never the CV). */

@@ -1,11 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsOrder, ILike, Repository } from 'typeorm';
+import { DataSource, FindOptionsOrder, ILike, In, Repository } from 'typeorm';
 import { BusinessProfileEntity } from '../../database/entities/business-profile.entity';
 import { JobApplicationStatusEventEntity } from '../../database/entities/job-application-status-event.entity';
 import { JobApplicationEntity } from '../../database/entities/job-application.entity';
@@ -38,18 +39,28 @@ export class BusinessApplicationService {
   ) {}
 
   async listForJob(userId: string, jobId: string, query: ListApplicationsQueryDto) {
+    if (query.pipeline && query.status) {
+      throw new BadRequestException({
+        errorCode: 'VALIDATION_ERROR',
+        message: 'Use either pipeline or status, not both',
+      });
+    }
     await this.requireOwnedJob(userId, jobId);
     const take = Math.min(Math.max(query.limit, 1), 100);
     const where = {
       jobId,
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.pipeline === 'ACTIVE'
+        ? { status: In(['SUBMITTED', 'IN_REVIEW', 'SHORTLISTED']) }
+        : query.status
+          ? { status: query.status }
+          : {}),
       ...(query.search?.trim() ? { candidateName: ILike(`%${query.search.trim()}%`) } : {}),
     };
     const order: FindOptionsOrder<JobApplicationEntity> =
       query.sort === 'OLDEST'
         ? { submittedAt: 'ASC' }
         : query.sort === 'MATCH_DESC'
-          ? { matchScore: 'DESC', submittedAt: 'DESC' }
+          ? { matchScore: { direction: 'DESC', nulls: 'LAST' }, submittedAt: 'DESC' }
           : { submittedAt: 'DESC' };
     const [items, total] = await this.applications.findAndCount({
       where,

@@ -5,6 +5,7 @@ import {
   Get,
   Header,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -38,6 +39,7 @@ import { RoadmapFromMatchDto } from '../cv-matches/dto/roadmap-from-match.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
@@ -52,6 +54,8 @@ import { StoryExtractRequestDto, StoryExtractResponseDto } from './dto/story-ext
 import { ProjectIntakeRequestDto, ProjectIntakeResponseDto } from './dto/project-intake.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
 import { CvListQueryDto } from './dto/cv-list-query.dto';
+import { RenameCvDto } from './dto/rename-cv.dto';
+import { CreateCvVersionDto, CvVersionListQueryDto } from './dto/cv-version.dto';
 import { CvsService } from './cvs.service';
 import {
   CREATE_BUILDER_BODY_EXAMPLES,
@@ -140,7 +144,7 @@ export class CvsController {
   @ApiOperation({
     summary: 'List CVs for the current user',
     description:
-      'Returns paginated CV summary records. Use cvKind=BUILT for CV Studio drafts. Full review content is returned by GET /api/cvs/{id}.',
+      'Returns paginated CV summary records, optionally filtered by upload or builder origin. Full review content is returned by GET /api/cvs/{id}.',
   })
   @ApiQuery({
     name: 'page',
@@ -153,7 +157,7 @@ export class CvsController {
     name: 'cvKind',
     required: false,
     enum: ['UPLOADED', 'BUILT'],
-    description: 'Optional CV kind filter. CV Studio uses BUILT.',
+    description: 'Filter CVs by uploaded diagnosis history or builder edit history.',
   })
   list(@CurrentUser() user: JwtUser, @Query() query: CvListQueryDto) {
     return this.cvs.list(user.userId, query);
@@ -168,6 +172,83 @@ export class CvsController {
   @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
   get(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.cvs.get(user.userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Rename a CV',
+    description:
+      'Updates only the display title of an owned CV (UPLOADED or BUILT). Does not touch the document, so unlike the builder autosave it works for uploaded CVs and never ships the canonical doc.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiBody({ type: RenameCvDto })
+  rename(@CurrentUser() user: JwtUser, @Param('id') id: string, @Body() dto: RenameCvDto) {
+    return this.cvs.rename(user.userId, id, dto.title);
+  }
+
+  @Post(':id/versions')
+  @ApiOperation({
+    summary: 'Snapshot the current CV document as a version',
+    description:
+      'Saves a point-in-time snapshot of the CV canonical document for version history / restore.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiBody({ type: CreateCvVersionDto })
+  createVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: CreateCvVersionDto,
+  ) {
+    return this.cvs.createVersion(user.userId, id, dto.label, dto.origin);
+  }
+
+  @Get(':id/versions')
+  @ApiOperation({
+    summary: 'List a CV version history',
+    description:
+      'Newest-first, paginated. Snapshot bodies are omitted; fetch one by id for the doc.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 20,
+    description: 'Items per page, max 100 (covers the full 70-version retention cap).',
+  })
+  listVersions(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Query() query: CvVersionListQueryDto,
+  ) {
+    return this.cvs.listVersions(user.userId, id, query.page, query.limit);
+  }
+
+  @Get(':id/versions/:versionId')
+  @ApiOperation({ summary: 'Get one CV version including its document snapshot' })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: 'Version ID.', format: 'uuid' })
+  getVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvs.getVersion(user.userId, id, versionId);
+  }
+
+  @Post(':id/versions/:versionId/restore')
+  @ApiOperation({
+    summary: 'Restore a CV version',
+    description: 'Auto-snapshots the current document first (undoable), then overwrites it.',
+  })
+  @ApiParam({ name: 'id', description: 'CV ID.', format: 'uuid' })
+  @ApiParam({ name: 'versionId', description: 'Version ID.', format: 'uuid' })
+  restoreVersion(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.cvs.restoreVersion(user.userId, id, versionId);
   }
 
   @Get(':id/interview-plan')
@@ -288,6 +369,21 @@ export class CvsController {
     @Body() dto: AssistantAnalyzeRequestDto,
   ) {
     return this.cvs.assistantAnalyze(user.userId, id, dto);
+  }
+
+  @Post(':id/builder/assistant/explain')
+  @ApiOperation({
+    summary: 'CV Builder assistant — read-only "why is this weak?" (deterministic, no quota)',
+    description:
+      'Checks ownership, then explains the field from the SAME deterministic gap analysis that drives Turn-1 questions. Returns message + citedSignals; never a patch, never an LLM call.',
+  })
+  @ApiParam({ name: 'id', description: 'CV Builder draft ID.', format: 'uuid' })
+  assistantExplain(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() dto: AssistantExplainRequestDto,
+  ) {
+    return this.cvs.assistantExplain(user.userId, id, dto);
   }
 
   // Same abuse bound as /rewrite: this endpoint calls an LLM, so a tight per-user rate keeps

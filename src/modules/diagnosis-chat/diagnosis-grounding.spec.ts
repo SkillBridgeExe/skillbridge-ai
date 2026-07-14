@@ -544,6 +544,126 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
   });
 });
 
+/**
+ * Advisor v2 — grounding is a VERIFIER, not a replacer. When the model's message passes every
+ * deterministic gate (valid citation + every number token exists in FACTS + URL strip), the user
+ * gets the model's own phrasing (synthesis, comparisons, prioritization) instead of a canned
+ * template. Any gate failure keeps the old template/fallback behavior byte-for-byte.
+ */
+describe('groundDiagnosis — Advisor v2 (serve verified model prose)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+  const factsWithOtherMatches = buildDiagnosisFacts(
+    makeReview(),
+    makeGapReport([makeGapItem()]),
+    null,
+    [
+      { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React', 'TypeScript'] },
+      { jd_title: 'Backend Developer', overall_score: 64, top_gaps: ['Docker'] },
+    ],
+  );
+
+  it('serves the model message verbatim when the citation is valid and every number is grounded', () => {
+    const message =
+      'Điểm skills_relevance của bạn đang ở 12/20 — thấp nhất trong 4 nhóm. Ưu tiên bổ sung bằng chứng Docker trước.';
+    const result = groundDiagnosis(
+      { message, cited_dimension: 'skills_relevance', cited_gap_id: 'jd:hard_skill:docker' },
+      facts,
+    );
+    expect(result.answer).toBe(message);
+    expect(result.cited_dimension).toBe('skills_relevance');
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+  });
+
+  it('serves a comparison CONCLUSION over other matches (the "JD nào hợp tôi nhất" case)', () => {
+    const message =
+      'JD Frontend Developer đang hợp bạn nhất (72/100 so với 64/100 của Backend) — gap còn lại là React và TypeScript.';
+    const result = groundDiagnosis({ message, cited_other_match_index: 1 }, factsWithOtherMatches);
+    expect(result.answer).toBe(message);
+    expect(result.cited_other_match_index).toBe(1);
+  });
+
+  it('a single ungrounded number sinks the message back to the template (no fabricated scores)', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'skills_relevance của bạn là 19/20, rất tốt!',
+        cited_dimension: 'skills_relevance',
+      },
+      facts,
+    );
+    expect(result.answer).not.toContain('19');
+    expect(result.answer).toContain('12/20'); // template built from FACTS
+  });
+
+  it('counts stated inside FACTS strings are legal for the model to reuse', () => {
+    // rationale strings are verified facts — numbers inside them ("some JD skills") may be echoed.
+    const factsWithCounts = buildDiagnosisFacts(
+      makeReview({
+        rationale: {
+          action_verbs: 'ok',
+          skills_relevance: 'Khớp 4/12 kỹ năng trọng yếu.',
+          experience: 'ok',
+          education: 'ok',
+        },
+      } as never),
+      makeGapReport([makeGapItem()]),
+    );
+    const message = 'Bạn mới khớp 4/12 kỹ năng trọng yếu — nên vá Docker trước.';
+    const result = groundDiagnosis(
+      { message, cited_dimension: 'skills_relevance' },
+      factsWithCounts,
+    );
+    expect(result.answer).toBe(message);
+  });
+
+  it('serves the model suggested_next_step when grounded, keeps citations intact', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker đang là gap ưu tiên cao nhất của bạn.',
+        cited_gap_id: 'jd:hard_skill:docker',
+        suggested_next_step: 'Thêm một dự án dùng Docker vào CV',
+      },
+      facts,
+    );
+    expect(result.answer).toBe('Docker đang là gap ưu tiên cao nhất của bạn.');
+    expect(result.suggested_next_step).toBe('Thêm một dự án dùng Docker vào CV');
+  });
+
+  it('an ungrounded suggested_next_step is replaced by the verified next action, message still served', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker đang là gap ưu tiên cao nhất của bạn.',
+        cited_gap_id: 'jd:hard_skill:docker',
+        suggested_next_step: 'Học 5 khóa Kubernetes ngay',
+      },
+      facts,
+    );
+    expect(result.answer).toBe('Docker đang là gap ưu tiên cao nhất của bạn.');
+    expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
+  });
+
+  it('URL-strips a served model message (backstop still applies to verified prose)', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker là gap chính — xem thêm tại https://sketchy.example.com/course nhé.',
+        cited_gap_id: 'jd:hard_skill:docker',
+      },
+      facts,
+    );
+    expect(result.answer).toContain('Docker là gap chính');
+    expect(result.answer).not.toContain('sketchy.example.com');
+  });
+
+  it('honest fallback ADMITS it cannot answer instead of answering a different question', () => {
+    const vi = groundDiagnosis({ message: 'ok' }, facts);
+    expect(vi.answer).toContain('chưa đủ dữ kiện đã xác minh');
+    expect(vi.answer).toContain('Add Docker evidence'); // still serves the verified priorities
+
+    const en = groundDiagnosis({ message: 'ok' }, facts, 'en');
+    expect(en.answer).toContain("can't answer that confidently");
+    expect(en.answer).toContain('Add Docker evidence');
+  });
+});
+
 describe('groundDiagnosis — cited_tool (github.enrich)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
   const factsWithTool: DiagnosisFacts = {
@@ -555,10 +675,10 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
     },
   };
 
-  it('renders a templated tool-verified answer when cited_tool matches a present tool_results key', () => {
+  it('serves the model tool-verified answer when cited_tool matches a present tool_results key (v2: model prose, tool numbers grounded)', () => {
     const result = groundDiagnosis(
       {
-        message: 'ok',
+        message: 'GitHub của bạn có 1 repo công khai, hoạt động gần nhất 2 ngày trước.',
         cited_dimension: null,
         cited_gap_id: null,
         cited_other_match_index: null,
@@ -568,13 +688,14 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
       'vi',
     );
     expect(result.answer).toContain('GitHub');
-    expect(result.answer).toContain('2'); // recent_activity_days templated in
+    expect(result.answer).toContain('2'); // recent_activity_days — grounded in tool_results
+    expect(result.cited_tool).toBe('github.enrich');
   });
 
   it('preserves the gap next-step when the model cites both a real gap and a verified tool', () => {
     const result = groundDiagnosis(
       {
-        message: 'ok',
+        message: 'GitHub có hoạt động thật, nhưng gap Docker vẫn là ưu tiên chính của bạn.',
         cited_gap_id: 'jd:hard_skill:docker',
         cited_tool: 'github.enrich',
       },

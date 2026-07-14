@@ -111,10 +111,10 @@ describe('DiagnosisChatService.turn — tool loop', () => {
         text: '',
         toolCalls: [{ name: 'github.enrich', args: { username: 'octocat' } }],
       })
-      // call #2 (final, schema)
+      // call #2 (final, schema) — v2 serves this verified prose, so it must look like a real answer
       .mockResolvedValueOnce({
         parsedJson: {
-          message: 'ok',
+          message: 'GitHub của bạn tồn tại nhưng chưa có repo công khai nào về React.',
           cited_dimension: null,
           cited_gap_id: null,
           cited_other_match_index: null,

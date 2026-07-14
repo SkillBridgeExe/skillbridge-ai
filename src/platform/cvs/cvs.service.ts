@@ -11,15 +11,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
-import { In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { isDeepStrictEqual } from 'util';
+import { EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
-import { CvEntity } from '../../database/entities/cv.entity';
+import { CvEntity, CvKind } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
+import { CvVersionEntity, CvVersionOrigin } from '../../database/entities/cv-version.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
@@ -32,6 +34,10 @@ import {
 import { groundCvAssistantAnswers } from '../../modules/cv-assistant/cv-assistant-rewrite';
 import { cvBuilderAssistantTurn1, CvAssistantTurn } from '../../modules/cv-assistant/cv-assistant';
 import {
+  AssistantExplanation,
+  buildCvAssistantExplanation,
+} from '../../modules/cv-assistant/cv-assistant-explain';
+import {
   analyzeSkillsSection,
   SkillsNudge,
   SkillsSection,
@@ -39,10 +45,12 @@ import {
 import { CvQuestionGeneratorService } from '../../modules/cv-assistant/cv-question-generator.service';
 import {
   AssistantAnalyzeRequestDto,
+  AssistantExplainRequestDto,
   AssistantRewriteRequestDto,
   AssistantSmartQuestionsRequestDto,
   ExtractRequestDto,
 } from './dto/cv-assistant.dto';
+import { CvVersionDetailDto, CvVersionSummaryDto } from './dto/cv-version.dto';
 import { CvIntakeResult, CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
 import {
   DownloadedFile,
@@ -92,6 +100,7 @@ import {
 import { RoadmapFromMatchDto } from '../cv-matches/dto/roadmap-from-match.dto';
 import { CreateBuilderCvDto, UpdateBuilderCvDto } from './dto/builder-cv.dto';
 import { CreateCvDto } from './dto/create-cv.dto';
+import { RenameCvResponseDto } from './dto/rename-cv.dto';
 import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-response.dto';
 import { CvPdfRendererService, RenderedCvPdf } from './cv-pdf-renderer.service';
 import { TextExtractorService } from './text-extractor.service';
@@ -160,6 +169,11 @@ export class CvsService {
     @Optional()
     @InjectRepository(LearningRoadmapEntity)
     private readonly learningRoadmaps?: Repository<LearningRoadmapEntity>,
+    // P2 builder management — version-snapshot repo. @InjectRepository provides the token, so it is
+    // ALWAYS present at runtime (CvsModule registers CvVersionEntity); the `?` only trails the
+    // optionals above so existing unit tests that omit it still compile. Access via `this.versions`.
+    @InjectRepository(CvVersionEntity)
+    private readonly cvVersions?: Repository<CvVersionEntity>,
   ) {}
 
   async create(
@@ -178,7 +192,7 @@ export class CvsService {
     const generatedSource = await this.findGeneratedPdfSource(userId, file);
     if (generatedSource) {
       const role = this.normalizeTargetRole(dto.targetRole) ?? generatedSource.targetRole ?? null;
-      const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role);
+      const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role, dto.lang);
       if (cached) {
         return this.toResponse(
           generatedSource,
@@ -198,11 +212,12 @@ export class CvsService {
       generatedSource.parsedText = parsedText;
       if (role && role !== generatedSource.targetRole) {
         generatedSource.targetRole = role;
-        await this.cvs.save(generatedSource);
+        // Column-scoped — a full save would write back this whole pre-read row (lost update).
+        await this.cvs.update(generatedSource.id, { targetRole: role });
       }
       const usage = await this.analysisQuota.reserveAnalysis(userId);
       try {
-        const review = await this.reviewCv(userId, generatedSource, role ?? undefined);
+        const review = await this.reviewCv(userId, generatedSource, role ?? undefined, dto.lang);
         await usage?.confirm({ sourceType: 'cv', sourceId: generatedSource.id });
         return this.toResponse(review.cv, review.skills, review.parsed);
       } catch (error) {
@@ -224,6 +239,7 @@ export class CvsService {
         userId,
         duplicate.id,
         requestedRole ?? null,
+        dto.lang,
       );
       if (cachedForRole) {
         return this.toResponse(
@@ -236,9 +252,10 @@ export class CvsService {
       try {
         if (requestedRole && requestedRole !== duplicate.targetRole) {
           duplicate.targetRole = requestedRole;
-          await this.cvs.save(duplicate);
+          // Column-scoped — a full save would write back this whole pre-read row (lost update).
+          await this.cvs.update(duplicate.id, { targetRole: requestedRole });
         }
-        const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined);
+        const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined, dto.lang);
         await usage?.confirm({ sourceType: 'cv', sourceId: duplicate.id });
         return this.toResponse(review.cv, review.skills, review.parsed);
       } catch (error) {
@@ -284,7 +301,7 @@ export class CvsService {
       cvSaved = true;
       await this.recordConsentAudit(userId, cv.id);
 
-      const review = await this.reviewCv(userId, cv, targetRole ?? undefined);
+      const review = await this.reviewCv(userId, cv, targetRole ?? undefined, dto.lang);
       cv = review.cv;
       await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
 
@@ -298,11 +315,14 @@ export class CvsService {
 
   async list(
     userId: string,
-    options: { page: number; limit: number; cvKind?: CvEntity['cvKind'] },
+    options: { page: number; limit: number; cvKind?: CvKind },
   ): Promise<{ items: CvListItemDto[]; total: number; page: number; limit: number }> {
     const [items, total] = await this.cvs.findAndCount({
-      where: options.cvKind ? { userId, cvKind: options.cvKind } : { userId },
-      order: { createdAt: 'DESC' },
+      where: { userId, ...(options.cvKind ? { cvKind: options.cvKind } : {}) },
+      order:
+        options.cvKind === 'BUILT'
+          ? { updatedAt: 'DESC', createdAt: 'DESC' }
+          : { createdAt: 'DESC' },
       skip: (options.page - 1) * options.limit,
       take: options.limit,
     });
@@ -339,6 +359,126 @@ export class CvsService {
     const cv = await this.findOwnedCv(userId, cvId);
     if (cv.fileUrl) await this.storage.delete(cv.fileUrl).catch(() => undefined);
     await this.cvs.softDelete({ id: cvId, userId });
+  }
+
+  /**
+   * Title-only rename for any owned CV. Unlike updateBuilderDraft this never touches
+   * parsed_json and is not gated to BUILT, so uploaded CVs can be renamed too. Bumps
+   * updated_at via save() so the library "last edited" stays accurate.
+   */
+  async rename(userId: string, cvId: string, title: string): Promise<RenameCvResponseDto> {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      // Contract: explicit TITLE_REQUIRED, not a generic validation message.
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.TITLE_REQUIRED,
+        message: 'title must not be empty',
+      });
+    }
+    const cv = await this.findOwnedCv(userId, cvId);
+    // Column-scoped UPDATE, not save(entity): a full-entity save would write the parsedJson read
+    // above back to the DB, so an autosave landing in between would be silently reverted —
+    // the same lost-update class as the autosave/title race, in the other direction.
+    await this.cvs.update(cv.id, { title: trimmed }); // bumps updated_at via @UpdateDateColumn
+    const fresh = await this.findOwnedCv(userId, cvId);
+    // Slim response per contract — shipping the whole canonical doc for a title change is waste.
+    return {
+      id: fresh.id,
+      title: fresh.title,
+      updatedAt: fresh.updatedAt ? fresh.updatedAt.toISOString() : null,
+    };
+  }
+
+  /**
+   * Snapshot the current CV document as a version. Bounds table growth by pruning old auto
+   * snapshots. Beyond Reactive Resume — this is what powers version history + restore.
+   */
+  async createVersion(
+    userId: string,
+    cvId: string,
+    label?: string,
+    origin: CvVersionOrigin = 'MANUAL',
+  ): Promise<CvVersionSummaryDto> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    if (!cv.parsedJson) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'CV has no document to snapshot',
+      });
+    }
+    const version = await this.versions.save(
+      this.versions.create({
+        cvId: cv.id,
+        snapshot: this.cloneDocument(cv.parsedJson),
+        title: cv.title,
+        label: label?.trim() || null,
+        origin,
+      }),
+    );
+    await this.pruneVersions(cv.id);
+    return this.toVersionSummary(version);
+  }
+
+  /** Version history, newest first, WITHOUT snapshot bodies (perf). */
+  async listVersions(
+    userId: string,
+    cvId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: CvVersionSummaryDto[]; total: number; page: number; limit: number }> {
+    await this.findOwnedCv(userId, cvId); // ownership gate
+    const [items, total] = await this.versions.findAndCount({
+      where: { cvId },
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: ['id', 'label', 'origin', 'title', 'createdAt'],
+    });
+    return { items: items.map((v) => this.toVersionSummary(v)), total, page, limit };
+  }
+
+  /** One version incl. its snapshot, for preview/diff before restore. */
+  async getVersion(userId: string, cvId: string, versionId: string): Promise<CvVersionDetailDto> {
+    await this.findOwnedCv(userId, cvId);
+    const version = await this.findOwnedVersion(cvId, versionId);
+    return { ...this.toVersionSummary(version), snapshot: version.snapshot };
+  }
+
+  /**
+   * Restore a version onto the CV. Auto-snapshots the current doc first (so restore is itself
+   * undoable), overwrites parsed_json, re-syncs cv_skills, and bumps updated_at via save().
+   */
+  async restoreVersion(userId: string, cvId: string, versionId: string): Promise<CvResponseDto> {
+    await this.findOwnedCv(userId, cvId); // cheap ownership 404 before opening a transaction
+    const version = await this.findOwnedVersion(cvId, versionId);
+    // Atomic AND concurrency-safe: the CV row is re-read under a pessimistic lock INSIDE the
+    // transaction, so a concurrent autosave can neither slip between the pre-restore snapshot
+    // and the overwrite nor make that snapshot stale — snapshot + overwrite commit together
+    // against the exact row state the lock observed.
+    const saved = await this.versions.manager.transaction(async (em) => {
+      const cv = await em.getRepository(CvEntity).findOne({
+        where: { id: cvId, userId, deletedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cv) throw new NotFoundException('CV not found');
+      if (cv.parsedJson) {
+        await em.save(
+          em.create(CvVersionEntity, {
+            cvId: cv.id,
+            snapshot: this.cloneDocument(cv.parsedJson),
+            title: cv.title,
+            label: null,
+            origin: 'AUTO_PRE_RESTORE',
+          }),
+        );
+        await this.pruneVersions(cv.id, em);
+      }
+      cv.parsedJson = this.cloneDocument(version.snapshot);
+      cv.language = version.snapshot.language ?? cv.language;
+      return em.save(cv);
+    });
+    await this.syncSkillsFromDoc(saved.id, saved.parsedJson!); // best-effort by design, outside tx
+    return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
   }
 
   async createBuilderDraft(userId: string, dto: CreateBuilderCvDto): Promise<CvResponseDto> {
@@ -392,33 +532,24 @@ export class CvsService {
     const cv = await this.findOwnedCv(userId, cvId);
     this.assertBuiltCv(cv);
 
-    cv.parsedJson = this.cloneDocument(dto.parsedJson);
-    cv.language = dto.language ?? dto.parsedJson.language ?? cv.language;
-    if (dto.title !== undefined) cv.title = dto.title.trim() || cv.title;
-    if (dto.targetRole !== undefined) cv.targetRole = this.normalizeTargetRole(dto.targetRole);
+    // Column-scoped UPDATE, deliberately NOT save(entity): autosave must never write columns it
+    // doesn't own. A full-entity save wrote the title read above back to the DB, so any rename
+    // landing between this read and the save was silently reverted (lost update). dto.title is
+    // ignored for the same reason — title is owned by rename (PATCH /api/cvs/:id); the DTO keeps
+    // the field only because forbidNonWhitelisted would 400 old clients that still send it.
+    const patch: Partial<CvEntity> = {
+      parsedJson: this.cloneDocument(dto.parsedJson),
+      language: dto.language ?? dto.parsedJson.language ?? cv.language,
+    };
+    if (dto.targetRole !== undefined) patch.targetRole = this.normalizeTargetRole(dto.targetRole);
+    await this.cvs.update(cv.id, patch); // bumps updated_at via @UpdateDateColumn
 
-    const saved = await this.cvs.save(cv);
+    // Re-sync cv_skills from the edited document: job-recommendation reads cv_skills, so a builder
+    // edit that adds/removes skills must not leave scoring on the pre-edit set until the next review.
+    await this.syncSkillsFromDoc(cv.id, dto.parsedJson);
 
-    // Re-sync cv_skills from the edited document (same normalize→persist path reviewCv uses):
-    // job-recommendation reads cv_skills, so a builder edit that adds/removes skills must not
-    // leave scoring on the pre-edit set until the next review. Secondary to the save itself —
-    // a sync failure degrades to the previous skill set (warn), it must not fail the autosave.
-    try {
-      const doc = dto.parsedJson;
-      const rawSkills = [
-        ...(doc.skills?.technical ?? []),
-        ...(doc.skills?.soft ?? []),
-        ...(doc.skills?.languages ?? []),
-        ...(doc.skills?.tools ?? []),
-      ];
-      await this.persistExtractedSkills(saved.id, rawSkills);
-    } catch (err) {
-      this.logger.warn(
-        `builder skill sync failed for cv ${saved.id} — job-rec will read the previous set: ${(err as Error).message}`,
-      );
-    }
-
-    return this.toResponse(saved, await this.getPersistedSkills(saved.id), null);
+    const fresh = await this.findOwnedCv(userId, cvId);
+    return this.toResponse(fresh, await this.getPersistedSkills(cv.id), null);
   }
 
   async evaluateBuilderSection(
@@ -506,6 +637,25 @@ export class CvsService {
       locale: dto.locale ?? 'en',
       requested_action: dto.requested_action,
       target_role: cv.targetRole ?? undefined,
+    });
+  }
+
+  /**
+   * P3-3 "Why is this weak?" — read-only explanation from the SAME deterministic gap analysis
+   * as Turn-1. No LLM, no quota, never a patch — citedSignals can't cite what wasn't detected.
+   */
+  async assistantExplain(
+    userId: string,
+    cvId: string,
+    dto: AssistantExplainRequestDto,
+  ): Promise<AssistantExplanation | null> {
+    await this.findOwnedCv(userId, cvId);
+    return buildCvAssistantExplanation({
+      page: 'cv_builder',
+      section: dto.section,
+      field_path: dto.field_path,
+      current_value: dto.current_value,
+      locale: dto.locale ?? 'en',
     });
   }
 
@@ -689,7 +839,9 @@ export class CvsService {
     // source_of_requirements). No cast needed — every DiffResult field buildGapItems reads exists
     // on CvJdMatchParsedResponse with an identical type.
     const match: CvJdMatchParsedResponse = {
-      overall_score: diff.overall_score,
+      // ponytail: builder-readiness keeps the legacy 0 when the role has no rubric (source none);
+      // honest-null for the builder surface is out of TRUST scope — ledgered for a later wave.
+      overall_score: diff.overall_score ?? 0,
       match_ratio: diff.match_ratio,
       matched_skills: diff.matched_skills,
       partial_skills: diff.partial_skills,
@@ -708,7 +860,7 @@ export class CvsService {
     return {
       readiness,
       band,
-      overall_score: diff.overall_score,
+      overall_score: diff.overall_score ?? 0,
       required_coverage,
       matched_count: diff.matched_skills.length,
       missing_count: diff.missing_skills.length,
@@ -857,7 +1009,10 @@ export class CvsService {
     // Ground with the SAME language the engine uses (output_lang) so the charge decision can never
     // diverge from the rewrite's own re-ask gate.
     const grounded = groundCvAssistantAnswers(dto.answers, dto.output_lang ?? language);
-    const willRunRewrite = grounded.needs_detail.length === 0 && grounded.facts.length > 0;
+    // A transform intent (improve/shorten/…) rewrites from the original bullet alone, so it runs
+    // the LLM even with zero answer facts — mirror the engine's isTransformIntent gate exactly.
+    const willRunRewrite =
+      grounded.needs_detail.length === 0 && (grounded.facts.length > 0 || Boolean(dto.intent));
     const usage = willRunRewrite
       ? await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_REWRITE, {
           sourceType: 'cv',
@@ -875,6 +1030,7 @@ export class CvsService {
           outputLang: dto.output_lang ?? language,
           kind: dto.kind ?? 'bullet',
           tone: dto.tone,
+          intent: dto.intent,
         },
         userId,
       );
@@ -1023,7 +1179,12 @@ export class CvsService {
     });
   }
 
-  async rerunReview(userId: string, cvId: string, requestedRole?: string): Promise<CvResponseDto> {
+  async rerunReview(
+    userId: string,
+    cvId: string,
+    requestedRole?: string,
+    lang?: 'vi' | 'en',
+  ): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     const parsedText = this.reviewableText(cv);
     if (!parsedText) {
@@ -1037,7 +1198,10 @@ export class CvsService {
     // stored role when none is given. Reuse a cached analysis only for THAT role — a different
     // role re-grades against its own rubric instead of returning the stored role's review.
     const role = this.normalizeTargetRole(requestedRole) ?? cv.targetRole ?? null;
-    const cached = await this.getLatestMatchingReview(userId, cv.id, role);
+    // Reuse a cached review ONLY when its feedback language matches what the caller asked for
+    // (a UI-locale toggle must re-generate, not serve the previous language). `lang` undefined =
+    // old behavior (matches the null-lang bucket).
+    const cached = await this.getLatestMatchingReview(userId, cv.id, role, lang);
     if (cached) {
       return this.toResponse(cv, await this.getPersistedSkills(cv.id), cached);
     }
@@ -1045,11 +1209,13 @@ export class CvsService {
     cv.parsedText = parsedText;
     if (role && role !== cv.targetRole) {
       cv.targetRole = role;
-      await this.cvs.save(cv);
+      // Column-scoped: a full-entity save would write back the whole row read above and could
+      // revert a concurrent rename/autosave (the lost-update class fixed across this service).
+      await this.cvs.update(cv.id, { targetRole: role });
     }
     const usage = await this.analysisQuota.reserveAnalysis(userId);
     try {
-      const review = await this.reviewCv(userId, cv, role ?? undefined);
+      const review = await this.reviewCv(userId, cv, role ?? undefined, lang);
       await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
       return this.toResponse(review.cv, review.skills, review.parsed);
     } catch (error) {
@@ -1062,6 +1228,7 @@ export class CvsService {
     userId: string,
     cv: CvEntity,
     targetRole?: string,
+    lang?: 'vi' | 'en',
   ): Promise<{ cv: CvEntity; parsed: CvReviewParsedResponse; skills: CvSkillResponseDto[] }> {
     if (!cv.parsedText) {
       throw new BadRequestException({
@@ -1071,6 +1238,11 @@ export class CvsService {
     }
 
     const effectiveTargetRole = this.normalizeTargetRole(targetRole ?? cv.targetRole ?? undefined);
+    // Identity basis for the post-model write: the document as it was when this analysis
+    // started. If it changes during the multi-second model call (autosave, restore), the
+    // fresher document wins and this review's write yields — same invariant as
+    // syncSkillsFromDoc: cv_skills must always represent the stored parsed_json.
+    const preReviewDoc = cv.parsedJson ?? null;
 
     const review = await this.cvReview.review(userId, {
       cv_id: cv.id,
@@ -1079,30 +1251,61 @@ export class CvsService {
       target_role: effectiveTargetRole ?? undefined,
       mime_type: cv.fileType ?? undefined,
       is_ocr_only: cv.isOcrOnly,
+      lang,
     });
     const parsed = review.parsed_response;
 
-    cv.parsedJson = parsed.document;
-    cv.language = parsed.language;
-    cv.atsReadabilityScore = parsed.ats_rule_score.toFixed(2);
-    cv.targetRole = effectiveTargetRole;
-    const saved = await this.cvs.save(cv);
-    const skills = await this.persistExtractedSkills(
-      saved.id,
-      parsed.ats_extracted.skills_raw ?? [],
-    );
+    // Normalize outside the lock — it can call the embedding service (network).
+    const normalized = await this.normalizeRawSkills(parsed.ats_extracted.skills_raw ?? []);
 
-    return { cv: saved, parsed, skills };
+    // One identity-guarded transaction, column-scoped writes: parsed_json and cv_skills commit
+    // together, so an analyze racing a restore/autosave can never leave them representing
+    // different documents. The previous full-entity save also resurrected the pre-model title
+    // and document — the same lost-update class fixed for autosave and rename.
+    const reviewPatch = {
+      parsedText: cv.parsedText,
+      parsedJson: parsed.document,
+      language: parsed.language,
+      atsReadabilityScore: parsed.ats_rule_score.toFixed(2),
+      targetRole: effectiveTargetRole,
+    };
+    let lockedCv: CvEntity | null = null;
+    const skills = await this.cvs.manager.transaction(async (em) => {
+      lockedCv = await em.getRepository(CvEntity).findOne({
+        where: { id: cv.id, deletedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedCv || !isDeepStrictEqual(lockedCv.parsedJson ?? null, preReviewDoc)) return null;
+      await em.getRepository(CvEntity).update(cv.id, reviewPatch);
+      // Mirror the UPDATE onto the locked entity for the response (TypeORM sets the
+      // @UpdateDateColumn client-side the same way).
+      Object.assign(lockedCv, reviewPatch, { updatedAt: new Date() });
+      return this.writeNormalizedSkills(cv.id, normalized, em);
+    });
+
+    if (!lockedCv) throw new NotFoundException('CV not found');
+    if (skills === null) {
+      this.logger.warn(
+        `cv review persist skipped for cv ${cv.id} — the document changed during analysis; the fresher document wins`,
+      );
+      return { cv: lockedCv, parsed, skills: await this.getPersistedSkills(cv.id) };
+    }
+    return { cv: lockedCv, parsed, skills };
   }
 
-  private async persistExtractedSkills(
-    cvId: string,
-    rawSkills: string[],
-  ): Promise<CvSkillResponseDto[]> {
+  /** Normalization can hit the embedding service (network) — keep it OUTSIDE any DB lock. */
+  private normalizeRawSkills(rawSkills: string[]) {
     const uniqueRawSkills = [...new Set(rawSkills.map((s) => s.trim()).filter(Boolean))];
     // Async variant = deterministic cascade + embedding fallback for the long tail
     // (semantic tier fires only on full cascade misses; no-ops in test/keyless envs).
-    const normalized = await this.skillNormalizer.normalizeManyAsync(uniqueRawSkills);
+    return this.skillNormalizer.normalizeManyAsync(uniqueRawSkills);
+  }
+
+  private async writeNormalizedSkills(
+    cvId: string,
+    normalized: Awaited<ReturnType<SkillNormalizerService['normalizeManyAsync']>>,
+    em?: EntityManager,
+  ): Promise<CvSkillResponseDto[]> {
     const canonicalNames = [
       ...new Set(
         normalized
@@ -1111,19 +1314,21 @@ export class CvsService {
       ),
     ];
 
+    const skillsRepository = em ? em.getRepository(SkillEntity) : this.skills;
+    const cvSkillsRepository = em ? em.getRepository(CvSkillEntity) : this.cvSkills;
     const entities =
       canonicalNames.length > 0
-        ? await this.skills.find({ where: { canonicalName: In(canonicalNames) } })
+        ? await skillsRepository.find({ where: { canonicalName: In(canonicalNames) } })
         : [];
     const entityByCanonical = new Map(entities.map((skill) => [skill.canonicalName, skill]));
 
-    await this.cvSkills.delete({ cvId });
+    await cvSkillsRepository.delete({ cvId });
     const rowsBySkillId = new Map<string, CvSkillEntity>();
     for (const skill of normalized) {
       if (!skill.canonical_name) continue;
       const entity = entityByCanonical.get(skill.canonical_name);
       if (!entity) continue;
-      const row = this.cvSkills.create({
+      const row = cvSkillsRepository.create({
         cvId,
         skillId: entity.id,
         confidence: skill.confidence.toFixed(2),
@@ -1134,7 +1339,7 @@ export class CvsService {
       }
     }
     const rows = [...rowsBySkillId.values()];
-    if (rows.length > 0) await this.cvSkills.save(rows);
+    if (rows.length > 0) await cvSkillsRepository.save(rows);
 
     return normalized.map((skill) => {
       const entity = skill.canonical_name ? entityByCanonical.get(skill.canonical_name) : undefined;
@@ -1205,6 +1410,7 @@ export class CvsService {
     userId: string,
     cvId: string,
     targetRole: string | null,
+    lang?: 'vi' | 'en',
   ): Promise<CvReviewParsedResponse | null> {
     // All four predicates read the SAME nested `payload` object that cv-review.service writes
     // (cv_id, target_role, prompt_template_code='cv_review_v1'). The TOP-LEVEL
@@ -1224,10 +1430,11 @@ export class CvsService {
           AND req.request_payload -> 'payload' ->> 'cv_id' = $3
           AND req.request_payload -> 'payload' ->> 'target_role' IS NOT DISTINCT FROM $4
           AND req.request_payload -> 'payload' ->> 'prompt_template_code' = $5
+          AND req.request_payload -> 'payload' ->> 'lang' IS NOT DISTINCT FROM $6
         ORDER BY ar.created_at DESC
         LIMIT 1
       `,
-      [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE],
+      [userId, BillingFeatureKey.CV_REVIEW, cvId, targetRole, CV_REVIEW_PROMPT_CODE, lang ?? null],
     )) as Array<{ parsed_response: CvReviewParsedResponse | null; confidence_score?: unknown }>;
 
     const row = rows[0];
@@ -1440,6 +1647,90 @@ export class CvsService {
       isOcrOnly: cv.isOcrOnly,
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       createdAt: cv.createdAt.toISOString(),
+      updatedAt: cv.updatedAt ? cv.updatedAt.toISOString() : null,
     };
+  }
+
+  /** Version repo — guaranteed at runtime by CvsModule; guards against a mis-wired module. */
+  private get versions(): Repository<CvVersionEntity> {
+    if (!this.cvVersions) throw new Error('CvVersionEntity repository is not injected');
+    return this.cvVersions;
+  }
+
+  private async findOwnedVersion(cvId: string, versionId: string): Promise<CvVersionEntity> {
+    const version = await this.versions.findOne({ where: { id: versionId, cvId } });
+    if (!version) throw new NotFoundException('CV version not found');
+    return version;
+  }
+
+  /**
+   * Bound table growth: keep the newest N of each origin class per CV (auto snapshots = 20,
+   * manual/labeled = 50). Without the manual cap the table grows unbounded on repeated
+   * "Save version". ponytail: fixed caps; raise if users ask for deeper history.
+   */
+  private async pruneVersions(cvId: string, em?: EntityManager): Promise<void> {
+    await this.pruneOrigin(cvId, ['AUTO_PRE_RESTORE', 'AUTO_PRE_IMPORT'], 20, em);
+    await this.pruneOrigin(cvId, ['MANUAL'], 50, em);
+  }
+
+  private async pruneOrigin(
+    cvId: string,
+    origins: CvVersionOrigin[],
+    keep: number,
+    em?: EntityManager,
+  ): Promise<void> {
+    const repo = em ? em.getRepository(CvVersionEntity) : this.versions;
+    const rows = await repo.find({
+      where: { cvId, origin: In(origins) },
+      order: { createdAt: 'DESC' },
+      select: ['id'],
+    });
+    const stale = rows.slice(keep).map((v) => v.id);
+    if (stale.length > 0) await repo.delete({ id: In(stale) });
+  }
+
+  private toVersionSummary(v: CvVersionEntity): CvVersionSummaryDto {
+    return {
+      id: v.id,
+      label: v.label,
+      origin: v.origin,
+      title: v.title,
+      createdAt: v.createdAt.toISOString(),
+    };
+  }
+
+  /**
+   * Re-sync cv_skills from a canonical doc (best-effort). job-recommendation reads cv_skills, so a
+   * builder save/restore that changes skills must not leave scoring on the stale set. A sync failure
+   * degrades to the previous set (warn) — it must never fail the caller.
+   */
+  private async syncSkillsFromDoc(cvId: string, doc: CanonicalCvDocument): Promise<void> {
+    try {
+      const rawSkills = [
+        ...(doc.skills?.technical ?? []),
+        ...(doc.skills?.soft ?? []),
+        ...(doc.skills?.languages ?? []),
+        ...(doc.skills?.tools ?? []),
+      ];
+      // Normalize BEFORE taking the row lock — it can call the embedding service, and a DB
+      // lock must never span a network call (autosave, rename, and restore all queue on
+      // this row; a slow embedding tier would serialize them all behind it).
+      const normalized = await this.normalizeRawSkills(rawSkills);
+      await this.cvs.manager.transaction(async (em) => {
+        // Persisted derived skills must belong to the exact document currently stored. A restore
+        // can replace parsedJson while an earlier autosave is still waiting to sync; locking the
+        // CV row and rejecting a document mismatch prevents that stale autosave from winning.
+        const current = await em.getRepository(CvEntity).findOne({
+          where: { id: cvId, deletedAt: IsNull() },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!current || !isDeepStrictEqual(current.parsedJson, doc)) return;
+        await this.writeNormalizedSkills(cvId, normalized, em);
+      });
+    } catch (err) {
+      this.logger.warn(
+        `builder skill sync failed for cv ${cvId} — job-rec will read the previous set: ${(err as Error).message}`,
+      );
+    }
   }
 }

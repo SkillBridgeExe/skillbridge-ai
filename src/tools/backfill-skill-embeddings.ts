@@ -28,6 +28,7 @@ if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENA
 
 import OpenAI from 'openai';
 import { Pool } from 'pg';
+import { assertNotAccidentalProdDb } from '../database/prod-db-guard';
 import { toSql } from 'pgvector';
 import { SkillTaxonomyService } from '../common/services/skill-taxonomy.service';
 import { embedBatch, enumerateSkillVariants } from './embedding-shared';
@@ -37,6 +38,8 @@ async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
   if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
   if (!databaseUrl) throw new Error('DATABASE_URL is not set');
+  // Deliberate prod DB ops require the explicit ALLOW_PROD_DB=1 opt-in (see prod-db-guard).
+  assertNotAccidentalProdDb(databaseUrl);
 
   const model = process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-large';
   const dimensions = parseInt(process.env.VECTOR_DIMENSION ?? '1024', 10);

@@ -10,6 +10,7 @@
  *      must be a subset of the allowed facts. Any violation → REJECT (return a follow-up, never a patch).
  */
 import { AssistantGap, CvAnswer, Language } from './cv-assistant';
+import { sanitizePromptText } from '../../common/services/prompt-input-sanitizer';
 
 export interface GroundedAnswers {
   /** the ONLY fact phrases the rewrite model may use (action verb · named tech · result phrase · number). */
@@ -129,6 +130,12 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
       case 'evidence': {
         const phrase = EVIDENCE_FACT[language][a.option_id] ?? '';
         if (phrase.trim()) facts.push(phrase.trim());
+        if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
+        break;
+      }
+      case 'user_clarify': {
+        // "ask more" free text — the user's own clarification is a grounded fact verbatim
+        // (its numbers/tech become allowed evidence for the rewrite gate).
         if (a.detail && a.detail.trim()) facts.push(a.detail.trim());
         break;
       }
@@ -255,6 +262,127 @@ export function hasWord(text: string, word: string): boolean {
   return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
 }
 
+/** URLs / bare domains — a rewrite may not add a link the user never gave (P3-5 case 1). */
+const URL_RE = /(?:https?:\/\/|www\.)\S+|\b[\w-]+\.(?:com|org|net|io|dev|ai|app|vn|co)\b/giu;
+export function urlTokens(text: string): string[] {
+  return (text.match(URL_RE) ?? []).map((u) => u.toLowerCase());
+}
+
+/** credential claims — fabricating a certificate is a hard reject (P3-5 case 1). */
+const CREDENTIAL_WORDS = [
+  'certified',
+  'certification',
+  'certificate',
+  'chứng chỉ',
+  'ielts',
+  'toeic',
+];
+
+/**
+ * NEW multi-word proper-noun phrases ("Nova Dynamics", "Google Cloud") — the deterministic
+ * employer/org/product fabrication net. A run of ≥2 capitalized tokens counts only when at least
+ * one token is TitleCase (Upper+lower), so all-caps generic pairs ("REST API") stay allowed, and a
+ * run never starts at a sentence-initial token (normal sentence case can't false-positive).
+ * ponytail: a bare single-word org ("Google") still slips unless it's in NAMED_TECH — add a real
+ * org gazetteer only if this proves too loose in the eval corpus.
+ */
+export function properNounPhrases(text: string): string[] {
+  const toks = text.split(/\s+/);
+  const clean = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.+#&-]+$/gu, '');
+  const isCap = (w: string) => w.length >= 2 && /^[\p{Lu}][\p{L}\p{N}.+#&-]*$/u.test(w);
+  const isTitle = (w: string) => /^[\p{Lu}]\p{Ll}/u.test(w);
+  const phrases: string[] = [];
+  let i = 1; // token 0 is sentence-initial by definition
+  while (i < toks.length) {
+    const sentenceInitial = /[.!?:]$/.test(toks[i - 1]);
+    const w = clean(toks[i]);
+    if (!sentenceInitial && isCap(w)) {
+      const run = [w];
+      let j = i + 1;
+      while (j < toks.length && isCap(clean(toks[j]))) {
+        run.push(clean(toks[j]));
+        j += 1;
+      }
+      if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
+      i = j;
+    } else {
+      i += 1;
+    }
+  }
+  return phrases;
+}
+
+/**
+ * (g) textual temporal expressions — the non-numeric date fabrication net (W112).
+ * The number net (b) already catches digit dates ("2023", "03/2024"); this catches
+ * worded time claims: month names, qualified seasons, and relative periods
+ * ("in January", "last summer", "two years ago", "tháng Ba", "năm ngoái").
+ * Ambiguous EN month words (may/march/august — also modal/verb/adjective) count
+ * only after a temporal preposition, so "this may improve" stays allowed.
+ * ponytail: full month names only — add abbreviations (Jan/Sept) if the eval
+ * corpus ever shows them slipping through.
+ */
+const MONTHS_EN = [
+  'january',
+  'february',
+  'april',
+  'june',
+  'july',
+  'september',
+  'october',
+  'november',
+  'december',
+];
+const MONTHS_EN_AMBIGUOUS_RE =
+  /\b(?:in|by|since|from|until|till|during|between|before|after|early|mid|late)[\s-]+(may|march|august)\b/giu;
+const SEASONS_EN_RE =
+  /\b(?:last|next|this|in|during|early|mid|late)\s+(?:the\s+)?(spring|summer|autumn|winter|fall)\b/giu;
+const RELATIVE_EN_RE =
+  /\b(?:last|next)\s+(?:year|month|week|quarter)\b|\b\S+\s+(?:years?|months?|weeks?)\s+ago\b/giu;
+const TEMPORAL_VI = [
+  'tháng giêng',
+  'tháng chạp',
+  'tháng một',
+  'tháng hai',
+  'tháng ba',
+  'tháng tư',
+  'tháng bốn',
+  'tháng năm',
+  'tháng sáu',
+  'tháng bảy',
+  'tháng tám',
+  'tháng chín',
+  'tháng mười',
+  'mùa xuân',
+  'mùa hạ',
+  'mùa hè',
+  'mùa thu',
+  'mùa đông',
+  'năm ngoái',
+  'năm trước',
+  'năm sau',
+  'năm tới',
+  'tháng trước',
+  'tháng sau',
+  'tháng tới',
+  'tuần trước',
+  'tuần sau',
+  'quý trước',
+  'quý sau',
+];
+
+export function temporalTokens(text: string): string[] {
+  const found: string[] = [];
+  for (const month of MONTHS_EN) if (hasWord(text, month)) found.push(month);
+  for (const m of text.matchAll(MONTHS_EN_AMBIGUOUS_RE)) found.push(m[1].toLowerCase());
+  for (const m of text.matchAll(SEASONS_EN_RE)) found.push(m[1].toLowerCase());
+  for (const m of text.matchAll(RELATIVE_EN_RE)) found.push(m[0].toLowerCase());
+  const lower = text.toLowerCase();
+  // "tháng mười một/hai" also contain "tháng mười" — substring check keeps both grounded consistently.
+  for (const phrase of TEMPORAL_VI) if (lower.includes(phrase)) found.push(phrase);
+  return found;
+}
+
 export function groundCvRewrite(
   before: string,
   model: RewriteModelOutput,
@@ -274,9 +402,15 @@ export function groundCvRewrite(
   // numbers are matched as whole UNIT-aware tokens: "30%" ≠ "30ms", and "3-5 years" ≠ "5 years".
   const allowedNumbers = new Set(numberTokens(source));
 
-  // (a) every declared used_fact must be one of the allowed facts.
+  // (a) every declared used_fact must be one of the allowed facts. The model never sees the
+  //     ORIGINAL facts — PromptsService.render sanitizes vars (M6) — so a fact carrying a
+  //     redacted span can only be echoed back in its sanitized form; accept that form too, or
+  //     grounding deterministically rejects legitimate facts (post-merge review finding).
+  const allowedFacts = new Set(
+    grounded.facts.flatMap((f) => [f.toLowerCase(), sanitizePromptText(f).text.toLowerCase()]),
+  );
   for (const uf of model.used_facts) {
-    if (!grounded.facts.some((f) => f.toLowerCase() === uf.toLowerCase())) {
+    if (!allowedFacts.has(uf.toLowerCase())) {
       return { ok: false, reason: 'UNGROUNDED', detail: `used_fact not in allowed facts: ${uf}` };
     }
   }
@@ -291,6 +425,32 @@ export function groundCvRewrite(
   for (const tech of NAMED_TECH) {
     if (hasWord(model.after, tech) && !hasWord(source, tech)) {
       return { ok: false, reason: 'UNGROUNDED', detail: `fabricated tech: ${tech}` };
+    }
+  }
+  // (d) no fabricated URL/domain — a link is evidence; the user must have given it.
+  const sourceLower = source.toLowerCase();
+  for (const url of urlTokens(model.after)) {
+    if (!sourceLower.includes(url)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated url: ${url}` };
+    }
+  }
+  // (e) no fabricated credential claim (certificates are a hard fabrication risk on a CV).
+  for (const word of CREDENTIAL_WORDS) {
+    if (hasWord(model.after, word) && !hasWord(source, word)) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated credential: ${word}` };
+    }
+  }
+  // (f) no NEW multi-word proper-noun phrase — the employer/org/product fabrication net.
+  for (const phrase of properNounPhrases(model.after)) {
+    if (!sourceLower.includes(phrase.toLowerCase())) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated entity: ${phrase}` };
+    }
+  }
+  // (g) no fabricated textual date/period — worded months, seasons, relative time (W112).
+  for (const tk of temporalTokens(model.after)) {
+    const present = tk.includes(' ') ? sourceLower.includes(tk) : hasWord(source, tk);
+    if (!present) {
+      return { ok: false, reason: 'UNGROUNDED', detail: `fabricated date/time: ${tk}` };
     }
   }
   return {

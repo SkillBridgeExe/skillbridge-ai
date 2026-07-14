@@ -1,6 +1,7 @@
 import { ObjectLiteral, Repository } from 'typeorm';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { CompanyEntity } from '../../database/entities/company.entity';
 import { JobApplicationStatusEventEntity } from '../../database/entities/job-application-status-event.entity';
 import { JobApplicationEntity } from '../../database/entities/job-application.entity';
 import { JobPostVersionEntity } from '../../database/entities/job-post-version.entity';
@@ -13,8 +14,24 @@ import {
   CandidateJobService,
   safeSavedJob,
   snapshotCandidateContact,
+  toMatchScoreColumn,
 } from './candidate-job.service';
 import { safeApplication } from './job-domain';
+
+// TRUST' P2: the match numeric column is `string | null`. When computeMatch scores against a job
+// version with no skills and no usable role rubric, SkillDiff returns overall_score=null (proven by
+// the honest-zero cases in skill-diff.service.spec). The persist step must convert that to a real
+// SQL NULL — String(null) => "null" would corrupt/break the numeric write. matchResult is kept so
+// the UI can still inspect degraded_reasons.
+describe('toMatchScoreColumn (TRUST P2 — null-safe numeric column)', () => {
+  it('null score → null column (never the string "null")', () => {
+    expect(toMatchScoreColumn(null)).toBeNull();
+  });
+  it('numeric score → its string form for the numeric column', () => {
+    expect(toMatchScoreColumn(42)).toBe('42');
+    expect(toMatchScoreColumn(0)).toBe('0');
+  });
+});
 
 function repo<T extends ObjectLiteral>() {
   return {
@@ -29,6 +46,69 @@ function repo<T extends ObjectLiteral>() {
 }
 
 describe('CandidateJobService', () => {
+  it('adds job summaries to my applications with batched repository reads', async () => {
+    const jobs = repo<JobEntity>();
+    const companies = repo<CompanyEntity>();
+    const applications = repo<JobApplicationEntity>();
+    applications.findAndCount.mockResolvedValue([
+      [
+        {
+          id: 'application-1',
+          jobId: 'job-1',
+          candidateUserId: 'user-1',
+          status: 'SUBMITTED',
+          submittedAt: new Date('2026-07-01T00:00:00.000Z'),
+        } as JobApplicationEntity,
+      ],
+      1,
+    ]);
+    jobs.find.mockResolvedValue([
+      {
+        id: 'job-1',
+        companyId: 'company-1',
+        slug: 'frontend-engineer',
+        title: 'Frontend Engineer',
+        location: 'Ho Chi Minh City',
+      } as JobEntity,
+    ]);
+    companies.find.mockResolvedValue([
+      { id: 'company-1', name: 'SkillBridge Labs' } as CompanyEntity,
+    ]);
+    const service = new CandidateJobService(
+      jobs,
+      companies,
+      repo<JobPostVersionEntity>(),
+      repo<SavedJobEntity>(),
+      applications,
+      repo<JobApplicationStatusEventEntity>(),
+      repo<JobReportEntity>(),
+      repo<CvEntity>(),
+      repo<CvSkillEntity>(),
+      repo<SkillEntity>(),
+      repo<UserEntity>(),
+      {} as never,
+      {} as never,
+      {} as never,
+      { query: jest.fn() } as never,
+      { processNotificationEvent: jest.fn() } as never,
+    );
+
+    const result = await service.listMyApplications('user-1');
+
+    expect(jobs.find).toHaveBeenCalledTimes(1);
+    expect(companies.find).toHaveBeenCalledTimes(1);
+    expect(result.items[0]).toMatchObject({
+      id: 'application-1',
+      job: {
+        id: 'job-1',
+        slug: 'frontend-engineer',
+        title: 'Frontend Engineer',
+        companyName: 'SkillBridge Labs',
+        location: 'Ho Chi Minh City',
+      },
+    });
+  });
+
   it('does not expose hidden salary or internal crawler fields from saved jobs', () => {
     const safe = safeSavedJob({
       id: 'job-1',
@@ -148,6 +228,7 @@ describe('CandidateJobService', () => {
     const savedJobs = repo<SavedJobEntity>();
     const service = new CandidateJobService(
       jobs,
+      repo<CompanyEntity>(),
       repo<JobPostVersionEntity>(),
       savedJobs,
       repo<JobApplicationEntity>(),
@@ -171,6 +252,128 @@ describe('CandidateJobService', () => {
     expect(savedJobs.save).not.toHaveBeenCalled();
   });
 
+  // RECOMMENDATION' R1 — the apply/match path must score from the SAME proficiency-aware fact set
+  // as the job-recommendation cards (review skills with proficiency_hint when a review exists,
+  // presence-only cv_skills canonicals otherwise). Divergence here is audit P0-4: one CV/job pair
+  // getting a presence-only score at apply time and a proficiency-aware score on the card.
+  function matchJobService(options: { reviewRows: Array<{ parsed_response: unknown }> | Error }) {
+    const jobs = repo<JobEntity>();
+    jobs.findOne.mockResolvedValue({
+      id: 'job-1',
+      status: 'active',
+      canonicalJobId: null,
+      expiresAt: null,
+      applicationMode: 'NATIVE',
+      companyId: 'company-1',
+      currentPublishedVersionId: 'version-1',
+    } as JobEntity);
+    const versions = repo<JobPostVersionEntity>();
+    versions.findOne.mockResolvedValue({
+      id: 'version-1',
+      jobId: 'job-1',
+      status: 'PUBLISHED',
+      roleCode: 'frontend',
+      skills: [{ canonicalName: 'react', importance: 'REQUIRED', minLevel: 2, rawText: null }],
+    } as unknown as JobPostVersionEntity);
+    const cvs = repo<CvEntity>();
+    cvs.findOne.mockResolvedValue({ id: 'cv-1' } as CvEntity);
+    const cvSkills = repo<CvSkillEntity>();
+    cvSkills.find.mockResolvedValue([{ skillId: 'skill-1' } as CvSkillEntity]);
+    const skills = repo<SkillEntity>();
+    skills.find.mockResolvedValue([
+      { id: 'skill-1', canonicalName: 'react', displayName: 'React' } as SkillEntity,
+    ]);
+    const diff = jest.fn().mockReturnValue({ overall_score: 80 });
+    const reviewLookup =
+      options.reviewRows instanceof Error
+        ? Promise.reject(options.reviewRows)
+        : Promise.resolve(options.reviewRows);
+    const dataSource = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce([{ visible: true }]) // requirePublicJob NATIVE verified check
+        .mockReturnValueOnce(reviewLookup), // R1 latest-review skills lookup
+    };
+    const service = new CandidateJobService(
+      jobs,
+      repo<CompanyEntity>(),
+      versions,
+      repo<SavedJobEntity>(),
+      repo<JobApplicationEntity>(),
+      repo<JobApplicationStatusEventEntity>(),
+      repo<JobReportEntity>(),
+      cvs,
+      cvSkills,
+      skills,
+      repo<UserEntity>(),
+      {} as never,
+      {} as never,
+      { diff } as never,
+      dataSource as never,
+      { processNotificationEvent: jest.fn() } as never,
+    );
+    return { service, diff };
+  }
+
+  it('matchJob scores with proficiency facts from the latest CV review (R1 shared basis)', async () => {
+    const { service, diff } = matchJobService({
+      reviewRows: [
+        {
+          parsed_response: {
+            ats_extracted: {
+              skills_extracted: [
+                { name: 'React', proficiency_hint: 'beginner', evidence_text: null },
+              ],
+            },
+          },
+        },
+      ],
+    });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'React', proficiency_hint: 'beginner' }],
+      }),
+    );
+  });
+
+  it('matchJob degrades to presence-only facts when the review lookup THROWS (never 500s — post-merge review finding)', async () => {
+    // The snapshot facts are already in memory; a transient DB error on the review lookup must not
+    // fail the match (apply path would persist matchStatus=FAILED with no recompute path).
+    const { service, diff } = matchJobService({ reviewRows: new Error('pool exhausted') });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'react' }],
+      }),
+    );
+  });
+
+  it('matchJob falls back to presence-only snapshot skills when no review exists', async () => {
+    const { service, diff } = matchJobService({ reviewRows: [] });
+
+    await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(diff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cv_skills_raw: [{ name: 'react' }],
+      }),
+    );
+  });
+
+  it("matchJob labels its result score_basis='skills_only' (R2 — apply path has no seniority or deal-breaker input)", async () => {
+    const { service } = matchJobService({ reviewRows: [] });
+
+    const result = await service.matchJob('user-1', 'job-1', 'cv-1');
+
+    expect(result.score_basis).toBe('skills_only');
+    expect(result.overall_score).toBe(80);
+  });
+
   it('withdraws an owned application and schedules PII purge 90 days later', async () => {
     const applications = repo<JobApplicationEntity>();
     const events = repo<JobApplicationStatusEventEntity>();
@@ -186,6 +389,7 @@ describe('CandidateJobService', () => {
     };
     const service = new CandidateJobService(
       repo<JobEntity>(),
+      repo<CompanyEntity>(),
       repo<JobPostVersionEntity>(),
       repo<SavedJobEntity>(),
       applications,

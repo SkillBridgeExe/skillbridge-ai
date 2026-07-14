@@ -38,19 +38,19 @@ describe('configValidationSchema — OCR fallback defaults', () => {
 });
 
 describe('configValidationSchema — CV_JD_MATCH_TEMPLATE_CODE', () => {
-  it('defaults to cv_jd_match_v1 when unset (safe baseline; flip is a deliberate change)', () => {
+  it('defaults to cv_jd_match_v2 when unset (matches prod env since 2026-06-16; env-loss safe)', () => {
     const { error, value } = configValidationSchema.validate(base, { allowUnknown: true });
     expect(error).toBeUndefined();
-    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v1');
+    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v2');
   });
 
-  it('accepts cv_jd_match_v2', () => {
+  it('accepts cv_jd_match_v1 (rollback lever)', () => {
     const { error, value } = configValidationSchema.validate(
-      { ...base, CV_JD_MATCH_TEMPLATE_CODE: 'cv_jd_match_v2' },
+      { ...base, CV_JD_MATCH_TEMPLATE_CODE: 'cv_jd_match_v1' },
       { allowUnknown: true },
     );
     expect(error).toBeUndefined();
-    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v2');
+    expect(value.CV_JD_MATCH_TEMPLATE_CODE).toBe('cv_jd_match_v1');
   });
 
   it('rejects an unknown template code', () => {

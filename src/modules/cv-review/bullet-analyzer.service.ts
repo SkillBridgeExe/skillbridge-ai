@@ -426,9 +426,14 @@ export class BulletAnalyzerService {
     return [...found];
   }
 
-  /** Per-bullet deterministic feedback (R1 explainability). Reuses checkLine(); no LLM. */
-  analyzeBullets(document: CanonicalCvDocument): BulletFeedbackItem[] {
-    const lang: 'vi' | 'en' = document.language === 'vi' ? 'vi' : 'en';
+  /**
+   * Per-bullet deterministic feedback (R1 explainability). Reuses checkLine(); no LLM.
+   * `feedbackLang` (the UI locale) sets the TIP language; the CV-text analysis (first-person
+   * lexicon in checkLine) keeps the CV's own language. Omitting feedbackLang → CV language (unchanged).
+   */
+  analyzeBullets(document: CanonicalCvDocument, feedbackLang?: string): BulletFeedbackItem[] {
+    const analysisLang: 'vi' | 'en' = document.language === 'vi' ? 'vi' : 'en';
+    const tipLang: 'vi' | 'en' = (feedbackLang ?? document.language) === 'vi' ? 'vi' : 'en';
     const sections: Array<
       ['experience' | 'projects' | 'activities', Array<{ bullets?: string[] }>]
     > = [
@@ -442,8 +447,8 @@ export class BulletAnalyzerService {
         for (const raw of entry.bullets ?? []) {
           const text = (raw ?? '').trim();
           if (!text) continue;
-          const c = this.checkLine(text, lang);
-          out.push({ text, section, ...c, tips: this.bulletTips(c, lang) });
+          const c = this.checkLine(text, analysisLang);
+          out.push({ text, section, ...c, tips: this.bulletTips(c, tipLang) });
         }
       }
     }

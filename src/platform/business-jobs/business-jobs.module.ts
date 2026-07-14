@@ -21,9 +21,11 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CvsModule } from '../cvs/cvs.module';
 import { AdminBusinessJobsService } from './admin-business-jobs.service';
 import { BusinessApplicationService } from './business-application.service';
+import { BusinessDashboardService } from './business-dashboard.service';
 import {
   AdminBusinessJobsController,
   BusinessApplicationsController,
+  BusinessDashboardController,
   BusinessCompanyController,
   BusinessWorkEmailVerificationController,
   BusinessJobsController,
@@ -72,6 +74,7 @@ import { PublicJobsService } from './public-jobs.service';
     BusinessWorkEmailVerificationController,
     BusinessJobsController,
     BusinessApplicationsController,
+    BusinessDashboardController,
     AdminBusinessJobsController,
   ],
   providers: [
@@ -80,6 +83,7 @@ import { PublicJobsService } from './public-jobs.service';
     PublicJobsService,
     CandidateJobService,
     BusinessApplicationService,
+    BusinessDashboardService,
     AdminBusinessJobsService,
     BusinessJobsMaintenanceService,
     RolesGuard,

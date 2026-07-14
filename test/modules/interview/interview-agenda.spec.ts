@@ -2,8 +2,12 @@ import { InterviewFocusArea } from '../../../src/modules/interview/interview-pla
 import {
   buildInterviewAgenda,
   decideTurn,
+  decideTurnWithTrace,
+  drillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
+  isGroundedFollowUp,
+  TURN_BUDGET_BY_TIER,
 } from '../../../src/modules/interview/interview-agenda';
 
 const fa = (over: Partial<InterviewFocusArea>): InterviewFocusArea => ({
@@ -70,17 +74,36 @@ describe('buildInterviewAgenda', () => {
     expect(focus[0].skill_canonical).toBe('high');
   });
 
-  it('allocates paid 10-turn budget to two deep topics and reports uncovered topics', () => {
+  it('allocates the paid 12-turn budget to one 4-deep lead topic plus a second topic', () => {
     const agenda = buildInterviewAgenda({
       focusAreas: ['a', 'b', 'c', 'd', 'e'].map((skill) => fa({ skill_canonical: skill })),
       seniority: 'mid',
-      turnBudget: 10,
+      turnBudget: TURN_BUDGET_BY_TIER.paid,
     });
 
     const focus = agenda.topics.filter((topic) => topic.phase === 'JD_REQUIREMENT');
-    expect(focus.filter((topic) => topic.drill_budget >= 3)).toHaveLength(2);
+    // 12 turns, 6 reserved (screening 1 + scenario chain 3 + behavioral 1 + closing slack)
+    // → 6 for skill topics: a 4-rung lead drill + a 2-question second topic.
+    expect(focus.map((topic) => topic.drill_budget)).toEqual([4, 2]);
     expect(agenda.uncovered).toHaveLength(3);
     expect(sumBudget(agenda)).toBeLessThanOrEqual(agenda.turn_budget);
+  });
+
+  it('paid tier budget is 12 turns', () => {
+    expect(TURN_BUDGET_BY_TIER.paid).toBe(12);
+    expect(TURN_BUDGET_BY_TIER.free).toBe(6);
+  });
+
+  it('gives the scenario topic a 3-turn incident chain on paid budgets', () => {
+    const agenda = buildInterviewAgenda({
+      focusAreas: [fa({})],
+      seniority: 'mid',
+      turnBudget: TURN_BUDGET_BY_TIER.paid,
+    });
+
+    const scenario = agenda.topics.find((topic) => topic.phase === 'SCENARIO');
+    expect(scenario?.drill_budget).toBe(3);
+    expect(scenario?.seed_question.toLowerCase()).toContain('production');
   });
 
   it('keeps free 6-turn agenda non-negative and drops ceremony topics', () => {
@@ -164,6 +187,128 @@ describe('decideTurn', () => {
     expect(decideTurn({ ...baseTurn, turns_used: 8, turn_budget: 10, drill_depth: 0 })).toBe(
       'wrap',
     );
+  });
+});
+
+describe('drillLadderRung', () => {
+  it('climbs application → tradeoff → edge_failure → design for a non-fresher', () => {
+    expect(drillLadderRung(0, 'senior')).toBe('application');
+    expect(drillLadderRung(1, 'senior')).toBe('tradeoff');
+    expect(drillLadderRung(2, 'senior')).toBe('edge_failure');
+    expect(drillLadderRung(3, 'senior')).toBe('design');
+  });
+
+  it('caps the ladder at tradeoff for early-career bands', () => {
+    expect(drillLadderRung(0, 'fresher')).toBe('application');
+    expect(drillLadderRung(1, 'fresher')).toBe('application');
+    expect(drillLadderRung(2, 'intern')).toBe('tradeoff');
+    expect(drillLadderRung(5, 'junior')).toBe('tradeoff');
+  });
+
+  it('clamps past the end of the ladder', () => {
+    expect(drillLadderRung(9, 'senior')).toBe('design');
+  });
+});
+
+describe('isGroundedFollowUp', () => {
+  const context = [
+    'I implemented a Redis caching layer and reduced p99 latency by 30%.',
+    'Redis cache invalidation strategy',
+  ];
+
+  it('accepts a follow-up that reuses a content term from the answer/thread', () => {
+    expect(isGroundedFollowUp('How did you decide the TTL for that Redis cache?', context)).toBe(
+      true,
+    );
+    expect(isGroundedFollowUp('What breaks first if invalidation lags?', context)).toBe(true);
+  });
+
+  it('flags a generic template question that ignores the answer', () => {
+    expect(isGroundedFollowUp('Tell me about your greatest strength.', context)).toBe(false);
+    expect(isGroundedFollowUp('Where do you see yourself in five years?', context)).toBe(false);
+  });
+
+  it('is honest about empty inputs: no question or no context → not grounded', () => {
+    expect(isGroundedFollowUp('', context)).toBe(false);
+    expect(isGroundedFollowUp('How did you build the cache?', [])).toBe(false);
+  });
+});
+
+describe('decideTurnWithTrace', () => {
+  const traceTurn = { ...baseTurn, phase: 'JD_REQUIREMENT', topic_id: 'topic-1-react' };
+
+  it('returns the SAME action decideTurn returns for the same input (single source of truth)', () => {
+    for (const signal of ['shallow', 'adequate', 'deep', 'evasive'] as const) {
+      const { action } = decideTurnWithTrace({ ...traceTurn, signal });
+      expect(action).toBe(decideTurn({ ...traceTurn, signal }));
+    }
+  });
+
+  it('drills a shallow answer with an explanatory reason and full trace context', () => {
+    const { action, trace } = decideTurnWithTrace(traceTurn);
+    expect(action).toBe('drill');
+    expect(trace).toMatchObject({
+      action: 'drill',
+      phase: 'JD_REQUIREMENT',
+      topic_id: 'topic-1-react',
+      depth: 0,
+      remaining_turn_budget: 8,
+      confidence: 'high',
+    });
+    expect(trace.reasons).toContain('answer_shallow');
+    expect(trace.reasons).toContain('drill_budget_available');
+  });
+
+  it('maps push_harder onto trace action drill with a push reason', () => {
+    const { action, trace } = decideTurnWithTrace({ ...traceTurn, signal: 'deep' });
+    expect(action).toBe('push_harder');
+    expect(trace.action).toBe('drill');
+    expect(trace.reasons).toContain('deep_answer_push_for_depth');
+  });
+
+  it('moves on at the drill-depth limit with the budget reason', () => {
+    const { action, trace } = decideTurnWithTrace({ ...traceTurn, drill_depth: 2 });
+    expect(action).toBe('advance');
+    expect(trace.action).toBe('move_on');
+    expect(trace.reasons).toContain('drill_budget_reached');
+  });
+
+  it('wraps when the turn budget is exhausted', () => {
+    const { trace } = decideTurnWithTrace({ ...traceTurn, turns_used: 9 });
+    expect(trace.action).toBe('wrap');
+    expect(trace.reasons).toContain('turn_budget_exhausted');
+    expect(trace.remaining_turn_budget).toBe(1);
+  });
+
+  it('gives one fair follow-up on a first evasive answer, then moves on', () => {
+    const first = decideTurnWithTrace({ ...traceTurn, signal: 'evasive' });
+    expect(first.action).toBe('drill');
+    expect(first.trace.reasons).toContain('one_fair_follow_up');
+
+    const second = decideTurnWithTrace({
+      ...traceTurn,
+      signal: 'evasive',
+      drill_depth: 1,
+      evasive_streak: 1,
+    });
+    expect(second.action).toBe('advance');
+    expect(second.trace.reasons).toContain('evasive_after_follow_up');
+  });
+
+  it('explains the early-career advance on a deep answer', () => {
+    const { trace } = decideTurnWithTrace({
+      ...traceTurn,
+      signal: 'deep',
+      seniority_target: 'fresher',
+    });
+    expect(trace.action).toBe('move_on');
+    expect(trace.reasons).toContain('deep_answer');
+    expect(trace.reasons).toContain('early_career_no_push');
+  });
+
+  it('never reports a negative remaining budget', () => {
+    const { trace } = decideTurnWithTrace({ ...traceTurn, turns_used: 12 });
+    expect(trace.remaining_turn_budget).toBe(0);
   });
 });
 

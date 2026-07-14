@@ -3,7 +3,9 @@ import { IsNull, Not, Repository } from 'typeorm';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { coerceInterviewGapItems } from '../../modules/interview/interview-gap';
 
-export type InterviewSignalMap = Map<string, { risk: number; ref: string }>;
+/** display carries InterviewGapItem.display_name so overlay consumers (job-rec chips) can render
+ *  a human label instead of the raw canonical (post-merge review finding). */
+export type InterviewSignalMap = Map<string, { risk: number; ref: string; display: string }>;
 
 const logger = new Logger('InterviewSignals');
 
@@ -37,21 +39,64 @@ export async function fetchInterviewSignals(
       order: { endedAt: 'DESC', createdAt: 'DESC' },
     });
     if (!session) return undefined;
-    const ref = session.id.slice(0, 8);
-    const map: InterviewSignalMap = new Map();
-    for (const item of coerceInterviewGapItems(session.gapItems)) {
-      if (item.weakness_type !== 'knowledge_gap' && item.weakness_type !== 'evidence_gap') {
-        continue;
-      }
-      if (!item.skill_canonical) continue;
-      const prev = map.get(item.skill_canonical);
-      if (!prev || item.severity > prev.risk) {
-        map.set(item.skill_canonical, { risk: item.severity, ref });
-      }
-    }
-    return map.size ? map : undefined;
+    return buildSignalMap(session.gapItems, session.id);
   } catch (err) {
     logger.warn(`interview signal fetch failed for gap-report (match ${matchId}): ${String(err)}`);
     return undefined;
   }
+}
+
+/** Minimal raw-query surface (job-rec's DatabaseService) — no TypeORM repo required. */
+interface RawQueryable {
+  query(sql: string, params: unknown[]): Promise<Array<{ id: string; gap_items: unknown }>>;
+}
+
+/**
+ * R4 (RECOMMENDATION') — same signal map, but from the user's latest COMPLETED session across ALL
+ * matches: job recommendations have no matchId to key on (the fetchInterviewSignals join above is
+ * per pasted-JD match). Raw SQL because JobRecommendationService is a raw-query service (no TypeORM
+ * repos — same reasoning as its cv-review-facts usage). Same never-throw contract: any failure
+ * degrades to "no overlay".
+ */
+export async function fetchLatestInterviewSignalsForUser(
+  db: RawQueryable,
+  userId: string,
+): Promise<InterviewSignalMap | undefined> {
+  try {
+    const rows = await db.query(
+      `SELECT id, gap_items
+         FROM public.interview_sessions
+        WHERE user_id = $1 AND status = 'COMPLETED' AND gap_items IS NOT NULL
+        ORDER BY ended_at DESC, created_at DESC
+        LIMIT 1`,
+      [userId],
+    );
+    const row = rows[0];
+    if (!row) return undefined;
+    return buildSignalMap(row.gap_items, row.id);
+  } catch (err) {
+    logger.warn(`interview signal fetch failed for job-rec (user ${userId}): ${String(err)}`);
+    return undefined;
+  }
+}
+
+/** canonical → worst REAL outcome of one session's gap_items; undefined when nothing skill-anchored. */
+function buildSignalMap(gapItems: unknown, sessionId: string): InterviewSignalMap | undefined {
+  const ref = sessionId.slice(0, 8);
+  const map: InterviewSignalMap = new Map();
+  for (const item of coerceInterviewGapItems(gapItems)) {
+    if (item.weakness_type !== 'knowledge_gap' && item.weakness_type !== 'evidence_gap') {
+      continue;
+    }
+    if (!item.skill_canonical) continue;
+    const prev = map.get(item.skill_canonical);
+    if (!prev || item.severity > prev.risk) {
+      map.set(item.skill_canonical, {
+        risk: item.severity,
+        ref,
+        display: item.display_name || item.skill_canonical,
+      });
+    }
+  }
+  return map.size ? map : undefined;
 }

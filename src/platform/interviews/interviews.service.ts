@@ -33,13 +33,16 @@ import { QuestionHistoryItemDto } from '../../modules/interview/dto/answer-inter
 import {
   AgendaTopic,
   buildInterviewAgenda,
-  decideTurn,
+  decideTurnWithTrace,
   DepthSignal,
+  drillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
   InterviewState,
+  InterviewTurnTrace,
+  isGroundedFollowUp,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -55,8 +58,9 @@ import {
 } from '../../modules/interview/answer-analyzer';
 import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
+import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
-  aggregateInterviewScore,
+  explainInterviewScore,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -299,6 +303,37 @@ export class InterviewsService {
     }
 
     firstMessage = this.openingInterviewerMessage(language);
+    firstQuestion = firstTopic.seed_question;
+    let openerAiRequestId: string | null = null;
+    if (this.interviewChain) {
+      // I-REAL-2: personalize the opener — ground the first question in the candidate's
+      // CV/JD topic instead of asking the raw seed. Best-effort: start must NEVER fail
+      // because the chain is down; any error falls back to the seed question.
+      try {
+        const opener = await this.interviewChain.ask(userId, {
+          sessionId: session.id,
+          turnOrder: 1,
+          decision: 'opener',
+          language: this.language(language),
+          seniorityTarget: firstTopic.seniority_target,
+          currentTopic: this.topicForPrompt(firstTopic),
+          currentThread: firstTopic.what_to_probe,
+          recentQa: [],
+          runningNotes: [],
+          prevTopicOutcome: '',
+          topicPhase: firstTopic.phase,
+        });
+        if (opener.question) {
+          firstQuestion = opener.question;
+          openerAiRequestId = opener.aiRequestId;
+          if (opener.aiMessage) firstMessage = opener.aiMessage;
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Opener chain call failed for session ${session.id}; using seed question: ${(err as Error).message}`,
+        );
+      }
+    }
     await this.turns.save(
       this.turns.create({
         sessionId: session.id,
@@ -306,9 +341,9 @@ export class InterviewsService {
         phase: firstTopic.phase,
         topicPhase: firstTopic.phase,
         modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-        aiRequestId: null,
+        aiRequestId: openerAiRequestId,
         interviewerMessage: firstMessage,
-        interviewerQuestion: firstTopic.seed_question,
+        interviewerQuestion: firstQuestion,
         currentThread: firstTopic.what_to_probe,
         skillCanonical: firstTopic.skill_canonical,
         questionBankItemId: firstTopic.question_bank_item_id ?? null,
@@ -316,7 +351,6 @@ export class InterviewsService {
       }),
     );
 
-    firstQuestion = firstTopic.seed_question;
     phase = firstTopic.phase;
     session.totalQuestionsPlanned = agenda.turn_budget;
     const realtime = await this.createRealtimeIfNeeded(
@@ -392,6 +426,11 @@ export class InterviewsService {
       currentThread: state.current_thread || topic.what_to_probe,
       drillDepth: state.drill_depth,
       recentQa,
+      // code-counted facts the model must not recount (Wave I-VOICE). Not persisted: a pure
+      // projection of the stored signals + durationSeconds, recomputable at any time.
+      communicationFacts: buildCommunicationSignals(signals, {
+        duration_seconds: dto.durationSeconds ?? null,
+      }),
     });
     const insightPromise = this.answerInsight!.judge(
       {
@@ -417,21 +456,34 @@ export class InterviewsService {
     let finishReason: InterviewFinishReason = null;
     let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
+    let turnTrace: InterviewTurnTrace;
+    const wrapTrace = (reason: string): InterviewTurnTrace => ({
+      action: 'wrap',
+      phase: topic.phase,
+      topic_id: topic.id,
+      reasons: [reason],
+      depth: nextState.drill_depth,
+      remaining_turn_budget: Math.max(0, hardCap - nextState.turns_used),
+      confidence: 'high',
+    });
 
     if (nextState.turns_used >= hardCap) {
       turnDecision = 'finish';
       finishReason = 'SAFETY_CAP';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('safety_cap');
     } else if (this.isClosingTurn(current)) {
       turnDecision = 'finish';
       finishReason = 'TIME_LIMIT';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('time_limit');
     } else if (this.shouldFinishForTime(secondsRemaining)) {
       turnDecision = 'finish';
       finishReason = 'TIME_LIMIT';
       nextQuestionKind = null;
+      turnTrace = wrapTrace('time_limit');
     } else {
-      const rawAction = decideTurn({
+      const decided = decideTurnWithTrace({
         signal: assessment.depthSignal,
         drill_depth: nextState.drill_depth,
         drill_budget: topic.drill_budget,
@@ -439,7 +491,11 @@ export class InterviewsService {
         turn_budget: hardCap + 2,
         evasive_streak: nextState.evasive_streak,
         seniority_target: topic.seniority_target,
+        phase: topic.phase,
+        topic_id: topic.id,
       });
+      const rawAction = decided.action;
+      turnTrace = decided.trace;
       const nextTopic = rawAction === 'advance' ? this.nextTopic(agenda, topic.id) : null;
 
       if (this.shouldAskClosingQuestion(secondsRemaining)) {
@@ -452,6 +508,7 @@ export class InterviewsService {
         };
         turnDecision = 'closing_prompt';
         nextQuestionKind = 'closing';
+        turnTrace = { ...turnTrace, action: 'wrap', reasons: ['time_low_closing_question'] };
       } else {
         const exhaustedTopics = rawAction === 'advance' && !nextTopic;
         action = rawAction === 'wrap' || exhaustedTopics ? 'drill' : rawAction;
@@ -464,6 +521,28 @@ export class InterviewsService {
               ? 'adaptive_follow_up'
               : 'continue_topic';
         nextQuestionKind = action === 'advance' ? 'transition' : 'follow_up';
+        if (action !== rawAction) {
+          // decision was overridden to keep the interview coherent — trace must say so.
+          turnTrace = {
+            ...turnTrace,
+            action: 'drill',
+            reasons: [
+              ...turnTrace.reasons,
+              exhaustedTopics ? 'topics_exhausted_adaptive_follow_up' : 'wrap_deferred_follow_up',
+            ],
+          };
+        }
+      }
+
+      // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
+      // derived from the follow-up count on this topic (first follow-up = application, then
+      // tradeoff → edge_failure → design; early-career caps at tradeoff).
+      const ladderRung =
+        action === 'drill' || action === 'push_harder'
+          ? drillLadderRung(Math.max(0, updatedState.drill_depth - 1), askTopic.seniority_target)
+          : null;
+      if (ladderRung) {
+        turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
       }
 
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
@@ -478,7 +557,30 @@ export class InterviewsService {
         recentQa,
         runningNotes: updatedState.running_notes,
         prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+        ladderRung,
+        topicPhase: askTopic.phase,
       });
+      if (!ask.question) {
+        // the chain gave no question → the seed question is asked instead (see nextQuestion
+        // below). Label it honestly: low-confidence fallback, never a silent degrade.
+        turnTrace = {
+          ...turnTrace,
+          confidence: 'low',
+          reasons: [...turnTrace.reasons, 'fallback_seed_question'],
+        };
+      } else if (action === 'drill' || action === 'push_harder') {
+        // I-REAL-2 anti-template guard: a follow-up that shares no content term with the
+        // candidate's answer/thread/topic is template-shaped — flag it (observability only).
+        const grounded = isGroundedFollowUp(ask.question, [
+          userAnswer,
+          updatedState.current_thread,
+          askTopic.display_name,
+          ...this.topicTerms(askTopic),
+        ]);
+        if (!grounded) {
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'generic_follow_up_risk'] };
+        }
+      }
     }
 
     current.userAnswerText = userAnswer;
@@ -546,6 +648,7 @@ export class InterviewsService {
       turnDecision,
       finishReason,
       nextQuestionKind,
+      turnTrace,
     };
   }
 
@@ -575,13 +678,17 @@ export class InterviewsService {
 
     const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
     const difficulty = this.resolveSessionInterviewDifficulty(session);
-    const score = aggregateInterviewScore({
+    // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
+    // quotes (masked inside the module) — score and explanations come from ONE pass.
+    const { score, explanations } = explainInterviewScore({
       answers: analyses
         .filter((item) => item.score !== null && item.depthSignal !== null)
         .map((item) => ({
           topic_phase: item.topicPhase,
           score: item.score as number,
           depth_signal: item.depthSignal as DepthSignal,
+          evidence_excerpt: item.turn.userAnswerText ?? undefined,
+          linked_question_id: item.turn.id,
         })),
       role: session.targetRole,
       seniority: difficulty.level,
@@ -622,7 +729,9 @@ export class InterviewsService {
     session.status = 'COMPLETED';
     session.endedAt = endedAt;
     session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
-    session.finalScore = score;
+    // additive: score_explanations rides inside the finalScore jsonb; existing consumers of
+    // overall/dimensions/role_family are untouched.
+    session.finalScore = { ...score, score_explanations: explanations };
     session.gapItems = interviewGaps;
     session.devPlan = plan;
     session.coaching = coaching;
@@ -646,7 +755,13 @@ export class InterviewsService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const [items, total] = await this.sessions.findAndCount({
-      where: { userId },
+      where: query.scoredOnly
+        ? {
+            userId,
+            status: 'COMPLETED',
+            overallScore: Not(IsNull()),
+          }
+        : { userId },
       order: { startedAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,

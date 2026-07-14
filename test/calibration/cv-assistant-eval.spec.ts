@@ -17,6 +17,27 @@ describe('cv-assistant golden set', () => {
     expect(golden.cases.some((c) => c.kind === 'rewrite' && !c.expect_ok)).toBe(true);
   });
 
+  it('P3-5 battery: every fabrication category + explanation mode is covered (release gate)', () => {
+    const ids = new Set(golden.cases.map((c) => c.id));
+    for (const required of [
+      'rewrite-reject-fabricated-number',
+      'rewrite-reject-fabricated-tech',
+      'rewrite-reject-fabricated-employer',
+      'rewrite-reject-fabricated-url',
+      'rewrite-reject-fabricated-certificate',
+      'rewrite-reject-fabricated-date',
+      'rewrite-reject-fabricated-month-en',
+      'rewrite-reject-fabricated-relative-date-en',
+      'rewrite-accept-user-given-month',
+      'rewrite-accept-modal-may-not-a-date',
+      'rewrite-reject-ats-keyword-injection',
+      'rewrite-accept-user-clarify-fact',
+    ]) {
+      if (!ids.has(required)) throw new Error(`missing required battery case: ${required}`);
+    }
+    expect(golden.cases.filter((c) => c.kind === 'explanation').length).toBeGreaterThanOrEqual(4);
+  });
+
   it('every golden case PASSES (self-consistent)', () => {
     for (const c of golden.cases) {
       const r = scoreCvAssistantCase(c);

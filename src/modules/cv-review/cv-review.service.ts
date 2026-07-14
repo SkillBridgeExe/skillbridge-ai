@@ -162,12 +162,20 @@ export class CvReviewService {
     const parse = await this.cvParser.parse(input.parsed_text);
     const document = parse.document;
 
+    // Feedback language: the UI locale the caller asked for, else the detected CV language
+    // (backward-compatible — omitting `lang` is byte-identical to before). Drives ONLY user-facing
+    // prose (LLM feedback, deterministic tips, top_summary, dimension rationale). CV-text analysis,
+    // the dim-1 support gate, and the response's `language` field keep document.language — they
+    // describe the CV, not the UI. CV quotes stay verbatim in the CV's own language.
+    const feedbackLang = input.lang ?? document.language;
+
     // ─── Step 2: rule-based ATS check on the STRUCTURED document ─────────────
     const atsCheck = this.atsChecker.check({
       document,
       parsed_text: input.parsed_text,
       mime_type: input.mime_type,
       is_ocr_only: input.is_ocr_only,
+      lang: feedbackLang,
     });
 
     // ─── Step 3: LLM rubric scoring ─────────────────────────────────────────
@@ -187,7 +195,7 @@ export class CvReviewService {
       cv: JSON.stringify(document, null, 2),
       cv_text: input.parsed_text,
       target_role: input.target_role ?? '(none)',
-      language: document.language,
+      language: feedbackLang,
       rubric: rubricText,
     });
 
@@ -201,6 +209,10 @@ export class CvReviewService {
         cv_id: input.cv_id,
         prompt_template_code: input.prompt_template_code,
         target_role: input.target_role,
+        // Persist the REQUESTED feedback locale (null when omitted) so the platform review cache
+        // only reuses a review whose language matches — a UI toggle re-generates instead of
+        // serving the previous language. Null bucket keeps pre-lang rows reusable.
+        lang: input.lang ?? null,
       },
     });
 
@@ -244,7 +256,7 @@ export class CvReviewService {
             routed1,
             skillBreakdown.breakdown,
             skillBreakdown.diffOverallScore,
-            document.language,
+            feedbackLang,
           )
         : routed1;
       const skills_relevance_breakdown = skillBreakdown?.breakdown ?? null;
@@ -254,10 +266,10 @@ export class CvReviewService {
       // (the SAME bulletFeedback surfaced below as `bullet_feedback`). It returns null when
       // entries exist but there are too few bullets to judge quality — in which case the LLM's
       // own experience estimate is kept, mirroring the Dim-1/Dim-2 fallback behavior.
-      const bulletFeedback = this.bulletAnalyzer.analyzeBullets(document);
+      const bulletFeedback = this.bulletAnalyzer.analyzeBullets(document, feedbackLang);
       const experienceScore = scoreExperience(document, bulletFeedback);
       const routed3 = experienceScore
-        ? this.routeDimension3(routed2, experienceScore, document.language)
+        ? this.routeDimension3(routed2, experienceScore, feedbackLang)
         : routed2;
 
       // ─── Routed-Evidence: Dimension-4 (education) is scored deterministically too ───────────
@@ -266,7 +278,7 @@ export class CvReviewService {
       // degree/school keyword). Null means "keep the LLM's own estimate", mirroring Dim-1/2/3.
       const educationScore = scoreEducation(document, input.parsed_text ?? '');
       const routed = educationScore
-        ? this.routeDimension4(routed3, educationScore, document.language)
+        ? this.routeDimension4(routed3, educationScore, feedbackLang)
         : routed3;
 
       // ─── Step 4: composite scoring (round ONCE on the unrounded value) ──────
@@ -297,7 +309,7 @@ export class CvReviewService {
         atsCheck,
         analysis: bulletAnalysis,
         breakdown: skills_relevance_breakdown,
-        language: document.language,
+        language: feedbackLang,
       });
 
       // Evidence Ledger (display-only, deterministic — touches NO score). Where each CV skill
@@ -595,7 +607,9 @@ export class CvReviewService {
         missing: diff.missing_skills.map(item),
         rubric_band: band,
       },
-      diffOverallScore: diff.overall_score,
+      // Rubric-gated path: buildSkillBreakdown only runs when a seeded rubric exists, so
+      // source=role_rubric and overall_score is never null here; ?? 0 is a type-level guard only.
+      diffOverallScore: diff.overall_score ?? 0,
     };
   }
 

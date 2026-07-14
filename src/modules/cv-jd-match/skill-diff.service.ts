@@ -97,6 +97,33 @@ export const MATCH_TUNING: MatchTuning = {
   coverageCapSlope: 55,
 };
 
+/** EXPLAIN' E1: one requirement's contribution to the weighted score — lets the FE render
+ *  "React contributed 8.2/10.5 points (REQUIRED × weight 0.18)" without knowing MATCH_TUNING.
+ *  Invariants (spec-pinned): Σ points_earned = raw_weighted_score, Σ points_possible ≈ 100. */
+export interface PerSkillContribution {
+  /** Same canonical as the entry in matched/partial/missing arrays (join key). */
+  canonical_name: string;
+  display_name: string;
+  status: 'matched' | 'partial' | 'missing';
+  importance: Importance;
+  weight: number;
+  /** weight × importance multiplier — the weight that actually entered the math. */
+  effective_weight: number;
+  /** 1 if met · (cv/required)^exponent if partial · 0 if missing. */
+  strength: number;
+  /** effective_weight × strength / weight_sum × 100 — points this skill added to the raw score. */
+  points_earned: number;
+  /** effective_weight / weight_sum × 100 — points a full match would have added. */
+  points_possible: number;
+}
+
+/** Machine-readable degraded-state markers (TRUST' T2) — FE renders these as honest banners.
+ *  NO_REQUIREMENT_BASIS: no JD requirements AND no role rubric → nothing to score against, so
+ *  overall_score/match_ratio are null instead of a misleading hard 0.
+ *  CV_SKILLS_UNRECOGNIZED: the CV yielded raw skills but NONE normalized to taxonomy — the score
+ *  is computable but built on an empty CV-skill set (all-missing), so it must be flagged. */
+export type MatchDegradedReason = 'NO_REQUIREMENT_BASIS' | 'CV_SKILLS_UNRECOGNIZED';
+
 export interface DiffResult {
   matched_skills: MatchedSkill[];
   partial_skills: PartialSkill[];
@@ -108,8 +135,9 @@ export interface DiffResult {
   /** JD requirements that didn't normalize — same reason, flagged for review. */
   unnormalized_jd_requirements: UnnormalizedSkill[];
 
-  /** match_ratio = matched.length / required.length × 100 (0-100). */
-  match_ratio: number;
+  /** match_ratio = matched.length / required.length × 100 (0-100).
+   *  null when requirements_source === 'none' — no basis, no ratio (TRUST' honest-zero). */
+  match_ratio: number | null;
   /** Fraction of REQUIRED-importance skills met at level (0-1; 1 when the role has none). */
   required_coverage: number;
   /**
@@ -119,8 +147,12 @@ export interface DiffResult {
    *   strength          = 1 if met · (cv/required)^exponent if below · 0 if missing
    *   raw               = Σ(eff_w × strength) / Σ(eff_w) × 100
    *   overall           = min(raw, capBase + capSlope × required_coverage)
+   *  null when requirements_source === 'none' — scoring against nothing is not a 0, it is
+   *  "no score" (TRUST' honest-zero; the old hard 0 read as "terrible CV").
    */
-  overall_score: number;
+  overall_score: number | null;
+  /** Degraded-state markers (empty = healthy). See MatchDegradedReason. */
+  degraded_reasons: MatchDegradedReason[];
   /** Which source the required-skills set came from (telemetry / UI honesty). */
   requirements_source: 'jd_extraction' | 'role_rubric' | 'none';
   /**
@@ -140,6 +172,8 @@ export interface DiffResult {
     required_met: number;
     raw_weighted_score: number;
     cap_applied: boolean;
+    /** EXPLAIN' E1: per-requirement weighted math. Optional — legacy persisted rows predate it. */
+    per_skill?: PerSkillContribution[];
   };
   /** Display-only Inferred-layer suggestions (skill-graph). NEVER affects any score. */
   inferred_skills?: InferredSkill[];
@@ -231,6 +265,10 @@ export class SkillDiffService {
     // (sql matched "via SQL Server" + SQL Server again in bonus would read as double-counting).
     const satisfiedChildren = new Set<string>();
 
+    // EXPLAIN' E1: collect per-requirement math while the loop runs; points are derived after
+    // weightSum is final.
+    const perSkillRaw: Array<Omit<PerSkillContribution, 'points_earned' | 'points_possible'>> = [];
+
     for (const req of requirements) {
       // OR-group: any listed member satisfies the requirement (single-canonical reqs are a
       // one-member group). Exact hit on the BEST member wins; only on a full miss do we
@@ -282,6 +320,15 @@ export class SkillDiffService {
           skill_type,
           gap_levels: req.required_level,
         });
+        perSkillRaw.push({
+          canonical_name: req.skill_canonical_name,
+          display_name: displayName,
+          status: 'missing',
+          importance: req.importance,
+          weight: req.weight,
+          effective_weight: round3(effectiveWeight),
+          strength: 0,
+        });
         // match_strength = 0, achieved_weight += 0
         continue;
       }
@@ -300,6 +347,15 @@ export class SkillDiffService {
         });
         achievedWeight += effectiveWeight;
         if (req.importance === 'REQUIRED') requiredMet += 1;
+        perSkillRaw.push({
+          canonical_name: matchedCanonical,
+          display_name: displayName,
+          status: 'matched',
+          importance: req.importance,
+          weight: req.weight,
+          effective_weight: round3(effectiveWeight),
+          strength: 1,
+        });
       } else {
         // Partial: CONVEX credit (cv/required)^exponent — junior-everywhere CVs no longer
         // harvest near-linear credit (eval pairs: levelgap-all-novice, keyword-stuffing).
@@ -315,8 +371,17 @@ export class SkillDiffService {
           gap_levels: req.required_level - cvHit.level,
           ...(satisfiedBy ? { satisfied_by: satisfiedBy } : {}),
         });
-        achievedWeight +=
-          effectiveWeight * Math.pow(cvHit.level / req.required_level, tuning.partialExponent);
+        const strength = Math.pow(cvHit.level / req.required_level, tuning.partialExponent);
+        achievedWeight += effectiveWeight * strength;
+        perSkillRaw.push({
+          canonical_name: matchedCanonical,
+          display_name: displayName,
+          status: 'partial',
+          importance: req.importance,
+          weight: req.weight,
+          effective_weight: round3(effectiveWeight),
+          strength,
+        });
       }
     }
 
@@ -335,13 +400,35 @@ export class SkillDiffService {
       });
     }
 
+    // TRUST' honest-zero: no requirement basis (no JD requirements AND no rubric) → null scores,
+    // never a fabricated hard 0; all-CV-skills-unrecognized → score stands but is flagged.
+    const degraded_reasons: MatchDegradedReason[] = [];
+    if ((args.cv_skills_raw ?? []).length > 0 && cvSkillsByCanonical.size === 0) {
+      degraded_reasons.push('CV_SKILLS_UNRECOGNIZED');
+    }
+    const noBasis = source === 'none';
+    if (noBasis) degraded_reasons.push('NO_REQUIREMENT_BASIS');
+
     const totalReqs = requirements.length;
-    const match_ratio = totalReqs > 0 ? Math.round((matched.length / totalReqs) * 100) : 0;
+    const match_ratio = noBasis
+      ? null
+      : totalReqs > 0
+        ? Math.round((matched.length / totalReqs) * 100)
+        : 0;
     const required_coverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
     const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
+    // EXPLAIN' E1: points derived from the SAME effectiveWeight/strength the score used —
+    // Σ points_earned reproduces raw_weighted_score (spec-pinned), so the UI math can't drift.
+    const per_skill: PerSkillContribution[] = perSkillRaw.map((p) => ({
+      ...p,
+      strength: round3(p.strength),
+      points_earned:
+        weightSum > 0 ? round3(((p.effective_weight * p.strength) / weightSum) * 100) : 0,
+      points_possible: weightSum > 0 ? round3((p.effective_weight / weightSum) * 100) : 0,
+    }));
     // Soft cap: PREFERRED/NICE riches cannot carry a CV past what its REQUIRED coverage supports.
     const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
-    const overall_score = Math.round(Math.min(raw, cap));
+    const overall_score = noBasis ? null : Math.round(Math.min(raw, cap));
 
     // Inferred layer (display-only, post-score — touches NO scoring math).
     const cvCanonicals = [...cvSkillsByCanonical.keys()];
@@ -367,6 +454,7 @@ export class SkillDiffService {
       match_ratio,
       required_coverage: round3(required_coverage),
       overall_score,
+      degraded_reasons,
       requirements_source: source,
       rubric_band: bandUsed,
       scoring_breakdown: {
@@ -380,6 +468,7 @@ export class SkillDiffService {
         required_met: requiredMet,
         raw_weighted_score: round3(raw),
         cap_applied: cap < raw,
+        per_skill,
       },
       inferred_skills,
     };

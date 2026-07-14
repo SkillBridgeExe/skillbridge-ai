@@ -27,6 +27,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBusinessJobsService } from './admin-business-jobs.service';
 import { BusinessApplicationService } from './business-application.service';
+import { BusinessDashboardService } from './business-dashboard.service';
 import { BusinessJobService } from './business-job.service';
 import { CandidateJobService } from './candidate-job.service';
 import { CompanyProfileService } from './company-profile.service';
@@ -329,6 +330,21 @@ export class BusinessApplicationsController {
     @Body() body: UpdateApplicationStatusDto,
   ) {
     return this.applications.updateStatus(user.userId, id, body);
+  }
+}
+
+@ApiTags('Business Dashboard')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles('BUSINESS')
+@Controller('api/business/dashboard')
+export class BusinessDashboardController {
+  constructor(private readonly dashboard: BusinessDashboardService) {}
+
+  @Get()
+  get(@CurrentUser() user: JwtUser) {
+    return this.dashboard.getDashboard(user.userId);
   }
 }
 

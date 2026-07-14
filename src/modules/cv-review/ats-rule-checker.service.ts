@@ -40,7 +40,17 @@ export interface AtsCheckInput {
   mime_type?: string;
   /** Optional: was the PDF/DOCX parsed as image-only (OCR mode)? */
   is_ocr_only?: boolean;
+  /**
+   * Optional: hint text language (the review's feedback locale). Same shape as
+   * `analyzeBullets(document, feedbackLang?: string)` — takes plain `string` since the caller's
+   * `feedbackLang` is `input.lang ?? document.language` (ISO 639-1, not guaranteed vi/en); narrowed
+   * to 'vi' | 'en' internally. Defaults to the CV's own document.language when omitted.
+   */
+  lang?: string;
 }
+
+/** Picks the hint string for the given language — vi/en text stay side by side at the call site. */
+type HintFn = (vi: string, en: string) => string;
 
 const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
 // VN mobile (03/05/07/08/09 or +84) + international fallback.
@@ -68,18 +78,20 @@ export class AtsRuleCheckerService {
     const doc = input.document;
     const text = input.parsed_text ?? '';
     const wordCount = countWords(text);
+    const lang: 'vi' | 'en' = (input.lang ?? doc.language) === 'vi' ? 'vi' : 'en';
+    const h: HintFn = (vi, en) => (lang === 'vi' ? vi : en);
 
     const rules: RuleResult[] = [
-      this.ruleFileFormatAcceptable(input),
-      this.ruleHasContact(doc, text),
-      this.ruleHasEducation(doc),
-      this.ruleHasExperienceOrProjects(doc),
-      this.ruleHasSkills(doc),
-      this.ruleEmailPresent(doc, text),
-      this.rulePhonePresent(doc, text),
-      this.ruleReasonableLength(wordCount),
-      this.ruleDatesPresent(doc),
-      this.ruleNoExcessiveRepetition(doc, text),
+      this.ruleFileFormatAcceptable(input, h),
+      this.ruleHasContact(doc, text, h),
+      this.ruleHasEducation(doc, h),
+      this.ruleHasExperienceOrProjects(doc, h),
+      this.ruleHasSkills(doc, h),
+      this.ruleEmailPresent(doc, text, h),
+      this.rulePhonePresent(doc, text, h),
+      this.ruleReasonableLength(wordCount, h),
+      this.ruleDatesPresent(doc, h),
+      this.ruleNoExcessiveRepetition(doc, text, h),
     ];
 
     const passed = rules.filter((r) => r.status === 'pass').length;
@@ -95,7 +107,7 @@ export class AtsRuleCheckerService {
 
   // ─── Rules ──────────────────────────────────────────────────────────────
 
-  private ruleFileFormatAcceptable(input: AtsCheckInput): RuleResult {
+  private ruleFileFormatAcceptable(input: AtsCheckInput, h: HintFn): RuleResult {
     const id = 'file_format_acceptable';
     if (input.is_ocr_only) {
       return {
@@ -103,7 +115,10 @@ export class AtsRuleCheckerService {
         label: 'CV không phải image-only (ATS đọc được text)',
         status: 'fail',
         score: 0,
-        hint: 'CV được parse dưới dạng OCR (CV ảnh). ATS không đọc được. Hãy export bản text từ Word/Google Docs.',
+        hint: h(
+          'CV được parse dưới dạng OCR (CV ảnh). ATS không đọc được. Hãy export bản text từ Word/Google Docs.',
+          'CV was parsed as OCR (image-based). ATS cannot read it. Export a text version from Word/Google Docs.',
+        ),
       };
     }
     const mt = (input.mime_type ?? '').toLowerCase();
@@ -119,13 +134,16 @@ export class AtsRuleCheckerService {
         label: 'CV file format hợp lệ (PDF/DOCX)',
         status: 'warn',
         score: 0.5,
-        hint: `Định dạng "${mt}" có thể không được ATS hỗ trợ. Khuyến nghị PDF hoặc DOCX.`,
+        hint: h(
+          `Định dạng "${mt}" có thể không được ATS hỗ trợ. Khuyến nghị PDF hoặc DOCX.`,
+          `Format "${mt}" may not be supported by ATS. PDF or DOCX is recommended.`,
+        ),
       };
     }
     return { rule_id: id, label: 'CV file format hợp lệ (PDF/DOCX)', status: 'pass', score: 1 };
   }
 
-  private ruleHasContact(doc: CanonicalCvDocument, text: string): RuleResult {
+  private ruleHasContact(doc: CanonicalCvDocument, text: string, h: HintFn): RuleResult {
     const id = 'has_section_contact';
     const c = doc.contact;
     const hasName = !!c.name;
@@ -144,7 +162,10 @@ export class AtsRuleCheckerService {
         label: 'Có thông tin liên hệ (tên + email/SĐT)',
         status: 'warn',
         score: 0.5,
-        hint: 'Thiếu tên rõ ràng ở đầu CV. Đặt họ tên đầy đủ ở dòng đầu tiên.',
+        hint: h(
+          'Thiếu tên rõ ràng ở đầu CV. Đặt họ tên đầy đủ ở dòng đầu tiên.',
+          'Missing a clear name at the top of the CV. Put your full name on the first line.',
+        ),
       };
     }
     return {
@@ -152,11 +173,14 @@ export class AtsRuleCheckerService {
       label: 'Có thông tin liên hệ (tên + email/SĐT)',
       status: 'fail',
       score: 0,
-      hint: 'Thiếu phần liên hệ. Thêm họ tên + email + số điện thoại ở đầu CV.',
+      hint: h(
+        'Thiếu phần liên hệ. Thêm họ tên + email + số điện thoại ở đầu CV.',
+        'Missing a contact section. Add full name + email + phone number at the top of the CV.',
+      ),
     };
   }
 
-  private ruleHasEducation(doc: CanonicalCvDocument): RuleResult {
+  private ruleHasEducation(doc: CanonicalCvDocument, h: HintFn): RuleResult {
     const id = 'has_section_education';
     if (doc.education.length > 0) {
       return { rule_id: id, label: 'Có phần Học vấn', status: 'pass', score: 1 };
@@ -166,12 +190,15 @@ export class AtsRuleCheckerService {
       label: 'Có phần Học vấn',
       status: 'fail',
       score: 0,
-      hint: 'Thiếu phần Học vấn. Thêm trường, ngành, thời gian, GPA (nếu tốt).',
+      hint: h(
+        'Thiếu phần Học vấn. Thêm trường, ngành, thời gian, GPA (nếu tốt).',
+        'Missing an Education section. Add school, major, dates, and GPA (if strong).',
+      ),
     };
   }
 
   /** Lenient for students: experience OR projects counts (projects show capability). */
-  private ruleHasExperienceOrProjects(doc: CanonicalCvDocument): RuleResult {
+  private ruleHasExperienceOrProjects(doc: CanonicalCvDocument, h: HintFn): RuleResult {
     const id = 'has_section_experience';
     if (doc.experience.length > 0) {
       return { rule_id: id, label: 'Có Kinh nghiệm / Dự án', status: 'pass', score: 1 };
@@ -182,7 +209,10 @@ export class AtsRuleCheckerService {
         label: 'Có Kinh nghiệm / Dự án',
         status: 'warn',
         score: 0.5,
-        hint: 'Chưa có kinh nghiệm làm việc nhưng có dự án — tốt cho SV. Cân nhắc thêm thực tập/CLB nếu có.',
+        hint: h(
+          'Chưa có kinh nghiệm làm việc nhưng có dự án — tốt cho SV. Cân nhắc thêm thực tập/CLB nếu có.',
+          'No work experience yet but you have projects — good for a student. Consider adding an internship/club if you have one.',
+        ),
       };
     }
     return {
@@ -190,11 +220,14 @@ export class AtsRuleCheckerService {
       label: 'Có Kinh nghiệm / Dự án',
       status: 'fail',
       score: 0,
-      hint: 'Thiếu cả Kinh nghiệm lẫn Dự án. Thêm ít nhất 1-2 dự án học tập/cá nhân với mô tả kết quả.',
+      hint: h(
+        'Thiếu cả Kinh nghiệm lẫn Dự án. Thêm ít nhất 1-2 dự án học tập/cá nhân với mô tả kết quả.',
+        'Missing both Experience and Projects. Add at least 1-2 academic/personal projects with a description of the results.',
+      ),
     };
   }
 
-  private ruleHasSkills(doc: CanonicalCvDocument): RuleResult {
+  private ruleHasSkills(doc: CanonicalCvDocument, h: HintFn): RuleResult {
     const id = 'has_section_skills';
     const s = doc.skills;
     const total = s.technical.length + s.soft.length + s.tools.length + s.languages.length;
@@ -207,7 +240,10 @@ export class AtsRuleCheckerService {
         label: 'Có phần Kỹ năng',
         status: 'warn',
         score: 0.5,
-        hint: `Chỉ liệt kê ${total} kỹ năng — quá ít. Bổ sung kỹ năng chuyên môn + công cụ liên quan đến vị trí.`,
+        hint: h(
+          `Chỉ liệt kê ${total} kỹ năng — quá ít. Bổ sung kỹ năng chuyên môn + công cụ liên quan đến vị trí.`,
+          `Only ${total} skill(s) listed — too few. Add technical skills + tools relevant to the role.`,
+        ),
       };
     }
     return {
@@ -215,11 +251,14 @@ export class AtsRuleCheckerService {
       label: 'Có phần Kỹ năng',
       status: 'fail',
       score: 0,
-      hint: 'Thiếu phần Kỹ năng. Thêm danh sách kỹ năng kỹ thuật + công cụ.',
+      hint: h(
+        'Thiếu phần Kỹ năng. Thêm danh sách kỹ năng kỹ thuật + công cụ.',
+        'Missing a Skills section. Add a list of technical skills + tools.',
+      ),
     };
   }
 
-  private ruleEmailPresent(doc: CanonicalCvDocument, text: string): RuleResult {
+  private ruleEmailPresent(doc: CanonicalCvDocument, text: string, h: HintFn): RuleResult {
     const id = 'email_present';
     const email = doc.contact.email ?? text.match(EMAIL_REGEX)?.[0] ?? null;
     if (email) {
@@ -236,11 +275,14 @@ export class AtsRuleCheckerService {
       label: 'Có email liên hệ hợp lệ',
       status: 'fail',
       score: 0,
-      hint: 'Không tìm thấy email. Thêm email chuyên nghiệp (tránh nickname kiểu cute123@...).',
+      hint: h(
+        'Không tìm thấy email. Thêm email chuyên nghiệp (tránh nickname kiểu cute123@...).',
+        'No email found. Add a professional email (avoid nicknames like cute123@...).',
+      ),
     };
   }
 
-  private rulePhonePresent(doc: CanonicalCvDocument, text: string): RuleResult {
+  private rulePhonePresent(doc: CanonicalCvDocument, text: string, h: HintFn): RuleResult {
     const id = 'phone_present';
     const phone = doc.contact.phone ?? text.match(PHONE_REGEX)?.[0] ?? null;
     if (phone) {
@@ -251,11 +293,14 @@ export class AtsRuleCheckerService {
       label: 'Có số điện thoại',
       status: 'fail',
       score: 0,
-      hint: 'Không tìm thấy số điện thoại. Thêm format: 0xxx-xxx-xxx hoặc +84-xxx-xxx-xxx.',
+      hint: h(
+        'Không tìm thấy số điện thoại. Thêm format: 0xxx-xxx-xxx hoặc +84-xxx-xxx-xxx.',
+        'No phone number found. Add one in the format: 0xxx-xxx-xxx or +84-xxx-xxx-xxx.',
+      ),
     };
   }
 
-  private ruleReasonableLength(wordCount: number): RuleResult {
+  private ruleReasonableLength(wordCount: number, h: HintFn): RuleResult {
     const id = 'reasonable_length';
     const label = 'CV độ dài hợp lý (250-1500 từ)';
     if (wordCount < 100) {
@@ -264,7 +309,10 @@ export class AtsRuleCheckerService {
         label,
         status: 'fail',
         score: 0,
-        hint: `CV chỉ có ${wordCount} từ — quá ngắn, không đủ thông tin để recruiter đánh giá.`,
+        hint: h(
+          `CV chỉ có ${wordCount} từ — quá ngắn, không đủ thông tin để recruiter đánh giá.`,
+          `CV has only ${wordCount} words — too short, not enough information for a recruiter to assess.`,
+        ),
       };
     }
     if (wordCount < 250) {
@@ -273,7 +321,10 @@ export class AtsRuleCheckerService {
         label,
         status: 'warn',
         score: 0.5,
-        hint: `CV chỉ ${wordCount} từ — nên bổ sung chi tiết về kinh nghiệm và dự án.`,
+        hint: h(
+          `CV chỉ ${wordCount} từ — nên bổ sung chi tiết về kinh nghiệm và dự án.`,
+          `CV has only ${wordCount} words — add more detail about your experience and projects.`,
+        ),
       };
     }
     if (wordCount > 1500) {
@@ -282,14 +333,17 @@ export class AtsRuleCheckerService {
         label,
         status: 'warn',
         score: 0.5,
-        hint: `CV dài ${wordCount} từ — quá dài, recruiter chỉ đọc 6-10s. Cô đọng còn ~1 trang.`,
+        hint: h(
+          `CV dài ${wordCount} từ — quá dài, recruiter chỉ đọc 6-10s. Cô đọng còn ~1 trang.`,
+          `CV is ${wordCount} words — too long; recruiters skim 6-10s. Trim to ~1 page.`,
+        ),
       };
     }
     return { rule_id: id, label, status: 'pass', score: 1 };
   }
 
   /** Count entries (education + experience + projects) that have any date. */
-  private ruleDatesPresent(doc: CanonicalCvDocument): RuleResult {
+  private ruleDatesPresent(doc: CanonicalCvDocument, h: HintFn): RuleResult {
     const id = 'dates_present';
     const label = 'Có timeline rõ ràng (≥2 mốc thời gian)';
     let dated = 0;
@@ -309,7 +363,10 @@ export class AtsRuleCheckerService {
         label,
         status: 'warn',
         score: 0.5,
-        hint: 'Timeline còn mỏng. Mỗi vị trí/học vấn/dự án nên có mốc "MM/YYYY - MM/YYYY".',
+        hint: h(
+          'Timeline còn mỏng. Mỗi vị trí/học vấn/dự án nên có mốc "MM/YYYY - MM/YYYY".',
+          'Timeline is thin. Each position/education/project should have a "MM/YYYY - MM/YYYY" date range.',
+        ),
       };
     }
     return {
@@ -317,12 +374,15 @@ export class AtsRuleCheckerService {
       label,
       status: 'fail',
       score: 0,
-      hint: 'Không có mốc thời gian. Mỗi mục cần "MM/YYYY - MM/YYYY" hoặc "YYYY - Hiện tại".',
+      hint: h(
+        'Không có mốc thời gian. Mỗi mục cần "MM/YYYY - MM/YYYY" hoặc "YYYY - Hiện tại".',
+        'No dates found. Each entry needs "MM/YYYY - MM/YYYY" or "YYYY - Present".',
+      ),
     };
   }
 
   /** Filler phrases signal weak (non-action) bullets. Check bullets, fall back to full text. */
-  private ruleNoExcessiveRepetition(doc: CanonicalCvDocument, text: string): RuleResult {
+  private ruleNoExcessiveRepetition(doc: CanonicalCvDocument, text: string, h: HintFn): RuleResult {
     const id = 'no_excessive_repetition';
     const label = 'Không lạm dụng filler verbs (responsible for, tham gia, ...)';
     const fillers = [
@@ -354,7 +414,10 @@ export class AtsRuleCheckerService {
         label,
         status: 'warn',
         score: 0.5,
-        hint: `Phát hiện ${fillerCount} filler verbs. Thay bằng action verbs mạnh: "built", "led", "shipped", "tối ưu", "xây dựng".`,
+        hint: h(
+          `Phát hiện ${fillerCount} filler verbs. Thay bằng action verbs mạnh: "built", "led", "shipped", "tối ưu", "xây dựng".`,
+          `Found ${fillerCount} filler verbs. Replace with strong action verbs: "built", "led", "shipped", "optimized".`,
+        ),
       };
     }
     return {
@@ -362,7 +425,10 @@ export class AtsRuleCheckerService {
       label,
       status: 'fail',
       score: 0,
-      hint: `Phát hiện ${fillerCount} filler verbs — CV nghe như mô tả công việc chứ không phải thành tựu. Rewrite với action verb + số liệu.`,
+      hint: h(
+        `Phát hiện ${fillerCount} filler verbs — CV nghe như mô tả công việc chứ không phải thành tựu. Rewrite với action verb + số liệu.`,
+        `Found ${fillerCount} filler verbs — the CV reads like a job description, not accomplishments. Rewrite with action verbs + numbers.`,
+      ),
     };
   }
 }

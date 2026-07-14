@@ -6,6 +6,7 @@ import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.e
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
 import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
+import { CvVersionEntity } from '../../database/entities/cv-version.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { StorageModule } from '../../infrastructure/storage/storage.module';
 import { CvBuilderModule } from '../../modules/cv-builder/cv-builder.module';
@@ -33,6 +34,7 @@ import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
     TypeOrmModule.forFeature([
       CvEntity,
       CvSkillEntity,
+      CvVersionEntity,
       SkillEntity,
       CvConsentAuditEntity,
       AiResultEntity,

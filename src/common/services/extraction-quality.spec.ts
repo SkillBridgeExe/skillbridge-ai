@@ -108,6 +108,23 @@ describe('assessExtractionQuality', () => {
     expect(q.section_count).toBeLessThan(3);
     expect(q.confidence).toBe('medium');
     expect(q.flags).toContain('SPARSE_SECTIONS');
+    // emptyCanonicalCv has no contact → the parse-failure proxy also fires here.
+    expect(q.flags).toContain('NO_CONTACT_ANCHOR');
+  });
+
+  it('clean text + rich doc but NO name AND NO email → confidence medium + NO_CONTACT_ANCHOR (parse-failure proxy)', () => {
+    const doc = richDoc();
+    doc.contact = { name: null, email: null, phone: '0900', location: null, links: [] };
+    const q = assessExtractionQuality(CLEAN_EN, doc);
+    expect(q.flags).toContain('NO_CONTACT_ANCHOR');
+    expect(q.confidence).toBe('medium');
+  });
+
+  it('a name OR an email present → NO_CONTACT_ANCHOR does NOT fire', () => {
+    const doc = richDoc();
+    doc.contact = { name: null, email: 'a@x.dev', phone: null, location: null, links: [] };
+    const q = assessExtractionQuality(CLEAN_EN, doc);
+    expect(q.flags).not.toContain('NO_CONTACT_ANCHOR');
   });
 
   it('skill_count falls back to declared skills when no scan is provided', () => {
@@ -130,5 +147,59 @@ describe('assessExtractionQuality', () => {
     const q = assessExtractionQuality(CLEAN_EN, richDoc());
     expect(Object.keys(q)).not.toContain('overall_score');
     expect(Object.keys(q)).not.toContain('score');
+  });
+
+  // TRUST' T1: input_quality is the 3-state trust verdict FE gates the score on. unusable requires
+  // MULTIPLE hard signals to agree (a single low-confidence signal is only "suspect"); a missing
+  // contact anchor is a supporting signal that can never, by itself, make a CV unusable.
+  describe('input_quality (3-state)', () => {
+    it('clean CV → usable', () => {
+      expect(assessExtractionQuality(CLEAN_EN, richDoc()).input_quality).toBe('usable');
+    });
+
+    it('a single hard signal (OCR on clean text) → suspect, not unusable', () => {
+      const q = assessExtractionQuality(CLEAN_EN, richDoc(), { ocrUsed: true });
+      expect(q.confidence).toBe('low');
+      expect(q.input_quality).toBe('suspect');
+    });
+
+    it('a single hard signal (thin content) → suspect', () => {
+      const q = assessExtractionQuality('Nguyen Van A. Backend dev. Node.js, SQL.', richDoc());
+      expect(q.flags).toContain('THIN_CONTENT');
+      expect(q.input_quality).toBe('suspect');
+    });
+
+    it('TWO+ hard signals agree (OCR + thin garbage) → unusable', () => {
+      const q = assessExtractionQuality('a b c', richDoc(), { ocrUsed: true });
+      expect(q.flags).toEqual(expect.arrayContaining(['OCR_USED', 'THIN_CONTENT']));
+      expect(q.input_quality).toBe('unusable');
+    });
+
+    it('mojibake-heavy OCR (mojibake_high + ocr) → unusable', () => {
+      const garbled = 'x � � � � � � � � y'.repeat(1);
+      const q = assessExtractionQuality(garbled, richDoc(), { ocrUsed: true });
+      expect(q.input_quality).toBe('unusable');
+    });
+
+    it('missing name AND email ALONE (clean text) → suspect, never unusable', () => {
+      const doc = richDoc();
+      doc.contact = { name: null, email: null, phone: '0900', location: null, links: [] };
+      const q = assessExtractionQuality(CLEAN_EN, doc);
+      expect(q.flags).toContain('NO_CONTACT_ANCHOR');
+      expect(q.input_quality).toBe('suspect');
+    });
+
+    it('a supporting-only signal (sparse sections, contact present) → suspect', () => {
+      // contact + summary = 2 non-empty sections (< 3) → SPARSE_SECTIONS only; contact present so
+      // NO_CONTACT_ANCHOR does NOT fire → the sole flag is a supporting one → suspect (not usable).
+      const sparse: CanonicalCvDocument = {
+        ...emptyCanonicalCv('en'),
+        contact: { name: 'A', email: 'a@x.dev', phone: null, location: null, links: [] },
+        summary: 'Backend developer.',
+      };
+      const q = assessExtractionQuality(CLEAN_EN, sparse);
+      expect(q.flags).toEqual(['SPARSE_SECTIONS']);
+      expect(q.input_quality).toBe('suspect');
+    });
   });
 });

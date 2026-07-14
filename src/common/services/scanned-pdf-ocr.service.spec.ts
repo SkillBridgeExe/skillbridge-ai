@@ -33,6 +33,7 @@ describe('ScannedPdfOcrService — config', () => {
       timeoutMs: 25000,
       maxPdfBytes: 10485760,
       dpi: 200,
+      retryDpi: 120,
     });
   });
 
@@ -170,15 +171,16 @@ describe('ScannedPdfOcrService — rescue (never-throws, worker injected, no thr
     expect(r.ocrUsed).toBe(false);
   });
 
-  it('timeout (result never resolves) → timeout, worker terminated once', async () => {
+  it('timeout with retry disabled (retryDpi=0) → timeout, single attempt, worker terminated once', async () => {
     const terminate = jest.fn(async () => {});
-    const s = new FakeOcr({ 'ocrFallback.timeoutMs': 20 }, scanner, {
+    const s = new FakeOcr({ 'ocrFallback.timeoutMs': 20, 'ocrFallback.retryDpi': 0 }, scanner, {
       result: () => new Promise<WorkerResult>(() => {}), // never resolves
       terminate,
     });
     const r = await s.rescue(buf, 'orig');
     expect(r.metadata.reason).toBe('timeout');
     expect(r.ocrUsed).toBe(false);
+    expect(r.metadata.retried).toBeUndefined();
     expect(terminate).toHaveBeenCalledTimes(1);
   });
 
@@ -221,6 +223,68 @@ describe('ScannedPdfOcrService — rescue (never-throws, worker injected, no thr
     const r = await s.rescue(buf, 'orig');
     expect(r.ocrUsed).toBe(false);
     expect(r.metadata.reason).toBe('ocr_not_better');
+  });
+
+  describe('timeout retry at lower DPI', () => {
+    /** FakeOcr that records the dpi of every runOcr call and serves per-call results. */
+    class DpiFakeOcr extends ScannedPdfOcrService {
+      readonly dpiCalls: number[] = [];
+      readonly terminate = jest.fn(async () => {});
+      constructor(
+        over: Record<string, unknown>,
+        private readonly results: Array<() => Promise<WorkerResult>>,
+      ) {
+        super(cfg(over), scanner);
+      }
+      protected runOcr(_buffer: Buffer, _maxPages: number, dpi: number) {
+        this.dpiCalls.push(dpi);
+        const next = this.results[this.dpiCalls.length - 1];
+        return {
+          result: next ? next() : Promise.resolve({ text: '', pages: 0, renderMs: 0, ocrMs: 0 }),
+          terminate: this.terminate,
+        };
+      }
+    }
+    const hang = () => new Promise<WorkerResult>(() => {}); // never resolves
+
+    it('primary timeout → one retry at retryDpi, OCR used; meta carries retried/dpiUsed', async () => {
+      const s = new DpiFakeOcr({ 'ocrFallback.timeoutMs': 20 }, [
+        hang,
+        async () => ({ text: 'react '.repeat(80), pages: 2, renderMs: 5, ocrMs: 9 }),
+      ]);
+      const r = await s.rescue(buf, 'orig');
+      expect(s.dpiCalls).toEqual([200, 120]);
+      expect(r.ocrUsed).toBe(true);
+      expect(r.metadata).toMatchObject({ decision: 'used_ocr', retried: true, dpiUsed: 120 });
+      expect(s.terminate).toHaveBeenCalledTimes(2); // both attempts hard-terminated
+    });
+
+    it('both attempts time out → kept_original timeout, retried flagged', async () => {
+      const s = new DpiFakeOcr({ 'ocrFallback.timeoutMs': 20 }, [hang, hang]);
+      const r = await s.rescue(buf, 'orig');
+      expect(s.dpiCalls).toEqual([200, 120]);
+      expect(r.ocrUsed).toBe(false);
+      expect(r.metadata).toMatchObject({ reason: 'timeout', retried: true, dpiUsed: 120 });
+      expect(s.terminate).toHaveBeenCalledTimes(2);
+    });
+
+    it('render error does NOT retry (retry is timeout-only)', async () => {
+      const s = new DpiFakeOcr({ 'ocrFallback.timeoutMs': 20 }, [rejectWith('render')]);
+      const r = await s.rescue(buf, 'orig');
+      expect(s.dpiCalls).toEqual([200]);
+      expect(r.metadata.reason).toBe('render_failed');
+      expect(r.metadata.retried).toBeUndefined();
+    });
+
+    it('no retry when retryDpi >= dpi (misconfig guard)', async () => {
+      const s = new DpiFakeOcr({ 'ocrFallback.timeoutMs': 20, 'ocrFallback.retryDpi': 200 }, [
+        hang,
+        hang,
+      ]);
+      const r = await s.rescue(buf, 'orig');
+      expect(s.dpiCalls).toEqual([200]);
+      expect(r.metadata.reason).toBe('timeout');
+    });
   });
 
   it('metadata is PII-safe: only TextMetrics + timings + decision, no raw CV text', async () => {

@@ -4,6 +4,8 @@ import {
   topicDimensions,
   band,
   aggregateInterviewScore,
+  explainInterviewScore,
+  AnswerEvidence,
   Dimension,
   RoleFamily,
   AnswerScore,
@@ -164,5 +166,108 @@ describe('aggregateInterviewScore', () => {
     });
     expect(out).toMatchObject({ overall: 0, scored_answers: 0 });
     expect(out.dimensions).toEqual([]);
+  });
+});
+
+describe('explainInterviewScore (Wave I-SCORE)', () => {
+  const ev = (over: Partial<AnswerEvidence>): AnswerEvidence => ({
+    topic_phase: 'SKILL_PROBE',
+    score: 75,
+    depth_signal: 'adequate',
+    ...over,
+  });
+
+  const STRONG =
+    'When checkout latency spiked, I was responsible for the fix. I implemented a Redis cache and as a result we reduced p99 latency by 30%.';
+
+  it('explains every scored dimension and totals align with the aggregated overall', () => {
+    const { score, explanations } = explainInterviewScore({
+      answers: [
+        ev({ evidence_excerpt: STRONG, linked_question_id: 'q1' }),
+        ev({
+          topic_phase: 'SCENARIO',
+          score: 60,
+          evidence_excerpt: 'Scenario answer with detail.',
+        }),
+        ev({ topic_phase: 'BEHAVIORAL', score: 80, evidence_excerpt: 'STAR story.' }),
+      ],
+      role: 'backend_developer',
+      seniority: 'senior',
+    });
+
+    expect(explanations.map((e) => e.dimension).sort()).toEqual(
+      score.dimensions.map((d) => d.dimension).sort(),
+    );
+    const totalWeight = explanations.reduce((s, e) => s + e.weight, 0);
+    const recomputed = Math.round(
+      explanations.reduce((s, e) => s + e.score * e.weight, 0) / totalWeight,
+    );
+    expect(recomputed).toBe(score.overall);
+  });
+
+  it('quotes evidence from the strongest contributing answer, masked and truncated', () => {
+    const { explanations } = explainInterviewScore({
+      answers: [
+        ev({ score: 40, depth_signal: 'shallow', evidence_excerpt: 'Weak vague answer text.' }),
+        ev({
+          score: 85,
+          depth_signal: 'deep',
+          evidence_excerpt: `${STRONG} Reach me at candidate@example.com.`,
+          linked_question_id: 'q2',
+        }),
+      ],
+      role: 'backend_developer',
+      seniority: 'senior',
+    });
+    const tech = explanations.find((e) => e.dimension === 'technical_depth');
+    expect(tech?.evidence_quote).toContain('Redis cache');
+    expect(tech?.evidence_quote).not.toContain('candidate@example.com');
+    expect(tech?.linked_question_id).toBe('q2');
+  });
+
+  it('raises uncertainty when evidence text is missing', () => {
+    const withText = explainInterviewScore({
+      answers: [ev({ evidence_excerpt: STRONG })],
+      role: 'backend_developer',
+      seniority: 'senior',
+    }).explanations[0];
+    const noText = explainInterviewScore({
+      answers: [ev({})],
+      role: 'backend_developer',
+      seniority: 'senior',
+    }).explanations[0];
+
+    expect(noText.evidence_quote).toBeNull();
+    const order = { low: 0, medium: 1, high: 2 } as const;
+    expect(order[noText.uncertainty]).toBeGreaterThan(order[withText.uncertainty]);
+  });
+
+  it('marks a thin dimension (single evasive answer) as high uncertainty with a below-solid anchor', () => {
+    const { explanations } = explainInterviewScore({
+      answers: [ev({ score: 25, depth_signal: 'evasive', evidence_excerpt: 'I do not know.' })],
+      role: 'backend_developer',
+      seniority: 'senior',
+    });
+    const tech = explanations.find((e) => e.dimension === 'technical_depth');
+    expect(tech?.uncertainty).toBe('high');
+    expect(tech?.band).toBe('poor');
+    expect(tech?.rubric_anchor).toContain('poor');
+    expect(tech?.improvement_hint).toBeTruthy();
+  });
+
+  it('gives strong dimensions their band anchor and no forced improvement hint', () => {
+    const { explanations } = explainInterviewScore({
+      answers: [
+        ev({ score: 90, depth_signal: 'deep', evidence_excerpt: STRONG }),
+        ev({ score: 88, depth_signal: 'deep', evidence_excerpt: STRONG }),
+      ],
+      role: 'backend_developer',
+      seniority: 'senior',
+    });
+    const tech = explanations.find((e) => e.dimension === 'technical_depth');
+    expect(tech?.band).toBe('outstanding');
+    expect(tech?.rubric_anchor).toContain('outstanding');
+    expect(tech?.uncertainty).toBe('low');
+    expect(tech?.improvement_hint).toBeNull();
   });
 });

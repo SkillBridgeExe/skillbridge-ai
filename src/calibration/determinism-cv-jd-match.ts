@@ -24,8 +24,9 @@ const CANDIDATE_PROVIDER =
 const SEED =
   process.env.DETERMINISM_SEED !== undefined ? Number(process.env.DETERMINISM_SEED) : undefined;
 const DELAY_MS = Number(process.env.EVAL_DELAY_MS ?? 2000);
-// prod default template; override to cv_jd_match_v2 (the live prod template) for prod-parity runs.
-const TEMPLATE = process.env.DETERMINISM_TEMPLATE ?? 'cv_jd_match_v1';
+// prod default template (v2 since the code-default flip); override to cv_jd_match_v1 to measure
+// the legacy skill-only baseline.
+const TEMPLATE = process.env.DETERMINISM_TEMPLATE ?? 'cv_jd_match_v2';
 // Optional comma-separated case-id filter (e.g. det-bilingual-vi) to probe one case cheaply.
 const ONLY = (process.env.DETERMINISM_ONLY ?? '')
   .split(',')

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +10,7 @@ import { createHash, randomUUID } from 'crypto';
 import { DataSource, In, Repository } from 'typeorm';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvSkillEntity } from '../../database/entities/cv-skill.entity';
+import { CompanyEntity } from '../../database/entities/company.entity';
 import { JobApplicationStatusEventEntity } from '../../database/entities/job-application-status-event.entity';
 import { JobApplicationEntity } from '../../database/entities/job-application.entity';
 import { JobPostVersionEntity } from '../../database/entities/job-post-version.entity';
@@ -18,7 +20,16 @@ import { SavedJobEntity } from '../../database/entities/saved-job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { GcsStorageService } from '../../infrastructure/storage/gcs-storage.service';
-import { SkillDiffService } from '../../modules/cv-jd-match/skill-diff.service';
+import {
+  DiffResult,
+  RawCvSkill,
+  SkillDiffService,
+} from '../../modules/cv-jd-match/skill-diff.service';
+import {
+  loadLatestReviewSkills,
+  toRawCvSkills,
+  ScoreBasis,
+} from '../../modules/cv-jd-match/cv-review-facts';
 import { CvPdfRendererService } from '../cvs/cv-pdf-renderer.service';
 import { ApplyToJobDto } from './dto/business-jobs.dto';
 import { BusinessJobsMaintenanceService } from './business-jobs-maintenance.service';
@@ -34,8 +45,11 @@ import {
 
 @Injectable()
 export class CandidateJobService {
+  private readonly logger = new Logger(CandidateJobService.name);
+
   constructor(
     @InjectRepository(JobEntity) private readonly jobs: Repository<JobEntity>,
+    @InjectRepository(CompanyEntity) private readonly companies: Repository<CompanyEntity>,
     @InjectRepository(JobPostVersionEntity)
     private readonly versions: Repository<JobPostVersionEntity>,
     @InjectRepository(SavedJobEntity) private readonly savedJobs: Repository<SavedJobEntity>,
@@ -233,10 +247,19 @@ export class CandidateJobService {
     }
 
     try {
-      const match = this.computeMatch(cvSkillSnapshot, version);
+      // R1: same proficiency-aware facts as the job-recommendation cards. Loaded INSIDE this try —
+      // a review-lookup failure degrades to matchStatus=FAILED, never blocks the submission.
+      const match = this.computeMatch(
+        await this.loadCvSkillFacts(userId, cv.id, cvSkillSnapshot),
+        version,
+      );
       application.matchStatus = 'READY';
-      application.matchScore = String(match.overall_score);
-      application.matchScoringVersion = 'skill-diff-v1';
+      // null-safe: a no-basis match (null score) persists as SQL NULL, not the string "null".
+      // matchResult is still stored so the UI can inspect degraded_reasons.
+      application.matchScore = toMatchScoreColumn(match.overall_score);
+      // v2 = R1 input basis change (presence-only → proficiency-aware review facts). Rows scored
+      // before/after are not comparable 1:1 — keep the version honest for anyone querying them.
+      application.matchScoringVersion = 'skill-diff-v2';
       application.matchResult = match;
       application.matchComputedAt = new Date();
     } catch {
@@ -278,7 +301,8 @@ export class CandidateJobService {
         errorCode: 'JOB_NOT_FOUND',
         message: 'Job match data is unavailable',
       });
-    return this.computeMatch(await this.loadCvSkillSnapshot(cv.id), version);
+    const snapshot = await this.loadCvSkillSnapshot(cv.id);
+    return this.computeMatch(await this.loadCvSkillFacts(userId, cv.id, snapshot), version);
   }
 
   async listMyApplications(userId: string, page = 1, limit = 20) {
@@ -289,7 +313,39 @@ export class CandidateJobService {
       skip: (Math.max(page, 1) - 1) * take,
       take,
     });
-    return { items: items.map(safeApplication), total, page: Math.max(page, 1), limit: take };
+    const jobs = items.length
+      ? await this.jobs.find({
+          where: { id: In([...new Set(items.map((item) => item.jobId))]) },
+        })
+      : [];
+    const companies = jobs.length
+      ? await this.companies.find({
+          where: { id: In([...new Set(jobs.map((job) => job.companyId))]) },
+        })
+      : [];
+    const companyNameById = new Map(companies.map((company) => [company.id, company.name]));
+    const jobById = new Map(jobs.map((job) => [job.id, job]));
+
+    return {
+      items: items.map((application) => {
+        const job = jobById.get(application.jobId);
+        return {
+          ...safeApplication(application),
+          job: job
+            ? {
+                id: job.id,
+                slug: job.slug,
+                title: job.title,
+                companyName: companyNameById.get(job.companyId) ?? null,
+                location: job.location,
+              }
+            : null,
+        };
+      }),
+      total,
+      page: Math.max(page, 1),
+      limit: take,
+    };
   }
 
   async getMyApplication(userId: string, applicationId: string) {
@@ -386,9 +442,39 @@ export class CandidateJobService {
     }));
   }
 
-  private computeMatch(cvSkills: Array<{ canonicalName: string }>, version: JobPostVersionEntity) {
-    return this.skillDiff.diff({
-      cv_skills_raw: cvSkills.map((skill) => ({ name: skill.canonicalName })),
+  /**
+   * R1 — the SAME fact set the job-recommendation cards score from: latest review's
+   * proficiency-bearing skills when one exists, presence-only snapshot canonicals otherwise.
+   * The persisted cvSkillsSnapshot is unchanged (audit trail of what the CV formally listed).
+   * Never-throw: the snapshot facts are already in memory, so a transient failure of the
+   * review lookup degrades to presence-only scoring instead of failing the match forever
+   * (apply persists matchStatus=FAILED with no recompute path) or 500ing matchJob.
+   */
+  private async loadCvSkillFacts(
+    userId: string,
+    cvId: string,
+    snapshot: Array<{ canonicalName: string }>,
+  ): Promise<RawCvSkill[]> {
+    let review: Awaited<ReturnType<typeof loadLatestReviewSkills>> = null;
+    try {
+      review = await loadLatestReviewSkills(this.dataSource, userId, cvId);
+    } catch (err) {
+      this.logger.warn(
+        `review-skills lookup failed for cv ${cvId} — scoring presence-only: ${String(err)}`,
+      );
+    }
+    return toRawCvSkills(
+      review,
+      snapshot.map((skill) => skill.canonicalName),
+    );
+  }
+
+  private computeMatch(
+    cvSkillsRaw: RawCvSkill[],
+    version: JobPostVersionEntity,
+  ): DiffResult & { score_basis: ScoreBasis } {
+    const diff = this.skillDiff.diff({
+      cv_skills_raw: cvSkillsRaw,
       jd_requirements_raw: version.skills.map((skill) => ({
         name: skill.canonicalName,
         importance_hint: skill.importance,
@@ -397,6 +483,9 @@ export class CandidateJobService {
       })),
       target_role: version.roleCode,
     });
+    // R2: this surface never grades seniority or deal-breakers — label it so the FE cannot present
+    // the number as a fuller verdict than it is (reco cards carry 'skills_and_seniority').
+    return { ...diff, score_basis: 'skills_only' };
   }
 
   private async snapshotCv(userId: string, applicationId: string, cv: CvEntity) {
@@ -459,6 +548,13 @@ export class CandidateJobService {
       message: 'Job application not found',
     });
   }
+}
+
+/** TRUST' P2: convert a match score to the numeric-column value. A null score (no requirement
+ *  basis) must persist as SQL NULL — String(null) would write the literal "null" and break the
+ *  numeric write. */
+export function toMatchScoreColumn(score: number | null): string | null {
+  return score === null ? null : String(score);
 }
 
 export function snapshotCandidateContact(

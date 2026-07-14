@@ -23,13 +23,13 @@ export class DiagnosisController {
   })
   @ApiBody({ type: PlatformCvReviewRequestDto })
   review(@CurrentUser() user: JwtUser, @Body() dto: PlatformCvReviewRequestDto) {
-    return this.cvs.rerunReview(user.userId, dto.cvId, dto.targetRole);
+    return this.cvs.rerunReview(user.userId, dto.cvId, dto.targetRole, dto.lang);
   }
 
   @Get('history')
   @ApiOperation({
     summary: 'List CV diagnosis history',
-    description: 'Alias of CV list for the current user, intended for diagnosis/history screens.',
+    description: 'Returns only uploaded CVs that belong in diagnosis/history screens.',
   })
   @ApiQuery({
     name: 'page',
@@ -39,6 +39,6 @@ export class DiagnosisController {
   })
   @ApiQuery({ name: 'limit', required: false, example: 20, description: 'Items per page, max 50.' })
   history(@CurrentUser() user: JwtUser, @Query() query: CvListQueryDto) {
-    return this.cvs.list(user.userId, query);
+    return this.cvs.list(user.userId, { ...query, cvKind: 'UPLOADED' });
   }
 }
