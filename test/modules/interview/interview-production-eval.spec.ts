@@ -260,3 +260,74 @@ describe('scoreInterviewProductionCase — score bands', () => {
     expect(bad.mismatches.join(' ')).toContain('overall');
   });
 });
+
+describe('scoreInterviewProductionCase — I-CONSIST consistency guard', () => {
+  it('caps an evasive-but-high labeled score and requires the cap to be declared', () => {
+    const undeclared = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            depth_signal: 'evasive',
+            score: 90,
+            expected_decision: 'drill',
+            expected_score_band: [55, 65],
+          }),
+        ],
+      }),
+    );
+    expect(undeclared.pass).toBe(false);
+    expect(undeclared.mismatches.join(' ')).toContain('score_capped_evasive');
+
+    const declared = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            depth_signal: 'evasive',
+            score: 90,
+            expected_decision: 'drill',
+            expected_caps: ['score_capped_evasive'],
+            expected_score_band: [55, 65],
+          }),
+        ],
+      }),
+    );
+    expect(declared.mismatches).toEqual([]);
+    expect(declared.pass).toBe(true);
+  });
+
+  it('caps an off-topic answer at the poor ceiling and aggregates the reconciled score', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            score: 78,
+            depth_signal: 'adequate',
+            insight: { off_topic: true },
+            expected_decision: 'drill',
+            expected_caps: ['score_capped_off_topic'],
+            expected_score_band: [35, 45],
+          }),
+        ],
+        expected_overall_band: [35, 45],
+      }),
+    );
+    expect(out.mismatches).toEqual([]);
+    expect(out.overall).toBeLessThanOrEqual(40);
+  });
+
+  it('fails the case when a declared cap does not fire (stale corpus label)', () => {
+    const out = scoreInterviewProductionCase(
+      baseCase({
+        turns: [
+          turn({
+            score: 45,
+            depth_signal: 'shallow',
+            expected_caps: ['score_capped_shallow'],
+          }),
+        ],
+      }),
+    );
+    expect(out.pass).toBe(false);
+    expect(out.mismatches.join(' ')).toMatch(/caps \[\] != expected \[score_capped_shallow\]/);
+  });
+});

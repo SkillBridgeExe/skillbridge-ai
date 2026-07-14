@@ -15,15 +15,29 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "react",
           "display_name": "React",
-          "jd_terms": ["React", "Hooks", "Redux"],
+          "jd_terms": [
+            "React",
+            "Hooks",
+            "Redux"
+          ],
           "depth_signal": "shallow",
           "score": 45,
           "drill_depth": 0,
           "drill_budget": 3,
           "expected_decision": "drill",
-          "expected_flags": ["too_short", "missing_example", "hedging_present", "jd_coverage_low"],
-          "forbidden_flags": ["quantified"],
-          "expected_score_band": [35, 60]
+          "expected_flags": [
+            "too_short",
+            "missing_example",
+            "hedging_present",
+            "jd_coverage_low"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            35,
+            60
+          ]
         },
         {
           "question": "What actually happens when you call setState?",
@@ -31,14 +45,23 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "react",
           "display_name": "React",
-          "jd_terms": ["React", "Hooks", "Redux"],
+          "jd_terms": [
+            "React",
+            "Hooks",
+            "Redux"
+          ],
           "depth_signal": "shallow",
           "score": 40,
           "drill_depth": 1,
           "drill_budget": 3,
           "expected_decision": "drill",
-          "expected_flags": ["missing_example"],
-          "expected_score_band": [30, 55]
+          "expected_flags": [
+            "missing_example"
+          ],
+          "expected_score_band": [
+            30,
+            55
+          ]
         },
         {
           "question": "If you had to learn the missing pieces for this JD, where would you start?",
@@ -46,21 +69,42 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "react",
           "display_name": "React",
-          "jd_terms": ["React", "Hooks", "Redux"],
+          "jd_terms": [
+            "React",
+            "Hooks",
+            "Redux"
+          ],
           "depth_signal": "adequate",
           "score": 55,
           "drill_depth": 2,
           "drill_budget": 3,
           "expected_decision": "advance",
-          "expected_score_band": [45, 70]
+          "expected_score_band": [
+            45,
+            70
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "react" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "react" }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "react"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "react"
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [42, 54]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        42,
+        54
+      ]
     },
     {
       "id": "be-junior-api-debugging",
@@ -77,15 +121,29 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "nodejs",
           "display_name": "API debugging (Node.js)",
-          "jd_terms": ["API", "logs", "index"],
+          "jd_terms": [
+            "API",
+            "logs",
+            "index"
+          ],
           "depth_signal": "adequate",
           "score": 70,
           "drill_depth": 0,
           "drill_budget": 2,
           "expected_decision": "drill",
-          "expected_flags": ["quantified", "star_complete"],
-          "forbidden_flags": ["missing_example", "too_short", "jd_coverage_low"],
-          "expected_score_band": [60, 80]
+          "expected_flags": [
+            "quantified",
+            "star_complete"
+          ],
+          "forbidden_flags": [
+            "missing_example",
+            "too_short",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            60,
+            80
+          ]
         },
         {
           "question": "And if the index had not fixed it, what would your next steps have been?",
@@ -93,23 +151,43 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "nodejs",
           "display_name": "API debugging (Node.js)",
-          "jd_terms": ["EXPLAIN", "query plan"],
+          "jd_terms": [
+            "EXPLAIN",
+            "query plan"
+          ],
           "depth_signal": "adequate",
           "score": 72,
           "drill_depth": 1,
           "drill_budget": 2,
           "expected_decision": "advance",
-          "expected_flags": ["quantified"],
-          "expected_score_band": [60, 85]
+          "expected_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            60,
+            85
+          ]
         }
       ],
       "expected_final_gaps": [],
       "forbidden_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "nodejs" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "nodejs" },
-        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "nodejs"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "nodejs"
+        },
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
       ],
-      "expected_overall_band": [65, 77]
+      "expected_overall_band": [
+        65,
+        77
+      ]
     },
     {
       "id": "ai-app-rag-hallucination-tradeoff",
@@ -126,15 +204,26 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "rag",
           "display_name": "RAG / retrieval quality",
-          "jd_terms": ["pgvector", "chunking", "latency"],
+          "jd_terms": [
+            "pgvector",
+            "chunking",
+            "latency"
+          ],
           "depth_signal": "deep",
           "score": 85,
           "drill_depth": 0,
           "drill_budget": 3,
           "expected_decision": "push_harder",
-          "expected_flags": ["quantified"],
-          "forbidden_flags": ["missing_example"],
-          "expected_score_band": [75, 95]
+          "expected_flags": [
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "missing_example"
+          ],
+          "expected_score_band": [
+            75,
+            95
+          ]
         },
         {
           "question": "Push on that: what still gets through the grounding check?",
@@ -142,7 +231,10 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "rag",
           "display_name": "RAG / retrieval quality",
-          "jd_terms": ["grounding", "citation"],
+          "jd_terms": [
+            "grounding",
+            "citation"
+          ],
           "depth_signal": "deep",
           "score": 88,
           "drill_depth": 1,
@@ -155,10 +247,18 @@
             "confidence_tone": "calibrated",
             "note": "",
             "has_specific_example": true,
-            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": true
+            }
           },
           "expected_decision": "push_harder",
-          "expected_score_band": [78, 98]
+          "expected_score_band": [
+            78,
+            98
+          ]
         },
         {
           "question": "What is the retrieval tradeoff you watch most?",
@@ -166,23 +266,43 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "rag",
           "display_name": "RAG / retrieval quality",
-          "jd_terms": ["recall", "precision"],
+          "jd_terms": [
+            "recall",
+            "precision"
+          ],
           "depth_signal": "deep",
           "score": 86,
           "drill_depth": 2,
           "drill_budget": 3,
           "expected_decision": "advance",
-          "expected_flags": ["quantified"],
-          "expected_score_band": [76, 96]
+          "expected_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            76,
+            96
+          ]
         }
       ],
       "expected_final_gaps": [],
       "forbidden_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "rag" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "rag" },
-        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "rag"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "rag"
+        },
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
       ],
-      "expected_overall_band": [80, 92]
+      "expected_overall_band": [
+        80,
+        92
+      ]
     },
     {
       "id": "mobile-intern-i-dont-know",
@@ -199,15 +319,25 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "kotlin",
           "display_name": "Kotlin coroutines",
-          "jd_terms": ["Coroutines", "Flow", "suspend"],
+          "jd_terms": [
+            "Coroutines",
+            "Flow",
+            "suspend"
+          ],
           "depth_signal": "evasive",
           "score": 20,
           "drill_depth": 0,
           "drill_budget": 2,
           "evasive_streak": 0,
           "expected_decision": "drill",
-          "expected_flags": ["missing_example", "jd_coverage_low"],
-          "expected_score_band": [10, 35]
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            10,
+            35
+          ]
         },
         {
           "question": "No problem — can you reason about what cancellation would need to work?",
@@ -215,23 +345,47 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "kotlin",
           "display_name": "Kotlin coroutines",
-          "jd_terms": ["Coroutines", "Flow", "suspend"],
+          "jd_terms": [
+            "Coroutines",
+            "Flow",
+            "suspend"
+          ],
           "depth_signal": "evasive",
           "score": 15,
           "drill_depth": 1,
           "drill_budget": 2,
           "evasive_streak": 1,
           "expected_decision": "advance",
-          "expected_flags": ["too_short", "jd_coverage_low"],
-          "expected_score_band": [5, 30]
+          "expected_flags": [
+            "too_short",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            5,
+            30
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "kotlin" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "kotlin" }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "kotlin"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "kotlin"
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [12, 25]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        12,
+        25
+      ]
     },
     {
       "id": "qa-automation-flaky-scenario",
@@ -248,15 +402,26 @@
           "topic_phase": "SCENARIO",
           "skill_canonical": "test-automation",
           "display_name": "Flaky test strategy",
-          "jd_terms": ["flaky", "retries", "CI"],
+          "jd_terms": [
+            "flaky",
+            "retries",
+            "CI"
+          ],
           "depth_signal": "adequate",
           "score": 75,
           "drill_depth": 0,
           "drill_budget": 2,
           "expected_decision": "drill",
-          "expected_flags": ["quantified"],
-          "forbidden_flags": ["missing_example"],
-          "expected_score_band": [65, 85]
+          "expected_flags": [
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "missing_example"
+          ],
+          "expected_score_band": [
+            65,
+            85
+          ]
         },
         {
           "question": "What is the downside of retries, and how do you keep them honest?",
@@ -264,18 +429,32 @@
           "topic_phase": "SCENARIO",
           "skill_canonical": "test-automation",
           "display_name": "Flaky test strategy",
-          "jd_terms": ["retries", "race conditions"],
+          "jd_terms": [
+            "retries",
+            "race conditions"
+          ],
           "depth_signal": "adequate",
           "score": 72,
           "drill_depth": 1,
           "drill_budget": 2,
           "expected_decision": "advance",
-          "expected_score_band": [60, 85]
+          "expected_score_band": [
+            60,
+            85
+          ]
         }
       ],
       "expected_final_gaps": [],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [68, 80]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        68,
+        80
+      ]
     },
     {
       "id": "data-analyst-sql-case",
@@ -292,15 +471,27 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "sql",
           "display_name": "SQL reporting",
-          "jd_terms": ["SQL", "index", "GROUP BY"],
+          "jd_terms": [
+            "SQL",
+            "index",
+            "GROUP BY"
+          ],
           "depth_signal": "adequate",
           "score": 68,
           "drill_depth": 0,
           "drill_budget": 2,
           "expected_decision": "drill",
-          "expected_flags": ["quantified"],
-          "forbidden_flags": ["jd_coverage_low", "missing_example"],
-          "expected_score_band": [58, 80]
+          "expected_flags": [
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "jd_coverage_low",
+            "missing_example"
+          ],
+          "expected_score_band": [
+            58,
+            80
+          ]
         },
         {
           "question": "How would you compute a running total per customer?",
@@ -308,22 +499,46 @@
           "topic_phase": "JD_REQUIREMENT",
           "skill_canonical": "sql",
           "display_name": "SQL reporting",
-          "jd_terms": ["window functions", "CTE", "query plan"],
+          "jd_terms": [
+            "window functions",
+            "CTE",
+            "query plan"
+          ],
           "depth_signal": "shallow",
           "score": 45,
           "drill_depth": 1,
           "drill_budget": 2,
           "expected_decision": "advance",
-          "expected_flags": ["missing_example", "jd_coverage_low"],
-          "expected_score_band": [35, 60]
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            35,
+            60
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "sql" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "sql" }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "sql"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "sql"
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [53, 65]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        53,
+        65
+      ]
     },
     {
       "id": "vi-answer-english-jd",
@@ -340,15 +555,28 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "react",
           "display_name": "React",
-          "jd_terms": ["React", "Redux", "TypeScript"],
+          "jd_terms": [
+            "React",
+            "Redux",
+            "TypeScript"
+          ],
           "depth_signal": "shallow",
           "score": 40,
           "drill_depth": 0,
           "drill_budget": 2,
           "expected_decision": "drill",
-          "expected_flags": ["filler_high", "missing_example", "jd_coverage_low"],
-          "forbidden_flags": ["quantified"],
-          "expected_score_band": [30, 55]
+          "expected_flags": [
+            "filler_high",
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            30,
+            55
+          ]
         },
         {
           "question": "Vậy nếu component render chậm thì em xử lý thế nào?",
@@ -356,24 +584,52 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "react",
           "display_name": "React",
-          "jd_terms": ["React", "Redux", "TypeScript"],
+          "jd_terms": [
+            "React",
+            "Redux",
+            "TypeScript"
+          ],
           "depth_signal": "evasive",
           "score": 25,
           "drill_depth": 1,
           "drill_budget": 2,
           "evasive_streak": 0,
           "expected_decision": "advance",
-          "expected_flags": ["hedging_present", "too_short", "jd_coverage_low"],
-          "expected_score_band": [10, 40]
+          "expected_flags": [
+            "hedging_present",
+            "too_short",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            10,
+            40
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "react" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "react" },
-        { "weakness_type": "communication_gap", "skill_canonical": null }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "react"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "react"
+        },
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [28, 40]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        28,
+        40
+      ]
     },
     {
       "id": "senior-strong-answer-wrap",
@@ -390,15 +646,27 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "kafka",
           "display_name": "Kafka / delivery semantics",
-          "jd_terms": ["Kafka", "idempotent", "throughput"],
+          "jd_terms": [
+            "Kafka",
+            "idempotent",
+            "throughput"
+          ],
           "depth_signal": "deep",
           "score": 90,
           "drill_depth": 0,
           "drill_budget": 3,
           "expected_decision": "push_harder",
-          "expected_flags": ["quantified"],
-          "forbidden_flags": ["missing_example", "jd_coverage_low"],
-          "expected_score_band": [80, 100]
+          "expected_flags": [
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            80,
+            100
+          ]
         },
         {
           "question": "Last one before we wrap: what would you do differently?",
@@ -406,7 +674,10 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "kafka",
           "display_name": "Kafka / delivery semantics",
-          "jd_terms": ["replay", "idempotency"],
+          "jd_terms": [
+            "replay",
+            "idempotency"
+          ],
           "depth_signal": "deep",
           "score": 88,
           "drill_depth": 1,
@@ -420,19 +691,39 @@
             "confidence_tone": "calibrated",
             "note": "",
             "has_specific_example": true,
-            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": true
+            }
           },
           "expected_decision": "wrap",
-          "expected_score_band": [78, 98]
+          "expected_score_band": [
+            78,
+            98
+          ]
         }
       ],
       "expected_final_gaps": [],
       "forbidden_gaps": [
-        { "weakness_type": "knowledge_gap", "skill_canonical": "kafka" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "kafka" },
-        { "weakness_type": "behavioral_gap", "skill_canonical": null }
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "kafka"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "kafka"
+        },
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
       ],
-      "expected_overall_band": [84, 94]
+      "expected_overall_band": [
+        84,
+        94
+      ]
     },
     {
       "id": "off-topic-answer",
@@ -449,7 +740,11 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "css",
           "display_name": "CSS layout",
-          "jd_terms": ["CSS", "Flexbox", "Grid"],
+          "jd_terms": [
+            "CSS",
+            "Flexbox",
+            "Grid"
+          ],
           "depth_signal": "shallow",
           "score": 25,
           "drill_depth": 0,
@@ -462,11 +757,22 @@
             "confidence_tone": "calibrated",
             "note": "",
             "has_specific_example": false,
-            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
           },
           "expected_decision": "drill",
-          "expected_flags": ["missing_example", "jd_coverage_low"],
-          "expected_score_band": [15, 40]
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            15,
+            40
+          ]
         },
         {
           "question": "Let me bring us back to the question: how would you lay out this page?",
@@ -474,22 +780,43 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "css",
           "display_name": "CSS layout",
-          "jd_terms": ["CSS", "Flexbox", "Grid"],
+          "jd_terms": [
+            "CSS",
+            "Flexbox",
+            "Grid"
+          ],
           "depth_signal": "adequate",
           "score": 55,
           "drill_depth": 1,
           "drill_budget": 2,
           "expected_decision": "advance",
-          "forbidden_flags": ["jd_coverage_low"],
-          "expected_score_band": [45, 70]
+          "forbidden_flags": [
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            45,
+            70
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "communication_gap", "skill_canonical": null },
-        { "weakness_type": "knowledge_gap", "skill_canonical": "css" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "css" }
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "css"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "css"
+        }
       ],
-      "expected_overall_band": [37, 49]
+      "expected_overall_band": [
+        37,
+        49
+      ]
     },
     {
       "id": "overclaimed-cv-skill",
@@ -506,7 +833,11 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "kubernetes",
           "display_name": "Kubernetes",
-          "jd_terms": ["Kubernetes", "Helm", "network policies"],
+          "jd_terms": [
+            "Kubernetes",
+            "Helm",
+            "network policies"
+          ],
           "depth_signal": "shallow",
           "score": 35,
           "drill_depth": 0,
@@ -519,12 +850,25 @@
             "confidence_tone": "over",
             "note": "",
             "has_specific_example": false,
-            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
           },
           "expected_decision": "drill",
-          "expected_flags": ["missing_example", "jd_coverage_low"],
-          "forbidden_flags": ["quantified"],
-          "expected_score_band": [25, 50]
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            25,
+            50
+          ]
         },
         {
           "question": "Give me one specific incident: what broke, and what did you do?",
@@ -532,7 +876,11 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "kubernetes",
           "display_name": "Kubernetes",
-          "jd_terms": ["Kubernetes", "Helm", "network policies"],
+          "jd_terms": [
+            "Kubernetes",
+            "Helm",
+            "network policies"
+          ],
           "depth_signal": "shallow",
           "score": 30,
           "drill_depth": 1,
@@ -545,19 +893,43 @@
             "confidence_tone": "over",
             "note": "",
             "has_specific_example": false,
-            "star_present": { "situation": false, "task": false, "action": false, "result": false }
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
           },
           "expected_decision": "advance",
-          "expected_flags": ["missing_example"],
-          "expected_score_band": [20, 45]
+          "expected_flags": [
+            "missing_example"
+          ],
+          "expected_score_band": [
+            20,
+            45
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "evidence_gap", "skill_canonical": "kubernetes" },
-        { "weakness_type": "knowledge_gap", "skill_canonical": "kubernetes" }
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "kubernetes"
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "kubernetes"
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [27, 39]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        27,
+        39
+      ]
     },
     {
       "id": "good-star-behavioral",
@@ -587,20 +959,43 @@
             "confidence_tone": "calibrated",
             "note": "",
             "has_specific_example": true,
-            "star_present": { "situation": true, "task": true, "action": true, "result": true }
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": true
+            }
           },
           "expected_decision": "advance",
-          "expected_flags": ["star_complete", "quantified"],
-          "forbidden_flags": ["star_missing_result", "missing_example"],
-          "expected_score_band": [75, 95]
+          "expected_flags": [
+            "star_complete",
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "star_missing_result",
+            "missing_example"
+          ],
+          "expected_score_band": [
+            75,
+            95
+          ]
         }
       ],
       "expected_final_gaps": [],
       "forbidden_gaps": [
-        { "weakness_type": "behavioral_gap", "skill_canonical": null },
-        { "weakness_type": "communication_gap", "skill_canonical": null }
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        }
       ],
-      "expected_overall_band": [80, 90]
+      "expected_overall_band": [
+        80,
+        90
+      ]
     },
     {
       "id": "scenario-incident-chain",
@@ -617,14 +1012,22 @@
           "topic_phase": "SCENARIO",
           "skill_canonical": "postgres",
           "display_name": "Scenario: Postgres incident",
-          "jd_terms": ["logs", "deploy"],
+          "jd_terms": [
+            "logs",
+            "deploy"
+          ],
           "depth_signal": "adequate",
           "score": 70,
           "drill_depth": 0,
           "drill_budget": 3,
           "expected_decision": "drill",
-          "forbidden_flags": ["too_short"],
-          "expected_score_band": [60, 80]
+          "forbidden_flags": [
+            "too_short"
+          ],
+          "expected_score_band": [
+            60,
+            80
+          ]
         },
         {
           "question": "The rollback did not help — the logs show timeouts. What now?",
@@ -632,13 +1035,19 @@
           "topic_phase": "SCENARIO",
           "skill_canonical": "postgres",
           "display_name": "Scenario: Postgres incident",
-          "jd_terms": ["database", "query"],
+          "jd_terms": [
+            "database",
+            "query"
+          ],
           "depth_signal": "adequate",
           "score": 72,
           "drill_depth": 1,
           "drill_budget": 3,
           "expected_decision": "drill",
-          "expected_score_band": [60, 85]
+          "expected_score_band": [
+            60,
+            85
+          ]
         },
         {
           "question": "You find one query scanning a full table. Close it out.",
@@ -646,19 +1055,35 @@
           "topic_phase": "SCENARIO",
           "skill_canonical": "postgres",
           "display_name": "Scenario: Postgres incident",
-          "jd_terms": ["index", "migration"],
+          "jd_terms": [
+            "index",
+            "migration"
+          ],
           "depth_signal": "deep",
           "score": 85,
           "drill_depth": 2,
           "drill_budget": 3,
           "expected_decision": "advance",
-          "expected_flags": ["quantified"],
-          "expected_score_band": [75, 95]
+          "expected_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            75,
+            95
+          ]
         }
       ],
       "expected_final_gaps": [],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [71, 83]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        71,
+        83
+      ]
     },
     {
       "id": "rambling-answer",
@@ -675,15 +1100,31 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "graphql",
           "display_name": "GraphQL",
-          "jd_terms": ["GraphQL", "Apollo", "caching", "schema design"],
+          "jd_terms": [
+            "GraphQL",
+            "Apollo",
+            "caching",
+            "schema design"
+          ],
           "depth_signal": "shallow",
           "score": 40,
           "drill_depth": 0,
           "drill_budget": 2,
           "expected_decision": "drill",
-          "expected_flags": ["rambling_risk", "missing_example", "jd_coverage_low", "hedging_present"],
-          "forbidden_flags": ["quantified", "too_short"],
-          "expected_score_band": [30, 55]
+          "expected_flags": [
+            "rambling_risk",
+            "missing_example",
+            "jd_coverage_low",
+            "hedging_present"
+          ],
+          "forbidden_flags": [
+            "quantified",
+            "too_short"
+          ],
+          "expected_score_band": [
+            30,
+            55
+          ]
         },
         {
           "question": "So hands-on: have you actually run a GraphQL server yourself?",
@@ -691,23 +1132,1074 @@
           "topic_phase": "SKILL_PROBE",
           "skill_canonical": "graphql",
           "display_name": "GraphQL",
-          "jd_terms": ["GraphQL", "Apollo", "caching", "schema design"],
+          "jd_terms": [
+            "GraphQL",
+            "Apollo",
+            "caching",
+            "schema design"
+          ],
           "depth_signal": "shallow",
           "score": 42,
           "drill_depth": 1,
           "drill_budget": 2,
           "expected_decision": "advance",
-          "expected_flags": ["too_short", "missing_example", "jd_coverage_low"],
-          "expected_score_band": [32, 55]
+          "expected_flags": [
+            "too_short",
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            32,
+            55
+          ]
         }
       ],
       "expected_final_gaps": [
-        { "weakness_type": "communication_gap", "skill_canonical": null },
-        { "weakness_type": "knowledge_gap", "skill_canonical": "graphql" },
-        { "weakness_type": "evidence_gap", "skill_canonical": "graphql" }
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "graphql"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "graphql"
+        }
       ],
-      "forbidden_gaps": [{ "weakness_type": "behavioral_gap", "skill_canonical": null }],
-      "expected_overall_band": [35, 47]
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        35,
+        47
+      ]
+    },
+    {
+      "id": "guard-evasive-inflated-score",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, claims PostgreSQL production experience.",
+      "jd_summary": "Backend engineer: PostgreSQL, connection pooling under load.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How does your service handle database connection pool exhaustion?",
+          "answer": "Honestly that never really came up for me, maybe the platform team would handle that side of things, I would have to check with them before saying anything specific.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "postgresql",
+          "display_name": "PostgreSQL operations",
+          "jd_terms": [
+            "PostgreSQL",
+            "connection pooling"
+          ],
+          "depth_signal": "evasive",
+          "score": 88,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "expected_caps": [
+            "score_capped_evasive"
+          ],
+          "expected_flags": [
+            "hedging_present",
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            55,
+            65
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "postgresql"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "postgresql"
+        }
+      ],
+      "expected_overall_band": [
+        55,
+        65
+      ]
+    },
+    {
+      "id": "guard-off-topic-inflated-score",
+      "locale": "en",
+      "target_role": "frontend_engineer",
+      "seniority": "junior",
+      "cv_summary": "Junior frontend dev, portfolio of landing pages.",
+      "jd_summary": "Frontend engineer: accessibility (ARIA, semantic HTML).",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you make a web page accessible?",
+          "answer": "I mostly focus on making pages look modern and clean, my portfolio has a bunch of landing pages with nice animations and color palettes that I am proud of.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "accessibility",
+          "display_name": "Web accessibility",
+          "jd_terms": [
+            "accessibility",
+            "ARIA",
+            "semantic HTML"
+          ],
+          "depth_signal": "adequate",
+          "score": 75,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "goal",
+            "relevance": 20,
+            "clarity": "adequate",
+            "off_topic": true,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
+          },
+          "expected_decision": "drill",
+          "expected_caps": [
+            "score_capped_off_topic"
+          ],
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            35,
+            45
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "accessibility"
+        }
+      ],
+      "expected_overall_band": [
+        35,
+        45
+      ]
+    },
+    {
+      "id": "guard-shallow-cannot-be-outstanding",
+      "locale": "vi",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Sinh viên năm cuối, học React qua môn học.",
+      "jd_summary": "Frontend engineer (React, Redux).",
+      "turn_budget": 6,
+      "turns": [
+        {
+          "question": "Em giải thích cách React cập nhật giao diện khi state thay đổi?",
+          "answer": "Dạ chắc là React tự render lại thôi ạ, em có học qua trong môn học nhưng em chưa tìm hiểu kỹ bên trong nó chạy thế nào.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": [
+            "React",
+            "Redux"
+          ],
+          "depth_signal": "shallow",
+          "score": 90,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_caps": [
+            "score_capped_shallow"
+          ],
+          "expected_flags": [
+            "hedging_present",
+            "missing_example"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            75,
+            85
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "react"
+        }
+      ],
+      "expected_overall_band": [
+        75,
+        85
+      ]
+    },
+    {
+      "id": "guard-multi-cap-off-topic-evasive",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, CV lists Node.js performance work.",
+      "jd_summary": "Backend engineer: Node.js memory profiling and debugging.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Walk me through how you would debug a memory leak in a Node.js service.",
+          "answer": "I would rather talk about my leadership journey, honestly memory stuff is not where I shine, maybe we can move to the teamwork questions instead of this one.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "nodejs",
+          "display_name": "Node.js debugging",
+          "jd_terms": [
+            "Node.js",
+            "profiling"
+          ],
+          "depth_signal": "evasive",
+          "score": 92,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "model_output": {
+            "talking_point": "goal",
+            "relevance": 10,
+            "clarity": "adequate",
+            "off_topic": true,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
+          },
+          "expected_decision": "drill",
+          "expected_caps": [
+            "score_capped_off_topic",
+            "score_capped_evasive"
+          ],
+          "expected_flags": [
+            "hedging_present",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            35,
+            45
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "nodejs"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "nodejs"
+        }
+      ],
+      "expected_overall_band": [
+        35,
+        45
+      ]
+    },
+    {
+      "id": "vi-senior-strong-cache-deep",
+      "locale": "vi",
+      "target_role": "backend_developer",
+      "seniority": "senior",
+      "cv_summary": "Senior backend, tự nhận tối ưu hiệu năng hệ thống báo cáo.",
+      "jd_summary": "Backend engineer: Redis cache, tối ưu truy vấn.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Anh kể về một lần tối ưu hiệu năng mà anh tự tay làm?",
+          "answer": "Hệ thống bị nghẽn ở tầng truy vấn báo cáo, tôi phải tối ưu lớp đọc dữ liệu. Tôi đã triển khai lớp cache Redis và viết lại truy vấn tổng hợp, nhờ đó thời gian phản hồi giảm từ 2 giây xuống dưới 300ms.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "redis",
+          "display_name": "Redis caching",
+          "jd_terms": [
+            "Redis",
+            "cache"
+          ],
+          "depth_signal": "deep",
+          "score": 85,
+          "drill_depth": 0,
+          "drill_budget": 4,
+          "expected_decision": "push_harder",
+          "expected_flags": [
+            "quantified",
+            "star_complete"
+          ],
+          "forbidden_flags": [
+            "missing_example",
+            "hedging_present",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            80,
+            90
+          ]
+        },
+        {
+          "question": "Cache như vậy thì đánh đổi lớn nhất là gì, anh xử lý sao?",
+          "answer": "Điểm đánh đổi là cache có thể trả dữ liệu cũ, nên tôi đã thêm cơ chế vô hiệu khóa theo sự kiện ghi và đo tỉ lệ trúng cache hàng tuần để cân chỉnh thời gian sống của từng nhóm khóa.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "redis",
+          "display_name": "Redis caching",
+          "jd_terms": [
+            "Redis",
+            "cache"
+          ],
+          "depth_signal": "deep",
+          "score": 88,
+          "drill_depth": 2,
+          "drill_budget": 4,
+          "model_output": {
+            "talking_point": "skill",
+            "relevance": 85,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": true
+            }
+          },
+          "expected_decision": "advance",
+          "expected_score_band": [
+            83,
+            93
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "redis"
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "redis"
+        }
+      ],
+      "expected_overall_band": [
+        82,
+        92
+      ]
+    },
+    {
+      "id": "vi-behavioral-star-missing-result",
+      "locale": "vi",
+      "target_role": "frontend_engineer",
+      "seniority": "mid",
+      "cv_summary": "Mid frontend, từng gánh dự án trễ hạn.",
+      "jd_summary": "Frontend engineer, cần chủ động xử lý rủi ro tiến độ.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Kể về một lần dự án của bạn có nguy cơ trễ hạn?",
+          "answer": "Lúc đó dự án sắp trễ hạn vì thiếu người, tôi phải gánh thêm phần giao diện thanh toán. Tôi đã chia nhỏ đầu việc và bàn giao bớt cho hai bạn mới vào để mọi người cùng chạy.",
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "jd_terms": [],
+          "depth_signal": "adequate",
+          "score": 65,
+          "drill_depth": 0,
+          "drill_budget": 1,
+          "model_output": {
+            "talking_point": "impact",
+            "relevance": 75,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": false
+            }
+          },
+          "expected_decision": "advance",
+          "expected_flags": [
+            "star_missing_result"
+          ],
+          "expected_score_band": [
+            60,
+            70
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        60,
+        70
+      ]
+    },
+    {
+      "id": "en-behavioral-evasive-no-story",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, three years in one team.",
+      "jd_summary": "Backend engineer, cross-team collaboration expected.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Tell me about a disagreement with a teammate and how you handled it.",
+          "answer": "I do not really have a conflict story, we always got along fine, maybe I am just easy to work with so nothing comes to mind.",
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "jd_terms": [],
+          "depth_signal": "evasive",
+          "score": 30,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "goal",
+            "relevance": 30,
+            "clarity": "adequate",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
+          },
+          "expected_decision": "drill",
+          "expected_flags": [
+            "hedging_present"
+          ],
+          "expected_score_band": [
+            25,
+            35
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        25,
+        35
+      ]
+    },
+    {
+      "id": "devops-scenario-canary-oom",
+      "locale": "en",
+      "target_role": "devops_engineer",
+      "seniority": "mid",
+      "cv_summary": "Mid DevOps engineer, runs Kubernetes clusters.",
+      "jd_summary": "SRE/DevOps: incident diagnosis on canary rollouts.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "A canary rollout starts erroring in production. What do you do first?",
+          "answer": "First I would check the deploy timeline and the pod restart counts, then compare error rates between the two clusters to see if the rollout is the trigger.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "kubernetes",
+          "display_name": "Incident diagnosis",
+          "jd_terms": [
+            "error rates",
+            "rollout"
+          ],
+          "depth_signal": "adequate",
+          "score": 62,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "drill",
+          "forbidden_flags": [
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            57,
+            67
+          ]
+        },
+        {
+          "question": "Metrics show the canary pods dying with OOM right after your config change. Now what?",
+          "answer": "Since the canary pods show OOM kills right after the config change, I would roll back the memory limit first, then reproduce the leak in staging with the same traffic profile before any restart loop hides the signal.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "kubernetes",
+          "display_name": "Incident diagnosis",
+          "jd_terms": [
+            "rollback",
+            "staging"
+          ],
+          "depth_signal": "deep",
+          "score": 82,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "expected_decision": "push_harder",
+          "expected_score_band": [
+            77,
+            87
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        68,
+        78
+      ]
+    },
+    {
+      "id": "lead-manager-delegation-conflict",
+      "locale": "en",
+      "target_role": "engineering_manager",
+      "seniority": "senior",
+      "cv_summary": "Engineering manager of an eight-person team.",
+      "jd_summary": "EM role: delegation, mentoring, decision-making under disagreement.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you decide what to delegate versus keep for yourself?",
+          "answer": "I run delegation by outcomes: each engineer owns one metric, and in our one-on-ones I focus mentoring on the two most junior folks so nobody is blocked on me.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "people_management",
+          "display_name": "Delegation & mentoring",
+          "jd_terms": [
+            "delegation",
+            "mentoring"
+          ],
+          "depth_signal": "adequate",
+          "score": 70,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "forbidden_flags": [
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            65,
+            75
+          ]
+        },
+        {
+          "question": "Tell me about a time your leads disagreed on a technical direction.",
+          "answer": "When two leads disagreed on the platform rewrite, I had to make the call. I designed a two-week spike with clear exit criteria, and as a result we cut the migration risk and shipped three weeks earlier than planned.",
+          "topic_phase": "BEHAVIORAL",
+          "skill_canonical": null,
+          "display_name": "Behavioral (STAR)",
+          "jd_terms": [],
+          "depth_signal": "deep",
+          "score": 86,
+          "drill_depth": 0,
+          "drill_budget": 1,
+          "model_output": {
+            "talking_point": "impact",
+            "relevance": 90,
+            "clarity": "clear",
+            "off_topic": false,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": true,
+            "star_present": {
+              "situation": true,
+              "task": true,
+              "action": true,
+              "result": true
+            }
+          },
+          "expected_decision": "advance",
+          "expected_flags": [
+            "star_complete",
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "star_missing_result"
+          ],
+          "expected_score_band": [
+            81,
+            91
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        {
+          "weakness_type": "behavioral_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        74,
+        84
+      ]
+    },
+    {
+      "id": "vi-scenario-chain-db-incident",
+      "locale": "vi",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend, vận hành dịch vụ có PostgreSQL.",
+      "jd_summary": "Backend engineer: chẩn đoán sự cố database production.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Database production đột nhiên chậm hẳn vào giờ cao điểm, bạn làm gì trước tiên?",
+          "answer": "Trước tiên tôi kiểm tra xem truy vấn nào đang chiếm kết nối lâu nhất và so sánh với thời điểm hệ thống bắt đầu chậm để khoanh vùng nguyên nhân.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgresql",
+          "display_name": "Chẩn đoán sự cố database",
+          "jd_terms": [
+            "truy vấn",
+            "kết nối"
+          ],
+          "depth_signal": "adequate",
+          "score": 60,
+          "drill_depth": 0,
+          "drill_budget": 4,
+          "expected_decision": "drill",
+          "forbidden_flags": [
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            55,
+            65
+          ]
+        },
+        {
+          "question": "Số kết nối đang tăng vọt sau bản cập nhật sáng nay. Bạn nghi gì?",
+          "answer": "Nếu số kết nối tăng vọt ngay sau bản cập nhật thì tôi sẽ soi thay đổi nào đụng tới phần mở kết nối hoặc thêm truy vấn mới, rồi thử tái hiện trên môi trường thử nghiệm.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgresql",
+          "display_name": "Chẩn đoán sự cố database",
+          "jd_terms": [
+            "truy vấn",
+            "kết nối"
+          ],
+          "depth_signal": "adequate",
+          "score": 68,
+          "drill_depth": 1,
+          "drill_budget": 4,
+          "expected_decision": "drill",
+          "expected_score_band": [
+            63,
+            73
+          ]
+        },
+        {
+          "question": "Bạn tìm ra một truy vấn báo cáo mới không dùng chỉ mục. Chốt hướng xử lý?",
+          "answer": "Gốc rễ là truy vấn báo cáo mới quét toàn bảng, tôi đã tách nó sang bản sao chỉ đọc và thêm chỉ mục phù hợp, nhờ đó nhóm kết nối trở lại bình thường và giờ cao điểm không còn nghẽn.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "postgresql",
+          "display_name": "Chẩn đoán sự cố database",
+          "jd_terms": [
+            "truy vấn",
+            "chỉ mục"
+          ],
+          "depth_signal": "deep",
+          "score": 84,
+          "drill_depth": 2,
+          "drill_budget": 4,
+          "expected_decision": "advance",
+          "expected_score_band": [
+            79,
+            89
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        67,
+        77
+      ]
+    },
+    {
+      "id": "en-fresher-deep-advance-no-push",
+      "locale": "en",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Fresher with one solid class project in React.",
+      "jd_summary": "Frontend engineer (React).",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Tell me about a React performance problem you actually hit.",
+          "answer": "In my class project I built the checkout page in React, and when rendering got slow I used the profiler to find a list that re-rendered on every keystroke, then memoized it.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "React",
+          "jd_terms": [
+            "React",
+            "testing"
+          ],
+          "depth_signal": "deep",
+          "score": 78,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "expected_decision": "advance",
+          "forbidden_flags": [
+            "too_short",
+            "missing_example"
+          ],
+          "expected_score_band": [
+            73,
+            83
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        73,
+        83
+      ]
+    },
+    {
+      "id": "en-evasive-streak-move-on",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "junior",
+      "cv_summary": "Junior backend dev, CV lists auth integration.",
+      "jd_summary": "Backend engineer: authentication flows (OAuth).",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How does the login flow you built actually validate a session?",
+          "answer": "It depends on the project setup I guess, I would have to look at the code first before I could say how the auth flow works there.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "authentication",
+          "display_name": "Authentication",
+          "jd_terms": [
+            "authentication",
+            "OAuth"
+          ],
+          "depth_signal": "adequate",
+          "score": 55,
+          "drill_depth": 1,
+          "drill_budget": 3,
+          "evasive_streak": 2,
+          "expected_decision": "advance",
+          "expected_flags": [
+            "hedging_present",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            50,
+            60
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "authentication"
+        }
+      ],
+      "expected_overall_band": [
+        50,
+        60
+      ]
+    },
+    {
+      "id": "vi-filler-sql-class-only",
+      "locale": "vi",
+      "target_role": "data_analyst",
+      "seniority": "fresher",
+      "cv_summary": "Sinh viên ngành dữ liệu, mới học SQL trên trường.",
+      "jd_summary": "Data analyst: SQL, PostgreSQL, dashboard.",
+      "turn_budget": 6,
+      "turns": [
+        {
+          "question": "Em đã dùng SQL tới mức nào rồi?",
+          "answer": "Kiểu như em có học SQL trên trường, đại loại là em biết select với join cơ bản, nói chung là em chưa làm với dữ liệu thật bao giờ, kiểu như mới dừng ở bài tập thôi ạ.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "sql",
+          "display_name": "SQL",
+          "jd_terms": [
+            "SQL",
+            "PostgreSQL",
+            "dashboard"
+          ],
+          "depth_signal": "shallow",
+          "score": 35,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": [
+            "filler_high",
+            "jd_coverage_low",
+            "missing_example"
+          ],
+          "forbidden_flags": [
+            "quantified"
+          ],
+          "expected_score_band": [
+            30,
+            40
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "sql"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "sql"
+        },
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        }
+      ],
+      "expected_overall_band": [
+        30,
+        40
+      ]
+    },
+    {
+      "id": "en-jd-requirement-hedging-thin",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "junior",
+      "cv_summary": "Junior backend dev, REST APIs only.",
+      "jd_summary": "Backend engineer: GraphQL API design.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "The JD needs GraphQL. Where do you stand with it?",
+          "answer": "I think GraphQL is probably similar to REST in the end, maybe with one endpoint instead of many, but I have not used it on anything real yet.",
+          "topic_phase": "JD_REQUIREMENT",
+          "skill_canonical": "graphql",
+          "display_name": "GraphQL",
+          "jd_terms": [
+            "GraphQL",
+            "REST"
+          ],
+          "depth_signal": "adequate",
+          "score": 50,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "expected_decision": "drill",
+          "expected_flags": [
+            "hedging_present",
+            "missing_example"
+          ],
+          "forbidden_flags": [
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            45,
+            55
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "graphql"
+        }
+      ],
+      "expected_overall_band": [
+        45,
+        55
+      ]
+    },
+    {
+      "id": "en-quantified-strong-pipeline",
+      "locale": "en",
+      "target_role": "devops_engineer",
+      "seniority": "mid",
+      "cv_summary": "Mid DevOps engineer, owns the CI pipeline.",
+      "jd_summary": "DevOps: CI/CD pipeline performance.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "What did you concretely change in your CI pipeline?",
+          "answer": "Our deploys took 40 minutes, so I was responsible for the pipeline rework. I implemented build caching and split the test stages, and as a result deploy time dropped from 40 minutes to 12 minutes.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "ci_cd",
+          "display_name": "CI/CD pipeline",
+          "jd_terms": [
+            "pipeline",
+            "build caching"
+          ],
+          "depth_signal": "deep",
+          "score": 87,
+          "drill_depth": 1,
+          "drill_budget": 4,
+          "expected_decision": "push_harder",
+          "expected_flags": [
+            "quantified"
+          ],
+          "forbidden_flags": [
+            "missing_example",
+            "jd_coverage_low",
+            "hedging_present"
+          ],
+          "expected_score_band": [
+            82,
+            92
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "forbidden_gaps": [
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "ci_cd"
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "ci_cd"
+        }
+      ],
+      "expected_overall_band": [
+        82,
+        92
+      ]
+    },
+    {
+      "id": "vi-off-topic-family-business",
+      "locale": "vi",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Sinh viên, phụ gia đình bán hàng online.",
+      "jd_summary": "Frontend engineer: CSS layout (Flexbox).",
+      "turn_budget": 6,
+      "turns": [
+        {
+          "question": "Em dựng bố cục một trang web bằng CSS như thế nào?",
+          "answer": "Dạ thật ra em đang phụ gia đình bán hàng online nên em quen chụp ảnh sản phẩm và viết bài đăng, còn phần dựng trang thì em chưa đụng tới nhiều ạ.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "css",
+          "display_name": "CSS layout",
+          "jd_terms": [
+            "CSS",
+            "Flexbox"
+          ],
+          "depth_signal": "shallow",
+          "score": 22,
+          "drill_depth": 0,
+          "drill_budget": 2,
+          "model_output": {
+            "talking_point": "goal",
+            "relevance": 15,
+            "clarity": "adequate",
+            "off_topic": true,
+            "confidence_tone": "calibrated",
+            "note": "",
+            "has_specific_example": false,
+            "star_present": {
+              "situation": false,
+              "task": false,
+              "action": false,
+              "result": false
+            }
+          },
+          "expected_decision": "drill",
+          "expected_flags": [
+            "missing_example",
+            "jd_coverage_low"
+          ],
+          "expected_score_band": [
+            15,
+            30
+          ]
+        }
+      ],
+      "expected_final_gaps": [
+        {
+          "weakness_type": "communication_gap",
+          "skill_canonical": null
+        },
+        {
+          "weakness_type": "knowledge_gap",
+          "skill_canonical": "css"
+        },
+        {
+          "weakness_type": "evidence_gap",
+          "skill_canonical": "css"
+        }
+      ],
+      "expected_overall_band": [
+        15,
+        30
+      ]
+    },
+    {
+      "id": "en-wrap-budget-boundary",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, API design experience.",
+      "jd_summary": "Backend engineer: API pagination design.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How do you paginate a large API collection?",
+          "answer": "We paginate with cursors instead of offsets so deep pages stay fast, and the API returns a stable sort key so clients can resume from where they stopped.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "api_design",
+          "display_name": "API design",
+          "jd_terms": [
+            "pagination",
+            "cursors"
+          ],
+          "depth_signal": "adequate",
+          "score": 60,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "turns_used": 6,
+          "expected_decision": "wrap",
+          "expected_score_band": [
+            55,
+            65
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        55,
+        65
+      ]
     }
   ]
 }

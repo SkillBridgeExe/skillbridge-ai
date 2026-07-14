@@ -3,7 +3,7 @@ import { AnswerInsight, groundAnswerInsight } from './answer-insight';
 import { decideTurn, DepthSignal, InterviewPhase, TurnAction } from './interview-agenda';
 import { InterviewGapItem, InterviewGapWeaknessType } from './interview-gap';
 import { AnswerGapContext, deriveInterviewGaps } from './interview-gap-derive';
-import { aggregateInterviewScore, AnswerScore } from './interview-scoring';
+import { aggregateInterviewScore, AnswerScore, reconcileAnswerScore } from './interview-scoring';
 
 /**
  * Interview Production Eval — Wave I-TRUST: `scoreInterviewProductionCase`.
@@ -54,8 +54,17 @@ export interface ProductionTurnCase {
   accept_decisions?: TurnAction[];
   expected_flags?: ProductionFlag[];
   forbidden_flags?: ProductionFlag[];
-  /** inclusive sanity band for the labeled score — catches mislabeled corpus. */
+  /**
+   * inclusive sanity band for the RECONCILED score (post consistency guard — what production
+   * aggregates) — catches mislabeled corpus.
+   */
   expected_score_band?: [number, number];
+  /**
+   * exact consistency-guard reasons this turn must fire (I-CONSIST). STRICT both ways: an
+   * unexpected cap fails the case (the label contradicts itself), a missing expected cap too.
+   * Omit = [] = no cap may fire.
+   */
+  expected_caps?: string[];
 }
 
 export interface GapExpectation {
@@ -213,9 +222,26 @@ export function scoreInterviewProductionCase(
       }
     }
 
-    if (t.expected_score_band && !inBand(t.score, t.expected_score_band)) {
+    // I-CONSIST guard runs FOR REAL (code-owned) over the labeled score + insight — production
+    // aggregates the reconciled value, so the eval must too.
+    const recon = reconcileAnswerScore({
+      score: t.score,
+      depth_signal: t.depth_signal,
+      off_topic: insight.off_topic,
+    });
+    const expectedCaps = t.expected_caps ?? [];
+    if (
+      recon.reasons.length !== expectedCaps.length ||
+      recon.reasons.some((r, i) => r !== expectedCaps[i])
+    ) {
       mismatches.push(
-        `turn ${turnNo} score ${t.score} outside band [${t.expected_score_band.join(',')}]`,
+        `turn ${turnNo} caps [${recon.reasons.join(',')}] != expected [${expectedCaps.join(',')}]`,
+      );
+    }
+
+    if (t.expected_score_band && !inBand(recon.score, t.expected_score_band)) {
+      mismatches.push(
+        `turn ${turnNo} score ${recon.score} outside band [${t.expected_score_band.join(',')}]`,
       );
     }
 
@@ -228,7 +254,7 @@ export function scoreInterviewProductionCase(
       signals,
       insight,
     });
-    answers.push({ topic_phase: t.topic_phase, score: t.score, depth_signal: t.depth_signal });
+    answers.push({ topic_phase: t.topic_phase, score: recon.score, depth_signal: t.depth_signal });
     if (insight.note) notes.push({ turn: turnNo, note: insight.note });
   });
 
