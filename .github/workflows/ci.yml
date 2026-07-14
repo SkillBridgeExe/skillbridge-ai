@@ -69,6 +69,7 @@ jobs:
           pnpm eval:answer-insight
           pnpm eval:interview-gaps
           pnpm eval:interview-coaching
+          pnpm eval:interview-production
           pnpm eval:learning
           pnpm eval:curation
           pnpm eval:cv-assistant
