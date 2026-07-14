@@ -24,7 +24,10 @@ import {
   InterviewVoice,
 } from '../../../database/entities/interview-session.entity';
 import { InterviewTurnPhase } from '../../../database/entities/interview-turn.entity';
-import { InterviewPhase as AgendaInterviewPhase } from '../../../modules/interview/interview-agenda';
+import {
+  InterviewPhase as AgendaInterviewPhase,
+  InterviewTurnTrace,
+} from '../../../modules/interview/interview-agenda';
 
 const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
@@ -303,6 +306,11 @@ export interface AnswerInterviewResponseDto {
     | 'finish';
   finishReason?: 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
   nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
+  /**
+   * Wave I-REAL: WHY the engine picked this turn action — compact reason slugs, never the prompt
+   * or model chain. Optional/additive: absent on legacy sessions (old agenda-less paths).
+   */
+  turnTrace?: InterviewTurnTrace | null;
 }
 
 export interface InterviewDetailResponseDto extends InterviewSessionDto {

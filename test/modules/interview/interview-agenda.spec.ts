@@ -2,6 +2,7 @@ import { InterviewFocusArea } from '../../../src/modules/interview/interview-pla
 import {
   buildInterviewAgenda,
   decideTurn,
+  decideTurnWithTrace,
   filterGroundedGaps,
   filterRecognizedConcepts,
 } from '../../../src/modules/interview/interview-agenda';
@@ -164,6 +165,84 @@ describe('decideTurn', () => {
     expect(decideTurn({ ...baseTurn, turns_used: 8, turn_budget: 10, drill_depth: 0 })).toBe(
       'wrap',
     );
+  });
+});
+
+describe('decideTurnWithTrace', () => {
+  const traceTurn = { ...baseTurn, phase: 'JD_REQUIREMENT', topic_id: 'topic-1-react' };
+
+  it('returns the SAME action decideTurn returns for the same input (single source of truth)', () => {
+    for (const signal of ['shallow', 'adequate', 'deep', 'evasive'] as const) {
+      const { action } = decideTurnWithTrace({ ...traceTurn, signal });
+      expect(action).toBe(decideTurn({ ...traceTurn, signal }));
+    }
+  });
+
+  it('drills a shallow answer with an explanatory reason and full trace context', () => {
+    const { action, trace } = decideTurnWithTrace(traceTurn);
+    expect(action).toBe('drill');
+    expect(trace).toMatchObject({
+      action: 'drill',
+      phase: 'JD_REQUIREMENT',
+      topic_id: 'topic-1-react',
+      depth: 0,
+      remaining_turn_budget: 8,
+      confidence: 'high',
+    });
+    expect(trace.reasons).toContain('answer_shallow');
+    expect(trace.reasons).toContain('drill_budget_available');
+  });
+
+  it('maps push_harder onto trace action drill with a push reason', () => {
+    const { action, trace } = decideTurnWithTrace({ ...traceTurn, signal: 'deep' });
+    expect(action).toBe('push_harder');
+    expect(trace.action).toBe('drill');
+    expect(trace.reasons).toContain('deep_answer_push_for_depth');
+  });
+
+  it('moves on at the drill-depth limit with the budget reason', () => {
+    const { action, trace } = decideTurnWithTrace({ ...traceTurn, drill_depth: 2 });
+    expect(action).toBe('advance');
+    expect(trace.action).toBe('move_on');
+    expect(trace.reasons).toContain('drill_budget_reached');
+  });
+
+  it('wraps when the turn budget is exhausted', () => {
+    const { trace } = decideTurnWithTrace({ ...traceTurn, turns_used: 9 });
+    expect(trace.action).toBe('wrap');
+    expect(trace.reasons).toContain('turn_budget_exhausted');
+    expect(trace.remaining_turn_budget).toBe(1);
+  });
+
+  it('gives one fair follow-up on a first evasive answer, then moves on', () => {
+    const first = decideTurnWithTrace({ ...traceTurn, signal: 'evasive' });
+    expect(first.action).toBe('drill');
+    expect(first.trace.reasons).toContain('one_fair_follow_up');
+
+    const second = decideTurnWithTrace({
+      ...traceTurn,
+      signal: 'evasive',
+      drill_depth: 1,
+      evasive_streak: 1,
+    });
+    expect(second.action).toBe('advance');
+    expect(second.trace.reasons).toContain('evasive_after_follow_up');
+  });
+
+  it('explains the early-career advance on a deep answer', () => {
+    const { trace } = decideTurnWithTrace({
+      ...traceTurn,
+      signal: 'deep',
+      seniority_target: 'fresher',
+    });
+    expect(trace.action).toBe('move_on');
+    expect(trace.reasons).toContain('deep_answer');
+    expect(trace.reasons).toContain('early_career_no_push');
+  });
+
+  it('never reports a negative remaining budget', () => {
+    const { trace } = decideTurnWithTrace({ ...traceTurn, turns_used: 12 });
+    expect(trace.remaining_turn_budget).toBe(0);
   });
 });
 

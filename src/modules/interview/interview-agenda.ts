@@ -176,7 +176,7 @@ export const EARLY_CAREER_BANDS: ReadonlySet<string> = new Set([
   'entry_level',
 ]);
 
-export function decideTurn(input: {
+export interface TurnDecisionInput {
   signal: DepthSignal;
   drill_depth: number;
   drill_budget: number;
@@ -184,19 +184,91 @@ export function decideTurn(input: {
   turn_budget: number;
   evasive_streak: number;
   seniority_target: string;
-}): TurnAction {
-  if (input.turns_used >= input.turn_budget - 1) return 'wrap';
-  if (input.turns_used >= input.turn_budget - 2 && input.drill_depth === 0) return 'wrap';
-  if (input.evasive_streak >= 2 || (input.signal === 'evasive' && input.drill_depth >= 1)) {
-    return 'advance';
+}
+
+/**
+ * Turn decision trace (Wave I-REAL, spec §7). Additive: explains WHY the engine picked a turn
+ * action, in the compact spec vocabulary (`push_harder` collapses into `drill` — still probing
+ * the same topic, the push intent survives in `reasons`). Compact reason slugs only — never the
+ * prompt or model chain.
+ */
+export interface InterviewTurnTrace {
+  action: 'ask' | 'drill' | 'move_on' | 'wrap';
+  phase: string;
+  topic_id?: string;
+  reasons: string[];
+  depth: number;
+  remaining_turn_budget: number;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+const TRACE_ACTION: Record<TurnAction, InterviewTurnTrace['action']> = {
+  drill: 'drill',
+  push_harder: 'drill',
+  advance: 'move_on',
+  wrap: 'wrap',
+};
+
+/**
+ * SINGLE SOURCE of the turn-decision rules — decideTurn and decideTurnWithTrace both route
+ * through here so the action and its reasons can never drift apart. Branch order is exactly the
+ * pre-trace decideTurn order (behavior-identical refactor).
+ */
+function decide(input: TurnDecisionInput): { action: TurnAction; reasons: string[] } {
+  if (input.turns_used >= input.turn_budget - 1) {
+    return { action: 'wrap', reasons: ['turn_budget_exhausted'] };
   }
-  if (input.drill_depth >= input.drill_budget - 1) return 'advance';
+  if (input.turns_used >= input.turn_budget - 2 && input.drill_depth === 0) {
+    return { action: 'wrap', reasons: ['turn_budget_low_at_topic_boundary'] };
+  }
+  if (input.evasive_streak >= 2) {
+    return { action: 'advance', reasons: ['evasive_streak', 'move_on_fairly'] };
+  }
+  if (input.signal === 'evasive' && input.drill_depth >= 1) {
+    return { action: 'advance', reasons: ['evasive_after_follow_up', 'move_on_fairly'] };
+  }
+  if (input.drill_depth >= input.drill_budget - 1) {
+    return { action: 'advance', reasons: ['drill_budget_reached'] };
+  }
   if (input.signal === 'deep') {
     const fresher = EARLY_CAREER_BANDS.has(input.seniority_target.trim().toLowerCase());
     const pastHalf = input.drill_depth >= Math.ceil(input.drill_budget / 2);
-    return fresher || pastHalf ? 'advance' : 'push_harder';
+    if (fresher) return { action: 'advance', reasons: ['deep_answer', 'early_career_no_push'] };
+    if (pastHalf) return { action: 'advance', reasons: ['deep_answer', 'drill_past_half_budget'] };
+    return { action: 'push_harder', reasons: ['deep_answer_push_for_depth'] };
   }
-  return 'drill';
+  const reasons =
+    input.signal === 'evasive'
+      ? ['answer_evasive', 'one_fair_follow_up']
+      : [`answer_${input.signal}`, 'drill_budget_available'];
+  return { action: 'drill', reasons };
+}
+
+export function decideTurn(input: TurnDecisionInput): TurnAction {
+  return decide(input).action;
+}
+
+/**
+ * decideTurn + explainability (Wave I-REAL). Same rules, same action — plus the compact trace the
+ * platform layer returns on `/api/interview/turn`. Confidence is `high` here (the rules are
+ * deterministic); the platform layer downgrades it when it had to fall back (e.g. seed question).
+ */
+export function decideTurnWithTrace(
+  input: TurnDecisionInput & { phase: string; topic_id?: string },
+): { action: TurnAction; trace: InterviewTurnTrace } {
+  const { action, reasons } = decide(input);
+  return {
+    action,
+    trace: {
+      action: TRACE_ACTION[action],
+      phase: input.phase,
+      topic_id: input.topic_id,
+      reasons,
+      depth: input.drill_depth,
+      remaining_turn_budget: Math.max(0, input.turn_budget - input.turns_used),
+      confidence: 'high',
+    },
+  };
 }
 
 export function filterRecognizedConcepts(

@@ -1580,6 +1580,13 @@ describe('InterviewsService', () => {
     });
     expect(response.turnDecision).toBe('advance_topic');
     expect(response.nextQuestionKind).toBe('transition');
+    expect(response.turnTrace).toMatchObject({
+      action: 'move_on',
+      phase: 'JD_REQUIREMENT',
+      topic_id: 'topic-1-rest-api',
+      confidence: 'high',
+    });
+    expect(response.turnTrace?.reasons).toContain('drill_budget_reached');
     expect(response.session.status).toBe('IN_PROGRESS');
     expect(interviewAi.answer).not.toHaveBeenCalled();
   });
@@ -1851,6 +1858,147 @@ describe('InterviewsService', () => {
     expect(response.turnDecision).toBe('adaptive_follow_up');
     expect(response.nextQuestionKind).toBe('follow_up');
     expect(response.finishReason).toBeNull();
+    expect(response.turnTrace).toMatchObject({ action: 'drill', topic_id: 'topic-react' });
+    expect(response.turnTrace?.reasons).toContain('topics_exhausted_adaptive_follow_up');
+  });
+
+  it('labels the turn trace low-confidence when the chain gives no question and the seed question is used', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-fallback-question',
+        score: 70,
+        recognizedConcepts: ['React'],
+        depthSignal: 'adequate',
+        claimStatus: 'ok',
+        currentThread: 'React component state',
+        gapsRevealed: [],
+        note: 'Explained React state.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-fallback-question',
+        aiMessage: '',
+        question: '',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { answer: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-fallback-question',
+      userId,
+      targetRole: 'frontend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 6,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-react',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'react',
+            display_name: 'React',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'React component state',
+            seed_question: 'How do you manage state in React?',
+          },
+          {
+            id: 'wrap-1',
+            phase: 'WRAP',
+            skill_canonical: null,
+            display_name: 'Wrap-up',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'close',
+            seed_question: 'Before we wrap up, anything else to add?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-react',
+        drill_depth: 0,
+        current_thread: 'React component state',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 4,
+        evasive_streak: 0,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-fallback-question',
+      sessionId: 'session-fallback-question',
+      turnOrder: 5,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'react',
+      currentThread: 'React component state',
+      modality: 'AUDIO',
+      interviewerQuestion: 'How do you manage state in React?',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:04:20.000Z'),
+      askedAt: new Date('2026-06-12T00:04:20.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-fallback-question-next',
+      askedAt: new Date('2026-06-12T00:05:30.000Z'),
+      createdAt: new Date('2026-06-12T00:05:30.000Z'),
+    }));
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-fallback-question',
+      userAnswer: 'I use local state for UI details and React Query for server state.',
+      userTranscript: 'I use local state for UI details and React Query for server state.',
+      modality: 'AUDIO',
+      durationSeconds: 40,
+    });
+
+    expect(response.finished).toBe(false);
+    expect(response.nextTurn).toMatchObject({
+      interviewerQuestion: 'How do you manage state in React?',
+    });
+    expect(response.turnTrace?.confidence).toBe('low');
+    expect(response.turnTrace?.reasons).toContain('fallback_seed_question');
+    // Wave I-VOICE: code-counted communication facts ride along into the assess call.
+    expect(chain.assess).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        communicationFacts: expect.objectContaining({
+          word_count: expect.any(Number),
+          filler_count: expect.any(Number),
+          speaking_rate_wpm: expect.any(Number),
+          answer_length_band: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('asks one closing prompt inside the closing time window without ending immediately', async () => {
@@ -1978,6 +2126,8 @@ describe('InterviewsService', () => {
       interviewerMessage: 'We are nearly out of time, so I will make this the last one.',
       interviewerQuestion: 'Is there any frontend project or strength you want to add briefly?',
     });
+    expect(response.turnTrace).toMatchObject({ action: 'wrap', confidence: 'high' });
+    expect(response.turnTrace?.reasons).toContain('time_low_closing_question');
   });
 
   it('finishes after a valid answer when too little time remains for another question', async () => {
@@ -2087,6 +2237,13 @@ describe('InterviewsService', () => {
     expect(response.nextQuestionKind).toBeNull();
     expect(response.nextTurn).toBeNull();
     expect(response.nextQuestion).toBeNull();
+    expect(response.turnTrace).toMatchObject({
+      action: 'wrap',
+      phase: 'SKILL_PROBE',
+      topic_id: 'topic-rest-api',
+      confidence: 'high',
+    });
+    expect(response.turnTrace?.reasons).toContain('time_limit');
     expect(sessions.save).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 'COMPLETED',
@@ -2724,6 +2881,21 @@ describe('InterviewsService', () => {
     expect(response.status).toBe('COMPLETED');
     expect(response.turns).toHaveLength(1);
     expect(response.finalScore).toMatchObject({ overall: 82 });
+    // Wave I-SCORE: per-dimension explanations ride inside finalScore, additively.
+    expect(response.finalScore).toMatchObject({
+      score_explanations: expect.arrayContaining([
+        expect.objectContaining({
+          dimension: 'technical_depth',
+          score: 82,
+          band: 'outstanding',
+          rubric_anchor: expect.stringContaining('outstanding'),
+          evidence_quote: expect.stringContaining('React Query'),
+          linked_question_id: 'turn-1',
+          uncertainty: 'medium',
+          improvement_hint: null,
+        }),
+      ]),
+    });
     expect(response.coaching).toEqual(coaching);
   });
 
