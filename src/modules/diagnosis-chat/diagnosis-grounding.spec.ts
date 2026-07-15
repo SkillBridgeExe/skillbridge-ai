@@ -704,6 +704,19 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       expect(result.answer).toBe(fb);
     });
 
+    // An earlier cut treated "(N)" as a marker ANYWHERE, so bracketing any quantity erased it from
+    // the number gate while the ORIGINAL text still shipped — "(91)/100" was served, bare "91/100"
+    // was blocked. That is the product's whole numeric surface, opened by a formatting choice the
+    // prompt itself encourages. A marker follows a clause boundary; a quantity follows a word.
+    it.each([
+      ['a bracketed score', 'CV của bạn đạt (91)/100.'],
+      ['a bracketed salary', 'Bạn nhắm (35) triệu/tháng nhé.'],
+      ['a bracketed duration', 'Cần thêm (37) tháng kinh nghiệm.'],
+      ['a bracketed count', 'Bạn cần (37) dự án nữa.'],
+    ])('refuses %s — brackets are not a licence to invent numbers', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    });
+
     it('still rejects a fabricated number that merely sits near a marker', () => {
       const message = '(1) Bạn cần 7 năm kinh nghiệm nữa.';
       const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
@@ -732,6 +745,45 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
     ])('refuses to serve a %s claim', (_label, message) => {
       const result = groundDiagnosis({ message, ...cited }, facts);
       expect(result.answer).not.toBe(message);
+    });
+
+    // `language` is a client-supplied wire field and 'en' is a first-class path — a Vietnamese-only
+    // deny-list is a no-op there, i.e. exactly the axis this gate exists for, wide open.
+    it.each([
+      ['peer grade', 'Your CV is fairly average for this role compared to other candidates.'],
+      ['hire odds', 'Your chances of getting hired here are quite high.'],
+      ['salary', 'The salary for this role is usually competitive.'],
+    ])('refuses a %s claim in English too', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, facts, 'en').answer).not.toBe(message);
+    });
+
+    it.each([
+      ['one word inserted', 'CV của bạn đang ở mức độ trung bình cho vị trí này.'],
+      ['an unlisted quantifier', 'Hầu hết ứng viên cho vị trí này đã có Docker.'],
+      ['a real number re-aimed at people', '60% ứng viên cho vị trí này đã có Docker.'],
+    ])('refuses a peer claim that dodges the obvious phrasing (%s)', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, facts).answer).not.toBe(message);
+    });
+
+    it('does NOT eat "mức khác" — a word boundary, not a grade', () => {
+      const message = 'Các gap của bạn đang ở mức khác nhau: Docker mới là missing.';
+      expect(groundDiagnosis({ message, cited_gap_id: 'jd:hard_skill:docker' }, facts).answer).toBe(
+        message,
+      );
+    });
+
+    it('holds suggested_next_step to the SAME claim gate as the message', () => {
+      const result = groundDiagnosis(
+        {
+          message: 'Docker đang là gap ưu tiên cao nhất của bạn.',
+          cited_gap_id: 'jd:hard_skill:docker',
+          suggested_next_step: 'Bổ sung Docker để hơn mặt bằng chung của các ứng viên khác.',
+        },
+        facts,
+      );
+      // The chip the user taps must not carry a claim the message itself would be refused for.
+      expect(result.suggested_next_step).not.toContain('mặt bằng chung');
+      expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này'); // verified default
     });
 
     it('ALLOWS comparing two entries that both live in FACTS (that is grounded, not guessing)', () => {

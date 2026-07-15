@@ -374,11 +374,16 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
  * the prompt asks for) was rejected and replaced by a template. The deterministic fallback below
  * writes "(1) …; (2) …" itself, so the gate rejected its own code's output.
  *
- * Deliberately narrow: bare "N." / "N)" counts as a marker ONLY at line start, so a real claim like
- * "tăng 2." mid-sentence is still checked. Parenthesised "(N)" is a marker anywhere — a quantitative
- * claim is never written that way.
+ * A marker only ever follows a CLAUSE BOUNDARY (start, newline, or "; : ,"); a quantity follows a
+ * word. Anchoring on that is load-bearing, not tidiness: an earlier cut treated "(N)" as a marker
+ * ANYWHERE, which let the model smuggle any 0-99 quantity past the number gate simply by putting it
+ * in brackets — "CV của bạn đạt (91)/100." was served verbatim while the bare "91/100" was blocked.
+ * The strip is check-only (the ORIGINAL text is what ships), so those digits reached the user. That
+ * is the product's whole numeric surface — every /20, every /100, market_demand, salary in triệu —
+ * and the trigger was a formatting choice the model makes freely, since the prompt asks for
+ * enumeration and the fallback itself seeds the "(1) … (2) …" register into the history it reads.
  */
-const LIST_MARKER = /\(\d{1,2}\)|(?:^|\n)[ \t]*\d{1,2}[.)](?=\s)/g;
+const LIST_MARKER = /(?:^|\n|[;:,]\s*)[ \t]*\(?\d{1,2}[.)](?=\s)/g;
 
 /**
  * Claims the advisor CANNOT know from FACTS, phrased without digits so the number gate is blind to
@@ -396,15 +401,29 @@ const LIST_MARKER = /\(\d{1,2}\)|(?:^|\n)[ \t]*\d{1,2}[.)](?=\s)/g;
 const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
   [
     'peer_comparison',
-    /mặt bằng chung|so với (?:những |các |đa số |phần lớn )?(?:người|ứng viên|bạn bè)|ứng viên khác|người khác|đa số ứng viên|phần lớn ứng viên/i,
+    /mặt bằng chung|(?:so với|hơn|kém|thua)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn)|(?:ứng viên|người|bạn)\s+khác|(?:đa số|phần lớn|hầu hết|nhiều)\s+ứng viên|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
   ],
-  ['ranking', /top\s*\d|xếp hạng|percentile|thứ hạng|nhóm (?:đầu|nổi bật|dẫn đầu)/i],
-  ['grade_label', /trung bình khá|mức (?:trung bình|khá|giỏi|xuất sắc|kém)/i],
+  [
+    'ranking',
+    /top\s*(?:\d|đầu|tier)|xếp hạng|percentile|thứ hạng|(?:nhóm|phân khúc)\s+(?:đầu|giữa|dưới|cuối|nổi bật|dẫn đầu)|(?:nổi bật|nổi trội)\s+hơn|standout group/iu,
+  ],
+  // \p{L} boundary is load-bearing: without it "mức khá" matched inside "mức KHÁC", so an ordinary
+  // sentence ("các gap ở mức khác nhau") was discarded as a fabricated grade.
+  [
+    'grade_label',
+    /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|fairly average|pretty average/iu,
+  ],
   [
     'hire_odds',
-    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)\s+(?:được\s+)?(?:đậu|trúng tuyển|nhận|pass)|chắc (?:đậu|trúng)/i,
+    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng)|chắc (?:đậu|trúng)|chances? of (?:getting|being|landing)|odds of (?:getting|being)/iu,
   ],
-  ['salary', /mức lương|lương (?:khoảng|tầm|dự kiến|bao nhiêu)|thu nhập (?:khoảng|tầm)/i],
+  [
+    'salary',
+    /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation/iu,
+  ],
+  // market_demand is pct_of_POSTINGS. A percentage pinned to a person-noun re-narrates it as a peer
+  // statistic — and the number gate waves it through precisely BECAUSE the number is real.
+  ['peer_stat', /\d+\s*%\s*(?:các |những )?(?:ứng viên|người|bạn|candidates?|applicants?)/iu],
 ];
 
 /** The first unverifiable-claim label present in the text, or null. */
@@ -521,7 +540,13 @@ export function groundDiagnosis(
   if (!unverifiable && numbersGrounded(modelMessage, allowed)) {
     const rawSuggestion =
       typeof obj.suggested_next_step === 'string' ? obj.suggested_next_step.trim() : '';
-    const suggestionOk = rawSuggestion !== '' && numbersGrounded(rawSuggestion, allowed);
+    // Held to BOTH gates, exactly like the message. suggested_next_step is rendered as the chip the
+    // user taps, and it is persisted and replayed into {{history}} — so an unverifiable claim here
+    // would be the identical sentence the gate refuses one field to the left, but clickable.
+    const suggestionOk =
+      rawSuggestion !== '' &&
+      !unverifiableClaim(rawSuggestion) &&
+      numbersGrounded(rawSuggestion, allowed);
     // Verified default when the model's suggestion is absent/ungrounded — same sources the
     // template uses: the cited gap's next action, else the top prioritized action.
     const verifiedSuggestion =
