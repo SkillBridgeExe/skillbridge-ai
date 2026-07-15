@@ -2308,6 +2308,176 @@
         66,
         76
       ]
+    },
+    {
+      "id": "own-collective-answer-decision-ownership",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, checkout and inventory services.",
+      "jd_summary": "Backend engineer: event-driven services, Kafka.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "How did you keep checkout and inventory consistent?",
+          "answer": "We reworked the checkout service on Kafka, and the team moved the inventory sync onto our event stream so the two stayed consistent. Our on-call load went down after that change.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kafka",
+          "display_name": "Kafka event-driven sync",
+          "jd_terms": [
+            "Kafka"
+          ],
+          "depth_signal": "adequate",
+          "score": 70,
+          "drill_depth": 0,
+          "drill_budget": 4,
+          "recognized_concepts": [
+            "event stream"
+          ],
+          "expected_decision": "drill",
+          "expected_flags": [
+            "collective_answer"
+          ],
+          "expected_rung": "decision_ownership",
+          "expected_score_band": [
+            65,
+            75
+          ]
+        },
+        {
+          "question": "Which part of that was your call?",
+          "answer": "I made the call to put invalidation on the write path, and I wrote the consumer myself. I owned the rollout and I handled the duplicate messages we hit in production the first week.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "kafka",
+          "display_name": "Kafka event-driven sync",
+          "jd_terms": [
+            "Kafka"
+          ],
+          "depth_signal": "adequate",
+          "score": 72,
+          "drill_depth": 1,
+          "drill_budget": 4,
+          "recognized_concepts": [
+            "write path"
+          ],
+          "expected_decision": "drill",
+          "forbidden_flags": [
+            "collective_answer"
+          ],
+          "expected_score_band": [
+            67,
+            77
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        65,
+        78
+      ]
+    },
+    {
+      "id": "vi-own-collective-answer-fresher",
+      "locale": "vi",
+      "target_role": "frontend_engineer",
+      "seniority": "fresher",
+      "cv_summary": "Fresher frontend, làm đồ án tồn kho.",
+      "jd_summary": "Fresher frontend: React, đồng bộ dữ liệu.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Phần đồng bộ tồn kho được làm thế nào?",
+          "answer": "Nhóm em làm lại phần đồng bộ tồn kho, chúng em chuyển sang hàng đợi sự kiện để hai bên khớp nhau, và cả nhóm thay phiên trực khi có sự cố xảy ra lúc chạy thật.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "Đồng bộ tồn kho",
+          "jd_terms": [
+            "React"
+          ],
+          "depth_signal": "adequate",
+          "score": 60,
+          "drill_depth": 0,
+          "drill_budget": 4,
+          "recognized_concepts": [],
+          "expected_decision": "drill",
+          "expected_flags": [
+            "collective_answer"
+          ],
+          "expected_rung": "decision_ownership",
+          "expected_score_band": [
+            55,
+            65
+          ]
+        },
+        {
+          "question": "Phần nào là quyết định của bạn?",
+          "answer": "Em là người chọn dùng hàng đợi thay vì gọi trực tiếp, em tự viết consumer cho phần đó và em trực tiếp xử lý khi message bị trùng lúc chạy thật trên môi trường thật.",
+          "topic_phase": "SKILL_PROBE",
+          "skill_canonical": "react",
+          "display_name": "Đồng bộ tồn kho",
+          "jd_terms": [
+            "React"
+          ],
+          "depth_signal": "adequate",
+          "score": 62,
+          "drill_depth": 1,
+          "drill_budget": 4,
+          "recognized_concepts": [],
+          "expected_decision": "drill",
+          "forbidden_flags": [
+            "collective_answer"
+          ],
+          "expected_score_band": [
+            57,
+            67
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        55,
+        68
+      ]
+    },
+    {
+      "id": "own-scenario-collective-exempt",
+      "locale": "en",
+      "target_role": "backend_developer",
+      "seniority": "mid",
+      "cv_summary": "Mid backend engineer, on-call for the payments service.",
+      "jd_summary": "Backend engineer: incident handling, event-driven payments.",
+      "turn_budget": 8,
+      "turns": [
+        {
+          "question": "Payments just started failing in production. What do you do first?",
+          "answer": "We check the dashboards first, and the team pages whoever owns the payment service while our on-call rotation starts a timeline of what changed recently.",
+          "topic_phase": "SCENARIO",
+          "skill_canonical": "kafka",
+          "display_name": "Scenario: payments incident",
+          "jd_terms": [
+            "Kafka"
+          ],
+          "depth_signal": "adequate",
+          "score": 66,
+          "drill_depth": 0,
+          "drill_budget": 3,
+          "recognized_concepts": [],
+          "expected_decision": "drill",
+          "expected_flags": [
+            "collective_answer"
+          ],
+          "expected_rung": "application",
+          "expected_score_band": [
+            61,
+            71
+          ]
+        }
+      ],
+      "expected_final_gaps": [],
+      "expected_overall_band": [
+        60,
+        72
+      ]
     }
   ]
 }
