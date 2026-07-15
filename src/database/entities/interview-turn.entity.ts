@@ -106,6 +106,10 @@ export class InterviewTurnEntity {
   @Column({ type: 'int', name: 'transcript_segments', nullable: true })
   transcriptSegments!: number | null;
 
+  /** I-PACE: seconds the engine budgeted for answering this question; null on legacy turns. */
+  @Column({ type: 'int', name: 'time_budget_seconds', nullable: true })
+  timeBudgetSeconds!: number | null;
+
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;
 
