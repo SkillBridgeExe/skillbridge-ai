@@ -25,6 +25,8 @@ Write the interviewer's next turn.
 
 {{example_demand_instruction}}
 
+{{metric_demand_instruction}}
+
 {{scenario_instruction}}
 
 ## Recent Q&A

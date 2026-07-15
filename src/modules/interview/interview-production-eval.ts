@@ -3,6 +3,8 @@ import { AnswerInsight, groundAnswerInsight } from './answer-insight';
 import {
   decideTurn,
   DepthSignal,
+  drillLadderRung,
+  DrillLadderRung,
   filterRecognizedConcepts,
   InterviewPhase,
   pickDrillAnchor,
@@ -55,7 +57,10 @@ export interface ProductionTurnCase {
   model_output?: unknown;
   /** optional override pinning grounded insight fields (e.g. evidence_quality). */
   insight?: Partial<AnswerInsight>;
-  /** decision state at this turn (what interviews.service would hold in InterviewState). */
+  /**
+   * Follow-ups already asked on this topic when the answer arrives — `InterviewState.drill_depth`
+   * pre-increment, so the first answer on a topic is 0. Same meaning as TurnDecisionInput's field.
+   */
   drill_depth: number;
   drill_budget: number;
   evasive_streak?: number;
@@ -84,6 +89,12 @@ export interface ProductionTurnCase {
    * none). Omitted = not checked. Probed anchors accumulate across the case's turns.
    */
   expected_anchor?: string | null;
+  /**
+   * I-OWN: the drill-ladder rung this turn's follow-up must target (null = no drill this turn).
+   * Omitted = not checked. Mirrors the service: a collective answer overrides to
+   * `decision_ownership` outside SCENARIO, otherwise the rung is the depth rung.
+   */
+  expected_rung?: DrillLadderRung | null;
 }
 
 export interface GapExpectation {
@@ -131,7 +142,8 @@ export type ProductionFlag =
   | 'star_missing_result'
   | 'filler_high'
   | 'hedging_present'
-  | 'jd_coverage_low';
+  | 'jd_coverage_low'
+  | 'collective_answer';
 
 /** mirrors interview-gap-derive's FILLER_THRESHOLD — 4+ fillers is a fired signal. */
 const FILLER_HIGH = 4;
@@ -148,6 +160,7 @@ const FLAG_CHECKS: Record<ProductionFlag, (s: AnswerSignals) => boolean> = {
   filler_high: (s) => s.filler.count >= FILLER_HIGH,
   hedging_present: (s) => s.hedging.count >= 1,
   jd_coverage_low: (s) => s.jd_term_hits.coverage < COVERAGE_LOW,
+  collective_answer: (s) => s.ownership.collective_answer,
 };
 
 // ---------------------------------------------------------------------------
@@ -241,8 +254,22 @@ export function scoreInterviewProductionCase(
     // I-INTEL anchor selection runs FOR REAL (code-owned), mirroring the service: raw labeled
     // recognizedConcepts grounded via filterRecognizedConcepts, probed anchors accumulated
     // across the case, SCENARIO exempt (incident chain owns the follow-up shape).
+    const drilling = decision === 'drill' || decision === 'push_harder';
+
+    // I-OWN: the ladder rung runs FOR REAL too — the depth rung, overridden to decision_ownership
+    // when the answer was collective ("we…", never "I"). SCENARIO is exempt like the anchor.
+    const collectiveAnswer = signals.ownership.collective_answer && t.topic_phase !== 'SCENARIO';
+    const rung: DrillLadderRung | null = drilling
+      ? drillLadderRung(t.drill_depth, c.seniority, { collectiveAnswer })
+      : null;
+    if (t.expected_rung !== undefined && rung !== t.expected_rung) {
+      mismatches.push(
+        `turn ${turnNo} rung ${rung ?? 'null'} != expected ${t.expected_rung ?? 'null'}`,
+      );
+    }
+
     let anchor: string | null = null;
-    if ((decision === 'drill' || decision === 'push_harder') && t.topic_phase !== 'SCENARIO') {
+    if (drilling && t.topic_phase !== 'SCENARIO') {
       anchor = pickDrillAnchor({
         answer: t.answer,
         recognized_concepts: filterRecognizedConcepts(t.recognized_concepts ?? [], t.answer),

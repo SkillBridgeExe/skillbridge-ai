@@ -48,6 +48,13 @@ export interface AnswerSignals {
    * is brittle deterministically and is owned by L2 / answer-insight).
    */
   is_quantified: boolean;
+  /**
+   * I-OWN: deterministic "we → I" ownership counting. `collective_answer` is the HARD case only —
+   * the answer describes work in the plural and never once claims a personal action — so the
+   * engine (and the report) can say "you said 'we' N times and never 'I'" and have it be literally
+   * true. Precision over recall by design; see COLLECTIVE_ANSWER_MIN.
+   */
+  ownership: { first_person: number; collective: number; collective_answer: boolean };
   flags: { is_too_short: boolean; no_concrete_example: boolean; rambling_risk: boolean };
 }
 
@@ -60,6 +67,16 @@ const CONCISENESS_BANDS = { too_short_max: 20, ideal_max: 150 } as const;
 
 /** a content word must occur at least this many times to be a "repeated term" */
 const REPEAT_THRESHOLD = 3;
+
+/**
+ * I-OWN: an answer is `collective_answer` only when it mentions the group at least this many times
+ * AND never once uses a first-person pronoun. Deliberately precision-biased — the probe it fires
+ * (and the report line it justifies) must never land on a candidate who DID claim personal
+ * ownership, so a single "I"/"tôi" anywhere suppresses it.
+ * ponytail: the ceiling is recall — one stray "I think" hides an otherwise fully collective answer.
+ * Loosen to a ratio rule only once I-CAL has human-labeled transcripts to price the false positives.
+ */
+const COLLECTIVE_ANSWER_MIN = 2;
 
 interface LangTable {
   filler: string[];
@@ -78,6 +95,12 @@ interface LangTable {
    * ("doubled", "reduced by half", "giảm"). Their presence ALONE satisfies concreteness (rule b).
    */
   quantifiedResultCues: string[];
+  /**
+   * I-OWN pronoun tables. Matched longest-phrase-first ACROSS both lists with span claiming, so a
+   * collective phrase that contains a first-person word ("my team", "nhóm mình") counts once, as
+   * collective — the first-person word inside it never scores ownership.
+   */
+  ownership: { first_person: string[]; collective: string[] };
 }
 
 const LANG_TABLES: Record<Language, LangTable> = {
@@ -197,6 +220,16 @@ const LANG_TABLES: Record<Language, LangTable> = {
       'slashed',
       'by half',
     ],
+    ownership: {
+      // bare `i` also covers i'm/i've/i'd: normalize() drops the apostrophe, leaving a lone `i`.
+      // `me` is here for the passive-voice ownership claim ("they asked me to own the fix") — it
+      // only ever SUPPRESSES the flag, which is the safe direction.
+      first_person: ['i', 'me', 'my', 'mine', 'myself'],
+      // "team" is NOT listed bare — "a team of 4" is a team size, not a collective claim.
+      // `us` is NOT listed either: normalize() lowercases, so it cannot be told apart from the
+      // country/region "US" ("the US market"), and we/our already carry the signal.
+      collective: ['we', 'our', 'ours', 'the team', 'our team', 'my team'],
+    },
   },
   vi: {
     // Bare common headwords are NEVER filler entries. `kiểu` is the headword for "type/kind/style"
@@ -283,6 +316,41 @@ const LANG_TABLES: Record<Language, LangTable> = {
       'gấp đôi',
       'gấp ba',
     ],
+    ownership: {
+      // `mình`/`anh`/`chị` are genuinely ambiguous in VI (I / our-side / someone else). They count
+      // as first-person ONLY when standing alone: every collective use ("nhóm mình", "bên anh") is
+      // listed below and claims the span first. When they DO refer to someone else ("anh ấy"), the
+      // count only suppresses the flag — the safe direction.
+      first_person: ['tôi', 'em', 'mình', 'tớ', 'anh', 'chị'],
+      // ONLY explicit first-person-plural pronouns / possessed teams. Bare `nhóm` and `team` are
+      // deliberately absent, for the same reason bare "team" is absent from the EN table: they are
+      // nouns, not collective claims ("nhóm gồm 4 người" = team size; "công ty có ba nhóm" = other
+      // people's teams). VI is pro-drop, so first_person === 0 is the NORMAL state of a VI answer
+      // and cannot be leaned on as a guard — the collective side must therefore be strict.
+      collective: [
+        'chúng tôi',
+        'chúng em',
+        'chúng ta',
+        'chúng mình',
+        'tụi em',
+        'tụi mình',
+        'bọn em',
+        'bọn mình',
+        'nhóm em',
+        'nhóm mình',
+        'nhóm tôi',
+        'nhóm anh',
+        'nhóm chị',
+        'team em',
+        'team mình',
+        'bên mình',
+        'bên em',
+        'bên anh',
+        'bên chị',
+        'cả nhóm',
+        'cả team',
+      ],
+    },
   },
 };
 
@@ -466,6 +534,9 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
   const has_concrete_example = computeConcreteExample(answer, norm, table, jd_term_hits.hit);
   const is_quantified = computeIsQuantified(norm, table);
 
+  // --- ownership (I-OWN "we → I"; DESCRIPTIVE counts + one hard flag, never a score penalty) ---
+  const ownership = computeOwnership(norm, table);
+
   // --- flags (ONLY from conciseness + concrete + jd coverage) ---
   const is_too_short = conciseness === 'too_short';
   const no_concrete_example = !has_concrete_example;
@@ -483,7 +554,39 @@ export function analyzeAnswerSignals(input: AnswerSignalInput): AnswerSignals {
     star,
     has_concrete_example,
     is_quantified,
+    ownership,
     flags: { is_too_short, no_concrete_example, rambling_risk },
+  };
+}
+
+/**
+ * I-OWN pronoun counting. Every phrase from BOTH lists is matched longest-first with span claiming
+ * ACROSS the lists, so a collective phrase that contains a first-person word ("my team", "nhóm
+ * mình") is counted once — as collective — and the first-person word inside it never scores
+ * ownership. That cross-list claim is the whole trick of the We→I signal.
+ */
+function computeOwnership(norm: string, table: LangTable): AnswerSignals['ownership'] {
+  const entries = [
+    ...table.ownership.collective.map((term) => ({ term, collective: true })),
+    ...table.ownership.first_person.map((term) => ({ term, collective: false })),
+  ].sort((a, b) => b.term.length - a.term.length || a.term.localeCompare(b.term));
+
+  const claimed: Array<{ start: number; end: number }> = [];
+  let first_person = 0;
+  let collective = 0;
+  for (const entry of entries) {
+    for (const span of matchSpans(norm, entry.term)) {
+      if (claimed.some((c) => span.start < c.end && c.start < span.end)) continue;
+      claimed.push(span);
+      if (entry.collective) collective += 1;
+      else first_person += 1;
+    }
+  }
+
+  return {
+    first_person,
+    collective,
+    collective_answer: collective >= COLLECTIVE_ANSWER_MIN && first_person === 0,
   };
 }
 

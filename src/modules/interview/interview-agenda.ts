@@ -168,6 +168,16 @@ export interface InterviewState {
   evasive_streak: number;
   /** I-INTEL: concepts already anchor-drilled this session — optional (legacy sessions lack it). */
   probed_anchors?: string[];
+  /**
+   * I-OWN: the We→I ownership probe has already been asked this session. A coach makes that
+   * observation ONCE — without this, a candidate whose speech habit is plural (freshers, VI
+   * speakers: exactly who the signal targets) would get `decision_ownership` on every single
+   * drill turn, which both badgers them and disables the rest of the ladder for the whole
+   * session. Optional: legacy sessions lack it.
+   * ponytail: once per SESSION, not per topic — the observation is about their habit, not the
+   * topic. Move it to a per-topic reset (like drill_depth) only if one probe proves too few.
+   */
+  ownership_probed?: boolean;
 }
 
 /**
@@ -184,7 +194,20 @@ export const EARLY_CAREER_BANDS: ReadonlySet<string> = new Set([
 
 export interface TurnDecisionInput {
   signal: DepthSignal;
+  /**
+   * Follow-ups ALREADY ASKED on this topic — i.e. `InterviewState.drill_depth` BEFORE the answer
+   * being decided on is counted. 0 means only the seed question has been answered, so the topic is
+   * at its boundary. Every rule below is written against that meaning; passing the post-increment
+   * count instead silently shifts all four of them by one (it cost us the fair first follow-up on
+   * an evasive answer, the wrap-at-topic-boundary branch, and half the drill ladder — see the
+   * `drill_budget` note).
+   */
   drill_depth: number;
+  /**
+   * Turns the agenda allocated to this topic. The topic gets 1 seed question + `drill_budget - 1`
+   * follow-ups = exactly `drill_budget` turns, which is what buildInterviewAgenda subtracted from
+   * the pool for it.
+   */
   drill_budget: number;
   turns_used: number;
   turn_budget: number;
@@ -280,15 +303,38 @@ export function decideTurnWithTrace(
 /**
  * Drill ladder (I-REAL-2): the CODE-owned rung a drill/push question should target at a given
  * depth — how a real interviewer climbs: how they did it → why this over X → where it breaks →
- * how it changes at scale. Early-career bands cap at `tradeoff` (fair bar, no design grilling).
- * The rung is derived from state, never the LLM, so the ladder cannot drift.
+ * how it changes at scale. The rung is derived from state, never the LLM, so it cannot drift.
+ *
+ * I-OWN adds the two probes that complete the benchmark taxonomy (spec 2026-07-15 §2):
+ *  - `reflection` — "what would you do differently" (early-career's second rung: it reveals
+ *    judgement without needing senior-level breadth, and it replaces a duplicated `application`);
+ *  - `decision_ownership` — "which part was YOUR call, and what did you choose over what". Not a
+ *    depth rung: it OVERRIDES the depth rung when the last answer was collective (`we` with no
+ *    `I`), because that is exactly when a real interviewer stops climbing and asks whose work it
+ *    actually was.
+ *
+ * Reach on a normal topic is `drill_budget - 1` rungs (1 seed + that many follow-ups), and
+ * drill_budget caps at 4 → application, tradeoff, edge_failure. `design` needs a 5th allocated
+ * turn, so today it only lands in the topics-exhausted tail, where drill is forced and depth keeps
+ * climbing. Place new rungs at reachable indices rather than appending them.
  */
-export type DrillLadderRung = 'application' | 'tradeoff' | 'edge_failure' | 'design';
+export type DrillLadderRung =
+  | 'application'
+  | 'tradeoff'
+  | 'edge_failure'
+  | 'design'
+  | 'reflection'
+  | 'decision_ownership';
 
 const DRILL_LADDER: DrillLadderRung[] = ['application', 'tradeoff', 'edge_failure', 'design'];
-const EARLY_CAREER_LADDER: DrillLadderRung[] = ['application', 'application', 'tradeoff'];
+const EARLY_CAREER_LADDER: DrillLadderRung[] = ['application', 'reflection', 'tradeoff'];
 
-export function drillLadderRung(drillDepth: number, seniorityTarget: string): DrillLadderRung {
+export function drillLadderRung(
+  drillDepth: number,
+  seniorityTarget: string,
+  opts: { collectiveAnswer?: boolean } = {},
+): DrillLadderRung {
+  if (opts.collectiveAnswer) return 'decision_ownership';
   const ladder = EARLY_CAREER_BANDS.has(seniorityTarget.trim().toLowerCase())
     ? EARLY_CAREER_LADDER
     : DRILL_LADDER;

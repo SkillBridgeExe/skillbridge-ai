@@ -36,6 +36,7 @@ import {
   decideTurnWithTrace,
   DepthSignal,
   drillLadderRung,
+  DrillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
@@ -115,6 +116,16 @@ const anchorTraceSlug = (anchor: string): string =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 32)}`;
+
+/**
+ * I-OWN: rungs where an unmeasured answer earns the metric demand. `application`/`tradeoff` are
+ * the "what you did / why you chose it" rungs — the two where a real outcome number is fair to
+ * ask for. Other rungs already carry their own ask (ownership, hindsight, failure modes).
+ */
+const METRIC_DEMAND_RUNGS: ReadonlySet<DrillLadderRung> = new Set<DrillLadderRung>([
+  'application',
+  'tradeoff',
+]);
 const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
   /Cuộc phỏng vấn bằng tiếng Việt/i,
   /Giữ nguyên dấu tiếng Việt/i,
@@ -486,12 +497,14 @@ export class InterviewsService {
     let turnTrace: InterviewTurnTrace;
     let drillAnchor: string | null = null;
     let demandExample = false;
+    let demandMetric = false;
     const wrapTrace = (reason: string): InterviewTurnTrace => ({
       action: 'wrap',
       phase: topic.phase,
       topic_id: topic.id,
       reasons: [reason],
-      depth: nextState.drill_depth,
+      // follow-ups asked on this topic — same meaning as decideTurnWithTrace's `depth`.
+      depth: state.drill_depth,
       remaining_turn_budget: Math.max(0, hardCap - nextState.turns_used),
       confidence: 'high',
     });
@@ -514,7 +527,10 @@ export class InterviewsService {
     } else {
       const decided = decideTurnWithTrace({
         signal: depthGuard.depth_signal,
-        drill_depth: nextState.drill_depth,
+        // follow-ups already asked on this topic — the PRE-increment count, which is what every
+        // rule in decide() is written against (advanceStateBeforeDecision has already counted the
+        // answer we are deciding on, and that count is not a follow-up).
+        drill_depth: state.drill_depth,
         drill_budget: topic.drill_budget,
         turns_used: nextState.turns_used,
         turn_budget: hardCap + 2,
@@ -565,13 +581,29 @@ export class InterviewsService {
 
       // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
       // derived from the follow-up count on this topic (first follow-up = application, then
-      // tradeoff → edge_failure → design; early-career caps at tradeoff).
+      // tradeoff; early-career gets reflection in between).
+      // I-OWN: a collective answer ("we…" with never an "I") overrides the depth rung — a real
+      // interviewer stops climbing and asks whose call it actually was. Asked at most ONCE per
+      // session (see InterviewState.ownership_probed): repeating it every turn would badger the
+      // plural-speaking candidate and stall the ladder. SCENARIO is exempt: the incident chain
+      // owns its own follow-up shape.
+      const collectiveAnswer =
+        signals.ownership.collective_answer &&
+        askTopic.phase !== 'SCENARIO' &&
+        !updatedState.ownership_probed;
       const ladderRung =
         action === 'drill' || action === 'push_harder'
-          ? drillLadderRung(Math.max(0, updatedState.drill_depth - 1), askTopic.seniority_target)
+          ? drillLadderRung(state.drill_depth, askTopic.seniority_target, { collectiveAnswer })
           : null;
       if (ladderRung) {
         turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
+      }
+      if (ladderRung === 'decision_ownership') {
+        updatedState = { ...updatedState, ownership_probed: true };
+        turnTrace = {
+          ...turnTrace,
+          reasons: [...turnTrace.reasons, 'demand_individual_contribution'],
+        };
       }
 
       // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
@@ -593,9 +625,30 @@ export class InterviewsService {
             ...turnTrace,
             reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
           };
-        } else if (signals.flags.no_concrete_example) {
+        } else if (ladderRung !== 'decision_ownership' && signals.flags.no_concrete_example) {
           demandExample = true;
           turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'demand_concrete_example'] };
+        }
+        // I-OWN: they described the work on a how/why rung but never measured it — the follow-up
+        // asks for the number. One demand per question: ownership and example-demand both win.
+        // Two things must be true before it is a FAIR ask, and the instruction asserts both:
+        //  - the answer actually described work — a too-short answer owes detail, not a metric
+        //    (the same is_too_short the I-CONSIST depth guard already trusts);
+        //  - the topic is technical — a STAR failure story on BEHAVIORAL has no before/after
+        //    number to give, so demanding one is a category error, not a probe.
+        if (
+          !demandExample &&
+          ladderRung &&
+          METRIC_DEMAND_RUNGS.has(ladderRung) &&
+          askTopic.phase !== 'BEHAVIORAL'
+        ) {
+          demandMetric = !signals.is_quantified && !signals.flags.is_too_short;
+          if (demandMetric) {
+            turnTrace = {
+              ...turnTrace,
+              reasons: [...turnTrace.reasons, 'demand_measurable_outcome'],
+            };
+          }
         }
       }
 
@@ -615,6 +668,7 @@ export class InterviewsService {
         topicPhase: askTopic.phase,
         drillAnchor,
         demandExample,
+        demandMetric,
       });
       if (!ask.question) {
         // the chain gave no question → the seed question is asked instead (see nextQuestion

@@ -394,3 +394,124 @@ describe('analyzeAnswerSignals — flags', () => {
     expect(out.flags.rambling_risk).toBe(false);
   });
 });
+
+describe('analyzeAnswerSignals — ownership (I-OWN "we → I")', () => {
+  it('counts first-person and collective mentions separately (en)', () => {
+    const out = analyzeAnswerSignals(en('We shipped it, but I wrote the migration myself.'));
+    expect(out.ownership.collective).toBe(1);
+    expect(out.ownership.first_person).toBe(2);
+  });
+
+  it('counts a collective phrase that contains a first-person word ONCE, as collective', () => {
+    const out = analyzeAnswerSignals(en('My team owned it and the team shipped it.'));
+    expect(out.ownership.collective).toBe(2);
+    expect(out.ownership.first_person).toBe(0);
+    expect(out.ownership.collective_answer).toBe(true);
+  });
+
+  it('flags a collective answer: plural throughout, never a first-person claim (en)', () => {
+    const out = analyzeAnswerSignals(
+      en('We rebuilt the sync and our on-call load went down after we moved it.'),
+    );
+    expect(out.ownership.first_person).toBe(0);
+    expect(out.ownership.collective_answer).toBe(true);
+  });
+
+  it('a single first-person claim suppresses the flag — precision over recall', () => {
+    const out = analyzeAnswerSignals(
+      en('We rebuilt the sync, we moved it to Kafka, and I reviewed the consumer.'),
+    );
+    expect(out.ownership.collective).toBe(2);
+    expect(out.ownership.first_person).toBe(1);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('one collective mention is not enough to flag', () => {
+    const out = analyzeAnswerSignals(en('The rollout went fine and we watched the dashboards.'));
+    expect(out.ownership.collective).toBe(1);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('an answer with no pronouns at all is not a collective answer (en)', () => {
+    const out = analyzeAnswerSignals(en('Redis caches the report queries with a five minute TTL.'));
+    expect(out.ownership).toEqual({ first_person: 0, collective: 0, collective_answer: false });
+  });
+
+  it('does not read "a team of 4" as a collective claim (team size, not ownership)', () => {
+    const out = analyzeAnswerSignals(en('The service was built by a team of 4 over two quarters.'));
+    expect(out.ownership.collective).toBe(0);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('counts the passive ownership claim "asked me to own it" as first-person (en)', () => {
+    const out = analyzeAnswerSignals(
+      en('Our deploys kept failing. The tech lead asked me to own the fix, and we got it green.'),
+    );
+    expect(out.ownership.first_person).toBe(1);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('does not read the country "US" as the pronoun "us" (en)', () => {
+    const out = analyzeAnswerSignals(
+      en('The rollout covered the US market first, then the EU. Latency in the US was the issue.'),
+    );
+    expect(out.ownership.collective).toBe(0);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('does not read bare "nhóm"/"team" as a collective claim (vi mirrors en)', () => {
+    const size = analyzeAnswerSignals(vi('Nhóm gồm 4 người. Nhóm được chia thành hai phần.'));
+    expect(size.ownership.collective).toBe(0);
+    expect(size.ownership.collective_answer).toBe(false);
+
+    const others = analyzeAnswerSignals(vi('Công ty có ba nhóm. Nhóm nào cũng dùng chung API.'));
+    expect(others.ownership.collective_answer).toBe(false);
+
+    const lead = analyzeAnswerSignals(vi('Team lead giao task, sau đó team review code.'));
+    expect(lead.ownership.collective_answer).toBe(false);
+  });
+
+  it('counts "anh"/"chị" self-reference as first-person (vi)', () => {
+    const out = analyzeAnswerSignals(
+      vi('Chúng tôi làm hệ thống thanh toán. Chúng tôi chọn hàng đợi. Anh viết lại service.'),
+    );
+    expect(out.ownership.first_person).toBe(1);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('flags a collective answer in Vietnamese', () => {
+    const out = analyzeAnswerSignals(
+      vi('Nhóm em làm phần đồng bộ, chúng em chuyển sang hàng đợi và cả nhóm cùng trực sự cố.'),
+    );
+    expect(out.ownership.collective).toBe(3);
+    expect(out.ownership.first_person).toBe(0);
+    expect(out.ownership.collective_answer).toBe(true);
+  });
+
+  it('does not count the "em" inside "nhóm em"/"chúng em" as first-person (vi)', () => {
+    const out = analyzeAnswerSignals(vi('Nhóm em quyết định, chúng em làm theo.'));
+    expect(out.ownership.first_person).toBe(0);
+    expect(out.ownership.collective).toBe(2);
+  });
+
+  it('counts standalone "em"/"tôi" as first-person and clears the flag (vi)', () => {
+    const out = analyzeAnswerSignals(
+      vi('Nhóm em làm phần đó, chúng em chia việc, nhưng em là người viết consumer.'),
+    );
+    expect(out.ownership.first_person).toBe(1);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+
+  it('treats collective uses of the ambiguous "mình" as collective, not first-person (vi)', () => {
+    const out = analyzeAnswerSignals(vi('Bên mình dùng Redis, nhóm mình tự vận hành nó.'));
+    expect(out.ownership.first_person).toBe(0);
+    expect(out.ownership.collective).toBe(2);
+    expect(out.ownership.collective_answer).toBe(true);
+  });
+
+  it('treats standalone "mình" as first-person (vi)', () => {
+    const out = analyzeAnswerSignals(vi('Mình tự viết consumer và mình trực khi có sự cố.'));
+    expect(out.ownership.first_person).toBe(2);
+    expect(out.ownership.collective_answer).toBe(false);
+  });
+});
