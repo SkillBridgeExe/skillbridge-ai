@@ -111,6 +111,11 @@ export class DiagnosisChatService {
         question: input.question,
       });
 
+    // What the candidate has already said this conversation — their own numbers are honest to repeat
+    // back (a deadline, a count), so groundDiagnosis may speak them. Without this the advisor cannot
+    // answer "còn 2 tuần thì nên làm gì?" without "2" reading as fabricated.
+    const conversation = [history, input.question].filter(Boolean).join('\n');
+
     let facts = input.facts;
     const declarations = toolDeclarationsForFlow(FLOW);
     if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
@@ -147,7 +152,7 @@ export class DiagnosisChatService {
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);
-      const grounded = groundDiagnosis(parsed, facts, language);
+      const grounded = groundDiagnosis(parsed, facts, language, conversation);
       return {
         ...grounded,
         trace: {
@@ -169,6 +174,6 @@ export class DiagnosisChatService {
 
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    return groundDiagnosis(parsed, facts, language);
+    return groundDiagnosis(parsed, facts, language, conversation);
   }
 }
