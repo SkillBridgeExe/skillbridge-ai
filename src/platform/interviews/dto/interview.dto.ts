@@ -273,6 +273,13 @@ export interface InterviewTurnDto {
   /** P3 speech timing (voice mode) — null on text/legacy turns. */
   responseDelayMs: number | null;
   transcriptSegments: number | null;
+  /**
+   * I-PACE: seconds the engine budgeted for answering THIS question. Null on legacy and
+   * reviewed-live turns, which were never issued one — a client seeing null shows no pacing UI.
+   * Overtime is `answeredAt - askedAt > timeBudgetSeconds`; both timestamps are already here and
+   * are server-set, so the report never has to trust the client-reported `durationSeconds`.
+   */
+  timeBudgetSeconds: number | null;
 }
 
 export interface InterviewSessionDto {
@@ -312,6 +319,8 @@ export interface StartInterviewResponseDto extends InterviewSessionDto {
   firstQuestion: string;
   phase: InterviewTurnPhase | null;
   realtime: RealtimeClientSecretDto;
+  /** I-PACE: seconds budgeted for answering `firstQuestion` (this response carries no turn DTO). */
+  answerBudgetSeconds: number | null;
 }
 
 export interface AnswerInterviewResponseDto {

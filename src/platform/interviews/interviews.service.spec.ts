@@ -7,7 +7,7 @@ import { InterviewQuestionBankItemEntity } from '../../database/entities/intervi
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
-import { InterviewsService } from './interviews.service';
+import { answerTimeBudgetSeconds, InterviewsService } from './interviews.service';
 
 function repo<T extends { id?: string }>() {
   return {
@@ -3905,5 +3905,179 @@ describe('InterviewsService — a topic gets exactly the turns the agenda alloca
 
     expect(response.turnDecision).toBe('advance_topic');
     expect(response.turnTrace?.reasons).toContain('evasive_after_follow_up');
+  });
+});
+
+describe('answerTimeBudgetSeconds', () => {
+  it('gives a fresh question the full budget and a drill less', () => {
+    expect(answerTimeBudgetSeconds('opening')).toBe(90);
+    expect(answerTimeBudgetSeconds('transition')).toBe(90);
+    expect(answerTimeBudgetSeconds('follow_up')).toBe(60);
+    expect(answerTimeBudgetSeconds('closing')).toBe(60);
+  });
+
+  it('budgets nothing when no question is coming', () => {
+    // a finished interview has no next question to time.
+    expect(answerTimeBudgetSeconds(null)).toBeNull();
+  });
+});
+
+describe('InterviewsService — I-PACE per-turn answer budget', () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+
+  // reuses the two-topic agenda harness above: `drill_depth` drives whether the engine drills the
+  // same topic (follow_up) or moves to the next one (transition), which is exactly what the budget
+  // must track. If the budget were hardcoded per turn instead of read off the decision, the two
+  // tests below would return the same number.
+  function harness(state: Record<string, unknown>, depthSignal: string) {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-pace',
+        score: 64,
+        recognizedConcepts: ['Redis'],
+        depthSignal,
+        claimStatus: 'ok',
+        currentThread: 'Redis caching',
+        gapsRevealed: [],
+        note: 'Answered about caching.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-pace',
+        aiMessage: 'Right.',
+        question: 'How does that Redis cache get invalidated?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { answer: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    const topic = (id: string, name: string) => ({
+      id,
+      phase: 'SKILL_PROBE',
+      skill_canonical: 'redis',
+      display_name: name,
+      seniority_target: 'mid',
+      drill_budget: 3,
+      what_to_probe: `${name} internals`,
+      seed_question: `Tell me about ${name}.`,
+    });
+    sessions.findOne.mockResolvedValue({
+      id: 'session-pace',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 12,
+        uncovered: [],
+        topics: [topic('topic-redis', 'Redis caching'), topic('topic-kafka', 'Kafka')],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-redis',
+        drill_depth: 0,
+        current_thread: 'Redis caching',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 2,
+        evasive_streak: 0,
+        ...state,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-pace',
+      sessionId: 'session-pace',
+      turnOrder: 3,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'redis',
+      currentThread: 'Redis caching',
+      modality: 'TEXT',
+      interviewerQuestion: 'Tell me about Redis caching.',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:01:00.000Z'),
+      askedAt: new Date('2026-06-12T00:01:00.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-pace-next',
+      askedAt: new Date('2026-06-12T00:02:00.000Z'),
+      createdAt: new Date('2026-06-12T00:02:00.000Z'),
+    }));
+    return { service, turns };
+  }
+
+  const ANSWER =
+    'I put a Redis cache in front of the report queries with a five minute TTL, and a consumer clears the keys when a write lands.';
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:02:00.000Z'));
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('budgets a drill into the same topic as a follow-up', async () => {
+    const { service } = harness({ drill_depth: 0 }, 'adequate');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-pace',
+      userAnswer: ANSWER,
+      modality: 'TEXT',
+    });
+
+    expect(response.nextQuestionKind).toBe('follow_up');
+    expect(response.nextTurn?.timeBudgetSeconds).toBe(60);
+  });
+
+  it('budgets a move to a new topic as a fresh question', async () => {
+    // drill budget spent -> the engine advances, so the candidate meets a question they have not
+    // been warmed up on and gets the full budget for it.
+    const { service } = harness({ drill_depth: 2 }, 'adequate');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-pace',
+      userAnswer: ANSWER,
+      modality: 'TEXT',
+    });
+
+    expect(response.nextQuestionKind).toBe('transition');
+    expect(response.nextTurn?.timeBudgetSeconds).toBe(90);
+  });
+
+  it('persists the budget on the turn row, not just in the response', async () => {
+    // the report reads it back off the row long after the response is gone.
+    const { service, turns } = harness({ drill_depth: 0 }, 'adequate');
+
+    await service.answer(userId, {
+      sessionId: 'session-pace',
+      userAnswer: ANSWER,
+      modality: 'TEXT',
+    });
+
+    const created = turns.create.mock.calls.at(-1)?.[0] as { timeBudgetSeconds?: number };
+    expect(created.timeBudgetSeconds).toBe(60);
   });
 });
