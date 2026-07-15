@@ -23,6 +23,8 @@ import { GapItem } from '../modules/gap-engine/gap-item';
 import {
   buildDiagnosisFacts,
   groundDiagnosis,
+  allowedNumberTokens,
+  ungroundedNumbers,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
@@ -125,29 +127,13 @@ const gapReport = {
 
 const facts: DiagnosisFacts = buildDiagnosisFacts(review, gapReport);
 
-// ── VERBATIM COPY of allowedNumberTokens from diagnosis-grounding.ts (not exported there).
-//    Diagnostic ONLY — it merely NAMES the offending token; groundDiagnosis still owns the real verdict.
-//    If that function ever changes, this copy must change with it.
-function allowedNumberTokens(f: DiagnosisFacts): Set<string> {
-  const allowed = new Set<string>(['0', '20', '100']);
-  const visit = (value: unknown): void => {
-    if (typeof value === 'number' && Number.isFinite(value)) allowed.add(String(value));
-    else if (typeof value === 'string') {
-      for (const t of value.match(/\d+(?:[.,]\d+)?/g) ?? []) allowed.add(t.replace(',', '.'));
-    } else if (Array.isArray(value)) {
-      allowed.add(String(value.length));
-      value.forEach(visit);
-    } else if (value && typeof value === 'object') Object.values(value).forEach(visit);
-  };
-  visit(f);
-  return allowed;
-}
+// The REAL rule, imported — never a copy. This file used to keep a hand-copied allowedNumberTokens
+// plus its own raw-digit scan, which is how a diagnostic starts lying: the copy knew nothing about the
+// marker/quantity exemptions, so it named tokens the real gate had already forgiven and made a passing
+// turn look rejected. A private mirror in this very directory once did exactly that and made a working
+// fix look like a regression.
 const ALLOWED = allowedNumberTokens(facts);
-const offenders = (text: string): string[] => [
-  ...new Set(
-    (text.match(/\d+(?:[.,]\d+)?/g) ?? []).filter((t) => !ALLOWED.has(t.replace(',', '.'))),
-  ),
-];
+const offenders = (text: string): string[] => ungroundedNumbers(text, ALLOWED);
 
 // ── SYNTHETIC paraphrases mirroring the observed prod question mix (see header) ──
 const QUESTIONS: Array<{ q: string; note: string; focus?: string }> = [

@@ -25,6 +25,9 @@ import { GapItem } from '../modules/gap-engine/gap-item';
 import {
   buildDiagnosisFacts,
   groundDiagnosis,
+  allowedNumberTokens,
+  ungroundedNumbers,
+  unverifiableClaim,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
@@ -125,25 +128,11 @@ const gapReport = {
 
 const facts: DiagnosisFacts = buildDiagnosisFacts(review, gapReport);
 
-// COPY of allowedNumberTokens (not exported). Diagnostic only — names offending tokens.
-function allowedNumberTokens(f: DiagnosisFacts): Set<string> {
-  const allowed = new Set<string>(['0', '20', '100']);
-  const visit = (v: unknown): void => {
-    if (typeof v === 'number' && Number.isFinite(v)) allowed.add(String(v));
-    else if (typeof v === 'string')
-      for (const t of v.match(/\d+(?:[.,]\d+)?/g) ?? []) allowed.add(t.replace(',', '.'));
-    else if (Array.isArray(v)) {
-      allowed.add(String(v.length));
-      v.forEach(visit);
-    } else if (v && typeof v === 'object') Object.values(v).forEach(visit);
-  };
-  visit(f);
-  return allowed;
-}
-const ALLOWED = allowedNumberTokens(facts);
-const badNumbers = (t: string): string[] => [
-  ...new Set((t.match(/\d+(?:[.,]\d+)?/g) ?? []).filter((x) => !ALLOWED.has(x.replace(',', '.')))),
-];
+/** Numbers in the SERVED text that FACTS cannot account for. Uses the REAL gate helpers (imported,
+ *  never re-implemented): a private copy here once drifted from the service and measured the
+ *  behaviour of the previous release, which made a working fix read as a regression. */
+const badNumbers = (t: string, conversation: string): string[] =>
+  ungroundedNumbers(t, allowedNumberTokens(facts, conversation));
 
 /** Heuristic CANDIDATES for non-numeric fabrication — the gate cannot see these. NOT a verdict:
  *  it only flags claims a human must check against FACTS (which hold no peer/market baseline). */
@@ -235,6 +224,7 @@ async function main(): Promise<void> {
 
   const allBad: string[] = [];
   const allFlags: string[] = [];
+  const allKills: string[] = [];
 
   for (const p of PERSONAS) {
     log(`\n\n${'█'.repeat(80)}\n██ PERSONA: ${p.id}\n██ ${p.goal}\n${'█'.repeat(80)}`);
@@ -281,8 +271,19 @@ async function main(): Promise<void> {
       }
       // Mirror the service: it hands grounding the conversation so the candidate's OWN numbers
       // (a deadline they stated) are speakable. Omitting it here measured the pre-fix behaviour.
-      const g = groundDiagnosis(parsed, facts, 'vi', [history, userMsg].filter(Boolean).join('\n'));
+      const conversation = [history, userMsg].filter(Boolean).join('\n');
+      const g = groundDiagnosis(parsed, facts, 'vi', conversation);
       const served = g.answer; // what prod persists + shows
+      // WHY the model's prose lost. Without this the smoke could only see the SERVED text, so a
+      // template could mean either "the model wrote nothing worth serving" or "the model wrote a
+      // good answer and a gate ate it" — the two need opposite fixes, and guessing picked wrong.
+      const killed = served !== modelMsg;
+      const killReason = !killed
+        ? ''
+        : (unverifiableClaim(modelMsg) ??
+          (ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).length
+            ? `số ngoài FACTS: ${ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).join(', ')}`
+            : 'model trả về rỗng / parse lỗi'));
       const bucket =
         served.startsWith('Mình chưa đủ dữ kiện') || served.startsWith('Mình chưa có đủ dữ liệu')
           ? 'FALLBACK'
@@ -291,16 +292,18 @@ async function main(): Promise<void> {
               )
             ? 'TEMPLATE'
             : 'PROSE';
-      const bad = badNumbers(served);
+      const bad = badNumbers(served, conversation);
       const flags = claimFlags(served);
       allBad.push(...bad);
       allFlags.push(...flags);
+      if (killed) allKills.push(killReason);
 
       thread.push({ role: 'user', text: userMsg });
       thread.push({ role: 'assistant', text: served, bucket, bad, flags });
 
       log(`\n  ┌─ lượt ${turn} ─────────────────────────────────────────────`);
       log(`  │ 👤 ${userMsg}`);
+      if (killed) log(`  │ ✂️  GATE ĐỔI (${killReason}) — model đã viết: ${modelMsg}`);
       log(`  │ 🐬 [${bucket}] ${served}`);
       if (g.suggested_next_step) log(`  │    ↳ gợi ý: ${g.suggested_next_step}`);
       log(
@@ -348,6 +351,20 @@ async function main(): Promise<void> {
     `🟠 Claim cần người kiểm (gate KHÔNG thấy được): ${
       Object.keys(flagTally).length
         ? Object.entries(flagTally)
+            .map(([k, v]) => `${k} ×${v}`)
+            .join(' | ')
+        : '(không có)'
+    }`,
+  );
+  const killTally = allKills.reduce<Record<string, number>>(
+    (a, k) => ({ ...a, [k]: (a[k] ?? 0) + 1 }),
+    {},
+  );
+  log(
+    `✂️  Lượt bị gate ĐỔI (${allKills.length}) — lý do: ${
+      Object.keys(killTally).length
+        ? Object.entries(killTally)
+            .sort((a, b) => b[1] - a[1])
             .map(([k, v]) => `${k} ×${v}`)
             .join(' | ')
         : '(không có)'
