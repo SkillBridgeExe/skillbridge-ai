@@ -1,8 +1,12 @@
--- Interview Monitoring Pack (Wave I-MEASURE, Task 11) — 2026-07-14
+-- Interview Monitoring Pack (Wave I-MEASURE, Task 11) — 2026-07-14, extended 2026-07-15
 -- Repo: skillbridge-ai · Lane: AI/interview · Run read-only against prod Postgres.
 -- Tables: interview_sessions, interview_turns, ai_requests (request_type interview_assess /
 -- interview_ask / interview_end / interview_answer). Window defaults to the last 14 days —
 -- adjust the interval in one place per query.
+--
+-- ai_requests IS the metrics table. There is deliberately no /metrics endpoint, no dashboard and
+-- no APM vendor: every question below is one query against data the app already writes, so a
+-- saved .sql against the read replica is the whole tool. Add here rather than building infra.
 
 -- 1) Interview starts per day
 SELECT date_trunc('day', started_at) AS day, count(*) AS starts
@@ -109,3 +113,26 @@ SELECT
 FROM interview_sessions
 WHERE status = 'COMPLETED'
   AND started_at >= now() - interval '14 days';
+
+-- 9) Session failure rate — sessions whose finalization actually threw. (2026-07-15)
+--    Read this WITH query 2: completion_rate alone cannot tell a broken session from an
+--    abandoned one, because both used to sit in IN_PROGRESS forever.
+--
+--    `FAILED` is written by the stale-session sweep's catch, and that sweep is start-triggered,
+--    not a cron — a session only earns the label once the user starts their NEXT interview. So
+--    the two backlog columns matter as much as the rate: they are rows that have already gone
+--    stale but nobody has come back to trigger the sweep for. A fail_rate read without them
+--    understates the damage.
+SELECT
+  count(*) AS started,
+  count(*) FILTER (WHERE status = 'FAILED') AS failed,
+  round(count(*) FILTER (WHERE status = 'FAILED')::numeric / greatest(count(*), 1), 3)
+    AS fail_rate,
+  -- not yet swept: expired mid-interview, waiting for the user's next start
+  count(*) FILTER (WHERE status = 'IN_PROGRESS' AND expires_at < now())
+    AS backlog_stuck_in_progress,
+  -- not yet swept: reached COMPLETED but /end never landed, so no score was ever written
+  count(*) FILTER (WHERE status = 'COMPLETED' AND overall_score IS NULL AND expires_at < now())
+    AS backlog_stranded_unscored
+FROM interview_sessions
+WHERE started_at >= now() - interval '14 days';

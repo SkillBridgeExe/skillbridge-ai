@@ -60,7 +60,6 @@ import {
 } from '../../modules/interview/answer-analyzer';
 import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
-import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
   explainInterviewScore,
   reconcileAnswerScore,
@@ -474,13 +473,6 @@ export class InterviewsService {
       currentThread: state.current_thread || topic.what_to_probe,
       drillDepth: state.drill_depth,
       recentQa,
-      // code-counted facts the model must not recount (Wave I-VOICE). Not persisted: a pure
-      // projection of the stored signals + timing columns, recomputable at any time.
-      communicationFacts: buildCommunicationSignals(signals, {
-        duration_seconds: dto.durationSeconds ?? null,
-        response_delay_ms: dto.responseDelayMs ?? null,
-        transcript_segments: dto.transcriptSegments ?? null,
-      }),
     });
     const insightPromise = this.answerInsight!.judge(
       {
@@ -2091,15 +2083,29 @@ export class InterviewsService {
 
   /**
    * Self-healing sweep: before a user starts (and pays for) a new session, finalize their own
-   * expired IN_PROGRESS sessions through the SAME partial-scoring path as /end — an abandoned
+   * expired sessions through the SAME partial-scoring path as /end — an abandoned
    * session (tab closed, network drop) with >=1 answered turn gets scored and its gap report
    * persisted instead of leaking the paid quota; one with 0 answers is CANCELLED.
    * Never throws: a sweep failure must not block starting the new session.
+   *
+   * Sweeps COMPLETED-without-a-score too, not just IN_PROGRESS. Three paths mark a session
+   * COMPLETED while the score and report are only ever written by `end()`: the engine deciding
+   * to finish (`answer`), the time limit firing (`assertNotExpired`), and the legacy end. All
+   * three tell the client to call /end — so when the client never does (tab closed, crash), the
+   * row is stranded COMPLETED with a null score, hidden from the user's own history by the
+   * `overallScore: Not(IsNull())` filter in `list`, and previously unreachable by this sweep.
+   *
+   * Both arms stay gated on `expiresAt` in the past: while a session can still legitimately be
+   * ended by its own client, healing it here would race that request.
    */
   private async sweepStaleSessions(userId: string): Promise<void> {
     try {
+      const expired = LessThan(new Date());
       const stale = await this.sessions.find({
-        where: { userId, status: 'IN_PROGRESS', expiresAt: LessThan(new Date()) },
+        where: [
+          { userId, status: 'IN_PROGRESS', expiresAt: expired },
+          { userId, status: 'COMPLETED', overallScore: IsNull(), expiresAt: expired },
+        ],
       });
       for (const session of stale) {
         try {
@@ -2108,6 +2114,26 @@ export class InterviewsService {
           this.logger.warn(
             `Failed to finalize stale interview session ${session.id}: ${String(error)}`,
           );
+          // Record the failure instead of leaving the row to be retried forever. Without this,
+          // `FAILED` is legal in the enum and the CHECK constraint but never written, so a broken
+          // session is indistinguishable from one the user walked away from — and, worse, it still
+          // matches the predicate above, so EVERY later start re-runs `end()` on it: a fresh
+          // coaching LLM call each time, for a row that will keep failing.
+          //
+          // The guard is `overallScore IS NULL` — the same condition that put the row in this
+          // sweep — and NOT the status. Status cannot express it: both arms above arrive here
+          // (IN_PROGRESS and COMPLETED-without-a-score), so pinning either one leaves the other
+          // looping. Scoring the row is what "healed" means; if `end` got a score written before
+          // throwing, the row is healed and this no-ops.
+          //
+          // The trade-off: one attempt, then terminal. A transient blip now costs a paid session
+          // its report, where before it would be retried on the user's next start. That is the
+          // right side to err on — a deterministic failure (one answer the model won't parse)
+          // otherwise bills a coaching call on every start forever, and the failure was invisible
+          // either way. Now it lands in the fail-rate query instead, where we can see it.
+          await this.sessions
+            .update({ id: session.id, overallScore: IsNull() }, { status: 'FAILED' })
+            .catch(() => undefined);
         }
       }
     } catch (error) {

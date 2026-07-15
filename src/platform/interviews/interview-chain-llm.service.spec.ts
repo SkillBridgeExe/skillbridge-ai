@@ -81,7 +81,12 @@ describe('InterviewChainLlmService.assess', () => {
     );
   });
 
-  it('passes deterministic communication facts into the prompt as code-owned ground truth', async () => {
+  // Speech-delivery counts (filler rate, WPM, pauses, response delay) must never reach the model
+  // that produces the BARS score. They are ASR-derived, and ASR word error is highest for accented
+  // and non-native speakers — scoring them penalises our candidates for the transcriber's failure.
+  // `communication` is still a scored dimension; the model judges it from the answer TEXT.
+  // Key-based, not value-based: `recent_qa` legitimately carries an answer that may contain "um".
+  it('sends the assess model no speech-delivery counts at all, even when scoring communication', async () => {
     const { service, prompts } = build(parsed);
 
     await service.assess('user-1', {
@@ -94,45 +99,12 @@ describe('InterviewChainLlmService.assess', () => {
       currentThread: 'React Query',
       drillDepth: 1,
       recentQa: [{ order: 2, question: 'Q', answer: 'A' }],
-      communicationFacts: {
-        word_count: 42,
-        sentence_count: 3,
-        filler_count: 5,
-        filler_terms: ['basically'],
-        hedging_count: 1,
-        repeated_terms: ['caching'],
-        jd_term_hits: ['React'],
-        jd_term_misses: ['GraphQL'],
-        star: { situation: true, task: false, action: true, result: false },
-        answer_length_band: 'ideal',
-        unavailable_reason: 'no_timing_data',
-      },
     });
 
     const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
-    const facts = JSON.parse(vars.communication_facts as string) as Record<string, unknown>;
-    expect(facts.word_count).toBe(42);
-    expect(facts.filler_count).toBe(5);
-    expect(facts.jd_term_misses).toEqual(['GraphQL']);
-  });
-
-  it('renders communication_facts as null when no facts are provided (legacy callers)', async () => {
-    const { service, prompts } = build(parsed);
-
-    await service.assess('user-1', {
-      sessionId: 'session-1',
-      turnOrder: 2,
-      language: 'en',
-      seniorityTarget: 'mid',
-      currentTopic: { id: 'topic-react', display_name: 'React Query' },
-      targetDimension: 'technical_depth',
-      currentThread: 'React Query',
-      drillDepth: 1,
-      recentQa: [{ order: 2, question: 'Q', answer: 'A' }],
-    });
-
-    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
-    expect(vars.communication_facts).toBe('null');
+    const forbidden =
+      /filler|wpm|speaking_rate|communication_facts|response_delay|transcript_segments|pause/i;
+    expect(Object.keys(vars).filter((key) => forbidden.test(key))).toEqual([]);
   });
 
   it('masks PII before prompt render and trace persistence', async () => {
