@@ -3731,3 +3731,179 @@ describe('InterviewsService — I-OWN probe is asked once, not on repeat', () =>
     expect(response.turnTrace?.reasons).not.toContain('demand_concrete_example');
   });
 });
+
+describe('InterviewsService — a topic gets exactly the turns the agenda allocated it', () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+
+  // Two topics, so "advance" is observable. `state` sets the pre-answer InterviewState — the whole
+  // point of these tests is WHICH drill_depth the service hands decideTurn.
+  function harness(state: Record<string, unknown>, depthSignal: string) {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-budget',
+        score: 64,
+        recognizedConcepts: ['Redis'],
+        depthSignal,
+        claimStatus: 'ok',
+        currentThread: 'Redis caching',
+        gapsRevealed: [],
+        note: 'Answered about caching.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-budget',
+        aiMessage: 'Right.',
+        question: 'How does that Redis cache get invalidated?',
+      })),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { answer: jest.fn() } as never,
+      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => defaultInsight()) } as never,
+      {} as never,
+    );
+    const topic = (id: string, name: string) => ({
+      id,
+      phase: 'SKILL_PROBE',
+      skill_canonical: 'redis',
+      display_name: name,
+      seniority_target: 'mid',
+      drill_budget: 3,
+      what_to_probe: `${name} internals`,
+      seed_question: `Tell me about ${name}.`,
+    });
+    sessions.findOne.mockResolvedValue({
+      id: 'session-budget',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'TEXT',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2026-06-12T00:10:00.000Z'),
+      maxDurationSeconds: 600,
+      agenda: {
+        turn_budget: 12,
+        uncovered: [],
+        topics: [topic('topic-redis', 'Redis caching'), topic('topic-kafka', 'Kafka')],
+      },
+      interviewState: {
+        current_phase: 'SKILL_PROBE',
+        current_topic_id: 'topic-redis',
+        drill_depth: 0,
+        current_thread: 'Redis caching',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 2,
+        evasive_streak: 0,
+        ...state,
+      },
+    });
+    const pendingTurn = {
+      id: 'turn-budget',
+      sessionId: 'session-budget',
+      turnOrder: 3,
+      phase: 'SKILL_PROBE',
+      topicPhase: 'SKILL_PROBE',
+      skillCanonical: 'redis',
+      currentThread: 'Redis caching',
+      modality: 'TEXT',
+      interviewerQuestion: 'Tell me about Redis caching.',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:01:00.000Z'),
+      askedAt: new Date('2026-06-12T00:01:00.000Z'),
+    };
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-budget-next',
+      askedAt: new Date('2026-06-12T00:02:00.000Z'),
+      createdAt: new Date('2026-06-12T00:02:00.000Z'),
+    }));
+    return { service, chain };
+  }
+
+  const ANSWER =
+    'I put a Redis cache in front of the report queries with a five minute TTL, and a consumer clears the keys when a write lands.';
+
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:02:00.000Z'));
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('still drills the second follow-up of a 3-turn topic (the budget is turns, not follow-ups)', async () => {
+    // one follow-up already asked; the agenda paid for 3 turns on this topic, so the seed + 2
+    // follow-ups are owed. Handing decideTurn the post-increment depth advances a turn early and
+    // silently returns one turn per topic to the tail.
+    const { service, chain } = harness({ drill_depth: 1 }, 'adequate');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-budget',
+      userAnswer: ANSWER,
+      modality: 'TEXT',
+    });
+
+    expect(response.turnDecision).toBe('continue_topic');
+    expect(response.nextQuestionKind).toBe('follow_up');
+    expect(response.turnTrace).toMatchObject({ action: 'drill', topic_id: 'topic-redis' });
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ ladderRung: 'tradeoff' }),
+    );
+  });
+
+  it('advances once the topic has spent its allocated turns', async () => {
+    const { service } = harness({ drill_depth: 2 }, 'adequate');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-budget',
+      userAnswer: ANSWER,
+      modality: 'TEXT',
+    });
+
+    expect(response.turnDecision).toBe('advance_topic');
+    expect(response.turnTrace?.reasons).toContain('drill_budget_reached');
+  });
+
+  it('gives the first evasive answer one fair follow-up before moving on', async () => {
+    const { service } = harness({ drill_depth: 0 }, 'evasive');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-budget',
+      userAnswer: 'I would probably just look it up when it comes to that, honestly.',
+      modality: 'TEXT',
+    });
+
+    expect(response.turnDecision).toBe('continue_topic');
+    expect(response.turnTrace?.reasons).toContain('one_fair_follow_up');
+  });
+
+  it('moves on fairly after the evasive answer already got its follow-up', async () => {
+    const { service } = harness({ drill_depth: 1 }, 'evasive');
+
+    const response = await service.answer(userId, {
+      sessionId: 'session-budget',
+      userAnswer: 'Like I said, I would look it up when it comes to that.',
+      modality: 'TEXT',
+    });
+
+    expect(response.turnDecision).toBe('advance_topic');
+    expect(response.turnTrace?.reasons).toContain('evasive_after_follow_up');
+  });
+});

@@ -58,14 +58,8 @@ export interface ProductionTurnCase {
   /** optional override pinning grounded insight fields (e.g. evidence_quality). */
   insight?: Partial<AnswerInsight>;
   /**
-   * decision state at this turn (what interviews.service would hold in InterviewState).
-   *
-   * ⚠️ CONVENTION: the corpus labels the FIRST answer on a topic as `drill_depth: 0`, but
-   * production passes `state.drill_depth + 1` to decideTurn (`advanceStateBeforeDecision` always
-   * increments first), so production never passes 0. The corpus is therefore one behind
-   * production at the drill-budget boundary. This predates I-OWN and is NOT reconciled here —
-   * fixing it means re-labeling every case's expected_decision. Until then, do NOT add a
-   * depth-DEPENDENT `expected_rung`: it would gate a rung production never computes.
+   * Follow-ups already asked on this topic when the answer arrives — `InterviewState.drill_depth`
+   * pre-increment, so the first answer on a topic is 0. Same meaning as TurnDecisionInput's field.
    */
   drill_depth: number;
   drill_budget: number;
@@ -99,9 +93,6 @@ export interface ProductionTurnCase {
    * I-OWN: the drill-ladder rung this turn's follow-up must target (null = no drill this turn).
    * Omitted = not checked. Mirrors the service: a collective answer overrides to
    * `decision_ownership` outside SCENARIO, otherwise the rung is the depth rung.
-   * Only assert the DEPTH-INDEPENDENT outcomes here (the collective override and its SCENARIO
-   * exemption) — see the drill_depth convention warning above. Depth rungs are gated directly in
-   * test/modules/interview/interview-agenda.spec.ts, where no convention is in play.
    */
   expected_rung?: DrillLadderRung | null;
 }
@@ -269,7 +260,7 @@ export function scoreInterviewProductionCase(
     // when the answer was collective ("we…", never "I"). SCENARIO is exempt like the anchor.
     const collectiveAnswer = signals.ownership.collective_answer && t.topic_phase !== 'SCENARIO';
     const rung: DrillLadderRung | null = drilling
-      ? drillLadderRung(Math.max(0, t.drill_depth - 1), c.seniority, { collectiveAnswer })
+      ? drillLadderRung(t.drill_depth, c.seniority, { collectiveAnswer })
       : null;
     if (t.expected_rung !== undefined && rung !== t.expected_rung) {
       mismatches.push(

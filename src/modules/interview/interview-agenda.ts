@@ -194,7 +194,20 @@ export const EARLY_CAREER_BANDS: ReadonlySet<string> = new Set([
 
 export interface TurnDecisionInput {
   signal: DepthSignal;
+  /**
+   * Follow-ups ALREADY ASKED on this topic — i.e. `InterviewState.drill_depth` BEFORE the answer
+   * being decided on is counted. 0 means only the seed question has been answered, so the topic is
+   * at its boundary. Every rule below is written against that meaning; passing the post-increment
+   * count instead silently shifts all four of them by one (it cost us the fair first follow-up on
+   * an evasive answer, the wrap-at-topic-boundary branch, and half the drill ladder — see the
+   * `drill_budget` note).
+   */
   drill_depth: number;
+  /**
+   * Turns the agenda allocated to this topic. The topic gets 1 seed question + `drill_budget - 1`
+   * follow-ups = exactly `drill_budget` turns, which is what buildInterviewAgenda subtracted from
+   * the pool for it.
+   */
   drill_budget: number;
   turns_used: number;
   turn_budget: number;
@@ -300,10 +313,10 @@ export function decideTurnWithTrace(
  *    `I`), because that is exactly when a real interviewer stops climbing and asks whose work it
  *    actually was.
  *
- * ponytail: `edge_failure`/`design` sit past what decideTurn can reach on a normal topic (it
- * advances at drill_depth >= drill_budget - 1, and drill_budget caps at 4 → application, tradeoff).
- * They stay for the topics-exhausted tail, where drill is forced and depth keeps climbing. New
- * rungs are therefore placed at reachable indices, never appended.
+ * Reach on a normal topic is `drill_budget - 1` rungs (1 seed + that many follow-ups), and
+ * drill_budget caps at 4 → application, tradeoff, edge_failure. `design` needs a 5th allocated
+ * turn, so today it only lands in the topics-exhausted tail, where drill is forced and depth keeps
+ * climbing. Place new rungs at reachable indices rather than appending them.
  */
 export type DrillLadderRung =
   | 'application'

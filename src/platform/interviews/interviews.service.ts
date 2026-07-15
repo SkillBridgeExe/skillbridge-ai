@@ -503,7 +503,8 @@ export class InterviewsService {
       phase: topic.phase,
       topic_id: topic.id,
       reasons: [reason],
-      depth: nextState.drill_depth,
+      // follow-ups asked on this topic — same meaning as decideTurnWithTrace's `depth`.
+      depth: state.drill_depth,
       remaining_turn_budget: Math.max(0, hardCap - nextState.turns_used),
       confidence: 'high',
     });
@@ -526,7 +527,10 @@ export class InterviewsService {
     } else {
       const decided = decideTurnWithTrace({
         signal: depthGuard.depth_signal,
-        drill_depth: nextState.drill_depth,
+        // follow-ups already asked on this topic — the PRE-increment count, which is what every
+        // rule in decide() is written against (advanceStateBeforeDecision has already counted the
+        // answer we are deciding on, and that count is not a follow-up).
+        drill_depth: state.drill_depth,
         drill_budget: topic.drill_budget,
         turns_used: nextState.turns_used,
         turn_budget: hardCap + 2,
@@ -589,9 +593,7 @@ export class InterviewsService {
         !updatedState.ownership_probed;
       const ladderRung =
         action === 'drill' || action === 'push_harder'
-          ? drillLadderRung(Math.max(0, updatedState.drill_depth - 1), askTopic.seniority_target, {
-              collectiveAnswer,
-            })
+          ? drillLadderRung(state.drill_depth, askTopic.seniority_target, { collectiveAnswer })
           : null;
       if (ladderRung) {
         turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };

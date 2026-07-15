@@ -2367,7 +2367,8 @@
           "expected_score_band": [
             67,
             77
-          ]
+          ],
+          "expected_rung": "tradeoff"
         }
       ],
       "expected_final_gaps": [],
@@ -2377,7 +2378,7 @@
       ]
     },
     {
-      "id": "vi-own-collective-answer-fresher",
+      "id": "vi-own-collective-then-reflection-fresher",
       "locale": "vi",
       "target_role": "frontend_engineer",
       "seniority": "fresher",
@@ -2430,7 +2431,8 @@
           "expected_score_band": [
             57,
             67
-          ]
+          ],
+          "expected_rung": "reflection"
         }
       ],
       "expected_final_gaps": [],
