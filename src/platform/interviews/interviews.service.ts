@@ -109,6 +109,29 @@ const PREMIUM_INTERVIEW_HARD_TURN_CAP = 30;
 const MAX_ANSWER_HISTORY_TURNS = 6;
 const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
 
+/**
+ * I-PACE: seconds a real interviewer gives for one answer. A fresh question earns the full
+ * budget; a follow-up drills a point already made, so it earns less.
+ *
+ * This lives HERE and not in `interview-agenda.ts` on purpose: the agenda is deliberately
+ * time-blind (`decide()` reads turn counts only) and every time rule in this product already
+ * lives in this service. Keep that split.
+ *
+ * These are COACHING budgets, not cutoffs. The engine never shortens, skips or penalises an
+ * answer for exceeding one \u2014 the client nudges at the budget and only force-submits at a
+ * generous ceiling, so a candidate who needs longer is never cut off mid-thought. See the
+ * benchmark spec \u00A73: we adopt the screener's question intelligence, not its harshness.
+ */
+const MAIN_ANSWER_BUDGET_SECONDS = 90;
+const FOLLOW_UP_ANSWER_BUDGET_SECONDS = 60;
+
+export const answerTimeBudgetSeconds = (kind: InterviewNextQuestionKind): number | null =>
+  kind === null
+    ? null
+    : kind === 'opening' || kind === 'transition'
+      ? MAIN_ANSWER_BUDGET_SECONDS
+      : FOLLOW_UP_ANSWER_BUDGET_SECONDS;
+
 /** compact trace slug for an anchored drill (I-INTEL), e.g. `anchor_redis_cache`. */
 const anchorTraceSlug = (anchor: string): string =>
   `anchor_${anchor
@@ -370,6 +393,8 @@ export class InterviewsService {
         skillCanonical: firstTopic.skill_canonical,
         questionBankItemId: firstTopic.question_bank_item_id ?? null,
         questionBankKey: firstTopic.question_bank_key ?? null,
+        // the first question is always a fresh one — the opening budget, by definition.
+        timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
       }),
     );
 
@@ -392,6 +417,7 @@ export class InterviewsService {
       firstQuestion,
       phase,
       realtime,
+      answerBudgetSeconds: answerTimeBudgetSeconds('opening'),
     };
   }
 
@@ -743,6 +769,9 @@ export class InterviewsService {
           skillCanonical: askTopic.skill_canonical,
           questionBankItemId: tracking.questionBankItemId,
           questionBankKey: tracking.questionBankKey,
+          // `nextQuestionKind` already carries the only distinction the budget needs — a fresh
+          // question (opening/transition) vs a drill into one already asked (follow_up/closing).
+          timeBudgetSeconds: answerTimeBudgetSeconds(nextQuestionKind),
         }),
       );
     }
@@ -2403,6 +2432,7 @@ export class InterviewsService {
       durationSeconds: turn.durationSeconds,
       responseDelayMs: turn.responseDelayMs ?? null,
       transcriptSegments: turn.transcriptSegments ?? null,
+      timeBudgetSeconds: turn.timeBudgetSeconds ?? null,
     };
   }
 
