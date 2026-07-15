@@ -199,15 +199,26 @@ describe('drillLadderRung', () => {
     expect(drillLadderRung(3, 'senior')).toBe('design');
   });
 
-  it('caps the ladder at tradeoff for early-career bands', () => {
+  it('caps the ladder at tradeoff for early-career bands, with reflection in between', () => {
     expect(drillLadderRung(0, 'fresher')).toBe('application');
-    expect(drillLadderRung(1, 'fresher')).toBe('application');
+    expect(drillLadderRung(1, 'fresher')).toBe('reflection');
     expect(drillLadderRung(2, 'intern')).toBe('tradeoff');
     expect(drillLadderRung(5, 'junior')).toBe('tradeoff');
   });
 
   it('clamps past the end of the ladder', () => {
     expect(drillLadderRung(9, 'senior')).toBe('design');
+  });
+
+  it('overrides any depth rung with decision_ownership on a collective answer (I-OWN)', () => {
+    expect(drillLadderRung(0, 'senior', { collectiveAnswer: true })).toBe('decision_ownership');
+    expect(drillLadderRung(3, 'senior', { collectiveAnswer: true })).toBe('decision_ownership');
+    expect(drillLadderRung(1, 'fresher', { collectiveAnswer: true })).toBe('decision_ownership');
+  });
+
+  it('falls back to the depth rung once the answer is no longer collective', () => {
+    expect(drillLadderRung(1, 'senior', { collectiveAnswer: false })).toBe('tradeoff');
+    expect(drillLadderRung(1, 'fresher', {})).toBe('reflection');
   });
 });
 
