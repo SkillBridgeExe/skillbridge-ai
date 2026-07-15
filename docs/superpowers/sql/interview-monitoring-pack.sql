@@ -98,21 +98,6 @@ WHERE status = 'COMPLETED'
 GROUP BY 1
 ORDER BY min(overall_score);
 
--- 8b) Session failure rate — sessions whose finalization actually threw.
---     Read this WITH query 2: completion_rate alone cannot tell a broken session from an
---     abandoned one, because both used to sit in IN_PROGRESS forever. `FAILED` is written by
---     the stale-session sweep's catch, so a session only earns it after the user starts their
---     NEXT interview (the sweep is start-triggered, not a cron) — expect this to lag, and read
---     `stuck_in_progress` next to it as the not-yet-swept backlog.
-SELECT
-  count(*) AS started,
-  count(*) FILTER (WHERE status = 'FAILED') AS failed,
-  round(count(*) FILTER (WHERE status = 'FAILED')::numeric / greatest(count(*), 1), 3)
-    AS fail_rate,
-  count(*) FILTER (WHERE status = 'IN_PROGRESS' AND expires_at < now()) AS stuck_in_progress
-FROM interview_sessions
-WHERE started_at >= now() - interval '14 days';
-
 -- 8) Empty/degraded report count — COMPLETED sessions missing the pieces the FE renders.
 --    Any non-zero row here is a silent-degrade signal (score without explanations, or a
 --    completed interview with no final score at all).
@@ -128,3 +113,26 @@ SELECT
 FROM interview_sessions
 WHERE status = 'COMPLETED'
   AND started_at >= now() - interval '14 days';
+
+-- 9) Session failure rate — sessions whose finalization actually threw. (2026-07-15)
+--    Read this WITH query 2: completion_rate alone cannot tell a broken session from an
+--    abandoned one, because both used to sit in IN_PROGRESS forever.
+--
+--    `FAILED` is written by the stale-session sweep's catch, and that sweep is start-triggered,
+--    not a cron — a session only earns the label once the user starts their NEXT interview. So
+--    the two backlog columns matter as much as the rate: they are rows that have already gone
+--    stale but nobody has come back to trigger the sweep for. A fail_rate read without them
+--    understates the damage.
+SELECT
+  count(*) AS started,
+  count(*) FILTER (WHERE status = 'FAILED') AS failed,
+  round(count(*) FILTER (WHERE status = 'FAILED')::numeric / greatest(count(*), 1), 3)
+    AS fail_rate,
+  -- not yet swept: expired mid-interview, waiting for the user's next start
+  count(*) FILTER (WHERE status = 'IN_PROGRESS' AND expires_at < now())
+    AS backlog_stuck_in_progress,
+  -- not yet swept: reached COMPLETED but /end never landed, so no score was ever written
+  count(*) FILTER (WHERE status = 'COMPLETED' AND overall_score IS NULL AND expires_at < now())
+    AS backlog_stranded_unscored
+FROM interview_sessions
+WHERE started_at >= now() - interval '14 days';

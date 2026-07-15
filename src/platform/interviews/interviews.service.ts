@@ -2114,16 +2114,25 @@ export class InterviewsService {
           this.logger.warn(
             `Failed to finalize stale interview session ${session.id}: ${String(error)}`,
           );
-          // Record the failure instead of leaving the row IN_PROGRESS forever, where it is
-          // indistinguishable from a session the user simply walked away from. Without this,
-          // `FAILED` is legal in the enum and the CHECK constraint but never written, so nobody
-          // can ask what share of interviews break.
+          // Record the failure instead of leaving the row to be retried forever. Without this,
+          // `FAILED` is legal in the enum and the CHECK constraint but never written, so a broken
+          // session is indistinguishable from one the user walked away from — and, worse, it still
+          // matches the predicate above, so EVERY later start re-runs `end()` on it: a fresh
+          // coaching LLM call each time, for a row that will keep failing.
           //
-          // Guarded UPDATE, not save(): if `end` partially finalized the row (or a concurrent
-          // request did) before throwing, that COMPLETED-with-partial-report state is real and
-          // must survive — only a row still sitting IN_PROGRESS is a clean failure.
+          // The guard is `overallScore IS NULL` — the same condition that put the row in this
+          // sweep — and NOT the status. Status cannot express it: both arms above arrive here
+          // (IN_PROGRESS and COMPLETED-without-a-score), so pinning either one leaves the other
+          // looping. Scoring the row is what "healed" means; if `end` got a score written before
+          // throwing, the row is healed and this no-ops.
+          //
+          // The trade-off: one attempt, then terminal. A transient blip now costs a paid session
+          // its report, where before it would be retried on the user's next start. That is the
+          // right side to err on — a deterministic failure (one answer the model won't parse)
+          // otherwise bills a coaching call on every start forever, and the failure was invisible
+          // either way. Now it lands in the fail-rate query instead, where we can see it.
           await this.sessions
-            .update({ id: session.id, status: 'IN_PROGRESS' }, { status: 'FAILED' })
+            .update({ id: session.id, overallScore: IsNull() }, { status: 'FAILED' })
             .catch(() => undefined);
         }
       }

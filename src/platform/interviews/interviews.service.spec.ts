@@ -3308,7 +3308,53 @@ describe('InterviewsService', () => {
       expect(response.id).toBe('generated-id');
 
       expect(sessions.update).toHaveBeenCalledWith(
-        { id: 'stale-boom', status: 'IN_PROGRESS' },
+        { id: 'stale-boom', overallScore: IsNull() },
+        { status: 'FAILED' },
+      );
+    });
+
+    // The cross cell, and the one a status-pinned guard gets wrong: a stranded COMPLETED row whose
+    // finalization ALSO throws. It must reach a terminal state, because it still matches the sweep
+    // predicate — leave it un-terminated and every later start re-runs end() on it, paying for a
+    // coaching call each time, forever.
+    it('terminates a stranded COMPLETED session whose finalization also throws', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      const stranded = {
+        ...staleSession('stale-stranded-boom'),
+        status: 'COMPLETED' as const,
+        overallScore: null,
+      };
+      sessions.find.mockResolvedValue([stranded]);
+      sessions.findOne.mockResolvedValue(stranded);
+      turns.find.mockRejectedValue(new Error('turn read failed'));
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn(), end: jest.fn() } as never,
+        {
+          assertCanUse: jest.fn(async () => undefined),
+          recordUsage: jest.fn(async () => undefined),
+          getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+        } as never,
+        { createClientSecret: jest.fn() } as never,
+        undefined,
+        undefined,
+        {} as never,
+        { judge: jest.fn() } as never,
+        { coach: jest.fn() } as never,
+      );
+
+      await service.start(userId, startDto);
+
+      // guarded on "still has no score", not on status — the condition that put it here.
+      expect(sessions.update).toHaveBeenCalledWith(
+        { id: 'stale-stranded-boom', overallScore: IsNull() },
         { status: 'FAILED' },
       );
     });
