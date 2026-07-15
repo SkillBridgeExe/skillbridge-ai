@@ -2237,17 +2237,11 @@ describe('InterviewsService', () => {
     });
     expect(response.turnTrace?.confidence).toBe('low');
     expect(response.turnTrace?.reasons).toContain('fallback_seed_question');
-    // Wave I-VOICE: code-counted communication facts ride along into the assess call.
+    // The answer reports a duration, so speech-delivery counts ARE computable here — and are
+    // still never handed to the scoring model. See the chain spec for why.
     expect(chain.assess).toHaveBeenCalledWith(
       userId,
-      expect.objectContaining({
-        communicationFacts: expect.objectContaining({
-          word_count: expect.any(Number),
-          filler_count: expect.any(Number),
-          speaking_rate_wpm: expect.any(Number),
-          answer_length_band: expect.any(String),
-        }),
-      }),
+      expect.not.objectContaining({ communicationFacts: expect.anything() }),
     );
   });
 

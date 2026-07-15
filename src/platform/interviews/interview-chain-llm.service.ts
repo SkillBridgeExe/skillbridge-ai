@@ -4,7 +4,6 @@ import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../../modules/prompts/prompts.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { DepthSignal, DrillLadderRung, TurnAction } from '../../modules/interview/interview-agenda';
-import { CommunicationSignals } from '../../modules/interview/communication-metrics';
 
 const PROMPT_ASSESS = 'interview_assess_v1';
 const PROMPT_ASK = 'interview_ask_v1';
@@ -174,12 +173,6 @@ export interface InterviewAssessInput {
   currentThread: string;
   drillDepth: number;
   recentQa: unknown;
-  /**
-   * Wave I-VOICE: code-counted communication facts (L1 projection). Passed to the model as
-   * ground truth it must not recount; the assess schema (additionalProperties: false, no count
-   * fields) structurally prevents the model from overriding any deterministic count.
-   */
-  communicationFacts?: CommunicationSignals | null;
 }
 
 export interface InterviewAssessOutput {
@@ -293,7 +286,6 @@ export class InterviewChainLlmService {
         current_thread: input.currentThread,
         drill_depth: input.drillDepth,
         recent_qa: JSON.stringify(input.recentQa),
-        communication_facts: JSON.stringify(input.communicationFacts ?? null),
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASSESS, promptVars);
