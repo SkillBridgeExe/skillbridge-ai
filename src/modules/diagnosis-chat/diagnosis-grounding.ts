@@ -368,7 +368,52 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // and "the model invented a number". Everything the model may cite numerically must already
 // exist in FACTS: numeric values, numbers inside verbatim fact strings, list sizes (so honest
 // counting like "3 gap" stays legal), and the two score scales (/20, /100).
-function allowedNumberTokens(facts: DiagnosisFacts): Set<string> {
+/**
+ * Ordinal list markers — "(1)", and "1." / "2)" at the start of a line — are FORMATTING, not claims.
+ * They were being read as fabricated numbers, so any answer that enumerated priorities (exactly what
+ * the prompt asks for) was rejected and replaced by a template. The deterministic fallback below
+ * writes "(1) …; (2) …" itself, so the gate rejected its own code's output.
+ *
+ * Deliberately narrow: bare "N." / "N)" counts as a marker ONLY at line start, so a real claim like
+ * "tăng 2." mid-sentence is still checked. Parenthesised "(N)" is a marker anywhere — a quantitative
+ * claim is never written that way.
+ */
+const LIST_MARKER = /\(\d{1,2}\)|(?:^|\n)[ \t]*\d{1,2}[.)](?=\s)/g;
+
+/**
+ * Claims the advisor CANNOT know from FACTS, phrased without digits so the number gate is blind to
+ * them. FACTS hold the candidate's own record only: no peer distribution, no percentile, no hire
+ * odds, no salary. Observed live: "CV của bạn đang ở mức trung bình khá" and, under pressure for a
+ * percentile, "nếu buộc phải nói theo cảm nhận … chưa ở nhóm nổi bật" — a vibes-based ranking from a
+ * tool whose whole value is being grounded.
+ *
+ * Scope is the USER-vs-OTHERS axis only. Comparing two entries that BOTH live in FACTS (e.g. which
+ * gap has the higher market_demand) stays legal — that is the model doing its job.
+ *
+ * The prompt is taught to refuse these WITHOUT restating the metric, so an honest refusal does not
+ * trip its own gate.
+ */
+const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
+  [
+    'peer_comparison',
+    /mặt bằng chung|so với (?:những |các |đa số |phần lớn )?(?:người|ứng viên|bạn bè)|ứng viên khác|người khác|đa số ứng viên|phần lớn ứng viên/i,
+  ],
+  ['ranking', /top\s*\d|xếp hạng|percentile|thứ hạng|nhóm (?:đầu|nổi bật|dẫn đầu)/i],
+  ['grade_label', /trung bình khá|mức (?:trung bình|khá|giỏi|xuất sắc|kém)/i],
+  [
+    'hire_odds',
+    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)\s+(?:được\s+)?(?:đậu|trúng tuyển|nhận|pass)|chắc (?:đậu|trúng)/i,
+  ],
+  ['salary', /mức lương|lương (?:khoảng|tầm|dự kiến|bao nhiêu)|thu nhập (?:khoảng|tầm)/i],
+];
+
+/** The first unverifiable-claim label present in the text, or null. */
+function unverifiableClaim(text: string): string | null {
+  for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
+  return null;
+}
+
+function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<string> {
   const allowed = new Set<string>(['0', '20', '100']);
   const visit = (value: unknown): void => {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -385,11 +430,28 @@ function allowedNumberTokens(facts: DiagnosisFacts): Set<string> {
     }
   };
   visit(facts);
+
+  // FACTS is not the only honest source of a number: so is what the candidate just SAID. Told "mình
+  // còn đúng 2 tuần trước deadline", the advisor must be able to say "2 tuần" back — otherwise "2"
+  // reads as fabricated and the whole reply is swapped for a template. Measured: the memory persona
+  // lost 4 of 5 turns this way, so remembering was impossible even once the citation gate was gone.
+  //
+  // TRADE-OFF, accepted deliberately: a number the candidate PLANTS ("CV tôi 95 điểm đúng không?")
+  // becomes speakable, so the model could echo 95 back. That is bounded — the user already knows what
+  // they typed, and the prompt still requires every CV/score number to come from FACTS. The gate has
+  // always been token-level (it checks provenance, never what a number is ASSERTED to mean), so this
+  // widens an existing seam rather than opening a new kind of one.
+  if (conversation) {
+    for (const token of conversation.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+      allowed.add(token.replace(',', '.'));
+    }
+  }
   return allowed;
 }
 
 function numbersGrounded(text: string, allowed: Set<string>): boolean {
-  for (const token of text.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+  const claims = text.replace(LIST_MARKER, ' ');
+  for (const token of claims.match(/\d+(?:[.,]\d+)?/g) ?? []) {
     if (!allowed.has(token.replace(',', '.'))) return false;
   }
   return true;
@@ -409,6 +471,9 @@ export function groundDiagnosis(
   parsed: unknown,
   facts: DiagnosisFacts,
   language?: string,
+  /** This turn's question + prior history. Numbers the candidate already said are speakable —
+   *  without this the advisor cannot repeat "2 tuần" back and every memory turn is templated. */
+  conversation?: string,
 ): DiagnosisChatResult {
   if (typeof parsed !== 'object' || parsed === null) return fallback(facts, language);
   const obj = parsed as Record<string, unknown>;
@@ -440,15 +505,20 @@ export function groundDiagnosis(
       ? { toolName: citedTool, data: facts.tool_results[citedTool] }
       : undefined;
 
-  if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
-
-  // Advisor v2: grounding VERIFIES instead of replacing. A message whose citation resolved and
-  // whose every number token already exists in FACTS is the model doing its actual job —
-  // synthesis, comparison, prioritization — so serve it (URL-stripped). Any gate failure falls
-  // through to the deterministic template below, byte-identical to the pre-v2 behavior.
-  const allowed = allowedNumberTokens(facts);
+  // Advisor v3: a citation is a SCROLL TARGET, not a licence to speak. Requiring one meant every
+  // turn that legitimately has nothing to cite was thrown away and answered with "Mình chưa đủ dữ
+  // kiện đã xác minh" — including the ones that make a companion feel alive. Measured over 25 real
+  // multi-turn exchanges: "Bạn vừa nói mình nhắm vị trí gì ấy nhỉ?" and "Bạn có nhớ deadline còn 2
+  // tuần không?" both hit it, so the advisor could never once discuss the conversation it was
+  // having — it read as amnesia, not caution. Small talk and clarifying questions died the same way.
+  //
+  // The gate also bought nothing it claimed to: it inspects a metadata FIELD, never the prose, so a
+  // message that cites a real gap can still fabricate freely — while an honest uncited answer is
+  // killed. What actually guards the prose is the number gate plus the unverifiable-claim gate below.
+  const allowed = allowedNumberTokens(facts, conversation);
   const modelMessage = stripRawUrls(obj.message);
-  if (numbersGrounded(modelMessage, allowed)) {
+  const unverifiable = unverifiableClaim(modelMessage);
+  if (!unverifiable && numbersGrounded(modelMessage, allowed)) {
     const rawSuggestion =
       typeof obj.suggested_next_step === 'string' ? obj.suggested_next_step.trim() : '';
     const suggestionOk = rawSuggestion !== '' && numbersGrounded(rawSuggestion, allowed);
@@ -465,6 +535,10 @@ export function groundDiagnosis(
       suggested_next_step: suggestionOk ? stripRawUrls(rawSuggestion) : verifiedSuggestion,
     };
   }
+
+  // A gate failed. The template restates VERIFIED fact rows, so it can only be built when something
+  // resolved; with no citation there is nothing to restate and the honest fallback is all that's left.
+  if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
 
   const rendered = renderGroundedAnswer({
     dimension,

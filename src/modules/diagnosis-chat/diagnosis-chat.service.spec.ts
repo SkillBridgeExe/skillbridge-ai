@@ -97,8 +97,9 @@ describe('DiagnosisChatService.turn', () => {
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'q', facts: FACTS });
-    expect(result.answer).toContain('Add Docker evidence');
+    // The invented citation is dropped; the prose itself is still served (Advisor v3).
     expect(result.cited_dimension).toBeUndefined();
+    expect(result.answer).toBe('ok');
   });
 });
 

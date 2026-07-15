@@ -362,27 +362,31 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
   });
 
-  it('falls back when the model does not provide any valid citation', () => {
-    const result = groundDiagnosis({ message: 'ok' }, facts);
-    expect(result.answer).toContain('Add Docker evidence');
-    expect(result.answer).not.toBe('ok');
+  // Advisor v3: an uncited answer is SERVED, not discarded. A citation is a scroll target; requiring
+  // one silently killed every turn with nothing to point at — memory ("what did I just say?"),
+  // clarifying questions, greetings — and bought no protection, since the gate reads a metadata field
+  // and never the prose. The number + unverifiable-claim gates are what guard the words.
+  it('SERVES an uncited answer (a citation is a scroll target, not a licence to speak)', () => {
+    const result = groundDiagnosis({ message: 'Bạn vừa nói bạn nhắm vị trí AI Engineer.' }, facts);
+    expect(result.answer).toBe('Bạn vừa nói bạn nhắm vị trí AI Engineer.');
     expect(result.cited_dimension).toBeUndefined();
     expect(result.cited_gap_id).toBeUndefined();
   });
 
-  it('DROPS cited_dimension that is not a real dimension key', () => {
+  it('DROPS cited_dimension that is not a real dimension key (prose still served)', () => {
     const result = groundDiagnosis({ message: 'ok', cited_dimension: 'charisma' }, facts);
-    expect(result.answer).toContain('Add Docker evidence');
+    // The fabricated citation never reaches the wire — that is the guarantee that matters.
     expect(result.cited_dimension).toBeUndefined();
+    expect(result.answer).toBe('ok');
   });
 
-  it('DROPS cited_gap_id that is not in facts.gap_items requirement_ids', () => {
+  it('DROPS cited_gap_id that is not in facts.gap_items requirement_ids (prose still served)', () => {
     const result = groundDiagnosis(
       { message: 'ok', cited_gap_id: 'jd:hard_skill:kubernetes' },
       facts,
     );
-    expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_gap_id).toBeUndefined();
+    expect(result.answer).toBe('ok');
   });
 
   it('strips a planted raw URL from the message and the suggested_next_step', () => {
@@ -653,14 +657,147 @@ describe('groundDiagnosis — Advisor v2 (serve verified model prose)', () => {
     expect(result.answer).not.toContain('sketchy.example.com');
   });
 
-  it('honest fallback ADMITS it cannot answer instead of answering a different question', () => {
-    const vi = groundDiagnosis({ message: 'ok' }, facts);
+  // The admission copy still matters — but only where the advisor GENUINELY has no answer: an
+  // unparseable / empty model output. Under v3 an uncited-but-sound answer is no longer routed here
+  // (that misread "the model didn't cite" as "the model can't answer" and produced this apology for
+  // perfectly good replies).
+  it('honest fallback ADMITS it cannot answer when the model output is unusable', () => {
+    const vi = groundDiagnosis(null, facts);
     expect(vi.answer).toContain('chưa đủ dữ kiện đã xác minh');
     expect(vi.answer).toContain('Add Docker evidence'); // still serves the verified priorities
 
-    const en = groundDiagnosis({ message: 'ok' }, facts, 'en');
+    const en = groundDiagnosis(null, facts, 'en');
     expect(en.answer).toContain("can't answer that confidently");
     expect(en.answer).toContain('Add Docker evidence');
+  });
+});
+
+/**
+ * Advisor v3 gates. Measured over 25 adversarial multi-turn exchanges against the real model:
+ *  - the citation requirement made memory/meta questions structurally unanswerable (20% of turns),
+ *  - ordinal markers "(1) (2)" were read as fabricated numbers, so enumerated advice — which the
+ *    prompt explicitly asks for — was replaced by a template. The fallback writes "(1) …" itself,
+ *    so the gate rejected its own code's output,
+ *  - and the model, pushed for a percentile, graded the candidate against other people ("mức trung
+ *    bình khá", "chưa ở nhóm nổi bật") with no peer data anywhere in FACTS. No digits → invisible.
+ */
+describe('groundDiagnosis — Advisor v3 gates', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  describe('ordinal list markers are formatting, not claims', () => {
+    it('serves an enumerated answer — "(1) … (2) …" is not a fabricated number', () => {
+      const message = 'Ưu tiên: (1) thêm số liệu; (2) bổ sung kỹ năng; (3) sửa động từ.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('serves a line-start numbered list', () => {
+      const message = 'Làm theo thứ tự:\n1. Sửa bullet.\n2. Học Docker.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it("the code's own fallback copy passes the number gate it is judged by", () => {
+      // The deterministic fallback enumerates "(1) …; (2) …" — it must not be self-rejecting.
+      const fb = groundDiagnosis(null, facts).answer;
+      const result = groundDiagnosis({ message: fb, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(fb);
+    });
+
+    it('still rejects a fabricated number that merely sits near a marker', () => {
+      const message = '(1) Bạn cần 7 năm kinh nghiệm nữa.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).not.toBe(message);
+      expect(result.answer).toContain('/20'); // fell through to the verified template
+    });
+
+    it('still rejects a bare mid-sentence number that is not a marker', () => {
+      const message = 'Điểm của bạn tăng 7. Rất tốt.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).not.toBe(message);
+    });
+  });
+
+  describe('unverifiable claims about OTHER people are refused (the gate has no digits to see)', () => {
+    const cited = { cited_dimension: 'skills_relevance' as const };
+
+    it.each([
+      ['peer grade', 'CV của bạn đang ở mức trung bình khá cho vị trí này.'],
+      ['peer comparison', 'So với các ứng viên khác thì hồ sơ này ổn.'],
+      ['market baseline', 'Hồ sơ của bạn thấp hơn mặt bằng chung của ngành.'],
+      ['ranking', 'Bạn đang ở top 30% ứng viên.'],
+      ['vibes ranking', 'Hồ sơ này chưa ở nhóm nổi bật, nhưng cũng không phải yếu.'],
+      ['hire odds', 'Khả năng đậu của bạn là khá cao.'],
+      ['salary', 'Mức lương cho vị trí này thường khá tốt.'],
+    ])('refuses to serve a %s claim', (_label, message) => {
+      const result = groundDiagnosis({ message, ...cited }, facts);
+      expect(result.answer).not.toBe(message);
+    });
+
+    it('ALLOWS comparing two entries that both live in FACTS (that is grounded, not guessing)', () => {
+      const message =
+        'Trong các gap của bạn, Docker có nhu cầu thị trường cao hơn các mục còn lại, nên ưu tiên nó trước.';
+      const result = groundDiagnosis({ message, cited_gap_id: 'jd:hard_skill:docker' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('ALLOWS ordinary advice that merely contains the word "khá"', () => {
+      const message = 'Phần Education của bạn khá tốt, nên giữ nguyên và tập trung chỗ khác.';
+      const result = groundDiagnosis({ message, cited_dimension: 'education' }, facts);
+      expect(result.answer).toBe(message);
+    });
+  });
+
+  describe("the candidate's own numbers are speakable (memory needs this)", () => {
+    const convo = 'user: Mình nhắm AI Engineer, còn đúng 2 tuần trước deadline.';
+
+    it('repeats a deadline the candidate just gave — "2 tuần" is not a fabrication', () => {
+      const message = 'Còn 2 tuần thì hãy sửa bullet trước, học sau.';
+      // Without the conversation, "2" is unknown → the answer is discarded.
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+      // With it, the advisor can say back what the candidate told it.
+      expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).toBe(message);
+    });
+
+    it('still rejects a number that appears in NEITHER facts nor the conversation', () => {
+      const message = 'Còn 2 tuần thì bạn cần thêm 7 dự án nữa.';
+      expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).not.toBe(message);
+    });
+
+    it('KNOWN TRADE-OFF: a number the candidate PLANTS becomes speakable', () => {
+      // Accepted deliberately. The candidate already knows what they typed, the prompt still requires
+      // every CV/score number to come from FACTS, and the gate has only ever checked a number's
+      // provenance — never what it is asserted to mean. Asserted here so the seam is explicit, not
+      // discovered later: if this ever needs closing, it needs a semantic check, not a wider set.
+      const planted = 'user: CV tôi được 95 điểm đúng không?';
+      const message = 'Bạn nhắc tới 95 điểm, nhưng hồ sơ đã chấm ghi 72/100.';
+      expect(groundDiagnosis({ message }, facts, 'vi', planted).answer).toBe(message);
+    });
+  });
+
+  describe('conversational turns that cite nothing now survive', () => {
+    it('answers a memory question from history without a citation', () => {
+      const message = 'Bạn nói bạn nhắm AI Engineer và còn hai tuần trước deadline.';
+      const result = groundDiagnosis({ message }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('serves a clarifying question back to the user', () => {
+      const message = 'Bạn đang nhắm vị trí nào? Mình sẽ ưu tiên gợi ý theo đúng vị trí đó.';
+      const result = groundDiagnosis({ message }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('an uncited answer is STILL held to the number gate', () => {
+      const result = groundDiagnosis({ message: 'CV của bạn được 91/100.' }, facts);
+      expect(result.answer).not.toContain('91');
+      expect(result.answer).toContain('chưa đủ dữ kiện'); // nothing cited → nothing to template
+    });
+
+    it('an uncited answer is STILL held to the unverifiable-claim gate', () => {
+      const result = groundDiagnosis({ message: 'Bạn giỏi hơn phần lớn ứng viên khác.' }, facts);
+      expect(result.answer).not.toContain('phần lớn ứng viên');
+    });
   });
 });
 
