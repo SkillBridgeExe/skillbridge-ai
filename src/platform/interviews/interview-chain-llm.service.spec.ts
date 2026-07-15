@@ -237,6 +237,62 @@ describe('InterviewChainLlmService.ask', () => {
     expect(String(vars.scenario_instruction)).toBe('');
   });
 
+  it('passes the I-OWN rungs (reflection / decision_ownership) into the prompt focus', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'Which part was your call?' });
+
+    const askWithRung = async (
+      ladderRung: 'reflection' | 'decision_ownership',
+    ): Promise<Record<string, unknown>> => {
+      prompts.render.mock.calls.length = 0;
+      await service.ask('user-1', {
+        sessionId: 'session-1',
+        turnOrder: 3,
+        decision: 'drill',
+        language: 'en',
+        seniorityTarget: 'fresher',
+        currentTopic: { id: 'topic-sync', display_name: 'Inventory sync' },
+        currentThread: 'inventory sync',
+        recentQa: [],
+        runningNotes: [],
+        prevTopicOutcome: '',
+        ladderRung,
+      });
+      return prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    };
+
+    expect(String((await askWithRung('reflection')).drill_focus)).toContain('HINDSIGHT');
+    expect(String((await askWithRung('decision_ownership')).drill_focus)).toContain(
+      'THEIR OWN CALL',
+    );
+  });
+
+  it('activates the metric demand only when the answer was not measured', async () => {
+    const { service, prompts } = build({ ai_message: '', question: 'What did that move?' });
+
+    const base = {
+      sessionId: 'session-1',
+      turnOrder: 4,
+      decision: 'drill' as const,
+      language: 'en' as const,
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-sync', display_name: 'Inventory sync' },
+      currentThread: 'inventory sync',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      ladderRung: 'application' as const,
+    };
+
+    await service.ask('user-1', { ...base, demandMetric: true });
+    const withDemand = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(withDemand.metric_demand_instruction)).toContain('NO measurable outcome');
+
+    prompts.render.mock.calls.length = 0;
+    await service.ask('user-1', base);
+    const without = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(String(without.metric_demand_instruction)).toBe('');
+  });
+
   it('activates the incident-simulation instruction only for SCENARIO topics', async () => {
     const { service, prompts } = build({ ai_message: '', question: 'What do you check next?' });
 

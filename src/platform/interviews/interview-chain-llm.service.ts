@@ -212,6 +212,8 @@ export interface InterviewAskInput {
   drillAnchor?: string | null;
   /** I-INTEL: the last answer had nothing concrete — demand ONE real example instead. */
   demandExample?: boolean;
+  /** I-OWN: the last answer described work without measuring it — demand the number. */
+  demandMetric?: boolean;
 }
 
 /** rung → what the next drill/push question must target (CODE-owned, mirrors the ladder). */
@@ -223,6 +225,13 @@ const DRILL_FOCUS: Record<DrillLadderRung, string> = {
     'target WHERE IT BREAKS — edge cases, failure modes, and what they would monitor for it',
   design:
     'target SCALE AND DESIGN — how the approach must change at 10x load or under new constraints',
+  reflection:
+    'target HINDSIGHT — what they would do differently if they did it again, and what specifically ' +
+    'taught them that',
+  decision_ownership:
+    'target THEIR OWN CALL — which part of this was their decision to make, what they chose it ' +
+    'over, and what they owned when it landed; accept that the call may not have been theirs, and ' +
+    'if so ask what they would have chosen',
 };
 
 const SCENARIO_INSTRUCTION =
@@ -242,6 +251,12 @@ const EXAMPLE_DEMAND_INSTRUCTION =
   'The last answer offered nothing concrete to probe. Ask for ONE specific, real example from ' +
   'their own experience on this thread (what they built/broke/measured) — not a definition, not ' +
   'theory. Keep it to a single question.';
+
+/** I-OWN: they described the work but never measured it — make the number part of the question. */
+const METRIC_DEMAND_INSTRUCTION =
+  'The last answer described the work but put NO measurable outcome on it. The question must ask ' +
+  'for the number they actually observed — what they measured it with, before vs after. Ask it as ' +
+  'a real interviewer would (curious, not an audit), and accept that they may not have measured it.';
 
 export interface InterviewAskOutput {
   aiRequestId: string;
@@ -359,6 +374,7 @@ export class InterviewChainLlmService {
           ? drillAnchorInstruction(input.drillAnchor)
           : '',
         example_demand_instruction: input.demandExample ? EXAMPLE_DEMAND_INSTRUCTION : '',
+        metric_demand_instruction: input.demandMetric ? METRIC_DEMAND_INSTRUCTION : '',
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASK, promptVars);
