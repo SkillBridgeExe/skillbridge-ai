@@ -369,21 +369,75 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // exist in FACTS: numeric values, numbers inside verbatim fact strings, list sizes (so honest
 // counting like "3 gap" stays legal), and the two score scales (/20, /100).
 /**
- * Ordinal list markers — "(1)", and "1." / "2)" at the start of a line — are FORMATTING, not claims.
- * They were being read as fabricated numbers, so any answer that enumerated priorities (exactly what
- * the prompt asks for) was rejected and replaced by a template. The deterministic fallback below
- * writes "(1) …; (2) …" itself, so the gate rejected its own code's output.
+ * Which small digits the advisor may speak used to be LUCK. Every digit had to sit in FACTS, and
+ * FACTS seeds array LENGTHS — so "2" was legal for a user with 2 gaps and fabricated for a user with
+ * 5, and "1" was legal for almost nobody. Measured live: "mình có thể giúp bạn chọn đúng 1 việc để
+ * làm ngay hôm nay" — good prose, thrown away for the fact template over the token "1". The
+ * randomness ran both ways: the gate waved through "bạn có 3 gap" for a user with 2 gaps, because
+ * prioritized_actions happened to have length 3. Small numbers were never really guarded.
  *
- * A marker only ever follows a CLAUSE BOUNDARY (start, newline, or "; : ,"); a quantity follows a
- * word. Anchoring on that is load-bearing, not tidiness: an earlier cut treated "(N)" as a marker
- * ANYWHERE, which let the model smuggle any 0-99 quantity past the number gate simply by putting it
- * in brackets — "CV của bạn đạt (91)/100." was served verbatim while the bare "91/100" was blocked.
- * The strip is check-only (the ORIGINAL text is what ships), so those digits reached the user. That
- * is the product's whole numeric surface — every /20, every /100, market_demand, salary in triệu —
- * and the trigger was a formatting choice the model makes freely, since the prompt asks for
- * enumeration and the fallback itself seeds the "(1) … (2) …" register into the history it reads.
+ * A digit is exempt only in the two shapes that cannot carry a claim about the record:
+ *  (a) an ordinal MARKER inside an ASCENDING RUN — "(1) …; (2) …" or a line-start "1." / "2)" —
+ *      pure formatting, which the deterministic fallback below writes itself;
+ *  (b) the quantity ONE over a listed advice noun — "chọn 1 việc", "mỗi bullet 1 động từ".
+ * Everything else still faces the gate: a dangling value ("điểm tăng 7."), anything on a scale
+ * ("12/20", "9%", "35 triệu"), and any count of anything ("7 dự án", "3 kỹ năng", "5 chỗ").
+ *
+ * Both shapes are narrower than they look, and the narrowing is load-bearing — the wider cut of each
+ * was MEASURED shipping fabricated scores:
+ *  (a) THE RUN. Reading "(N)" as a marker anywhere served "Mục skills_relevance của bạn (8) nên được
+ *      cải thiện." and "Điểm ATS của bạn (7) là hơi thấp." verbatim (verified on a fixture holding
+ *      neither 7 nor 8): the (91)/100 laundering again, one digit down — brackets back as a licence
+ *      to invent. An enumeration starts at 1 and each step follows its predecessor; a score does not.
+ *      So "(N)" needs "(N-1)" earlier in the same message. The residue is a fabricated "1", which is
+ *      not a plausible score, salary or percentage.
+ *  (b) ONE ONLY. Exempting 1-9 over an advice noun served "Bạn còn 5 việc phải sửa trong CV.",
+ *      "CV của bạn có 6 bullet chưa có số liệu.", "Bạn thiếu 8 động từ mạnh." — fabricated COUNTS of
+ *      the record, over the very nouns the list adds. "việc/chỗ/điều" are plain synonyms for a gap
+ *      item, so the list was quietly re-opening "bạn có 5 gap". Only "1" was ever measured lost
+ *      ("chọn đúng 1 việc"), only "1" is bought back, and "1 <noun>" cannot be a score/%/salary.
+ *      Cost: "Có 2 hướng" / "3 bước" are back to luck when 2/3 are in no FACTS array's length.
+ *
+ * ADVICE_NOUN is an ALLOW-list on purpose. The deny-list shape ("every noun except the scales") fails
+ * OPEN — the first noun nobody thought of ships "bạn cần 5 dự án nữa" as fact. Here an unlisted noun
+ * just falls back to the gate, i.e. today's behaviour, so a forgotten word costs at most a templated
+ * turn. Single digit only, tested on the SAME tokens the gate reads, so a score can never be
+ * assembled out of exempt parts: "91" is one two-digit token, never two exempt digits.
+ *
+ * This REPLACES the old LIST_MARKER strip, which existed for case (a) alone and paid for it with the
+ * laundering pattern that already cost us "(91)/100" once: it deleted markers before the check while
+ * the ORIGINAL text shipped. Anchoring it to a clause boundary did NOT close that class — measured on
+ * the shipped fix: "Tổng điểm CV của bạn: 91. Bạn nên…" (a colon IS a clause boundary, and \d{1,2}
+ * eats "91") served a fabricated score verbatim, as did "Điểm ATS của bạn: 85." and the English form.
+ * That is the most natural way a model states a score, so the hole was on the mainline, not an exotic
+ * path. A rule that rewrites text to check it while shipping the original has no safe anchor — patch
+ * one seam and the next phrasing walks through. Nothing is stripped now: the gate reads the exact
+ * text that ships, so there is no second version to disagree with the one served.
+ *
+ * ponytail: an unbracketed mid-line list ("Ưu tiên: 1. Sửa bullet; 2. Học Docker") falls to the gate —
+ * it is textually identical to "Điểm CV: 9. Rất thấp". Markdown/bracketed lists (what the model and
+ * the fallback actually write) are unaffected. ponytail: "1-2 tuần" is still gated ("1" is followed by
+ * "-2 tuần", not by a noun) and number-after-noun ordinals ("bước 3") never were exempt. Both need a
+ * separate rule; add one only if a live run shows them costing real turns.
  */
-const LIST_MARKER = /(?:^|\n|[;:,]\s*)[ \t]*\(?\d{1,2}[.)](?=\s)/g;
+const ADVICE_NOUN =
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|thing|step|way|option|line|sentence|verb)(?![\p{L}\p{N}])/iu;
+
+function isBenignQuantity(text: string, index: number, token: string): boolean {
+  if (!/^[1-9]$/.test(token)) return false;
+  const before = text.slice(0, index);
+  const after = text.slice(index + 1);
+  if (/[\d/]$/.test(before)) return false; // the other half of a scale — "12/20", "3/5"
+  const n = Number(token);
+  // (a) ordinal marker, and only inside an ascending run: "(1)" opens one, "(N)" needs "(N-1)"
+  //     earlier. The trailing LETTER is load-bearing too: without it "(9)/100" reads as a marker.
+  if (/\($/.test(before) && /^\)\s+\p{L}/u.test(after))
+    return n === 1 || before.includes(`(${n - 1})`);
+  if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]\s+\p{L}/u.test(after))
+    return n === 1 || new RegExp(`(?:^|\\n)[ \\t]*${n - 1}[.)]\\s`).test(before);
+  // (b) the quantity ONE over an advice noun.
+  return n === 1 && ADVICE_NOUN.test(after);
+}
 
 /**
  * Claims the advisor CANNOT know from FACTS, phrased without digits so the number gate is blind to
@@ -426,13 +480,15 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
   ['peer_stat', /\d+\s*%\s*(?:các |những )?(?:ứng viên|người|bạn|candidates?|applicants?)/iu],
 ];
 
-/** The first unverifiable-claim label present in the text, or null. */
-function unverifiableClaim(text: string): string | null {
+/** The first unverifiable-claim label present in the text, or null. Exported for the calibration
+ *  harness: it must name WHY a turn was rejected using the REAL rule, never a copy of it (a stale
+ *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken). */
+export function unverifiableClaim(text: string): string | null {
   for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
   return null;
 }
 
-function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<string> {
+export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<string> {
   const allowed = new Set<string>(['0', '20', '100']);
   const visit = (value: unknown): void => {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -468,12 +524,21 @@ function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<
   return allowed;
 }
 
-function numbersGrounded(text: string, allowed: Set<string>): boolean {
-  const claims = text.replace(LIST_MARKER, ' ');
-  for (const token of claims.match(/\d+(?:[.,]\d+)?/g) ?? []) {
-    if (!allowed.has(token.replace(',', '.'))) return false;
+/** Every number in `text` that FACTS (+ what the candidate said) cannot account for. Exported so the
+ *  calibration harness can NAME the token that cost a turn instead of guessing at it. */
+export function ungroundedNumbers(text: string, allowed: Set<string>): string[] {
+  const ungrounded = new Set<string>();
+  for (const match of text.matchAll(/\d+(?:[.,]\d+)?/g)) {
+    const token = match[0].replace(',', '.');
+    if (allowed.has(token)) continue;
+    if (isBenignQuantity(text, match.index, match[0])) continue;
+    ungrounded.add(token);
   }
-  return true;
+  return [...ungrounded];
+}
+
+function numbersGrounded(text: string, allowed: Set<string>): boolean {
+  return ungroundedNumbers(text, allowed).length === 0;
 }
 
 /**

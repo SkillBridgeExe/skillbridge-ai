@@ -7,6 +7,7 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   DiagnosisFacts,
   groundDiagnosis,
+  allowedNumberTokens,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -682,7 +683,27 @@ describe('groundDiagnosis — Advisor v2 (serve verified model prose)', () => {
  *    bình khá", "chưa ở nhóm nổi bật") with no peer data anywhere in FACTS. No digits → invisible.
  */
 describe('groundDiagnosis — Advisor v3 gates', () => {
-  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+  // TWO gaps, and no digit inside any name. Both halves are load-bearing against a VACUOUS suite:
+  // with ONE gap, gap_items.length seeds "1" into the allowed set, so every "chọn 1 việc" case below
+  // passed whether or not the advice-noun exemption existed at all — the test could not fail. And a
+  // name like "K8s" leaks "8" in through the numerals-inside-fact-strings rule, which silently
+  // legalises a fabricated dimension score of 8. Keep this fixture free of both.
+  const facts = buildDiagnosisFacts(
+    makeReview(),
+    makeGapReport([
+      makeGapItem(),
+      makeGapItem({
+        requirement_id: 'jd:hard_skill:kubernetes',
+        canonical_name: 'kubernetes',
+        display_name: 'Kubernetes',
+      }),
+    ]),
+  );
+
+  it('the fixture cannot make these tests pass by luck', () => {
+    const allowed = allowedNumberTokens(facts);
+    for (const digit of ['1', '5', '6', '7', '8']) expect(allowed.has(digit)).toBe(false);
+  });
 
   describe('ordinal list markers are formatting, not claims', () => {
     it('serves an enumerated answer — "(1) … (2) …" is not a fabricated number', () => {
@@ -707,15 +728,51 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
     // An earlier cut treated "(N)" as a marker ANYWHERE, so bracketing any quantity erased it from
     // the number gate while the ORIGINAL text still shipped — "(91)/100" was served, bare "91/100"
     // was blocked. That is the product's whole numeric surface, opened by a formatting choice the
-    // prompt itself encourages. A marker follows a clause boundary; a quantity follows a word.
+    // prompt itself encourages. Nothing is stripped any more: the gate reads the text that ships.
     it.each([
       ['a bracketed score', 'CV của bạn đạt (91)/100.'],
       ['a bracketed salary', 'Bạn nhắm (35) triệu/tháng nhé.'],
       ['a bracketed duration', 'Cần thêm (37) tháng kinh nghiệm.'],
       ['a bracketed count', 'Bạn cần (37) dự án nữa.'],
+      // Single-digit marker SHAPE aimed at a scale — the same laundering with a smaller number.
+      ['a bracketed single-digit score', 'CV của bạn đạt (9)/100.'],
     ])('refuses %s — brackets are not a licence to invent numbers', (_label, message) => {
       expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
     });
+
+    // The SAME laundering survived the bracket fix on the "[;:,]" branch: a marker was anything at a
+    // clause boundary, so "Tổng điểm CV của bạn: 91." — the most natural way a model states a score —
+    // was read as the marker "91." and erased from the check while shipping verbatim. No strip now.
+    it.each([
+      ['after a colon', 'Tổng điểm CV của bạn: 91. Bạn nên sửa phần skills.'],
+      ['after a semicolon', 'Docker là gap chính; 85. là điểm ATS hiện tại của bạn.'],
+      ['a single digit after a colon', 'Điểm skills_relevance của bạn: 9. Khá thấp.'],
+    ])('refuses a score dressed as a list marker (%s)', (_label, message) => {
+      expect(
+        groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+      ).not.toBe(message);
+    });
+
+    // Reading "(N)" as a marker ANYWHERE was the bracket laundering again, one digit down: a
+    // bracketed single digit next to a metric name reads as a score to the user and as formatting to
+    // the gate, and the ORIGINAL text ships either way. An enumeration ascends from 1; a score does
+    // not — so "(N)" is only formatting when "(N-1)" is already above it.
+    it.each([
+      ['a dimension score', 'Mục skills_relevance của bạn (8) nên được cải thiện.'],
+      ['an ATS score', 'Điểm ATS của bạn (7) là hơi thấp.'],
+      ['an English score', 'Your ATS score (8) is holding you back.'],
+      // A real marker earlier must not legalise a fabricated score later in the same message.
+      ['a score trailing a real run', 'Ưu tiên: (1) sửa bullet. Điểm ATS của bạn (8) là thấp.'],
+      // Same shape at line start: a bare digit answering "mấy điểm?" is not a list of one.
+      ['a line-start score', '8. Bạn cần bổ sung động từ mạnh.'],
+    ])(
+      'refuses %s dressed as an ordinal marker — a marker ascends, a score does not',
+      (_l, message) => {
+        expect(
+          groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+        ).not.toBe(message);
+      },
+    );
 
     it('still rejects a fabricated number that merely sits near a marker', () => {
       const message = '(1) Bạn cần 7 năm kinh nghiệm nữa.';
@@ -728,6 +785,52 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       const message = 'Điểm của bạn tăng 7. Rất tốt.';
       const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
       expect(result.answer).not.toBe(message);
+    });
+  });
+
+  /**
+   * Everyday quantities in advice. Measured live: "mình có thể giúp bạn chọn đúng 1 việc để làm ngay
+   * hôm nay" was replaced by the fact template because "1" is in no FACTS array's length. Which small
+   * digits were speakable was luck per user — "2" legal with 2 gaps, fabricated with 5 — so the
+   * advisor's ability to give plain advice depended on the shape of someone's gap report.
+   */
+  describe('the quantity ONE over an advice noun is not a claim about the record', () => {
+    it.each([
+      ['the measured failure', 'Mình có thể giúp bạn chọn đúng 1 việc để làm ngay hôm nay.'],
+      ['a quantity mid-advice', 'Mỗi bullet chỉ nên có 1 động từ mạnh ở đầu câu.'],
+      ['an English advice noun', 'Pick 1 thing to fix today.'],
+    ])('serves %s', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    });
+
+    // The exemption is an ALLOW-list of advice nouns precisely so these keep failing CLOSED: a count
+    // of the user's OWN record is a claim, and no digit-level gate can verify it.
+    it.each([
+      ['a fabricated project count', 'Bạn cần thêm 7 dự án nữa.'],
+      ['a fabricated skill count', 'Bạn còn thiếu 6 kỹ năng cho JD này.'],
+      ['a fabricated experience claim', 'Bạn cần 7 năm kinh nghiệm nữa.'],
+      ['a small fabricated metric', 'Chỉ 9% bullet của bạn có số liệu.'],
+      ['a fabricated score on a scale', 'skills_relevance của bạn đang ở 9/20.'],
+    ])('refuses %s — an unlisted noun falls back to the gate', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    });
+
+    // The LISTED nouns are the dangerous ones, not the safe ones: "việc/chỗ/điều" are plain synonyms
+    // for a gap item and "bullet/câu/động từ" are the CV's own contents, so exempting 1-9 over them
+    // re-opened the threat model's headline case ("bạn có 5 gap", real answer 2) through the very
+    // list that was meant to buy naturalness. Only "1" was ever measured lost, so only "1" is bought
+    // back — and "1 <noun>" cannot be a score, a percentage or a salary.
+    it.each([
+      ['a fabricated task count', 'Bạn còn 5 việc phải sửa trong CV trước khi nộp.'],
+      ['a fabricated bullet count', 'CV của bạn có 6 bullet chưa có số liệu.'],
+      ['a fabricated verb count', 'Bạn thiếu 8 động từ mạnh trong phần kinh nghiệm.'],
+      ['a fabricated gap synonym count', 'Còn 5 chỗ cần sửa gấp trong CV.'],
+      ['a fabricated sentence count', 'Mình đếm được 5 câu đang viết ở dạng bị động.'],
+      ['a fabricated issue count', 'Có 6 điều trong CV đang kéo điểm bạn xuống.'],
+    ])('refuses %s — a listed noun buys "1", never a count', (_label, message) => {
+      expect(
+        groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+      ).not.toBe(message);
     });
   });
 
@@ -801,18 +904,21 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
   });
 
   describe("the candidate's own numbers are speakable (memory needs this)", () => {
-    const convo = 'user: Mình nhắm AI Engineer, còn đúng 2 tuần trước deadline.';
+    // "6 tuần", not "2 tuần": a deadline of 2 is indistinguishable from gap_items.length, so the
+    // first assertion below would pass on the seeded length alone and prove nothing about
+    // `conversation`. Pick a deadline no array in FACTS can be the length of.
+    const convo = 'user: Mình nhắm AI Engineer, còn đúng 6 tuần trước deadline.';
 
-    it('repeats a deadline the candidate just gave — "2 tuần" is not a fabrication', () => {
-      const message = 'Còn 2 tuần thì hãy sửa bullet trước, học sau.';
-      // Without the conversation, "2" is unknown → the answer is discarded.
+    it('repeats a deadline the candidate just gave — "6 tuần" is not a fabrication', () => {
+      const message = 'Còn 6 tuần thì hãy sửa bullet trước, học sau.';
+      // Without the conversation, "6" is unknown → the answer is discarded.
       expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
       // With it, the advisor can say back what the candidate told it.
       expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).toBe(message);
     });
 
     it('still rejects a number that appears in NEITHER facts nor the conversation', () => {
-      const message = 'Còn 2 tuần thì bạn cần thêm 7 dự án nữa.';
+      const message = 'Còn 6 tuần thì bạn cần thêm 7 dự án nữa.';
       expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).not.toBe(message);
     });
 
