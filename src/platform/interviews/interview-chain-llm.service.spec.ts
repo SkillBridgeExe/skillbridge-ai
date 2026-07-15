@@ -102,7 +102,8 @@ describe('InterviewChainLlmService.assess', () => {
     });
 
     const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
-    const forbidden = /filler|wpm|speaking_rate|communication_facts|response_delay|transcript_segments|pause/i;
+    const forbidden =
+      /filler|wpm|speaking_rate|communication_facts|response_delay|transcript_segments|pause/i;
     expect(Object.keys(vars).filter((key) => forbidden.test(key))).toEqual([]);
   });
 

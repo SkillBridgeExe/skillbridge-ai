@@ -17,6 +17,7 @@ function repo<T extends { id?: string }>() {
     find: jest.fn(),
     findAndCount: jest.fn(),
     count: jest.fn(),
+    update: jest.fn(async () => ({ affected: 1 })),
   };
 }
 
@@ -3235,11 +3236,19 @@ describe('InterviewsService', () => {
       const response = await service.start(userId, startDto);
 
       expect(sessions.find).toHaveBeenCalledWith({
-        where: {
-          userId,
-          status: 'IN_PROGRESS',
-          expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
-        },
+        where: [
+          {
+            userId,
+            status: 'IN_PROGRESS',
+            expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+          },
+          {
+            userId,
+            status: 'COMPLETED',
+            overallScore: IsNull(),
+            expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+          },
+        ],
       });
       expect(coachingService.coach).toHaveBeenCalledTimes(1);
       expect(sessions.save).toHaveBeenCalledWith(
@@ -3260,6 +3269,103 @@ describe('InterviewsService', () => {
         BillingFeatureKey.INTERVIEW_SESSION,
         { sourceType: 'interview_session', sourceId: 'generated-id' },
       );
+    });
+
+    // Without this, a session whose finalization throws sits IN_PROGRESS forever, indistinguishable
+    // from one the user walked away from — so `FAILED` stays legal in the enum and the CHECK
+    // constraint but never written, and nobody can ask what share of interviews break.
+    it('records FAILED when finalizing a stale session throws', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      sessions.find.mockResolvedValue([staleSession('stale-boom')]);
+      sessions.findOne.mockResolvedValue(staleSession('stale-boom'));
+      // make the finalization path blow up the way a real end() failure would
+      turns.find.mockRejectedValue(new Error('turn read failed'));
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn(), end: jest.fn() } as never,
+        {
+          assertCanUse: jest.fn(async () => undefined),
+          recordUsage: jest.fn(async () => undefined),
+          getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+        } as never,
+        { createClientSecret: jest.fn() } as never,
+        undefined,
+        undefined,
+        {} as never,
+        { judge: jest.fn() } as never,
+        { coach: jest.fn() } as never,
+      );
+
+      // the sweep must never block the new session, however badly it went
+      const response = await service.start(userId, startDto);
+      expect(response.id).toBe('generated-id');
+
+      expect(sessions.update).toHaveBeenCalledWith(
+        { id: 'stale-boom', status: 'IN_PROGRESS' },
+        { status: 'FAILED' },
+      );
+    });
+
+    // The stranded-row case: `answer` (engine finished), `assertNotExpired` (time limit) and the
+    // legacy end all mark a session COMPLETED, but ONLY end() writes the score. When the client
+    // never calls /end, the row is COMPLETED with a null score — hidden from the user's own
+    // history by list()'s `overallScore: Not(IsNull())` filter, and, before this, never reachable
+    // by the sweep either, because it only looked at IN_PROGRESS. Nothing could heal it.
+    it('scores a COMPLETED session that was stranded without a score', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
+      const sessions = repo<InterviewSessionEntity>();
+      const turns = repo<InterviewTurnEntity>();
+      const stranded = {
+        ...staleSession('stale-stranded'),
+        status: 'COMPLETED' as const,
+        overallScore: null,
+      };
+      const coaching = { summary: 'Recovered stranded session.', strengths: [], priorities: [] };
+      const coachingService = { coach: jest.fn(async () => coaching) };
+      sessions.find.mockResolvedValue([stranded]);
+      sessions.findOne.mockResolvedValue(stranded);
+      turns.find.mockResolvedValue([answeredStaleTurn(1), answeredStaleTurn(2)]);
+
+      const service = new InterviewsService(
+        sessions as never,
+        turns as never,
+        repo<CvEntity>() as never,
+        repo<CvMatchEntity>() as never,
+        repo<JobDescriptionEntity>() as never,
+        { start: jest.fn(), end: jest.fn() } as never,
+        {
+          assertCanUse: jest.fn(async () => undefined),
+          recordUsage: jest.fn(async () => undefined),
+          getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+        } as never,
+        { createClientSecret: jest.fn() } as never,
+        undefined,
+        undefined,
+        {} as never,
+        { judge: jest.fn() } as never,
+        coachingService as never,
+      );
+
+      await service.start(userId, startDto);
+
+      // it went through the same partial-scoring path as /end — the report now exists.
+      expect(sessions.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'stale-stranded',
+          status: 'COMPLETED',
+          finalScore: expect.objectContaining({ overall: expect.any(Number) }),
+          coaching,
+        }),
+      );
+      // and it is NOT relabelled a failure: it completed, it was just never scored.
+      expect(sessions.update).not.toHaveBeenCalled();
     });
 
     it('cancels a stale expired session with no answers before starting a new one', async () => {
@@ -3336,11 +3442,19 @@ describe('InterviewsService', () => {
       const response = await service.start(userId, startDto);
 
       expect(sessions.find).toHaveBeenCalledWith({
-        where: {
-          userId,
-          status: 'IN_PROGRESS',
-          expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
-        },
+        where: [
+          {
+            userId,
+            status: 'IN_PROGRESS',
+            expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+          },
+          {
+            userId,
+            status: 'COMPLETED',
+            overallScore: IsNull(),
+            expiresAt: LessThan(new Date('2026-06-12T01:00:00.000Z')),
+          },
+        ],
       });
       expect(sessions.findOne).not.toHaveBeenCalled();
       expect(response.status).toBe('IN_PROGRESS');

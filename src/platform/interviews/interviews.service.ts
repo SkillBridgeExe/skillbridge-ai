@@ -2083,15 +2083,29 @@ export class InterviewsService {
 
   /**
    * Self-healing sweep: before a user starts (and pays for) a new session, finalize their own
-   * expired IN_PROGRESS sessions through the SAME partial-scoring path as /end — an abandoned
+   * expired sessions through the SAME partial-scoring path as /end — an abandoned
    * session (tab closed, network drop) with >=1 answered turn gets scored and its gap report
    * persisted instead of leaking the paid quota; one with 0 answers is CANCELLED.
    * Never throws: a sweep failure must not block starting the new session.
+   *
+   * Sweeps COMPLETED-without-a-score too, not just IN_PROGRESS. Three paths mark a session
+   * COMPLETED while the score and report are only ever written by `end()`: the engine deciding
+   * to finish (`answer`), the time limit firing (`assertNotExpired`), and the legacy end. All
+   * three tell the client to call /end — so when the client never does (tab closed, crash), the
+   * row is stranded COMPLETED with a null score, hidden from the user's own history by the
+   * `overallScore: Not(IsNull())` filter in `list`, and previously unreachable by this sweep.
+   *
+   * Both arms stay gated on `expiresAt` in the past: while a session can still legitimately be
+   * ended by its own client, healing it here would race that request.
    */
   private async sweepStaleSessions(userId: string): Promise<void> {
     try {
+      const expired = LessThan(new Date());
       const stale = await this.sessions.find({
-        where: { userId, status: 'IN_PROGRESS', expiresAt: LessThan(new Date()) },
+        where: [
+          { userId, status: 'IN_PROGRESS', expiresAt: expired },
+          { userId, status: 'COMPLETED', overallScore: IsNull(), expiresAt: expired },
+        ],
       });
       for (const session of stale) {
         try {
@@ -2100,6 +2114,17 @@ export class InterviewsService {
           this.logger.warn(
             `Failed to finalize stale interview session ${session.id}: ${String(error)}`,
           );
+          // Record the failure instead of leaving the row IN_PROGRESS forever, where it is
+          // indistinguishable from a session the user simply walked away from. Without this,
+          // `FAILED` is legal in the enum and the CHECK constraint but never written, so nobody
+          // can ask what share of interviews break.
+          //
+          // Guarded UPDATE, not save(): if `end` partially finalized the row (or a concurrent
+          // request did) before throwing, that COMPLETED-with-partial-report state is real and
+          // must survive — only a row still sitting IN_PROGRESS is a clean failure.
+          await this.sessions
+            .update({ id: session.id, status: 'IN_PROGRESS' }, { status: 'FAILED' })
+            .catch(() => undefined);
         }
       }
     } catch (error) {
