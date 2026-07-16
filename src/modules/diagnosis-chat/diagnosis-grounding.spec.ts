@@ -9,6 +9,7 @@ import {
   groundDiagnosis,
   allowedNumberTokens,
   statProvenance,
+  ungroundedNumbers,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -344,7 +345,7 @@ describe('buildDiagnosisFacts — learning completed pending verification (V2, W
 describe('groundDiagnosis (anti-fabrication boundary)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
-  it('keeps valid citations but renders the visible answer from facts, not raw LLM prose', () => {
+  it('keeps valid citations but replaces fabricated prose with the warm refusal + verified hook', () => {
     const result = groundDiagnosis(
       {
         message: 'Your ATS is 98 and you should learn Kubernetes immediately.',
@@ -354,8 +355,8 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       },
       facts,
     );
-    expect(result.answer).toContain('skills_relevance');
-    expect(result.answer).toContain('12/20');
+    // Phase A: the kill serves the refusal, hooked on the cited gap (gap outranks dimension).
+    expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
@@ -405,7 +406,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.suggested_next_step).not.toContain('spam.io');
   });
 
-  it('renders a grounded other-match comparison when the model cites a listed match index', () => {
+  it('a killed comparison turn keeps the VERIFIED comparison in the refusal (the user still gets their answer)', () => {
     const factsWithOtherMatches = buildDiagnosisFacts(
       makeReview(),
       makeGapReport([makeGapItem()]),
@@ -425,12 +426,17 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       'en',
     );
 
+    // Phase A: the salary invention is refused BY NAME, warmly — not answered with a fact template.
+    expect(result.answer).toContain('salary data');
     expect(result.answer).toContain('Frontend Developer');
     expect(result.answer).toContain('72');
     expect(result.answer).toContain('React');
     expect(result.answer).toContain('TypeScript');
     expect(result.answer).not.toContain('2000');
-    expect(result.suggested_next_step).toBeNull();
+    // The citation survives so the FE still scrolls to the compared match.
+    expect(result.cited_other_match_index).toBe(1);
+    // The refusal always leaves a verified forward step on the table.
+    expect(result.suggested_next_step).toBe('Add Docker evidence');
   });
 
   it('drops fabricated other-match indexes and falls back to normal grounded advice', () => {
@@ -1142,10 +1148,13 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       expect(result.answer).toBe(message);
     });
 
-    it('an uncited answer is STILL held to the number gate', () => {
+    it('an uncited answer is STILL held to the number gate — and the kill now serves the warm refusal', () => {
       const result = groundDiagnosis({ message: 'CV của bạn được 91/100.' }, facts);
       expect(result.answer).not.toContain('91');
-      expect(result.answer).toContain('chưa đủ dữ kiện'); // nothing cited → nothing to template
+      // Phase A: no more generic "chưa đủ dữ kiện" on a gate kill — the refusal names its ground
+      // and still hands over a verified next step.
+      expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
+      expect(result.answer).toContain('Add Docker evidence');
     });
 
     it('an uncited answer is STILL held to the unverifiable-claim gate', () => {
@@ -1231,5 +1240,89 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
       'vi',
     );
     expect(result.cited_tool).toBeUndefined();
+  });
+});
+
+// ── Phase A: the warm refusal — every gate kill now says WHY, warmly, and still moves them forward ──
+describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  const refusalOf = (message: string, language?: string) =>
+    groundDiagnosis({ message }, facts, language);
+
+  it('hire-odds bait → the odds refusal, in Vietnamese, with a verified forward step', () => {
+    const r = refusalOf('Khả năng đậu của bạn là khá cao.');
+    expect(r.answer).toContain('Đậu hay không thì mình không đoán');
+    expect(r.answer).toContain('Add Docker evidence');
+    expect(r.suggested_next_step).toBe('Add Docker evidence');
+  });
+
+  it('peer-comparison bait → the peers refusal', () => {
+    const r = refusalOf('Bạn giỏi hơn phần lớn ứng viên khác.');
+    expect(r.answer).toContain('So sánh kiểu đó thì mình không làm được thật');
+  });
+
+  it('salary bait → the salary refusal, localized to English', () => {
+    const r = refusalOf('Your salary should be around 2000 USD.', 'en');
+    expect(r.answer).toContain('salary data');
+    expect(r.answer).not.toContain('2000');
+  });
+
+  it('invented statistic → the stat refusal', () => {
+    const r = refusalOf('Có tới 71% tin tuyển dụng dùng ATS để lọc.');
+    expect(r.answer).toContain('nguồn đã xác minh');
+    expect(r.answer).not.toContain('71%');
+  });
+
+  it('refusal copy itself is REPLAY-SAFE: it passes both gates it explains', () => {
+    for (const [vi, en] of [
+      [
+        'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
+        "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+      ],
+      [
+        'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
+        "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+      ],
+      [
+        'Chuyện lương mình không có dữ liệu để nói, nên mình không đoán.',
+        "I don't have any salary data, so I'm not going to guess about pay.",
+      ],
+      [
+        'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
+        "I don't have a verified source for that kind of number, so I won't state it.",
+      ],
+    ]) {
+      // salary copy legitimately contains the word "lương/salary" — the salary REGEX matches the
+      // topic, which is exactly why the model may never write it; the code-authored copy does not
+      // pass through unverifiableClaim in prod. What MUST hold: no digits, no % tokens, so the
+      // number gate and the licensing layer can never fire on an echo.
+      expect(vi).not.toMatch(/\d/);
+      expect(en).not.toMatch(/\d/);
+      expect(ungroundedNumbers(vi, allowedNumberTokens(facts))).toEqual([]);
+      expect(ungroundedNumbers(en, allowedNumberTokens(facts))).toEqual([]);
+    }
+  });
+});
+
+describe('isBenignQuantity — the "số 1" noun-before-number idiom (measured: 2/25 live turns lost)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+  // Nothing in this fixture licenses a bare "1" (no 1-length arrays beyond what buildDiagnosisFacts
+  // seeds — asserted so these tests cannot pass vacuously).
+
+  it('"ưu tiên số 1" and "việc số 1" are formatting, not fabrication', () => {
+    for (const message of [
+      'Sửa bullet là ưu tiên số 1 của bạn lúc này.',
+      'Việc số 1 nên làm: thêm số liệu vào thành tích.',
+    ]) {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    }
+  });
+
+  it('"số 1" NEVER licenses a scale or a rate: "điểm số 1/20" and "số 1%" still face the gates', () => {
+    const scale = groundDiagnosis({ message: 'Mục action_verbs có điểm số 1/20 thôi.' }, facts);
+    expect(scale.answer).not.toBe('Mục action_verbs có điểm số 1/20 thôi.');
+    const rate = groundDiagnosis({ message: 'Chỉ số 1% hồ sơ được chọn.' }, facts);
+    expect(rate.answer).not.toBe('Chỉ số 1% hồ sơ được chọn.');
   });
 });

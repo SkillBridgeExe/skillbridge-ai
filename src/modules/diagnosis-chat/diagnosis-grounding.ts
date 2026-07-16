@@ -161,91 +161,144 @@ function stringOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function renderGroundedAnswer(input: {
-  dimension?: DiagnosisDimensionFact;
-  gap?: DiagnosisGapFact;
-  otherMatch?: DiagnosisOtherMatchFact;
-  toolResult?: { toolName: string; data: unknown };
-  facts: DiagnosisFacts;
-  language?: string;
-}): DiagnosisChatResult {
-  const isEn = isEnglish(input.language);
-  const parts: string[] = [];
-  let suggested_next_step: string | null = null;
+// ── Phase A: the warm refusal — what a blocked turn SAYS ─────────────────────────────────────────
+/**
+ * Served when a gate KILLED the model's prose (an unverifiable claim or an out-of-FACTS number).
+ * Before this, 5 of 7 blocked turns in a 25-turn adversarial run were answered with a fact template
+ * ("Mục đã xác minh: action_verbs đang ở 9/20…") — correct, and exactly the robot the candidate
+ * meets at the moment they most need to feel heard: right after asking the tempting question. The
+ * refusal is CODE-AUTHORED copy (it never faces the gates), so unlike the model it can safely NAME
+ * the family of thing it will not guess:
+ *   1. one warm sentence saying what it won't do and why — with NO digits and NO valuation tails,
+ *      because this text is persisted and replayed into the next prompt's history, and the copy
+ *      must not hand the model a phrase that trips the same gate it explains;
+ *   2. one verified hook (cited gap > cited dimension > tool result > top prioritized action) so
+ *      the turn still moves them forward instead of ending at "no";
+ *   3. the citation is kept — the FE still scrolls to the card the hook talks about.
+ */
+const REFUSAL_FAMILY: Record<string, 'peers' | 'odds' | 'salary' | 'stat'> = {
+  peer_comparison: 'peers',
+  ranking: 'peers',
+  grade_label: 'peers',
+  hire_odds: 'odds',
+  salary: 'salary',
+  peer_stat: 'stat',
+};
 
-  if (input.dimension) {
+// Copy is written to be REPLAY-SAFE: it is persisted and echoed into the next prompt's history, so
+// it must not contain the phrases the gates hunt ("tỉ lệ đậu", "ứng viên khác", comparatives) — the
+// model imitates its conversation partner, and the refusal must never teach it the banned register.
+const REFUSAL_COPY: Record<'peers' | 'odds' | 'salary' | 'stat' | 'numbers', [string, string]> = {
+  // [vi, en]
+  peers: [
+    'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
+    "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+  ],
+  odds: [
+    'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
+    "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+  ],
+  salary: [
+    'Chuyện lương mình không có dữ liệu để nói, nên mình không đoán.',
+    "I don't have any salary data, so I'm not going to guess about pay.",
+  ],
+  stat: [
+    'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
+    "I don't have a verified source for that kind of number, so I won't state it.",
+  ],
+  numbers: [
+    'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
+    "Here I'll only say what your verified data actually contains.",
+  ],
+};
+
+/** cv_status enum → human Vietnamese; unknown values pass through raw (never invented). */
+const CV_STATUS_VI: Record<string, string> = {
+  missing: 'chưa có trong CV',
+  partial: 'mới có một phần',
+  weak: 'còn mờ nhạt',
+  present: 'đã có',
+};
+
+function buildRefusal(
+  reason: string,
+  resolved: {
+    dimension?: DiagnosisDimensionFact;
+    gap?: DiagnosisGapFact;
+    otherMatch?: { fact: DiagnosisOtherMatchFact; index1: number };
+    toolResult?: { toolName: string; data: unknown };
+  },
+  facts: DiagnosisFacts,
+  language?: string,
+): DiagnosisChatResult {
+  const isEn = isEnglish(language);
+  const family = REFUSAL_FAMILY[reason] ?? 'numbers';
+  const parts: string[] = [REFUSAL_COPY[family][isEn ? 1 : 0]];
+
+  const { dimension, gap, otherMatch, toolResult } = resolved;
+  if (gap) {
     parts.push(
       isEn
-        ? `Verified CV dimension: ${input.dimension.key} is ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim()
-        : `Mục đã xác minh: ${input.dimension.key} đang ở ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim(),
+        ? `What I can say for sure: ${gap.display_name} is ${gap.cv_status} in your CV — the step worth taking: ${gap.recommended_next_action}.`
+        : `Điều mình nói chắc được: ${gap.display_name} đang ${CV_STATUS_VI[gap.cv_status] ?? gap.cv_status} — bước đáng làm nhất: ${gap.recommended_next_action}.`,
     );
-    suggested_next_step = input.facts.top_summary.prioritized_actions[0] ?? null;
-  }
-
-  if (input.gap) {
-    const demand =
-      input.gap.market_demand === null
-        ? ''
-        : isEn
-          ? ` Market demand: ${input.gap.market_demand}%.`
-          : ` Nhu cầu thị trường: ${input.gap.market_demand}%.`;
+  } else if (dimension) {
     parts.push(
       isEn
-        ? `Verified gap: ${input.gap.display_name} is ${input.gap.cv_status}; priority ${input.gap.severity}.${demand} Next action: ${input.gap.recommended_next_action}.`
-        : `Gap đã xác minh: ${input.gap.display_name} đang là ${input.gap.cv_status}; độ ưu tiên ${input.gap.severity}.${demand} Bước tiếp theo: ${input.gap.recommended_next_action}.`,
+        ? `What I can say for sure: your ${dimension.key} sits at ${dimension.score20}/20. ${dimension.rationale}`.trim()
+        : `Điều mình nói chắc được: mục ${dimension.key} của bạn đang ${dimension.score20}/20. ${dimension.rationale}`.trim(),
     );
-    suggested_next_step = input.gap.recommended_next_action;
-  }
-
-  if (input.otherMatch) {
-    const title =
-      input.otherMatch.jd_title ??
-      (isEn ? 'an unnamed recent JD match' : 'một JD match gần đây chưa có tên');
+  } else if (otherMatch) {
+    // A comparison turn died on a fabricated garnish (a salary, an invented number). The stored
+    // comparison itself is verified — keep it, so the user still gets the answer they asked for.
+    const m = otherMatch.fact;
+    const title = m.jd_title ?? (isEn ? 'an unnamed recent JD' : 'một JD gần đây chưa có tên');
     const score =
-      input.otherMatch.overall_score === null
+      m.overall_score === null
         ? isEn
           ? 'no stored score'
           : 'chưa có điểm đã lưu'
-        : isEn
-          ? `${input.otherMatch.overall_score}/100`
-          : `${input.otherMatch.overall_score}/100`;
-    const gaps = input.otherMatch.top_gaps.length
-      ? input.otherMatch.top_gaps.join(', ')
+        : `${m.overall_score}/100`;
+    const gaps = m.top_gaps.length
+      ? m.top_gaps.join(', ')
       : isEn
         ? 'no stored top gaps'
         : 'không có gap chính đã lưu';
     parts.push(
       isEn
-        ? `Recent JD match: ${title} has ${score}. Stored top gaps: ${gaps}. Use this only as comparison context against your current diagnosis.`
-        : `JD match gần đây: ${title} có ${score}. Gap chính đã lưu: ${gaps}. Chỉ dùng thông tin này để so sánh với chẩn đoán hiện tại của bạn.`,
+        ? `What I can compare from your stored data: the ${title} match sits at ${score}; its stored top gaps: ${gaps}.`
+        : `Điều mình so sánh được từ dữ liệu đã lưu của bạn: JD ${title} đang ở ${score}, gap chính đã lưu: ${gaps}.`,
     );
-    suggested_next_step = null;
-  }
-
-  if (input.toolResult) {
-    const wrapped = input.toolResult.data as { untrusted_data?: Record<string, unknown> };
+  } else if (toolResult && toolResult.toolName === 'github.enrich') {
+    const wrapped = toolResult.data as { untrusted_data?: Record<string, unknown> };
     const d = wrapped.untrusted_data ?? {};
-    if (input.toolResult.toolName === 'github.enrich') {
-      const exists = Boolean(d.exists);
-      const repoCount = Array.isArray(d.public_repos) ? d.public_repos.length : 0;
-      const days = typeof d.recent_activity_days === 'number' ? d.recent_activity_days : null;
-      parts.push(
-        !exists
-          ? isEn
-            ? 'Verified GitHub: no public account found for that username.'
-            : 'Đã kiểm tra GitHub: không tìm thấy tài khoản công khai với username đó.'
-          : isEn
-            ? `Verified GitHub: ${repoCount} public repo(s) found${days !== null ? `, most recent activity ${days} day(s) ago` : ''}.`
-            : `Đã kiểm tra GitHub: tìm thấy ${repoCount} repo công khai${days !== null ? `, hoạt động gần nhất ${days} ngày trước` : ''}.`,
-      );
-    }
+    const exists = Boolean(d.exists);
+    const repoCount = Array.isArray(d.public_repos) ? d.public_repos.length : 0;
+    parts.push(
+      !exists
+        ? isEn
+          ? 'What I did verify: no public GitHub account was found for that username.'
+          : 'Điều mình đã kiểm tra được: không tìm thấy tài khoản GitHub công khai với username đó.'
+        : isEn
+          ? `What I did verify: your GitHub has ${repoCount} public repo(s).`
+          : `Điều mình đã kiểm tra được: GitHub của bạn có ${repoCount} repo công khai.`,
+    );
+  } else if (facts.top_summary.prioritized_actions[0]) {
+    parts.push(
+      isEn
+        ? `What's definitely worth doing right now: ${facts.top_summary.prioritized_actions[0]}`
+        : `Thứ chắc chắn đáng làm ngay: ${facts.top_summary.prioritized_actions[0]}`,
+    );
   }
 
   return {
     answer: stripRawUrls(parts.join(' ')),
-    ...(input.dimension ? { cited_dimension: input.dimension.key } : {}),
-    ...(input.gap ? { cited_gap_id: input.gap.requirement_id } : {}),
-    suggested_next_step,
+    ...(dimension ? { cited_dimension: dimension.key } : {}),
+    ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
+    ...(otherMatch ? { cited_other_match_index: otherMatch.index1 } : {}),
+    ...(toolResult ? { cited_tool: toolResult.toolName } : {}),
+    suggested_next_step:
+      gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null,
   };
 }
 
@@ -440,6 +493,10 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
     return n === 1 || before.includes(`(${n - 1})`);
   if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]\s+\p{L}/u.test(after))
     return n === 1 || new RegExp(`(?:^|\\n)[ \\t]*${n - 1}[.)]\\s`).test(before);
+  // (c) "số 1" — the noun-BEFORE-number idiom ("ưu tiên số 1", "việc số 1"). Measured: 2 of 25
+  //     live turns lost to it. ONE only, same ceiling argument as (b); the after-guard keeps
+  //     "điểm số 1/20" and "số 1%" facing the gate — those are a scale and a rate, not the idiom.
+  if (n === 1 && /(?:^|[^\p{L}])số\s*$/iu.test(before) && !/^\s*[/\d%,.]/.test(after)) return true;
   // (b) the quantity ONE over an advice noun.
   return n === 1 && ADVICE_NOUN.test(after);
 }
@@ -813,23 +870,18 @@ export function groundDiagnosis(
     };
   }
 
-  // A gate failed. The template restates VERIFIED fact rows, so it can only be built when something
-  // resolved; with no citation there is nothing to restate and the honest fallback is all that's left.
-  if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
-
-  const rendered = renderGroundedAnswer({
-    dimension,
-    gap,
-    otherMatch,
-    toolResult,
+  // A gate failed — the model asserted something FACTS cannot back. Serve the warm, reason-aware
+  // refusal (Phase A) instead of a fact template: the refusal names what it won't guess, then
+  // pivots to a verified hook, keeping whichever citation resolved so the FE still scrolls.
+  return buildRefusal(
+    unverifiable ?? 'numbers',
+    {
+      dimension,
+      gap,
+      ...(otherMatch ? { otherMatch: { fact: otherMatch, index1: otherIndex + 1 } } : {}),
+      toolResult,
+    },
     facts,
     language,
-  });
-  return {
-    ...rendered,
-    // otherIndex is always the validated 0-based slot when otherMatch was found — recover the
-    // original 1-based value so the platform layer can map it back to facts.other_matches[i-1].
-    ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
-    ...(toolResult ? { cited_tool: citedTool as string } : {}),
-  };
+  );
 }
