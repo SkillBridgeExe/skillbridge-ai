@@ -8,6 +8,7 @@ import {
   DiagnosisFacts,
   groundDiagnosis,
   allowedNumberTokens,
+  factsNormText,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -900,6 +901,117 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       const message = 'Phần Education của bạn khá tốt, nên giữ nguyên và tập trung chỗ khác.';
       const result = groundDiagnosis({ message, cited_dimension: 'education' }, facts);
       expect(result.answer).toBe(message);
+    });
+  });
+
+  describe('a percentage may only be ATTACHED to what FACTS attach it to (phrase provenance)', () => {
+    // market_demand is the ONE percentage in FACTS, so it is the one the model can lie with: the
+    // number is real, the subject and predicate are invented, and the number gate — which only asks
+    // where a number CAME FROM — waves it through. The first fix listed population nouns to block;
+    // an adversarial pass shipped every synonym one word off the list (HR, JD, thị trường,
+    // headhunter, mô tả công việc — all verbatim, all verified). So there is no noun list: a
+    // "%/ratio + word" phrase serves only when FACTS phrase it that way themselves. The noun nobody
+    // thought of now costs a templated turn instead of shipping a fabricated statistic.
+    const statFacts = buildDiagnosisFacts(
+      makeReview({
+        top_summary: {
+          headline: 'x',
+          prioritized_actions: [
+            'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số) — vd "giảm 40% thời gian tải".',
+          ],
+        },
+      } as Partial<CvReviewParsedResponse>),
+      makeGapReport([
+        makeGapItem({ market_demand: 71 }),
+        makeGapItem({
+          requirement_id: 'jd:hard_skill:redis',
+          display_name: 'Redis',
+          market_demand: 30,
+          severity: 0.4,
+        }),
+      ]),
+    );
+    const cited = { cited_gap_id: 'jd:hard_skill:docker' as const };
+
+    it.each([
+      ['the original leak', '71% nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['postings + invented predicate', 'Có tới 71% tin tuyển dụng dùng ATS để lọc.'],
+      ['a synonym off any list — HR', '71% HR sẽ loại CV của bạn vì thiếu Docker.'],
+      ['a synonym off any list — JD', '71% JD yêu cầu Docker và chấm điểm tự động.'],
+      ['a synonym off any list — market', '71% thị trường đang yêu cầu Docker.'],
+      ['a synonym off any list — headhunter', '71% headhunter sẽ bỏ qua CV của bạn.'],
+      [
+        'reordered into a relative clause',
+        'Docker xuất hiện trong 71% mô tả công việc, và họ dùng ATS để lọc.',
+      ],
+      ['an English population', '71% job descriptions require Docker and screen with ATS.'],
+      ['a connector between % and noun', '71% trong số các nhà tuyển dụng dùng ATS để lọc CV.'],
+      [
+        'the population moved to the next clause',
+        'Trong 71% trường hợp, nhà tuyển dụng sẽ loại CV thiếu Docker.',
+      ],
+      ['a spelled-out number', 'Bảy mươi mốt phần trăm nhà tuyển dụng yêu cầu Docker.'],
+      ['an invented time statistic', '71% thời gian bạn sẽ dùng kỹ năng này.'],
+      [
+        'an ELIDED population — "sẽ" is not a safe follower',
+        '71% sẽ loại CV của bạn ngay vòng đầu.',
+      ],
+    ])('refuses %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // Ratio and scaffold forms carry the same statistic with no "%" token to anchor on. The two that
+    // failed before did so only because the fixture happened not to contain 7, 10 or 0.71 — number-
+    // gate luck, not protection. These are caught by their FRAME now, whatever digits they carry.
+    it.each([
+      ['a fraction', '7/10 nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['a fraction over 100', '71/100 nhà tuyển dụng sẽ loại CV của bạn.'],
+      ['the "cứ N … có M" frame', 'Cứ 100 tin tuyển dụng thì có 71 tin dùng ATS để lọc.'],
+      ['the "tỉ lệ … là N" frame', 'Tỉ lệ nhà tuyển dụng yêu cầu Docker là 0,71.'],
+    ])('refuses a rate rephrased as %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // Told "never pin 71% to a group", a model complies by DROPPING THE NUMBER and keeping the
+    // claim — measured shipping. This arm is still a noun list (unbounded synonyms exist), accepted
+    // for the digit-less class only: no fabricated number rides along, and the prompt now forbids
+    // the whole subject.
+    it.each([
+      ['recruiters', 'Phần lớn nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['companies', 'Hầu hết các công ty đều dùng ATS để lọc CV.'],
+      ['postings', 'Đa số tin tuyển dụng hiện nay đều yêu cầu Docker.'],
+    ])('refuses the digit-less retreat onto %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // What keeps this from strangling the advisor: FACTS-attached phrases, the detached template
+    // wording, and glue/comparative followers all stay speakable.
+    it.each([
+      [
+        'the template line itself (detached %)',
+        'Nhu cầu thị trường: 71%. Bước tiếp theo: Học & bổ sung kỹ năng này.',
+      ],
+      ['the English template line', 'Market demand: 71%. Next action: learn it.'],
+      ['a FACTS-verbatim % phrase', 'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số).'],
+      ['another FACTS-verbatim % phrase', 'Ví dụ: "giảm 40% thời gian tải".'],
+      [
+        'the two-gap comparison the prompt encourages',
+        'Docker có nhu cầu thị trường 71%, Redis 30% — nên học Docker trước.',
+      ],
+      ['glue after the % ("và")', 'Nhu cầu thị trường Docker là 71% và Redis là 30%.'],
+      ['a comparative after the % ("so với")', '71% so với 30% — Docker thắng rõ.'],
+      ['a score ratio with nothing attached', 'skills_relevance của bạn đang ở 12/20.'],
+      ['a score ratio read out loud ("điểm")', 'Điểm mục này là 12/20 và còn cải thiện được.'],
+    ])('serves %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).toBe(message);
+    });
+
+    it('the fixture cannot make the provenance tests pass by luck', () => {
+      // If FACTS ever grew a "71% <word>" phrase, every refusal above would be testing nothing.
+      expect(factsNormText(statFacts)).not.toMatch(/71\s*%|71\s*phần trăm/);
+      // And the served FACTS-verbatim cases must be passing on PROVENANCE, not on a dead gate.
+      expect(factsNormText(statFacts)).toContain('9% bullet');
+      expect(factsNormText(statFacts)).toContain('40% thời gian tải');
     });
   });
 

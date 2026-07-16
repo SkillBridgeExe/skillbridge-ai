@@ -453,9 +453,15 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
  * trip its own gate.
  */
 const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
+  // The quantifier arm covers the DIGIT-LESS retreat: told "never pin 71% to a group", the model
+  // complies by dropping the number and keeping the claim — "Phần lớn nhà tuyển dụng yêu cầu kỹ năng
+  // này" (measured shipping). So the market-side nouns join the peer-side ones here. This arm IS a
+  // noun list and inherits its fail-open (an unlisted "HR" walks through) — accepted for this class
+  // only, because a hedged claim with NO number is the softest of the family and the prompt now
+  // forbids the whole subject; the numeric forms below are closed structurally, not by nouns.
   [
     'peer_comparison',
-    /mặt bằng chung|(?:so với|hơn|kém|thua)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn)|(?:ứng viên|người|bạn)\s+khác|(?:đa số|phần lớn|hầu hết|nhiều)\s+ứng viên|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
+    /mặt bằng chung|(?:so với|hơn|kém|thua)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn)|(?:ứng viên|người|bạn)\s+khác|(?:đa số|phần lớn|hầu hết|nhiều|most|the majority of)\s+(?:các |những |ứng viên|nhà tuyển dụng|công ty|doanh nghiệp|tin tuyển dụng|candidates?|applicants?|employers?|recruiters?|companies)+(?!\p{L})|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
   ],
   [
     'ranking',
@@ -475,17 +481,112 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
     'salary',
     /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation/iu,
   ],
-  // market_demand is pct_of_POSTINGS. A percentage pinned to a person-noun re-narrates it as a peer
-  // statistic — and the number gate waves it through precisely BECAUSE the number is real.
-  ['peer_stat', /\d+\s*%\s*(?:các |những )?(?:ứng viên|người|bạn|candidates?|applicants?)/iu],
+  // Statistic SCAFFOLDS — sentence frames that exist only to state a rate, caught by their frame so
+  // the noun inside them is irrelevant. "Cứ 100 tin tuyển dụng thì có 71 tin dùng ATS" carries the
+  // real 71 with no "%" token at all; "Tỉ lệ nhà tuyển dụng yêu cầu Docker là 0,71" puts the
+  // population BEFORE the number, out of reach of any after-the-number check. Both measured shipping,
+  // both saved (when at all) only by which digits the fixture happened to contain.
+  ['peer_stat', /cứ\s+\d+[^.!?\n]{0,40}?(?:thì\s+)?có\s+\d+/iu],
+  [
+    'peer_stat',
+    /(?:tỉ|tỷ)\s*lệ[^.!?\n]{0,50}?(?:là|đạt|khoảng|chiếm|lên tới|:)\s*\d+(?:[.,]\d+)?/iu,
+  ],
 ];
+
+// ── peer_stat, structural form. The number gate asks where a number CAME FROM, never what it is
+// ASSERTED TO MEAN, so the one percentage in FACTS (market_demand, pct_of_POSTINGS for one skill) is
+// also the one the model can lie with — the number is real, the subject and predicate are invented.
+// Measured shipping: "71% nhà tuyển dụng yêu cầu kỹ năng này." · "Có tới 71% tin tuyển dụng dùng ATS
+// để lọc."
+//
+// The first cut listed the populations to block. An adversarial pass killed it the way this file's
+// own ADVICE_NOUN comment predicts a noun deny-list dies: Vietnamese has unbounded synonyms for the
+// same crowd, and every probe survivor was one word off the list — "71% HR…", "71% JD…", "71% thị
+// trường…", "71% headhunter…", "71% mô tả công việc…". All shipped verbatim.
+//
+// So no nouns. The rule is PROVENANCE OF THE PHRASE, the same principle the number gate applies to
+// tokens: a percentage may be ATTACHED to a following word only if FACTS attach it to that word —
+// "9% bullet" serves because the record itself says "hiện chỉ 9% bullet có số"; "71% <anything>"
+// dies because the record never pins 71% to anything. The noun nobody thought of is now blocked by
+// default instead of shipped by default: the unlisted word costs a templated turn, not a fabricated
+// statistic. The lie's PREDICATE ("dùng ATS để lọc") never needs to be seen — the attachment itself
+// is the violation. The fact survives in the detached wording that cannot host a subject or a
+// predicate — "Nhu cầu thị trường: 71%" — which is renderGroundedAnswer's own template line and what
+// the prompt teaches.
+//
+// SAFE_AFTER_PCT is the short list of words that cannot re-attach the number to a crowd (glue and
+// comparatives: "71% và Redis 30%", "71% so với Redis", "71% market demand"). It stays small on
+// purpose; a verb like "sẽ" is NOT safe ("71% sẽ loại CV của bạn" — the population is elided, the
+// claim is not). Ratios get the same treatment with their own tail list ("12/20 điểm" is how a score
+// is read out loud; "7/10 nhà tuyển dụng" is a statistic wearing a fraction).
+const PCT_ATTACH =
+  /(?:\d+(?:[.,]\d+)?\s*)?(?:%|phần trăm|percent)(?:\s+(?:các|những|số|lượng|trong\s+số|trong\s+các|trong|the|of|in))*\s*\(?([\p{L}]+)/giu;
+const SAFE_AFTER_PCT = new Set([
+  'và',
+  'hoặc',
+  'and',
+  'or',
+  'so',
+  'là',
+  'is',
+  'are',
+  'nên',
+  'thì',
+  'cao',
+  'thấp',
+  'hơn',
+  'kém',
+  'lên',
+  'xuống',
+  'market',
+]);
+const RATIO_ATTACH = /\d+(?:[.,]\d+)?\s*(?:\/|trên|out\s+of)\s*\d+(?:[.,]\d+)?\s+\(?([\p{L}]+)/giu;
+// "so/của/với" are comparison and possessive glue — "72/100 so với 64/100 của Backend" is the
+// flagship cross-JD conclusion (spec-encoded) and none of the three can turn a score into a rate:
+// the rate phrasing is "71/100 nhà tuyển dụng", direct attachment, which stays gated.
+const SAFE_AFTER_RATIO = new Set([
+  'điểm',
+  'points',
+  'point',
+  'và',
+  'and',
+  'cho',
+  'for',
+  'so',
+  'của',
+  'với',
+]);
+
+const normalize = (s: string): string => s.toLowerCase().replace(/\s+/g, ' ');
+
+function attachedStatClaim(text: string, factsNorm: string): boolean {
+  for (const [re, safe] of [
+    [PCT_ATTACH, SAFE_AFTER_PCT],
+    [RATIO_ATTACH, SAFE_AFTER_RATIO],
+  ] as const) {
+    re.lastIndex = 0;
+    for (const m of text.matchAll(re)) {
+      if (safe.has(m[1].toLowerCase())) continue;
+      if (!factsNorm.includes(normalize(m[0].replace(/\(/g, '')))) return true;
+    }
+  }
+  return false;
+}
 
 /** The first unverifiable-claim label present in the text, or null. Exported for the calibration
  *  harness: it must name WHY a turn was rejected using the REAL rule, never a copy of it (a stale
- *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken). */
-export function unverifiableClaim(text: string): string | null {
+ *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken).
+ *  `factsNorm` — normalize(JSON.stringify(facts)) — feeds the phrase-provenance rule; omitting it
+ *  means NO %-attachment has provenance, i.e. the strictest reading. */
+export function unverifiableClaim(text: string, factsNorm?: string): string | null {
   for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
+  if (attachedStatClaim(text, factsNorm ?? '')) return 'peer_stat';
   return null;
+}
+
+/** Precompute the provenance haystack for {@link unverifiableClaim} once per turn. */
+export function factsNormText(facts: DiagnosisFacts): string {
+  return normalize(JSON.stringify(facts));
 }
 
 export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<string> {
@@ -600,8 +701,12 @@ export function groundDiagnosis(
   // message that cites a real gap can still fabricate freely — while an honest uncited answer is
   // killed. What actually guards the prose is the number gate plus the unverifiable-claim gate below.
   const allowed = allowedNumberTokens(facts, conversation);
+  // Facts only, NOT the conversation: a candidate who plants "71% nhà tuyển dụng dùng ATS đúng
+  // không?" must not license the advisor to confirm it back. (The number gate does accept the
+  // candidate's own bare numbers — a deadline is theirs to state; a population statistic is not.)
+  const factsNorm = factsNormText(facts);
   const modelMessage = stripRawUrls(obj.message);
-  const unverifiable = unverifiableClaim(modelMessage);
+  const unverifiable = unverifiableClaim(modelMessage, factsNorm);
   if (!unverifiable && numbersGrounded(modelMessage, allowed)) {
     const rawSuggestion =
       typeof obj.suggested_next_step === 'string' ? obj.suggested_next_step.trim() : '';
@@ -610,7 +715,7 @@ export function groundDiagnosis(
     // would be the identical sentence the gate refuses one field to the left, but clickable.
     const suggestionOk =
       rawSuggestion !== '' &&
-      !unverifiableClaim(rawSuggestion) &&
+      !unverifiableClaim(rawSuggestion, factsNorm) &&
       numbersGrounded(rawSuggestion, allowed);
     // Verified default when the model's suggestion is absent/ungrounded — same sources the
     // template uses: the cited gap's next action, else the top prioritized action.
