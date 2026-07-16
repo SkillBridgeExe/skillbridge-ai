@@ -420,8 +420,13 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
  * "-2 tuần", not by a noun) and number-after-noun ordinals ("bước 3") never were exempt. Both need a
  * separate rule; add one only if a live run shows them costing real turns.
  */
+// Time spans and deliverables joined after a live run measured them lost: "dành 1 tuần", "thêm 1 dự
+// án", "thêm 1 ví dụ", "mỗi bullet có 1 động từ và 1 con số" are the action-advice register itself.
+// Still "1"-only — "1 <any of these>" cannot be a score, a percentage or a salary; the worst case
+// ("CV bạn chỉ có 1 dự án") mis-counts the record at exactly one, the same ceiling the original
+// việc/bullet entries accepted.
 const ADVICE_NOUN =
-  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|thing|step|way|option|line|sentence|verb)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example)(?![\p{L}\p{N}])/iu;
 
 function isBenignQuantity(text: string, index: number, token: string): boolean {
   if (!/^[1-9]$/.test(token)) return false;
@@ -473,9 +478,14 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
     'grade_label',
     /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|fairly average|pretty average/iu,
   ],
+  // The odds phrase is a claim only when it gets VALUED — "khả năng đậu của bạn là khá cao" grades
+  // an unknowable; "sửa xong, cơ hội được gọi phỏng vấn sẽ tốt hơn" is the direction-of-improvement
+  // closer every honest advisor uses (measured over-blocked: the encouragement register the prompt
+  // itself asks for). So the VN arm requires a valuation tail (là/:/khoảng/cao/thấp/bao nhiêu/digit)
+  // and the EN arm a graded adjective — improvement verbs stay free.
   [
     'hire_odds',
-    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng)|chắc (?:đậu|trúng)|chances? of (?:getting|being|landing)|odds of (?:getting|being)/iu,
+    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng)[^.!?]{0,15}?(?:là|:|khoảng|tầm|bao nhiêu|cao|thấp|\d|%)|chắc (?:đậu|trúng)|(?:chances?|odds) of (?:getting|being|landing)[^.!?]{0,30}?(?:high|low|good|great|slim|strong|\d|%)/iu,
   ],
   [
     'salary',
@@ -487,9 +497,14 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
   // population BEFORE the number, out of reach of any after-the-number check. Both measured shipping,
   // both saved (when at all) only by which digits the fixture happened to contain.
   ['peer_stat', /cứ\s+\d+[^.!?\n]{0,40}?(?:thì\s+)?có\s+\d+/iu],
+  // (?!\s*%|\d) — when the stated number IS a percentage, the licensing layer below owns the
+  // verdict: "Tỉ lệ bullet có số liệu hiện là 9%" is a GROUNDED rate (FACTS write "9%") and must
+  // live, while "Tỉ lệ nhà tuyển dụng yêu cầu Docker là 71%" still dies (71% unlicensed without the
+  // field name, and the actor veto besides). Bare decimals ("là 0,71") have no licensed form → the
+  // frame fires.
   [
     'peer_stat',
-    /(?:tỉ|tỷ)\s*lệ[^.!?\n]{0,50}?(?:là|đạt|khoảng|chiếm|lên tới|:)\s*\d+(?:[.,]\d+)?/iu,
+    /(?:tỉ|tỷ)\s*lệ[^.!?\n]{0,50}?(?:là|đạt|khoảng|chiếm|lên tới|:)\s*\d+(?:[.,]\d+)?(?!\s*%|\d)/iu,
   ],
 ];
 
@@ -514,36 +529,54 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
 // predicate — "Nhu cầu thị trường: 71%" — which is renderGroundedAnswer's own template line and what
 // the prompt teaches.
 //
-// SAFE_AFTER_PCT is the short list of words that cannot re-attach the number to a crowd (glue and
-// comparatives: "71% và Redis 30%", "71% so với Redis", "71% market demand"). It stays small on
-// purpose; a verb like "sẽ" is NOT safe ("71% sẽ loại CV của bạn" — the population is elided, the
-// claim is not). Ratios get the same treatment with their own tail list ("12/20 điểm" is how a score
-// is read out loud; "7/10 nhà tuyển dụng" is a statistic wearing a fraction).
-const PCT_ATTACH =
-  /(?:\d+(?:[.,]\d+)?\s*)?(?:%|phần trăm|percent)(?:\s+(?:các|những|số|lượng|trong\s+số|trong\s+các|trong|the|of|in))*\s*\(?([\p{L}]+)/giu;
-const SAFE_AFTER_PCT = new Set([
-  'và',
-  'hoặc',
-  'and',
-  'or',
-  'so',
-  'là',
-  'is',
-  'are',
-  'nên',
-  'thì',
-  'cao',
-  'thấp',
-  'hơn',
-  'kém',
-  'lên',
-  'xuống',
-  'market',
-]);
+// The attach-to-the-next-word version of that rule ALSO fell to an adversarial pass, in both
+// directions at once, because it still reads LOCAL syntax: put the crowd BEFORE the number and
+// detach the % with punctuation ("Nhà tuyển dụng (71%) đều dùng ATS.") and there is no word-after-%
+// to inspect; route through the safe-list ("Thực tế 71% là nhà tuyển dụng dùng ATS…", "71% cao hơn
+// vì nhà tuyển dụng đòi hỏi…") and the gate's own glue words carry the claim. Meanwhile the exact-
+// phrase provenance killed every honest PARAPHRASE of a real FACTS metric ("Hiện chỉ 9% đang có số
+// liệu") — the very behaviour the prompt teaches ("do not parrot the screen").
+//
+// So the rule stops inspecting neighbours and licenses THE TOKEN ITSELF, sentence by sentence:
+//
+//   LAYER 1 — a percentage is speakable only where FACTS can put it: "N%" must be a percentage the
+//   record itself WRITES ("9%", "40%" inside prioritized_actions — any paraphrase around it is then
+//   free), or N must be a market_demand value AND the sentence must name the field ("nhu cầu thị
+//   trường" / "market demand"). A bare "71%" in any other sentence is dead on arrival — whatever
+//   the word order, whatever punctuation detaches it, whatever safe word follows it. This is
+//   fail-CLOSED over the whole % surface: there is no noun to forget and no anchor to slip.
+//   A spelled-out percentage ("bảy mươi mốt phần trăm") has no digits for any gate to check and no
+//   licensed form at all — always a claim.
+//
+//   LAYER 2 — a sentence that contains BOTH a rate token (%/ratio) AND a hiring-market actor is a
+//   crowd statistic no matter how the two are arranged ("12/20 của các nhà tuyển dụng…", "Nhu cầu
+//   thị trường: 71% và họ đều dùng ATS…"). The field name is stripped before the scan so "nhu cầu
+//   thị trường" never counts as the actor "thị trường". This list IS a deny-list and stays
+//   fail-open on an unlisted synonym — accepted as defense-in-depth only: an attacker now needs a
+//   LICENSED number and an unlisted actor in the same breath, where before either alone sufficed.
+//
+// Ratios keep the attach check as a third layer, with copulas/comparatives in the safe list — "9/20
+// là thấp nhất", "9/20 thấp hơn hẳn 12/20" are the DEFAULT register for reading a score off a scale
+// (and fact-vs-fact comparison is promised legal above); the crowd forms they would have caught
+// ("12/20 của các nhà tuyển dụng", "71/100 là tỷ lệ nhà tuyển dụng…") are layer-2 kills instead.
+const SENT_SPLIT = /(?<=[.!?…])[\s"')\]]+|\n+/u;
+const FIELD_NAME = /nhu\s*cầu\s*thị\s*trường|market\s*demand/giu;
+const PCT_TOKEN = /(\d+(?:[.,]\d+)?)\s*(?:%|phần\s*trăm|percent(?:age)?s?)/giu;
+/** "phần trăm"/"percent" left over after every digit-led form is removed — i.e. the spelled-out
+ *  percentage ("bảy mươi mốt phần trăm"), which has no digits for any gate to check and no licensed
+ *  form. Only ever run on a sentence already stripped of PCT_TOKEN matches. */
+const SPELLED_PCT = /(?<![\p{L}])(?:phần\s*trăm|percent(?:age)?s?)(?![\p{L}])/iu;
+/** Hiring-market actors for the co-occurrence veto. "chúng ta/mình" (we) and "họ tên" (full name —
+ *  a CV field!) are explicitly carved out; "bạn" stays OFF the list ("9% bullet của bạn" is the
+ *  user's own record, not a crowd). */
+// Bare "JD" is deliberately NOT an actor: other_matches ARE JDs, so the flagship cross-JD
+// comparison ("JD Frontend Developer đang hợp bạn nhất (72/100 so với 64/100 của Backend)") and the
+// other-match template line both name it beside a ratio legitimately. "71% JD yêu cầu…" still dies
+// at layer 1 — the 71% is unlicensed with or without an actor in sight.
+const MARKET_ACTOR =
+  /(?<![\p{L}\p{N}])(?:nhà\s+tuyển\s+dụng|bên\s+tuyển|nhà\s+quản\s+lý|phòng\s+nhân\s+sự|hr|headhunters?|recruiters?|employers?|hiring\s+managers?|công\s+ty|doanh\s+nghiệp|compan(?:y|ies)|firms?|tin\s+tuyển\s+dụng|tin\s+đăng|job\s+(?:postings?|ads?|listings?|descriptions?)|mô\s+tả\s+công\s+việc|vị\s+trí\s+tuyển\s+dụng|ứng\s+viên|candidates?|applicants?|thị\s+trường|markets?|người\s+khác|họ(?!\s*tên)|chúng(?!\s*(?:ta|mình))|they|them)(?![\p{L}\p{N}])/giu;
 const RATIO_ATTACH = /\d+(?:[.,]\d+)?\s*(?:\/|trên|out\s+of)\s*\d+(?:[.,]\d+)?\s+\(?([\p{L}]+)/giu;
-// "so/của/với" are comparison and possessive glue — "72/100 so với 64/100 của Backend" is the
-// flagship cross-JD conclusion (spec-encoded) and none of the three can turn a score into a rate:
-// the rate phrasing is "71/100 nhà tuyển dụng", direct attachment, which stays gated.
+const RATIO_TOKEN = /\d+(?:[.,]\d+)?\s*(?:\/|trên|out\s+of)\s*\d+(?:[.,]\d+)?/giu;
 const SAFE_AFTER_RATIO = new Set([
   'điểm',
   'points',
@@ -555,20 +588,75 @@ const SAFE_AFTER_RATIO = new Set([
   'so',
   'của',
   'với',
+  // Copulas and comparatives — the default register for reading a score off its scale. Safe here
+  // ONLY because layer 2 vetoes any ratio sentence that also names a market actor.
+  'là',
+  'is',
+  'are',
+  'thấp',
+  'cao',
+  'hơn',
+  'kém',
+  'mức',
 ]);
 
 const normalize = (s: string): string => s.toLowerCase().replace(/\s+/g, ' ');
 
-function attachedStatClaim(text: string, factsNorm: string): boolean {
-  for (const [re, safe] of [
-    [PCT_ATTACH, SAFE_AFTER_PCT],
-    [RATIO_ATTACH, SAFE_AFTER_RATIO],
-  ] as const) {
-    re.lastIndex = 0;
-    for (const m of text.matchAll(re)) {
-      if (safe.has(m[1].toLowerCase())) continue;
-      if (!factsNorm.includes(normalize(m[0].replace(/\(/g, '')))) return true;
+/** What {@link unverifiableClaim} needs to know about FACTS to license a statistic. */
+export interface StatProvenance {
+  /** normalize(JSON.stringify(facts)) — phrase haystack for the ratio attach check. */
+  haystack: string;
+  /** Percentages FACTS write out as strings ("9", "40" from "hiện chỉ 9% bullet có số"). */
+  writtenPcts: ReadonlySet<string>;
+  /** market_demand values ("71", "30") — speakable ONLY beside the field's name. */
+  fieldPcts: ReadonlySet<string>;
+}
+
+/** Precompute the statistic-licensing context for {@link unverifiableClaim} once per turn. */
+export function statProvenance(facts: DiagnosisFacts): StatProvenance {
+  const haystack = normalize(JSON.stringify(facts));
+  const writtenPcts = new Set<string>();
+  for (const m of haystack.matchAll(PCT_TOKEN)) writtenPcts.add(m[1].replace(',', '.'));
+  const fieldPcts = new Set<string>();
+  for (const g of facts.gap_items) {
+    if (g.market_demand !== null) fieldPcts.add(String(g.market_demand));
+  }
+  return { haystack, writtenPcts, fieldPcts };
+}
+
+const EMPTY_PROVENANCE: StatProvenance = {
+  haystack: '',
+  writtenPcts: new Set(),
+  fieldPcts: new Set(),
+};
+
+function attachedStatClaim(text: string, prov: StatProvenance): boolean {
+  for (const sentence of text.split(SENT_SPLIT)) {
+    const named = FIELD_NAME.test(sentence);
+    FIELD_NAME.lastIndex = 0;
+    const deFielded = sentence.replace(FIELD_NAME, ' ');
+    const hasActor = MARKET_ACTOR.test(deFielded);
+    MARKET_ACTOR.lastIndex = 0;
+
+    let hasRate = false;
+    for (const m of sentence.matchAll(PCT_TOKEN)) {
+      hasRate = true;
+      const n = m[1].replace(',', '.');
+      const licensed = prov.writtenPcts.has(n) || (named && prov.fieldPcts.has(n));
+      if (!licensed) return true;
     }
+    // The spelled-out form is checked on the de-%-ed sentence so "71 phần trăm" (digits present,
+    // caught above) is not double-counted; what remains is "bảy mươi mốt phần trăm".
+    if (sentence.replace(PCT_TOKEN, ' ').match(SPELLED_PCT)) return true;
+
+    for (const m of sentence.matchAll(RATIO_ATTACH)) {
+      if (SAFE_AFTER_RATIO.has(m[1].toLowerCase())) continue;
+      if (!prov.haystack.includes(normalize(m[0].replace(/\(/g, '')))) return true;
+    }
+    if (RATIO_TOKEN.test(sentence)) hasRate = true;
+    RATIO_TOKEN.lastIndex = 0;
+
+    if (hasRate && hasActor) return true;
   }
   return false;
 }
@@ -576,17 +664,11 @@ function attachedStatClaim(text: string, factsNorm: string): boolean {
 /** The first unverifiable-claim label present in the text, or null. Exported for the calibration
  *  harness: it must name WHY a turn was rejected using the REAL rule, never a copy of it (a stale
  *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken).
- *  `factsNorm` — normalize(JSON.stringify(facts)) — feeds the phrase-provenance rule; omitting it
- *  means NO %-attachment has provenance, i.e. the strictest reading. */
-export function unverifiableClaim(text: string, factsNorm?: string): string | null {
+ *  Omitting `prov` means NOTHING licenses a statistic — the strictest reading. */
+export function unverifiableClaim(text: string, prov?: StatProvenance): string | null {
   for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
-  if (attachedStatClaim(text, factsNorm ?? '')) return 'peer_stat';
+  if (attachedStatClaim(text, prov ?? EMPTY_PROVENANCE)) return 'peer_stat';
   return null;
-}
-
-/** Precompute the provenance haystack for {@link unverifiableClaim} once per turn. */
-export function factsNormText(facts: DiagnosisFacts): string {
-  return normalize(JSON.stringify(facts));
 }
 
 export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string): Set<string> {
@@ -704,9 +786,9 @@ export function groundDiagnosis(
   // Facts only, NOT the conversation: a candidate who plants "71% nhà tuyển dụng dùng ATS đúng
   // không?" must not license the advisor to confirm it back. (The number gate does accept the
   // candidate's own bare numbers — a deadline is theirs to state; a population statistic is not.)
-  const factsNorm = factsNormText(facts);
+  const prov = statProvenance(facts);
   const modelMessage = stripRawUrls(obj.message);
-  const unverifiable = unverifiableClaim(modelMessage, factsNorm);
+  const unverifiable = unverifiableClaim(modelMessage, prov);
   if (!unverifiable && numbersGrounded(modelMessage, allowed)) {
     const rawSuggestion =
       typeof obj.suggested_next_step === 'string' ? obj.suggested_next_step.trim() : '';
@@ -715,7 +797,7 @@ export function groundDiagnosis(
     // would be the identical sentence the gate refuses one field to the left, but clickable.
     const suggestionOk =
       rawSuggestion !== '' &&
-      !unverifiableClaim(rawSuggestion, factsNorm) &&
+      !unverifiableClaim(rawSuggestion, prov) &&
       numbersGrounded(rawSuggestion, allowed);
     // Verified default when the model's suggestion is absent/ungrounded — same sources the
     // template uses: the cited gap's next action, else the top prioritized action.

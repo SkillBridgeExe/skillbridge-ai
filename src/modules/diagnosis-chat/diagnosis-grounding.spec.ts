@@ -8,7 +8,7 @@ import {
   DiagnosisFacts,
   groundDiagnosis,
   allowedNumberTokens,
-  factsNormText,
+  statProvenance,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -916,8 +916,12 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       makeReview({
         top_summary: {
           headline: 'x',
+          // TWO actions on purpose: with one, prioritized_actions.length would seed the token "1"
+          // into the number gate's allow-list and the "1 tuần / 1 dự án" cases below would pass
+          // with or without the ADVICE_NOUN exemption — fixture luck, asserted against below.
           prioritized_actions: [
             'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số) — vd "giảm 40% thời gian tải".',
+            'Bổ sung kỹ năng còn thiếu: Docker.',
           ],
         },
       } as Partial<CvReviewParsedResponse>),
@@ -984,34 +988,114 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
     });
 
-    // What keeps this from strangling the advisor: FACTS-attached phrases, the detached template
-    // wording, and glue/comparative followers all stay speakable.
+    // The attach-to-the-next-word cut fell to a second adversarial pass — every case here SHIPPED
+    // VERBATIM against it. The common trick: keep the crowd OUT of the one position the rule
+    // inspected. Token licensing is position-blind, so the arrangement stops mattering.
     it.each([
       [
-        'the template line itself (detached %)',
+        'the crowd BEFORE a bracket-detached %',
+        'Nhà tuyển dụng (71%) đều dùng ATS để lọc CV của bạn.',
+      ],
+      [
+        'the crowd BEFORE a dash-detached %',
+        'Nhà tuyển dụng — 71% — sẽ loại CV thiếu Docker của bạn.',
+      ],
+      [
+        'the crowd BEFORE a colon-detached %',
+        'Với nhà tuyển dụng, con số là 71%: họ dùng ATS để loại hồ sơ.',
+      ],
+      ['a pronoun crowd', 'Họ — 71% — sẽ bỏ qua CV thiếu Docker.'],
+      ['cross-sentence anaphora', 'Con số là 71%. Nhà tuyển dụng dùng nó để loại bạn.'],
+      ['the safe-word "là" as a Trojan', 'Thực tế 71% là nhà tuyển dụng dùng ATS để lọc CV.'],
+      ['a comparative bridge', '71% cao hơn vì nhà tuyển dụng đòi hỏi Docker gắt.'],
+      [
+        'glue "và" into a pronoun claim',
+        'Nhu cầu Docker 71% và họ đều dùng ATS để loại hồ sơ thiếu nó.',
+      ],
+      ['an English bracket-detached crowd', 'Recruiters (71%) screen every CV with ATS.'],
+      [
+        'a licensed bigram re-aimed at a crowd',
+        '40% thời gian nhà tuyển dụng chỉ đọc CV có số liệu.',
+      ],
+      ['a licensed bigram re-aimed at the market', 'Chỉ 9% bullet trên thị trường đạt chuẩn ATS.'],
+      ['the reversed tỉ-lệ frame', '71% là tỷ lệ nhà tuyển dụng yêu cầu Docker.'],
+      [
+        'a ratio bridged by safe "của"',
+        '12/20 của các nhà tuyển dụng sẽ loại CV bạn ngay vòng đầu.',
+      ],
+      [
+        'spelled % with the crowd in front',
+        'Nhà tuyển dụng, bảy mươi mốt phần trăm, sẽ loại CV thiếu Docker.',
+      ],
+    ])('refuses the second-pass evasion: %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // What keeps this from strangling the advisor: FACTS-written percentages license their own
+    // paraphrases, the field-named market_demand forms stay speakable, and the score-scale register
+    // (copulas, comparatives, fact-vs-fact) is exempt because layer 2 owns the crowd cases.
+    it.each([
+      [
+        'the template line itself (field-named %)',
         'Nhu cầu thị trường: 71%. Bước tiếp theo: Học & bổ sung kỹ năng này.',
       ],
       ['the English template line', 'Market demand: 71%. Next action: learn it.'],
       ['a FACTS-verbatim % phrase', 'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số).'],
       ['another FACTS-verbatim % phrase', 'Ví dụ: "giảm 40% thời gian tải".'],
       [
+        'a PARAPHRASE of a FACTS-written % (the prompt forbids parroting)',
+        'Hiện chỉ 9% đang có số liệu — mình sẽ bắt đầu từ đó nhé.',
+      ],
+      ['a connector inside the licensed %', 'Khoảng 9% số bullet của bạn có số liệu.'],
+      ['a space before the licensed %', 'Chỉ 9 % bullet có số liệu.'],
+      [
         'the two-gap comparison the prompt encourages',
         'Docker có nhu cầu thị trường 71%, Redis 30% — nên học Docker trước.',
       ],
       ['glue after the % ("và")', 'Nhu cầu thị trường Docker là 71% và Redis là 30%.'],
-      ['a comparative after the % ("so với")', '71% so với 30% — Docker thắng rõ.'],
+      [
+        'a comparative between field-named %s',
+        'Nhu cầu thị trường: 71% so với 30% — Docker thắng rõ.',
+      ],
+      ['a grounded rate said with the tỉ-lệ frame', 'Tỉ lệ bullet có số liệu hiện là 9%.'],
       ['a score ratio with nothing attached', 'skills_relevance của bạn đang ở 12/20.'],
       ['a score ratio read out loud ("điểm")', 'Điểm mục này là 12/20 và còn cải thiện được.'],
+      ['the copular score register', 'Điểm action_verbs 14/20 là mức tốt nhất trong 4 mục.'],
+      [
+        'fact-vs-fact comparison on the scale (promised legal)',
+        'Skills_relevance 12/20 thấp hơn hẳn action_verbs 14/20.',
+      ],
+      [
+        'the odds-improvement closer',
+        'Sửa mấy lỗi này xong, cơ hội được gọi phỏng vấn của bạn sẽ tốt hơn hẳn.',
+      ],
+      ['a ONE-week time span', 'Bạn thử dành 1 tuần để thêm số liệu vào các bullet nhé.'],
+      ['a ONE-project deliverable', 'Thêm 1 dự án có dùng Docker vào CV nhé.'],
+      ['ONE verb and ONE number per bullet', 'Mỗi bullet nên có 1 động từ mạnh và 1 con số.'],
     ])('serves %s', (_label, message) => {
       expect(groundDiagnosis({ message, ...cited }, statFacts).answer).toBe(message);
     });
 
-    it('the fixture cannot make the provenance tests pass by luck', () => {
-      // If FACTS ever grew a "71% <word>" phrase, every refusal above would be testing nothing.
-      expect(factsNormText(statFacts)).not.toMatch(/71\s*%|71\s*phần trăm/);
-      // And the served FACTS-verbatim cases must be passing on PROVENANCE, not on a dead gate.
-      expect(factsNormText(statFacts)).toContain('9% bullet');
-      expect(factsNormText(statFacts)).toContain('40% thời gian tải');
+    // Valued odds stay dead — only the improvement DIRECTION was bought back.
+    it.each([
+      ['a graded odds estimate', 'Khả năng đậu của bạn là khá cao.'],
+      ['an English graded odds estimate', 'Your chances of getting hired are quite high.'],
+    ])('still refuses %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts, 'en').answer).not.toBe(message);
+    });
+
+    it('the fixture cannot make the licensing tests pass by luck', () => {
+      const prov = statProvenance(statFacts);
+      // 71 is a FIELD percentage (speakable only beside its name), never a WRITTEN one — if FACTS
+      // ever grew a literal "71%" string, every refusal above would be testing nothing.
+      expect(prov.writtenPcts.has('71')).toBe(false);
+      expect(prov.fieldPcts.has('71')).toBe(true);
+      // And the served FACTS-verbatim cases must be passing on LICENSING, not on a dead gate.
+      expect(prov.writtenPcts.has('9')).toBe(true);
+      expect(prov.writtenPcts.has('40')).toBe(true);
+      // The "1 tuần / 1 dự án" cases must be passing on the ADVICE_NOUN exemption, not on an
+      // array length that happens to seed "1".
+      expect(allowedNumberTokens(statFacts).has('1')).toBe(false);
     });
   });
 
