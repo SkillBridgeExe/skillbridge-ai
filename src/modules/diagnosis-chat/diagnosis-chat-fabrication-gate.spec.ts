@@ -408,6 +408,33 @@ const CORPUS: CorpusEntry[] = [
       'Nếu bạn sửa đúng 2 chỗ này trước, CV sẽ thuyết phục hơn nhiều với vị trí bạn đang nhắm.',
     verdict: 'served',
   },
+  {
+    // Measured loss 2026-07-17: "1–2 thành tích" — an achievement is a deliverable to write.
+    name: 'advice register — range over "thành tích"',
+    family: 'advice_range',
+    message:
+      'Nếu chỉ chọn 1 việc để làm trước hôm nay, hãy cập nhật phần kỹ năng thiếu và thêm 1-2 thành tích có số vào CV.',
+    verdict: 'served',
+  },
+  {
+    // Measured loss 2026-07-17: the mid-line ordinal run — the killed turn was the advisor
+    // REMEMBERING the user's deadline, and the replacing refusal ignored it (worst turn of
+    // the run). Exempt only as a real run: "1)" needs a "2)" later, "2)"/"3)" need their
+    // predecessor earlier.
+    name: 'mid-line ordinal list after a colon',
+    family: 'advice_one',
+    message:
+      'Nên ưu tiên theo thứ tự: 1) bổ sung ngay Machine Learning; 2) thêm Statistics; 3) sửa bullet cho có số liệu.',
+    verdict: 'served',
+  },
+  {
+    // The boundary the mid-line exemption must NOT open (the header's own example): a lone
+    // "score: N." sentence is not a list — no second marker, no run.
+    name: 'lone "Điểm CV: 1." is a score, not a list opener',
+    family: 'numbers',
+    message: 'Điểm CV của bạn: 1. Rất thấp so với yêu cầu tuyển dụng.',
+    verdict: 'blocked',
+  },
 ];
 
 // KNOWN CEILINGS, seen in the 2026-07-17 adversarial run and deliberately NOT closed:

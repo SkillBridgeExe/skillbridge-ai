@@ -576,8 +576,10 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // "kỹ năng/mục/phần" joined after a live run measured "chọn đúng 1 kỹ năng để bổ sung trước" lost —
 // the exact advice register this list exists to keep alive. "phần" carries a lookahead so "1 phần
 // trăm" never rides in on it (the % surface belongs to the licensing layer, but no free passes).
+// "thành tích" joined after a measured loss (2026-07-17: "thêm 1–2 thành tích có số vào CV"
+// died on the range) — an achievement is a deliverable to write, not a metric to fake.
 const ADVICE_NOUN =
-  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|kỹ năng|mục|phần(?!\s*trăm)|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|kỹ năng|mục|phần(?!\s*trăm)|thành tích|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section|achievements?)(?![\p{L}\p{N}])/iu;
 
 function isBenignQuantity(text: string, index: number, token: string): boolean {
   if (!/^[1-9]$/.test(token)) return false;
@@ -591,6 +593,16 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
     return n === 1 || before.includes(`(${n - 1})`);
   if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]\s+\p{L}/u.test(after))
     return n === 1 || new RegExp(`(?:^|\\n)[ \\t]*${n - 1}[.)]\\s`).test(before);
+  // (a3) MID-LINE ordinal run — "ưu tiên theo thứ tự: 1) bổ sung…; 2) thêm…". The header long
+  //     predicted this shape would need buying back "only if a live run shows them costing real
+  //     turns"; measured 2026-07-17: a memory turn ("Có, mình nhớ bạn chỉ còn đúng 2 tuần…")
+  //     died on its "1)" and the replacing refusal ignored the stated deadline — the gate kill
+  //     CAUSED the run's worst-judged turn. "Điểm CV: 9. Rất thấp" stays gated: the opener is
+  //     exempt only when a SECOND marker follows later, and n>1 only inside an ascending run.
+  if (/^[.)]\s+\p{L}/u.test(after)) {
+    if (n === 1 && /(?:^|[^\d])2[.)]\s/.test(after)) return true;
+    if (n > 1 && new RegExp(`${n - 1}[.)]\\s`).test(before)) return true;
+  }
   // (c) "số 1" — the noun-BEFORE-number idiom ("ưu tiên số 1", "việc số 1"). Measured: 2 of 25
   //     live turns lost to it. ONE only, same ceiling argument as (b); the after-guard keeps
   //     "điểm số 1/20" and "số 1%" facing the gate — those are a scale and a rate, not the idiom.
