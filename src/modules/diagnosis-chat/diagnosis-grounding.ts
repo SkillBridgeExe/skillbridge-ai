@@ -480,8 +480,11 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // Still "1"-only — "1 <any of these>" cannot be a score, a percentage or a salary; the worst case
 // ("CV bạn chỉ có 1 dự án") mis-counts the record at exactly one, the same ceiling the original
 // việc/bullet entries accepted.
+// "kỹ năng/mục/phần" joined after a live run measured "chọn đúng 1 kỹ năng để bổ sung trước" lost —
+// the exact advice register this list exists to keep alive. "phần" carries a lookahead so "1 phần
+// trăm" never rides in on it (the % surface belongs to the licensing layer, but no free passes).
 const ADVICE_NOUN =
-  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|kỹ năng|mục|phần(?!\s*trăm)|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section)(?![\p{L}\p{N}])/iu;
 
 function isBenignQuantity(text: string, index: number, token: string): boolean {
   if (!/^[1-9]$/.test(token)) return false;
@@ -499,6 +502,14 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
   //     live turns lost to it. ONE only, same ceiling argument as (b); the after-guard keeps
   //     "điểm số 1/20" and "số 1%" facing the gate — those are a scale and a rate, not the idiom.
   if (n === 1 && /(?:^|[^\p{L}])số\s*$/iu.test(before) && !/^\s*[/\d%,.]/.test(after)) return true;
+  // (d) a single-digit RANGE over an advice noun — "sửa 1–2 bullet", "viết 2-3 câu". The exact
+  //     shape the file header predicted would need buying back "only if a live run shows them
+  //     costing real turns": measured 07-16, two MO-HO turns died on "1–2 bullet". Both digits
+  //     are exempt only as a PAIR bracketing the noun — "9–10 điểm" and "3–5 gap" still face the
+  //     gate ("điểm"/"gap" are not advice nouns), and a lone digit before a dash is untouched.
+  const rangeAhead = after.match(/^\s*[-–]\s*[1-9](?![\p{L}\p{N}])/u);
+  if (rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
+  if (/[1-9]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
   // (b) the quantity ONE over an advice noun.
   return n === 1 && ADVICE_NOUN.test(after);
 }

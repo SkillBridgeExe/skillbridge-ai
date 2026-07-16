@@ -1326,3 +1326,24 @@ describe('isBenignQuantity — the "số 1" noun-before-number idiom (measured: 
     expect(rate.answer).not.toBe('Chỉ số 1% hồ sơ được chọn.');
   });
 });
+
+describe('isBenignQuantity — advice-register buys measured on the 07-16 live run', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('"1 kỹ năng" and a single-digit range over an advice noun serve verbatim', () => {
+    for (const message of [
+      'Bạn nên chọn đúng 1 kỹ năng để bổ sung trước.',
+      'Sửa 1–2 bullet đầu tiên là đủ tạo đà.',
+      'Viết lại 1-2 câu mở đầu cho mạnh hơn.',
+      'Dành 6–7 buổi để ôn Statistics.',
+    ]) {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    }
+  });
+
+  it('a range over a NON-advice noun still faces the gate ("6–7 gap" is a count of the record)', () => {
+    for (const message of ['Bạn có 6–7 gap cần sửa.', 'CV bạn tầm 6–7 điểm là cùng.']) {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    }
+  });
+});
