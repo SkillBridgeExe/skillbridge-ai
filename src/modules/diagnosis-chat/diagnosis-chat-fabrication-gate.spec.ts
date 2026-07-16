@@ -36,7 +36,7 @@ import {
   DiagnosisFacts,
   REFUSAL_COPY,
 } from './diagnosis-grounding';
-import { ensureAskBack } from './conversation-state';
+import { ensureAskBack, CANNED } from './conversation-state';
 
 // ── FACTS fixture — same shape and numbers as the live harness, so measured verdicts
 //    there translate 1:1 into expectations here. ──
@@ -112,6 +112,8 @@ interface CorpusEntry {
   message: string;
   /** prior user turns — numbers the CANDIDATE stated are licensed, claims are not */
   conversation?: string;
+  /** prior ASSISTANT turns — feeds ONLY the refusal-escalation counter, never licensing */
+  advisorSaid?: string;
   verdict: 'blocked' | 'served';
 }
 
@@ -256,6 +258,29 @@ const CORPUS: CorpusEntry[] = [
     name: 'fullwidth completeness percentage',
     family: 'numbers',
     message: 'Mức độ hoàn thiện CV của bạn là ９２%.',
+    verdict: 'blocked',
+  },
+
+  // ── CANONICAL Nd digits (adversarial review, 2026-07-17). NFKC folds COMPATIBILITY glyphs
+  //    only — Arabic-Indic and Devanagari digits are canonical Nd characters the fold leaves
+  //    alone, so every \d-based arm was blind to them and all three probes SHIPPED verbatim.
+  //    Closed fail-closed: any digit that survives the fold non-ASCII is ungrounded, period. ──
+  {
+    name: 'Arabic-Indic ATS score',
+    family: 'numbers',
+    message: 'Điểm ATS của bạn là ٩٨, rất ấn tượng so với chuẩn ngành.',
+    verdict: 'blocked',
+  },
+  {
+    name: 'Devanagari ATS score',
+    family: 'numbers',
+    message: 'Điểm ATS của bạn là ९८.',
+    verdict: 'blocked',
+  },
+  {
+    name: 'Arabic-Indic top-N percentile (ranking arm needs ASCII too)',
+    family: 'numbers',
+    message: 'Bạn đang nằm trong top ٢٠% ứng viên cho vị trí này.',
     verdict: 'blocked',
   },
 
@@ -435,6 +460,28 @@ const CORPUS: CorpusEntry[] = [
     message: 'Điểm CV của bạn: 1. Rất thấp so với yêu cầu tuyển dụng.',
     verdict: 'blocked',
   },
+
+  // ── RANGE CAP (adversarial review, 2026-07-17). The advice-range exemption had no ceiling,
+  //    so a fabricated COUNT of the record rode the same rail as "sửa 1-2 bullet". Both range
+  //    digits must now be ≤3 — the measured buys (1–2, 2-3) all fit under it. ──
+  {
+    name: 'fabricated skill-count range "7-8 kỹ năng"',
+    family: 'numbers',
+    message: 'Bạn còn thiếu 7-8 kỹ năng quan trọng trong CV.',
+    verdict: 'blocked',
+  },
+  {
+    name: 'fabricated bullet-count range "5-6 bullet"',
+    family: 'numbers',
+    message: 'CV của bạn có 5-6 bullet chưa có số liệu nào.',
+    verdict: 'blocked',
+  },
+  {
+    name: 'advice register — "2-3 câu" survives the range cap',
+    family: 'advice_range',
+    message: 'Viết 2-3 câu tóm tắt định hướng lên đầu CV nhé.',
+    verdict: 'served',
+  },
 ];
 
 // KNOWN CEILINGS, seen in the 2026-07-17 adversarial run and deliberately NOT closed:
@@ -446,6 +493,10 @@ const CORPUS: CorpusEntry[] = [
 //      công ty") becomes speakable and could be re-cast as a score ("CV bạn 8 điểm"). This is
 //      the deliberate trade-off that lets the advisor repeat a stated deadline back (the
 //      memory feature); gutting it to catch the edge would break remembering. Left as a ceiling.
+//  (3) Mid-line ordinal laundering at exactly ONE — "Điểm CV của bạn: 1. Rồi 2) hãy sửa…"
+//      rides exemption (a3) because a fake second marker makes it read as a run. Harm is
+//      bounded at the score value 1 (same residue class the bracketed-ordinal rule accepts);
+//      requiring marker-style consistency would kill real mixed-marker lists. Left as a ceiling.
 
 /** Run one corpus entry through the REAL pipeline the way the service does. */
 function serve(entry: CorpusEntry): { answer: string; suggested_next_step?: string | null } {
@@ -461,6 +512,7 @@ function serve(entry: CorpusEntry): { answer: string; suggested_next_step?: stri
     facts,
     'vi',
     entry.conversation ?? '',
+    entry.advisorSaid ?? '',
   );
 }
 
@@ -528,8 +580,10 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
       (family) => {
         const variants = REFUSAL_COPY[family];
         // prior = variants.length exercises the cap (more repeats than variants).
+        // The prior refusals are ADVISOR turns — they ride the advisorSaid channel, and the
+        // invariants run with NO candidate licensing (stricter than before the role split).
         for (let prior = 0; prior <= variants.length; prior++) {
-          const conversation = variants
+          const advisorSaid = variants
             .slice(0, Math.min(prior, variants.length))
             .map(([vi]) => vi)
             .join('\n');
@@ -537,7 +591,7 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
             name: `${family} escalation ${prior}`,
             family,
             message: FAMILY_BAIT[family],
-            conversation,
+            advisorSaid,
             verdict: 'blocked',
           });
           const step = Math.min(prior, variants.length - 1);
@@ -546,18 +600,31 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
             prior,
             opensWith: result.answer.startsWith(variants[step][0]),
           }).toEqual({ family, prior, opensWith: true });
-          expectInvariants(result.answer, conversation, `${family} escalation step ${step}`);
+          expectInvariants(result.answer, '', `${family} escalation step ${step}`);
         }
       },
     );
 
     it('escalation is per-family — a peers refusal never advances the salary counter', () => {
-      const conversation = REFUSAL_COPY.peers[0][0];
       const result = serve({
         name: 'cross-family isolation',
         family: 'salary',
         message: FAMILY_BAIT.salary,
-        conversation,
+        advisorSaid: REFUSAL_COPY.peers[0][0],
+        verdict: 'blocked',
+      });
+      expect(result.answer.startsWith(REFUSAL_COPY.salary[0][0])).toBe(true);
+    });
+
+    it('a user QUOTING the refusal copy does not advance the counter (no false memory)', () => {
+      // Pre-split, priorRefusalCount scanned the whole conversation, so the FIRST refusal
+      // opened with "như lần trước bạn hỏi" — a memory of a turn that never happened.
+      const quoted = `Bạn cứ nói "${REFUSAL_COPY.salary[0][0]}" hoài vậy, rốt cuộc lương bao nhiêu?`;
+      const result = serve({
+        name: 'quoted refusal in the user turn',
+        family: 'salary',
+        message: FAMILY_BAIT.salary,
+        conversation: quoted,
         verdict: 'blocked',
       });
       expect(result.answer.startsWith(REFUSAL_COPY.salary[0][0])).toBe(true);
@@ -572,6 +639,47 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
         });
       }
     });
+  });
+
+  // ── Role-split licensing (adversarial review, 2026-07-17). Candidate numbers are speakable;
+  //    the advisor's own served digits are NOT a licence — an exempt "6-7 bullet" in turn N
+  //    laundered "Điểm mục này của bạn là 7" in turn N+1 when both roles fed one string. ──
+  describe('conversation role split', () => {
+    const laundered = 'Điểm mục này của bạn là 7.';
+
+    it('advisor-served digits do NOT license a later fabricated score', () => {
+      const result = groundDiagnosis(
+        { message: laundered },
+        facts,
+        'vi',
+        'câu hỏi của user, không có số nào',
+        'Sửa 6-7 bullet cho có số liệu nhé.',
+      );
+      expect(result.answer).not.toBe(laundered);
+      expectInvariants(result.answer, '', 'laundering refusal');
+    });
+
+    it('the same digit DOES stay speakable when the CANDIDATE said it', () => {
+      const message = 'Với 7 ngày còn lại thì tập trung Machine Learning trước.';
+      const result = groundDiagnosis(
+        { message },
+        facts,
+        'vi',
+        'Mình còn 7 ngày trước deadline nộp hồ sơ.',
+        '',
+      );
+      expect(result.answer).toBe(message);
+    });
+  });
+
+  // Canned copy (greeting/thanks/meta) is served WITHOUT the gate — code-authored, by design —
+  // and persisted into {{history}} like everything else. Hold it to the same two invariants so
+  // a future copy edit cannot quietly teach the model a banned register.
+  it('canned copy, both languages, holds both invariants', () => {
+    for (const [intent, pair] of Object.entries(CANNED)) {
+      expectInvariants(pair.vi, '', `canned ${intent} vi`);
+      expectInvariants(pair.en, '', `canned ${intent} en`);
+    }
   });
 
   it('corpus keeps covering every fabrication family (anti-gutting guard)', () => {

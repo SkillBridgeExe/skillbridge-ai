@@ -128,7 +128,19 @@ export class DiagnosisChatService {
     // What the candidate has already said this conversation — their own numbers are honest to repeat
     // back (a deadline, a count), so groundDiagnosis may speak them. Built from the FULL window, so
     // a deadline stated 30 messages ago stays speakable even after it leaves the prompt transcript.
-    const conversation = [...allHistory.map((m) => m.content), input.question]
+    // USER turns ONLY: licensing the assistant's own digits let an exempt "1-2 bullet" in turn N
+    // launder a fabricated "Điểm mục này là 7" in turn N+1 (probe-confirmed 2026-07-17).
+    const candidateSaid = [
+      ...allHistory.filter((m) => m.role === 'user').map((m) => m.content),
+      input.question,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    // The advisor's own prior turns — the refusal-escalation counter reads its served copy off
+    // this. Separate from candidateSaid so a user QUOTING the refusal can't fake an escalation.
+    const advisorSaid = allHistory
+      .filter((m) => m.role === 'assistant')
+      .map((m) => m.content)
       .filter(Boolean)
       .join('\n');
 
@@ -168,7 +180,7 @@ export class DiagnosisChatService {
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);
-      const grounded = groundDiagnosis(parsed, facts, language, conversation);
+      const grounded = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
       return {
         ...grounded,
         // Ask-back backstop: code decided WHEN to ask; if the model dropped the question anyway
@@ -193,7 +205,7 @@ export class DiagnosisChatService {
 
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    const fallback = groundDiagnosis(parsed, facts, language, conversation);
+    const fallback = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
     return { ...fallback, answer: ensureAskBack(fallback.answer, ctx.ask, language) };
   }
 }

@@ -1330,12 +1330,12 @@ describe('isBenignQuantity — the "số 1" noun-before-number idiom (measured: 
 describe('isBenignQuantity — advice-register buys measured on the 07-16 live run', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
-  it('"1 kỹ năng" and a single-digit range over an advice noun serve verbatim', () => {
+  it('"1 kỹ năng" and a SMALL range (≤3) over an advice noun serve verbatim', () => {
     for (const message of [
       'Bạn nên chọn đúng 1 kỹ năng để bổ sung trước.',
       'Sửa 1–2 bullet đầu tiên là đủ tạo đà.',
       'Viết lại 1-2 câu mở đầu cho mạnh hơn.',
-      'Dành 6–7 buổi để ôn Statistics.',
+      'Dành 2–3 buổi để ôn Statistics.',
     ]) {
       expect(groundDiagnosis({ message }, facts).answer).toBe(message);
     }
@@ -1343,6 +1343,18 @@ describe('isBenignQuantity — advice-register buys measured on the 07-16 live r
 
   it('a range over a NON-advice noun still faces the gate ("6–7 gap" is a count of the record)', () => {
     for (const message of ['Bạn có 6–7 gap cần sửa.', 'CV bạn tầm 6–7 điểm là cùng.']) {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    }
+  });
+
+  it('a range ABOVE the ≤3 cap faces the gate even over an advice noun (fabricated counts rode it)', () => {
+    // Adversarial review 2026-07-17: uncapped, "còn thiếu 7-8 kỹ năng" / "có 5-6 bullet chưa có
+    // số liệu" — counts of the record — shipped on this rail. "6–7 buổi" time-budget advice is
+    // the accepted quality cost: a time-noun carve-out would re-open "7-8 tháng kinh nghiệm".
+    for (const message of [
+      'Dành 6–7 buổi để ôn Statistics.',
+      'Bạn còn thiếu 7-8 kỹ năng quan trọng trong CV.',
+    ]) {
       expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
     }
   });

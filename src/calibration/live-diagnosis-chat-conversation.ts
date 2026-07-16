@@ -260,10 +260,17 @@ async function main(): Promise<void> {
         .slice(-10)
         .map((m) => `${m.role}: ${m.text}`)
         .join('\n');
-      // Mirror the service: it hands grounding the conversation so the candidate's OWN numbers
-      // (a deadline they stated) are speakable. Omitting it here measured the pre-fix behaviour.
-      const conversation = [...threadHistory.map((m) => m.content), userMsg]
+      // Mirror the service: candidate turns license their own numbers (a stated deadline);
+      // advisor turns feed ONLY the refusal-escalation counter. Same role split as prod.
+      const candidateSaid = [
+        ...threadHistory.filter((m) => m.role === 'user').map((m) => m.content),
+        userMsg,
+      ]
         .filter(Boolean)
+        .join('\n');
+      const advisorSaid = threadHistory
+        .filter((m) => m.role === 'assistant')
+        .map((m) => m.content)
         .join('\n');
 
       let parsed: unknown = null;
@@ -304,7 +311,7 @@ async function main(): Promise<void> {
       const g =
         ctx.canned !== null
           ? { answer: ctx.canned, suggested_next_step: null as string | null }
-          : groundDiagnosis(parsed, facts, 'vi', conversation);
+          : groundDiagnosis(parsed, facts, 'vi', candidateSaid, advisorSaid);
       // Mirror the service: the ask-back backstop appends the standard question when the model
       // dropped the one the Directive ordered. `killed` compares BEFORE the append — an appended
       // question is compliance enforcement, not a gate kill, and must not bucket as REFUSAL.
@@ -316,8 +323,8 @@ async function main(): Promise<void> {
       const killReason = !killed
         ? ''
         : (unverifiableClaim(modelMsg, statProvenance(facts)) ??
-          (ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).length
-            ? `số ngoài FACTS: ${ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).join(', ')}`
+          (ungroundedNumbers(modelMsg, allowedNumberTokens(facts, candidateSaid)).length
+            ? `số ngoài FACTS: ${ungroundedNumbers(modelMsg, allowedNumberTokens(facts, candidateSaid)).join(', ')}`
             : 'model trả về rỗng / parse lỗi'));
       const bucket =
         ctx.canned !== null
@@ -328,7 +335,7 @@ async function main(): Promise<void> {
             : killed
               ? 'REFUSAL' // Phase A: a gate kill serves the warm reason-aware refusal
               : 'PROSE';
-      const bad = badNumbers(served, conversation);
+      const bad = badNumbers(served, candidateSaid);
       const flags = claimFlags(served);
       allBad.push(...bad);
       allFlags.push(...flags);

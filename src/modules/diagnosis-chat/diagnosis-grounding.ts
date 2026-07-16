@@ -276,14 +276,16 @@ export const REFUSAL_COPY: Record<
   ],
 };
 
-/** How many refusals of this family are already in the conversation. The copy is code-authored and
- *  served verbatim, so counting its occurrences as substrings of the history is exact — long,
- *  distinctive sentences make a collision with user-typed text practically impossible. */
-function priorRefusalCount(family: keyof typeof REFUSAL_COPY, conversation: string): number {
+/** How many refusals of this family the ADVISOR has already served. The copy is code-authored and
+ *  served verbatim, so counting its occurrences as substrings of the advisor's own prior turns is
+ *  exact. The scan runs over ASSISTANT turns ONLY — a user who quotes the copy back ("bạn cứ nói
+ *  '…' hoài") must not advance the counter, or the very first refusal opens with "như lần trước
+ *  bạn hỏi": a memory of a turn that never happened (probe-confirmed 2026-07-17). */
+function priorRefusalCount(family: keyof typeof REFUSAL_COPY, advisorSaid: string): number {
   let count = 0;
   for (const [vi, en] of REFUSAL_COPY[family]) {
-    count += conversation.split(vi).length - 1;
-    count += conversation.split(en).length - 1;
+    count += advisorSaid.split(vi).length - 1;
+    count += advisorSaid.split(en).length - 1;
   }
   return count;
 }
@@ -321,13 +323,13 @@ function buildRefusal(
   },
   facts: DiagnosisFacts,
   language?: string,
-  /** This turn's question + prior history — the escalation counter reads prior refusals off it. */
-  conversation?: string,
+  /** The advisor's own prior turns — the escalation counter reads its served refusals off it. */
+  advisorSaid?: string,
 ): DiagnosisChatResult {
   const isEn = isEnglish(language);
   const family = REFUSAL_FAMILY[reason] ?? 'numbers';
   const variants = REFUSAL_COPY[family];
-  const step = Math.min(priorRefusalCount(family, conversation ?? ''), variants.length - 1);
+  const step = Math.min(priorRefusalCount(family, advisorSaid ?? ''), variants.length - 1);
   const parts: string[] = [variants[step][isEn ? 1 : 0]];
   const gapLead = GAP_HOOK_LEAD[step][isEn ? 1 : 0];
   const actionLead = ACTION_HOOK_LEAD[step][isEn ? 1 : 0];
@@ -607,14 +609,17 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
   //     live turns lost to it. ONE only, same ceiling argument as (b); the after-guard keeps
   //     "điểm số 1/20" and "số 1%" facing the gate — those are a scale and a rate, not the idiom.
   if (n === 1 && /(?:^|[^\p{L}])số\s*$/iu.test(before) && !/^\s*[/\d%,.]/.test(after)) return true;
-  // (d) a single-digit RANGE over an advice noun — "sửa 1–2 bullet", "viết 2-3 câu". The exact
-  //     shape the file header predicted would need buying back "only if a live run shows them
-  //     costing real turns": measured 07-16, two MO-HO turns died on "1–2 bullet". Both digits
-  //     are exempt only as a PAIR bracketing the noun — "9–10 điểm" and "3–5 gap" still face the
+  // (d) a SMALL single-digit RANGE over an advice noun — "sửa 1–2 bullet", "viết 2-3 câu". The
+  //     exact shape the file header predicted would need buying back "only if a live run shows
+  //     them costing real turns": measured 07-16, two MO-HO turns died on "1–2 bullet". Both
+  //     digits are exempt only as a PAIR bracketing the noun, and both must be ≤3 — the measured
+  //     buys are 1–2 and 2-3, and without the cap an adversarial probe (2026-07-17) shipped
+  //     "còn thiếu 7-8 kỹ năng" / "có 5-6 bullet chưa có số liệu": a fabricated COUNT of the
+  //     record, the same class rule (b) caps at two. "9–10 điểm" and "3–5 gap" still face the
   //     gate ("điểm"/"gap" are not advice nouns), and a lone digit before a dash is untouched.
-  const rangeAhead = after.match(/^\s*[-–]\s*[1-9](?![\p{L}\p{N}])/u);
-  if (rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
-  if (/[1-9]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
+  const rangeAhead = after.match(/^\s*[-–]\s*[1-3](?![\p{L}\p{N}])/u);
+  if (n <= 3 && rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
+  if (n <= 3 && /[1-3]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
   // (b) the quantities ONE and TWO over an advice noun. TWO joined after a measured loss
   //     (2026-07-17: "Nếu bạn sửa đúng 2 chỗ này trước…" — an honest refusal turn died on the
   //     "2"). Same ceiling shape: "2 <advice noun>" cannot be a score, a percentage or a
@@ -939,6 +944,14 @@ export function ungroundedNumbers(text: string, allowed: Set<string>): string[] 
     if (isBenignQuantity(norm, match.index, match[0])) continue;
     ungrounded.add(token);
   }
+  // NFKC folds COMPATIBILITY digits only. Arabic-Indic '٩٨' and Devanagari '९८' are canonical
+  // Nd glyphs the fold leaves alone, so ASCII \d — and every arm that builds on it — can never
+  // read their value ("Điểm ATS của bạn là ٩٨" shipped verbatim in the 2026-07-17 adversarial
+  // probe). FACTS numbers are ASCII, so a digit that survives the fold non-ASCII can never be
+  // grounded: fail CLOSED on the glyph itself.
+  for (const match of norm.matchAll(/\p{Nd}+/gu)) {
+    if (/[^0-9]/.test(match[0])) ungrounded.add(match[0]);
+  }
   return [...ungrounded];
 }
 
@@ -960,9 +973,16 @@ export function groundDiagnosis(
   parsed: unknown,
   facts: DiagnosisFacts,
   language?: string,
-  /** This turn's question + prior history. Numbers the candidate already said are speakable —
-   *  without this the advisor cannot repeat "2 tuần" back and every memory turn is templated. */
-  conversation?: string,
+  /** What the CANDIDATE said: this turn's question + their prior turns ONLY. Numbers they already
+   *  said are speakable — without this the advisor cannot repeat "2 tuần" back and every memory
+   *  turn is templated. Assistant turns must NOT ride in here: any digit the advisor once served
+   *  (an exempt "1-2 bullet") would become a licensed token and launder a fabricated score two
+   *  turns later — "Điểm mục này của bạn là 7" shipped that way in the 2026-07-17 probe. */
+  candidateSaid?: string,
+  /** The ADVISOR's own prior turns — read ONLY by the refusal-escalation counter, never by
+   *  number licensing. Kept separate from `candidateSaid` because the two consumers need
+   *  opposite role filters. */
+  advisorSaid?: string,
 ): DiagnosisChatResult {
   if (typeof parsed !== 'object' || parsed === null) return fallback(facts, language);
   const obj = parsed as Record<string, unknown>;
@@ -1004,7 +1024,7 @@ export function groundDiagnosis(
   // The gate also bought nothing it claimed to: it inspects a metadata FIELD, never the prose, so a
   // message that cites a real gap can still fabricate freely — while an honest uncited answer is
   // killed. What actually guards the prose is the number gate plus the unverifiable-claim gate below.
-  const allowed = allowedNumberTokens(facts, conversation);
+  const allowed = allowedNumberTokens(facts, candidateSaid);
   // Facts only, NOT the conversation: a candidate who plants "71% nhà tuyển dụng dùng ATS đúng
   // không?" must not license the advisor to confirm it back. (The number gate does accept the
   // candidate's own bare numbers — a deadline is theirs to state; a population statistic is not.)
@@ -1048,6 +1068,6 @@ export function groundDiagnosis(
     },
     facts,
     language,
-    conversation,
+    advisorSaid,
   );
 }
