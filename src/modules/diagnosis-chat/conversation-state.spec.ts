@@ -268,6 +268,36 @@ describe('coveredGapNames + anti-repetition directive (measured: 6/25 turns re-r
       'go ONE level deeper and more concrete on the most important one',
     );
   });
+
+  // Adversarial review 2026-07-17: the taxonomy carries one-letter display names ("R", "C") and
+  // a bare includes() found them inside ordinary prose — every "c" in "trước" marked the C gap
+  // as advised, so the directive steered the model AWAY from a gap it never opened.
+  it('one-letter gap names match only as whole words, never inside prose', () => {
+    const FACTS_SHORT_NAMES: DiagnosisFacts = {
+      ...FACTS,
+      gap_items: [
+        { requirement_id: 'g1', display_name: 'R' },
+        { requirement_id: 'g2', display_name: 'C' },
+      ] as DiagnosisFacts['gap_items'],
+    };
+    // Prose full of incidental r/c letters — neither gap has been advised.
+    expect(coveredGapNames(FACTS_SHORT_NAMES, [bot('Bạn nên sửa bullet trước đã nhé.')])).toEqual(
+      [],
+    );
+    // A real standalone mention still counts (case-insensitive).
+    expect(coveredGapNames(FACTS_SHORT_NAMES, [bot('Bạn nên học ngôn ngữ R trước.')])).toEqual([
+      'R',
+    ]);
+  });
+
+  it('regex metacharacters in a display name (C++) neither crash nor overmatch', () => {
+    const FACTS_CPP: DiagnosisFacts = {
+      ...FACTS,
+      gap_items: [{ requirement_id: 'g1', display_name: 'C++' }] as DiagnosisFacts['gap_items'],
+    };
+    expect(coveredGapNames(FACTS_CPP, [bot('Bạn nên học C++ trước.')])).toEqual(['C++']);
+    expect(coveredGapNames(FACTS_CPP, [bot('Bạn nên học C trước.')])).toEqual([]);
+  });
 });
 
 describe('extractConversationState — adversarial hardening', () => {

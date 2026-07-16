@@ -251,7 +251,10 @@ export function routeIntent(question: string, facts: DiagnosisFacts): DiagnosisI
 
 // ── canned replies (code-authored — zero fabrication surface, zero latency) ──────────────────────
 
-const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: string }> = {
+// Exported for the fabrication-gate spec: canned copy is served WITHOUT the gate (code-authored,
+// by design) and persisted into {{history}} like everything else — so the spec holds it to the
+// same two invariants, or a future copy edit could quietly teach the model a banned register.
+export const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: string }> = {
   greeting: {
     vi: 'Chào bạn! Mình đang cầm sẵn kết quả chẩn đoán CV của bạn đây. Bạn muốn biết nên sửa gì trước, hay đang thắc mắc chỗ nào trong kết quả?',
     en: "Hey! I've got your CV diagnosis right here. Want to know what to fix first, or is there a part of the result you're curious about?",
@@ -299,12 +302,20 @@ export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]
   const advisorText = history
     .filter((m) => m.role === 'assistant')
     .map((m) => m.content)
-    .join('\n')
-    .toLowerCase();
+    .join('\n');
   if (!advisorText) return [];
+  // WORD-boundary match, not bare substring: the taxonomy carries one-letter display names
+  // ("R", "C") that includes() finds inside ordinary prose — every "c" in "trước" marked the C
+  // gap as advised, so the directive steered the model AWAY from a gap it never opened
+  // (probe-confirmed 2026-07-17). Same lookaround idiom as ROLE_WORD above.
   return facts.gap_items
     .map((g) => g.display_name)
-    .filter((name) => advisorText.includes(name.toLowerCase()));
+    .filter((name) =>
+      new RegExp(
+        `(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`,
+        'iu',
+      ).test(advisorText),
+    );
 }
 
 // ── the shared entry point ───────────────────────────────────────────────────────────────────────
