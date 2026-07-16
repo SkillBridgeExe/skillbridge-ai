@@ -427,7 +427,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     );
 
     // Phase A: the salary invention is refused BY NAME, warmly — not answered with a fact template.
-    expect(result.answer).toContain('salary data');
+    expect(result.answer).toContain('blind spot');
     expect(result.answer).toContain('Frontend Developer');
     expect(result.answer).toContain('72');
     expect(result.answer).toContain('React');
@@ -1264,7 +1264,7 @@ describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () =>
 
   it('salary bait → the salary refusal, localized to English', () => {
     const r = refusalOf('Your salary should be around 2000 USD.', 'en');
-    expect(r.answer).toContain('salary data');
+    expect(r.answer).toContain('blind spot');
     expect(r.answer).not.toContain('2000');
   });
 
@@ -1285,12 +1285,12 @@ describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () =>
         "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
       ],
       [
-        'Chuyện lương mình không có dữ liệu để nói, nên mình không đoán.',
-        "I don't have any salary data, so I'm not going to guess about pay.",
+        'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
+        "Salary is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
       ],
       [
         'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
-        "I don't have a verified source for that kind of number, so I won't state it.",
+        "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
       ],
     ]) {
       // salary copy legitimately contains the word "lương/salary" — the salary REGEX matches the

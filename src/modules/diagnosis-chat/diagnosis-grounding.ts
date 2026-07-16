@@ -199,16 +199,16 @@ const REFUSAL_COPY: Record<'peers' | 'odds' | 'salary' | 'stat' | 'numbers', [st
     "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
   ],
   salary: [
-    'Chuyện lương mình không có dữ liệu để nói, nên mình không đoán.',
-    "I don't have any salary data, so I'm not going to guess about pay.",
+    'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
+    "Salary is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
   ],
   stat: [
     'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
-    "I don't have a verified source for that kind of number, so I won't state it.",
+    "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
   ],
   numbers: [
     'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
-    "Here I'll only say what your verified data actually contains.",
+    "On this one I'll stick to what your verified data actually shows.",
   ],
 };
 
@@ -265,8 +265,10 @@ function buildRefusal(
         ? 'no stored top gaps'
         : 'không có gap chính đã lưu';
     parts.push(
+      // "main gaps", not "top gaps" — this string replays into history and "top" is a token the
+      // ranking gate hunts; code-authored copy must never teach the model the banned register.
       isEn
-        ? `What I can compare from your stored data: the ${title} match sits at ${score}; its stored top gaps: ${gaps}.`
+        ? `What I can compare from your stored data: the ${title} match sits at ${score}; its stored main gaps: ${gaps}.`
         : `Điều mình so sánh được từ dữ liệu đã lưu của bạn: JD ${title} đang ở ${score}, gap chính đã lưu: ${gaps}.`,
     );
   } else if (toolResult && toolResult.toolName === 'github.enrich') {
