@@ -10,6 +10,7 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   groundDiagnosis,
 } from './diagnosis-grounding';
+import { buildTurnContext } from './conversation-state';
 
 const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
@@ -97,24 +98,39 @@ export class DiagnosisChatService {
 
   async turn(input: DiagnosisChatTurnInput): Promise<DiagnosisChatResult> {
     const language = input.language ?? 'vi';
-    const history = (input.history ?? [])
+    // The platform passes a WIDER window than the prompt shows (memory beyond 10 messages lives in
+    // the extracted state + the licensed conversation numbers, not in a longer transcript).
+    const allHistory = input.history ?? [];
+    const history = allHistory
       .slice(-MAX_HISTORY)
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n');
+
+    // Conversation brain (Phase B): deterministic state (their role/deadline, what we already
+    // asked) + intent route. Greetings/thanks/meta are answered by CODE — warm, instant, zero
+    // fabrication surface — and never reach the LLM or the tool loop.
+    const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
+    if (ctx.canned !== null) {
+      return { answer: ctx.canned, suggested_next_step: null };
+    }
+
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
     const renderPrompt = (facts: DiagnosisFacts) =>
       this.prompts.render(PROMPT_CODE, {
         language,
         facts: JSON.stringify(facts, null, 2),
+        context: ctx.contextBlock,
         history: history || '(no prior messages)',
         focus: input.focus ?? '(none)',
         question: input.question,
       });
 
     // What the candidate has already said this conversation — their own numbers are honest to repeat
-    // back (a deadline, a count), so groundDiagnosis may speak them. Without this the advisor cannot
-    // answer "còn 2 tuần thì nên làm gì?" without "2" reading as fabricated.
-    const conversation = [history, input.question].filter(Boolean).join('\n');
+    // back (a deadline, a count), so groundDiagnosis may speak them. Built from the FULL window, so
+    // a deadline stated 30 messages ago stays speakable even after it leaves the prompt transcript.
+    const conversation = [...allHistory.map((m) => m.content), input.question]
+      .filter(Boolean)
+      .join('\n');
 
     let facts = input.facts;
     const declarations = toolDeclarationsForFlow(FLOW);

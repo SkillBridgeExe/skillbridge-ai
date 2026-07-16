@@ -53,8 +53,9 @@ describe('DiagnosisChatService.turn', () => {
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'where am I weakest?', facts: FACTS });
-    expect(result.answer).toContain('skills_relevance');
-    expect(result.answer).toContain('12/20');
+    // The fabricated "98" kills the prose → Phase A refusal: warm copy + the cited gap as the
+    // verified hook (gap outranks dimension), never the old fact template.
+    expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
@@ -100,6 +101,85 @@ describe('DiagnosisChatService.turn', () => {
     // The invented citation is dropped; the prose itself is still served (Advisor v3).
     expect(result.cited_dimension).toBeUndefined();
     expect(result.answer).toBe('ok');
+  });
+});
+
+describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
+  it('a greeting is answered by CODE — the LLM is never called', async () => {
+    const complete = jest.fn();
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn', facts: FACTS });
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.answer).toContain('chẩn đoán CV');
+    expect(result.suggested_next_step).toBeNull();
+  });
+
+  it('a greeting carrying a real question is NOT canned — it reaches the LLM', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn, CV mình sao rồi', facts: FACTS });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result.answer).toBe('ok');
+  });
+
+  it('threads the context block into the prompt: a role stated 30 messages ago is still Known, and no ask is issued for it', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const prompts = {
+      render: jest.fn().mockReturnValue('rendered-user-prompt'),
+      get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    const history = [
+      { role: 'user' as const, content: 'Mình nhắm vị trí AI Engineer nhé' },
+      ...Array.from({ length: 30 }, (_, i) => ({
+        role: 'assistant' as const,
+        content: `trả lời ${i}`,
+      })),
+    ];
+    await service.turn({ question: 'giờ nên sửa gì trước?', facts: FACTS, history });
+    const vars = prompts.render.mock.calls[0][1] as Record<string, string>;
+    expect(vars.context).toContain('Target role: AI Engineer');
+    expect(vars.context).not.toContain('asking which role');
+    // The prompt transcript window stays bounded even though the state window is wider.
+    expect(vars.history.split('\n').length).toBeLessThanOrEqual(10);
+  });
+
+  it('with no role stated anywhere, an advice question carries the ask-role directive', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const prompts = {
+      render: jest.fn().mockReturnValue('rendered-user-prompt'),
+      get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    await service.turn({ question: 'mình không biết bắt đầu từ đâu luôn', facts: FACTS });
+    const vars = prompts.render.mock.calls[0][1] as Record<string, string>;
+    expect(vars.context).toContain('ONE short question asking which role');
   });
 });
 

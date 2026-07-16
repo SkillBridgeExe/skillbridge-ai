@@ -16,7 +16,10 @@ import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.se
 import { CvsService } from '../cvs/cvs.service';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
-const MAX_HISTORY = 10;
+/** The domain service still shows only its last-10 window to the LLM; it receives this WIDER slice
+ *  so conversation-state extraction (target role, deadline, what was already asked) remembers past
+ *  the prompt transcript. Matches getThread's 40-message ceiling. */
+const STATE_WINDOW = 40;
 const DIAGNOSIS_CHAT_REQUEST_TYPE = 'diagnosis_chat';
 const DAILY_CHAT_LIMIT = 50;
 
@@ -291,7 +294,7 @@ export class DiagnosisChatPlatformService {
     const rows = await this.messages.find({
       where: { conversationId },
       order: { createdAt: 'DESC' },
-      take: MAX_HISTORY,
+      take: STATE_WINDOW,
     });
     return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
   }
