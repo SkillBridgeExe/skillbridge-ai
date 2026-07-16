@@ -284,6 +284,29 @@ export function askDirective(
   return null;
 }
 
+// ── advised-coverage tracking (anti prose-repetition) ────────────────────────────────────────────
+
+/**
+ * Gap display_names the ASSISTANT has already spoken in this conversation. Judged live runs
+ * measured the remaining template-feel (6/25 turns) coming from the model re-reciting the same
+ * priority list whenever the user circles back with "rồi sao nữa" — same FACTS in, same list out.
+ * A prompt instruction alone cannot fix that (the model does not know which items are stale), so
+ * CODE computes the coverage: the advisor names gaps verbatim from FACTS, which makes a
+ * case-insensitive substring scan over the assistant turns exact. USER turns deliberately do not
+ * count — the user typing "Machine Learning?" has not been ADVISED about it yet.
+ */
+export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]): string[] {
+  const advisorText = history
+    .filter((m) => m.role === 'assistant')
+    .map((m) => m.content)
+    .join('\n')
+    .toLowerCase();
+  if (!advisorText) return [];
+  return facts.gap_items
+    .map((g) => g.display_name)
+    .filter((name) => advisorText.includes(name.toLowerCase()));
+}
+
 // ── the shared entry point ───────────────────────────────────────────────────────────────────────
 
 /**
@@ -310,7 +333,27 @@ export function buildTurnContext(
     `- Time budget/deadline: ${state.deadline ?? '(not stated yet)'}`,
   ];
 
+  // Coverage lines appear only once something HAS been advised — on turn one they would just
+  // duplicate the FACTS gap list as noise.
+  const covered = coveredGapNames(facts, history);
+  const fresh = facts.gap_items
+    .map((g) => g.display_name)
+    .filter((name) => !covered.includes(name));
+  if (covered.length) {
+    lines.push(
+      `- Already advised on (by you, earlier in this conversation): ${covered.join(', ')}`,
+      `- Not yet mentioned from FACTS: ${fresh.length ? fresh.join(', ') : '(nothing left — everything has been named)'}`,
+    );
+  }
+
   const directives: string[] = [];
+  if (covered.length) {
+    directives.push(
+      fresh.length
+        ? 'Do NOT restate the priority list or advice you already gave in the Recent conversation. If they ask what to do (again), either go ONE level deeper and more concrete on an "Already advised" item, or open ONE item from "Not yet mentioned" — every turn must add something new.'
+        : 'Do NOT restate the priority list or advice you already gave in the Recent conversation. Every FACTS item has been named — go ONE level deeper and more concrete on the most important one instead of repeating the list.',
+    );
+  }
   if (intent === 'recall') {
     directives.push(
       'They are asking about something already said in the Recent conversation. Answer it plainly from the conversation text (and the Known lines above); no citation needed.',

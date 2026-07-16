@@ -2,6 +2,7 @@ import {
   askDirective,
   ensureAskBack,
   buildTurnContext,
+  coveredGapNames,
   extractConversationState,
   routeIntent,
 } from './conversation-state';
@@ -221,6 +222,54 @@ describe('buildTurnContext — the single entry point the service and harnesses 
 
 // ── Regression: adversarial probe findings (07-16). Every case below SHIPPED a wrong Known or a
 // nag loop before the guards existed — none of these is hypothetical. ──
+describe('coveredGapNames + anti-repetition directive (measured: 6/25 turns re-recited the list)', () => {
+  const FACTS_WITH_GAPS: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [
+      { requirement_id: 'g1', display_name: 'Machine Learning' },
+      { requirement_id: 'g2', display_name: 'Statistics' },
+    ] as DiagnosisFacts['gap_items'],
+  };
+
+  it('empty history → nothing covered, no coverage lines, no directive', () => {
+    expect(coveredGapNames(FACTS_WITH_GAPS, [])).toEqual([]);
+    const ctx = buildTurnContext(FACTS_WITH_GAPS, [], 'nên làm gì trước?', 'vi');
+    expect(ctx.contextBlock).not.toContain('Already advised');
+    expect(ctx.contextBlock).not.toContain('Do NOT restate');
+  });
+
+  it('a gap the ASSISTANT named (any case) counts as covered; user turns never do', () => {
+    const history = [
+      user('Machine Learning với Statistics thì học cái nào?'),
+      bot('Ưu tiên machine learning trước vì đây là gap lớn nhất.'),
+    ];
+    expect(coveredGapNames(FACTS_WITH_GAPS, history)).toEqual(['Machine Learning']);
+  });
+
+  it('after advising one gap, the context names it, offers the fresh ones, and forbids restating', () => {
+    const history = [
+      user('nên làm gì?'),
+      bot('Ưu tiên Machine Learning trước, đây là khoảng trống lớn nhất.'),
+    ];
+    const ctx = buildTurnContext(FACTS_WITH_GAPS, history, 'rồi sao nữa?', 'vi');
+    expect(ctx.contextBlock).toContain(
+      'Already advised on (by you, earlier in this conversation): Machine Learning',
+    );
+    expect(ctx.contextBlock).toContain('Not yet mentioned from FACTS: Statistics');
+    expect(ctx.contextBlock).toContain('Do NOT restate');
+    expect(ctx.contextBlock).toContain('open ONE item from "Not yet mentioned"');
+  });
+
+  it('when every gap has been named, the directive pivots to going deeper instead', () => {
+    const history = [user('nên làm gì?'), bot('Machine Learning trước, Statistics ngay sau.')];
+    const ctx = buildTurnContext(FACTS_WITH_GAPS, history, 'còn gì nữa không?', 'vi');
+    expect(ctx.contextBlock).toContain('(nothing left — everything has been named)');
+    expect(ctx.contextBlock).toContain(
+      'go ONE level deeper and more concrete on the most important one',
+    );
+  });
+});
+
 describe('extractConversationState — adversarial hardening', () => {
   it('negation / hypothetical / deliberation / someone-else NEVER become a Known role', () => {
     for (const q of [
