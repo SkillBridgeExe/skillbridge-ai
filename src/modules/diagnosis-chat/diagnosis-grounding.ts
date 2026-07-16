@@ -510,8 +510,11 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
   const rangeAhead = after.match(/^\s*[-–]\s*[1-9](?![\p{L}\p{N}])/u);
   if (rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
   if (/[1-9]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
-  // (b) the quantity ONE over an advice noun.
-  return n === 1 && ADVICE_NOUN.test(after);
+  // (b) the quantity ONE over an advice noun. "gap" is bought for the ONE case only
+  //     (measured 2026-07-17: "ưu tiên đúng 1 gap nên sửa trước" lost a real turn) and stays
+  //     OUT of ADVICE_NOUN so ranges ("3-5 gap") keep facing the gate — a range over gaps
+  //     asserts a count of the record, which FACTS can contradict.
+  return n === 1 && (ADVICE_NOUN.test(after) || /^\s*gap(?![\p{L}\p{N}])/iu.test(after));
 }
 
 /**
@@ -534,32 +537,61 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
   // noun list and inherits its fail-open (an unlisted "HR" walks through) — accepted for this class
   // only, because a hedged claim with NO number is the softest of the family and the prompt now
   // forbids the whole subject; the numeric forms below are closed structurally, not by nouns.
+  // ponytail: the comparison-target set (người|ứng viên|bạn|hồ sơ|cv), the "khác/còn lại"
+  // set, the quantifier set (đa số|đa phần|…) and the actor set are all deny-lists — the
+  // file's own doctrine is that these fail OPEN on the next unlisted synonym and are kept
+  // only as defense-in-depth. hồ sơ/cv, còn lại, đa phần, hr and the "actor nào/đều cũng"
+  // reorder were each added after an adversarial run shipped them; the class is NOT closed.
   [
     'peer_comparison',
-    /mặt bằng chung|(?:so với|hơn|kém|thua)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn)|(?:ứng viên|người|bạn)\s+khác|(?:đa số|phần lớn|hầu hết|nhiều|most|the majority of)\s+(?:các |những |ứng viên|nhà tuyển dụng|công ty|doanh nghiệp|tin tuyển dụng|candidates?|applicants?|employers?|recruiters?|companies)+(?!\p{L})|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
+    /mặt bằng chung|(?:so với|hơn|kém|thua|nhỉnh hơn)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn|hồ sơ|cv)|(?:ứng viên|người|bạn|hồ sơ)\s+(?:khác|còn lại)|(?:đa số|đa phần|phần lớn|hầu hết|nhiều|most|the majority of)\s+(?:các |những |ứng viên|nhà tuyển dụng|hr|công ty|doanh nghiệp|tin tuyển dụng|candidates?|applicants?|employers?|recruiters?|companies)+(?!\p{L})|(?:nhà tuyển dụng|công ty|doanh nghiệp|hr|bên tuyển|nơi)\s+(?:nào\s+)?(?:cũng|đều)\s+(?:yêu cầu|đòi|cần|muốn|thích|chuộng)|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
   ],
+  // ponytail: same deny-list caveat. "nửa trên/dưới", "thứ nhất/nhì", "tốp/tốp có triển
+  // vọng" and the weak-band grades (nhóm/hạng yếu…) were bought in from an adversarial run;
+  // the next spelled ordinal or unlisted band still slips.
   [
     'ranking',
-    /top\s*(?:\d|đầu|tier)|xếp hạng|percentile|thứ hạng|(?:nhóm|phân khúc)\s+(?:đầu|giữa|dưới|cuối|nổi bật|dẫn đầu)|(?:nổi bật|nổi trội)\s+hơn|standout group/iu,
+    /top\s*(?:\d|đầu|tier)|tốp\s*(?:\d|đầu|trên|có)|xếp hạng|percentile|thứ hạng|thứ (?:nhất|nhì|hai|ba)|(?:đứng|nằm|xếp|thuộc)\s+(?:ở\s+)?nửa\s+(?:trên|dưới|đầu|cuối)|nửa\s+(?:trên|dưới)\b|(?:nhóm|phân khúc|hạng|đẳng cấp)\s+(?:đầu|giữa|dưới|cuối|trên|nổi bật|dẫn đầu|yếu|kém|thấp|xoàng)|(?:nổi bật|nổi trội)\s+hơn|standout group/iu,
   ],
   // \p{L} boundary is load-bearing: without it "mức khá" matched inside "mức KHÁC", so an ordinary
   // sentence ("các gap ở mức khác nhau") was discarded as a fabricated grade.
+  // ponytail: the grade-word set stays a deny-list. The seniority-band arm (chưa tới tầm
+  // senior…) and "đẳng cấp thấp" came from an adversarial run; an unlisted band word slips.
   [
     'grade_label',
-    /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|fairly average|pretty average/iu,
+    /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|(?:chưa\s+(?:tới|đạt|đến)|đạt|ở|thuộc|tầm)\s*(?:tầm|mức|hạng|đẳng cấp|trình độ|level)?\s*(?:senior|junior|mid-?level|fresher|intern|lead|principal)(?![\p{L}])|đẳng cấp\s+(?:cao|thấp|trung)|fairly average|pretty average/iu,
   ],
   // The odds phrase is a claim only when it gets VALUED — "khả năng đậu của bạn là khá cao" grades
   // an unknowable; "sửa xong, cơ hội được gọi phỏng vấn sẽ tốt hơn" is the direction-of-improvement
   // closer every honest advisor uses (measured over-blocked: the encouragement register the prompt
   // itself asks for). So the VN arm requires a valuation tail (là/:/khoảng/cao/thấp/bao nhiêu/digit)
   // and the EN arm a graded adjective — improvement verbs stay free.
+  // "bị loại|trượt|rớt" (reject-odds) join the pass verbs — "71% khả năng bạn bị loại" is
+  // the same unknowable, negated. The idiom arm (nộp đâu trúng đó / dư sức được nhận / chắc
+  // suất) asserts hire certainty with no odds noun at all. ponytail: idiom list is
+  // defense-in-depth; a fresh idiom slips.
+  // The valuation may sit AFTER the outcome ("cơ hội đậu … cao") or BEFORE it ("71% khả năng
+  // bạn bị loại" — a licensed field-% reattached to a hire outcome). Both arms require a
+  // valuation so the improvement register stays free ("giảm khả năng bị loại" has no number).
   [
     'hire_odds',
-    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng)[^.!?]{0,15}?(?:là|:|khoảng|tầm|bao nhiêu|cao|thấp|\d|%)|chắc (?:đậu|trúng)|(?:chances?|odds) of (?:getting|being|landing)[^.!?]{0,30}?(?:high|low|good|great|slim|strong|\d|%)/iu,
+    /\d+\s*%\s*(?:là\s+)?(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng|pass|phỏng vấn|qua vòng|vào vòng|bị loại|trượt|rớt|được nhận)|(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng|bị loại|trượt|rớt)[^.!?]{0,15}?(?:là|:|khoảng|tầm|bao nhiêu|cao|thấp|\d|%)|chắc (?:đậu|trúng|suất)|nộp\s+đâu\s+(?:trúng|đậu|được)\s+đó|dư\s+sức\s+(?:được nhận|đậu|trúng|pass)|(?:chances?|odds) of (?:getting|being|landing)[^.!?]{0,30}?(?:high|low|good|great|slim|strong|\d|%)/iu,
   ],
+  // Salary is a total blind spot — FACTS carry no pay data at all — so ANY compensation talk
+  // is a claim, and the widening below is STRUCTURAL, not a synonym chase. (1) concept nouns:
+  // "đãi ngộ/thù lao/lương thưởng/gói offer" joined after a live run shipped "Mức đãi ngộ …
+  // 58 triệu" (58 is a FACTS token — the overall_score — so the number gate waved it through,
+  // and the old lương-only arm never fired). (2) a money AMOUNT: a number OR a spelled number
+  // ("hai mươi triệu") before a currency unit, or a currency symbol. The negative lookahead
+  // keeps a genuine count out ("2 triệu người dùng" in an achievement bullet). ponytail: a
+  // bare "X triệu" with no money context still slips — rare, and the concept arm covers the
+  // sentences that actually read as pay.
+  // The lương/thu-nhập arm keeps its valuation-tail requirement UNCHANGED — the salary refusal
+  // copy itself says "Chuyện lương thì mình chịu…", and a bare-"lương" match would flag the
+  // very refusal it triggers (replay-safe rule). Only genuinely NEW forms are appended.
   [
     'salary',
-    /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation/iu,
+    /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation|đãi\s*ngộ|thù\s*lao|lương\s*thưởng|(?:gói|mức)\s*offer|(?:\d[\d.,]*|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mươi|chục|trăm|nghìn)\s*(?:triệu|tỷ|tỉ)(?![^.!?]{0,12}(?:người|users?|khách|lượt|views?|dòng|bản\s*ghi|record|sao))|[₫$€]\s*\d|\d\s*(?:usd|vnđ|vnd)/iu,
   ],
   // Statistic SCAFFOLDS — sentence frames that exist only to state a rate, caught by their frame so
   // the noun inside them is irrelevant. "Cứ 100 tin tuyển dụng thì có 71 tin dùng ATS" carries the
@@ -736,8 +768,12 @@ function attachedStatClaim(text: string, prov: StatProvenance): boolean {
  *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken).
  *  Omitting `prov` means NOTHING licenses a statistic — the strictest reading. */
 export function unverifiableClaim(text: string, prov?: StatProvenance): string | null {
-  for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
-  if (attachedStatClaim(text, prov ?? EMPTY_PROVENANCE)) return 'peer_stat';
+  // Fold first (see ungroundedNumbers): the numeric arms below — PCT_TOKEN, the peer_stat
+  // scaffold, the ranking/hire-odds tails — all require ASCII \d, so a fullwidth '71%' or a
+  // circled score walked straight through every one of them until this line existed.
+  const norm = text.normalize('NFKC');
+  for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(norm)) return label;
+  if (attachedStatClaim(norm, prov ?? EMPTY_PROVENANCE)) return 'peer_stat';
   return null;
 }
 
@@ -770,7 +806,9 @@ export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string
   // always been token-level (it checks provenance, never what a number is ASSERTED to mean), so this
   // widens an existing seam rather than opening a new kind of one.
   if (conversation) {
-    for (const token of conversation.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+    // Fold the conversation the same way the served text is folded, so "２ tuần" the user
+    // typed licenses "2" the advisor repeats back — the two sides must agree on glyph form.
+    for (const token of conversation.normalize('NFKC').match(/\d+(?:[.,]\d+)?/g) ?? []) {
       allowed.add(token.replace(',', '.'));
     }
   }
@@ -780,11 +818,17 @@ export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string
 /** Every number in `text` that FACTS (+ what the candidate said) cannot account for. Exported so the
  *  calibration harness can NAME the token that cost a turn instead of guessing at it. */
 export function ungroundedNumbers(text: string, allowed: Set<string>): string[] {
+  // NFKC folds fullwidth (９８), superscript (³⁰), circled (⑱) and every other
+  // compatibility digit glyph onto ASCII, so /\d/ actually SEES the quantity. Without it
+  // the number gate is blind to a re-encoded digit — an adversary shipped this file's own
+  // corpus-blocked strings verbatim just by typing '９８' for '98'. Scan the folded copy;
+  // the ORIGINAL text still ships, so folding can only ADD detections, never suppress one.
+  const norm = text.normalize('NFKC');
   const ungrounded = new Set<string>();
-  for (const match of text.matchAll(/\d+(?:[.,]\d+)?/g)) {
+  for (const match of norm.matchAll(/\d+(?:[.,]\d+)?/g)) {
     const token = match[0].replace(',', '.');
     if (allowed.has(token)) continue;
-    if (isBenignQuantity(text, match.index, match[0])) continue;
+    if (isBenignQuantity(norm, match.index, match[0])) continue;
     ungrounded.add(token);
   }
   return [...ungrounded];
