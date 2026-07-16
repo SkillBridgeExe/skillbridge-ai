@@ -10,6 +10,7 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   groundDiagnosis,
 } from './diagnosis-grounding';
+import { buildTurnContext, ensureAskBack } from './conversation-state';
 
 const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
@@ -97,24 +98,51 @@ export class DiagnosisChatService {
 
   async turn(input: DiagnosisChatTurnInput): Promise<DiagnosisChatResult> {
     const language = input.language ?? 'vi';
-    const history = (input.history ?? [])
+    // The platform passes a WIDER window than the prompt shows (memory beyond 10 messages lives in
+    // the extracted state + the licensed conversation numbers, not in a longer transcript).
+    const allHistory = input.history ?? [];
+    const history = allHistory
       .slice(-MAX_HISTORY)
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n');
+
+    // Conversation brain (Phase B): deterministic state (their role/deadline, what we already
+    // asked) + intent route. Greetings/thanks/meta are answered by CODE — warm, instant, zero
+    // fabrication surface — and never reach the LLM or the tool loop.
+    const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
+    if (ctx.canned !== null) {
+      return { answer: ctx.canned, suggested_next_step: null };
+    }
+
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
     const renderPrompt = (facts: DiagnosisFacts) =>
       this.prompts.render(PROMPT_CODE, {
         language,
         facts: JSON.stringify(facts, null, 2),
+        context: ctx.contextBlock,
         history: history || '(no prior messages)',
         focus: input.focus ?? '(none)',
         question: input.question,
       });
 
     // What the candidate has already said this conversation — their own numbers are honest to repeat
-    // back (a deadline, a count), so groundDiagnosis may speak them. Without this the advisor cannot
-    // answer "còn 2 tuần thì nên làm gì?" without "2" reading as fabricated.
-    const conversation = [history, input.question].filter(Boolean).join('\n');
+    // back (a deadline, a count), so groundDiagnosis may speak them. Built from the FULL window, so
+    // a deadline stated 30 messages ago stays speakable even after it leaves the prompt transcript.
+    // USER turns ONLY: licensing the assistant's own digits let an exempt "1-2 bullet" in turn N
+    // launder a fabricated "Điểm mục này là 7" in turn N+1 (probe-confirmed 2026-07-17).
+    const candidateSaid = [
+      ...allHistory.filter((m) => m.role === 'user').map((m) => m.content),
+      input.question,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    // The advisor's own prior turns — the refusal-escalation counter reads its served copy off
+    // this. Separate from candidateSaid so a user QUOTING the refusal can't fake an escalation.
+    const advisorSaid = allHistory
+      .filter((m) => m.role === 'assistant')
+      .map((m) => m.content)
+      .filter(Boolean)
+      .join('\n');
 
     let facts = input.facts;
     const declarations = toolDeclarationsForFlow(FLOW);
@@ -152,9 +180,12 @@ export class DiagnosisChatService {
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);
-      const grounded = groundDiagnosis(parsed, facts, language, conversation);
+      const grounded = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
       return {
         ...grounded,
+        // Ask-back backstop: code decided WHEN to ask; if the model dropped the question anyway
+        // (measured: obeyed 1 of 4 directive turns), code appends the standard one.
+        answer: ensureAskBack(grounded.answer, ctx.ask, language),
         trace: {
           promptTokens: result.tokenUsage?.promptTokens ?? 0,
           completionTokens: result.tokenUsage?.completionTokens ?? 0,
@@ -174,6 +205,7 @@ export class DiagnosisChatService {
 
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    return groundDiagnosis(parsed, facts, language, conversation);
+    const fallback = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
+    return { ...fallback, answer: ensureAskBack(fallback.answer, ctx.ask, language) };
   }
 }

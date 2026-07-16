@@ -29,6 +29,7 @@ import {
   ungroundedNumbers,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
+import { buildTurnContext } from '../modules/diagnosis-chat/conversation-state';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
 
 dotenv.config({ override: true });
@@ -191,9 +192,23 @@ async function main(): Promise<void> {
   const rows: Row[] = [];
 
   for (const c of QUESTIONS) {
+    // REAL conversation brain, exactly like the service: canned intents never reach the LLM.
+    const ctx = buildTurnContext(facts, [], c.q, 'vi');
+    if (ctx.canned !== null) {
+      rows.push({
+        q: c.q,
+        note: c.note,
+        bucket: `CANNED (intent=${ctx.intent} — code trả lời, 0 LLM)`,
+        modelMsg: '(không gọi LLM)',
+        served: ctx.canned,
+        bad: [],
+      });
+      continue;
+    }
     const userPrompt = render({
       language: 'vi',
       facts: JSON.stringify(facts, null, 2),
+      context: ctx.contextBlock,
       history: '(no prior messages)',
       focus: c.focus ?? '(none)',
       question: c.q,
@@ -230,11 +245,8 @@ async function main(): Promise<void> {
     const bucket =
       served.startsWith('Mình chưa đủ dữ kiện') || served.startsWith('Mình chưa có đủ dữ liệu')
         ? 'FALLBACK (Gate A / parse)'
-        : served.startsWith('Mục đã xác minh:') ||
-            served.startsWith('Gap đã xác minh:') ||
-            served.startsWith('JD match gần đây:') ||
-            served.startsWith('Đã kiểm tra GitHub:')
-          ? `TEMPLATE (${unverifiableClaim(modelMsg, statProvenance(facts)) ?? 'số ngoài FACTS'} giết prose)`
+        : served !== modelMsg
+          ? `REFUSAL (${unverifiableClaim(modelMsg, statProvenance(facts)) ?? 'số ngoài FACTS'} giết prose → từ chối ấm)`
           : 'PROSE ✅ (model tự viết → tới tay user)';
 
     rows.push({ q: c.q, note: c.note, bucket, modelMsg, served, bad: offenders(modelMsg) });

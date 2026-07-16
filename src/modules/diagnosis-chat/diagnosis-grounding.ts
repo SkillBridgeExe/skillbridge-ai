@@ -161,91 +161,241 @@ function stringOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function renderGroundedAnswer(input: {
-  dimension?: DiagnosisDimensionFact;
-  gap?: DiagnosisGapFact;
-  otherMatch?: DiagnosisOtherMatchFact;
-  toolResult?: { toolName: string; data: unknown };
-  facts: DiagnosisFacts;
-  language?: string;
-}): DiagnosisChatResult {
-  const isEn = isEnglish(input.language);
-  const parts: string[] = [];
-  let suggested_next_step: string | null = null;
+// ── Phase A: the warm refusal — what a blocked turn SAYS ─────────────────────────────────────────
+/**
+ * Served when a gate KILLED the model's prose (an unverifiable claim or an out-of-FACTS number).
+ * Before this, 5 of 7 blocked turns in a 25-turn adversarial run were answered with a fact template
+ * ("Mục đã xác minh: action_verbs đang ở 9/20…") — correct, and exactly the robot the candidate
+ * meets at the moment they most need to feel heard: right after asking the tempting question. The
+ * refusal is CODE-AUTHORED copy (it never faces the gates), so unlike the model it can safely NAME
+ * the family of thing it will not guess:
+ *   1. one warm sentence saying what it won't do and why — with NO digits and NO valuation tails,
+ *      because this text is persisted and replayed into the next prompt's history, and the copy
+ *      must not hand the model a phrase that trips the same gate it explains;
+ *   2. one verified hook (cited gap > cited dimension > tool result > top prioritized action) so
+ *      the turn still moves them forward instead of ending at "no";
+ *   3. the citation is kept — the FE still scrolls to the card the hook talks about.
+ */
+const REFUSAL_FAMILY: Record<string, 'peers' | 'odds' | 'salary' | 'stat'> = {
+  peer_comparison: 'peers',
+  ranking: 'peers',
+  grade_label: 'peers',
+  hire_odds: 'odds',
+  salary: 'salary',
+  peer_stat: 'stat',
+};
 
-  if (input.dimension) {
+// Copy is written to be REPLAY-SAFE: it is persisted and echoed into the next prompt's history, so
+// it must not contain the phrases the gates hunt ("tỉ lệ đậu", "ứng viên khác", comparatives) — the
+// model imitates its conversation partner, and the refusal must never teach it the banned register.
+//
+// Each family carries VARIANTS, escalating with repetition. Measured (judged baseline 2026-07-17):
+// a persona baiting five turns in a row got the SAME refusal sentence five times — 9 of 25 turns
+// flagged template-feel, almost all of them this echo. Variant 0 is the first-refusal copy (it
+// measured well on first use), variant 1 acknowledges the repeat, variant 2 is short and gently
+// final. Selection is DETERMINISTIC — buildRefusal counts how many refusals of the same family
+// already sit in the conversation history (the copy is served verbatim, so a substring count works;
+// deleting the thread resets it naturally). No randomness: same history → same reply, replayable.
+// Exported for the fabrication-gate spec: every variant must hold both invariants.
+export const REFUSAL_COPY: Record<
+  'peers' | 'odds' | 'salary' | 'stat' | 'numbers',
+  Array<[string, string]>
+> = {
+  // [vi, en] per escalation step
+  peers: [
+    [
+      'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
+      "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+    ],
+    [
+      'Vẫn phải là câu trả lời cũ nha — muốn đặt bạn cạnh người ta thì phải có dữ liệu của người ta, mà mình thì chỉ được xem hồ sơ của bạn thôi.',
+      "Same answer as before, I'm afraid — putting you next to anyone else needs their data, and yours is the only file I get to see.",
+    ],
+    [
+      'Câu này mình xin giữ nguyên: không có dữ liệu thì mình không đoán, đoán sai còn hại bạn hơn. Mình dồn sức vào cái sửa được nhé.',
+      "I'll keep my answer as it is: no data, no guessing — a wrong guess would hurt you more. Let's put the energy where we can fix things.",
+    ],
+  ],
+  odds: [
+    [
+      'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
+      "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+    ],
+    [
+      'Câu này mình vẫn phải lắc đầu như lần trước — kết quả cuối nằm ở phía người xét hồ sơ, dữ liệu của bạn không tính ra được.',
+      "Still shaking my head on this one, like last time — the final call sits with whoever reads the application, and your data can't compute it.",
+    ],
+    [
+      'Mình giữ nguyên nè: chuyện kết quả mình không đoán. Thứ mình giúp chắc tay được là làm CV mạnh lên trước khi bạn nộp.',
+      "Keeping my answer: I don't guess outcomes. What I can reliably help with is making the CV stronger before you send it.",
+    ],
+  ],
+  salary: [
+    [
+      // EN deliberately avoids the word "salary" — it is a token the salary arm hunts bare, so
+      // the copy would flag itself on replay (caught by the standalone-variant invariant test).
+      'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
+      "Pay is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
+    ],
+    [
+      'Khoản đó mình vẫn mù tịt như lần trước bạn hỏi nha — mình không có dữ liệu trả công nào hết, có ép mình cũng chịu.',
+      'Still as blind on that as when you last asked — I hold no pay data at all, no matter how hard you push.',
+    ],
+    [
+      'Mình xin giữ câu cũ: không có dữ liệu thì mình không phát giá bừa. Quay lại cái mình đo được trong CV nhé.',
+      "I'll stand by my old answer: no data means I won't quote figures. Back to what I can actually measure in your CV.",
+    ],
+  ],
+  stat: [
+    [
+      'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
+      "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
+    ],
+    [
+      'Mình vẫn phải từ chối như lần trước — con số đó không nằm trong nguồn đã xác minh của mình, nói ra là chế.',
+      "Same refusal as before — that number isn't in any source I've verified, so saying it would be making it up.",
+    ],
+    [
+      'Câu này mình giữ nguyên: không nguồn thì không nói. Mình chỉ đứng về phía những gì kiểm chứng được trong hồ sơ của bạn.',
+      "Keeping this one as is: no source, no number. I only stand behind what's verifiable in your file.",
+    ],
+  ],
+  numbers: [
+    [
+      'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
+      "On this one I'll stick to what your verified data actually shows.",
+    ],
+    [
+      'Như nãy mình nói đó — ngoài dữ liệu đã xác minh của bạn ra thì mình không thêm thắt gì đâu.',
+      "Like I said just now — beyond your verified data I won't embellish a thing.",
+    ],
+    [
+      'Mình giữ đúng nguyên tắc cũ: chỉ nói điều dữ liệu của bạn chứng minh được.',
+      'Sticking to my old rule: I only say what your data can prove.',
+    ],
+  ],
+};
+
+/** How many refusals of this family the ADVISOR has already served. The copy is code-authored and
+ *  served verbatim, so counting its occurrences as substrings of the advisor's own prior turns is
+ *  exact. The scan runs over ASSISTANT turns ONLY — a user who quotes the copy back ("bạn cứ nói
+ *  '…' hoài") must not advance the counter, or the very first refusal opens with "như lần trước
+ *  bạn hỏi": a memory of a turn that never happened (probe-confirmed 2026-07-17). */
+function priorRefusalCount(family: keyof typeof REFUSAL_COPY, advisorSaid: string): number {
+  let count = 0;
+  for (const [vi, en] of REFUSAL_COPY[family]) {
+    count += advisorSaid.split(vi).length - 1;
+    count += advisorSaid.split(en).length - 1;
+  }
+  return count;
+}
+
+// Hook lead-ins rotate on the same escalation index, so a repeated bait never replays the whole
+// sentence verbatim — the verified DATA stays identical (it should), only the framing moves.
+const GAP_HOOK_LEAD: Array<[string, string]> = [
+  ['Điều mình nói chắc được:', 'What I can say for sure:'],
+  // Not "chắc chắn được" — the diagnostic claim heuristics hunt "chắc chắn (đậu|được)"
+  // (certainly-hired), and code-authored copy must not pollute even the diagnostics.
+  ['Cái mình vẫn nói chắc được là:', 'What I can still say for sure:'],
+  ['Còn đây là thứ trong tầm tay:', "And here's what's actually in reach:"],
+];
+const ACTION_HOOK_LEAD: Array<[string, string]> = [
+  ['Thứ chắc chắn đáng làm ngay:', "What's definitely worth doing right now:"],
+  ['Việc đáng làm nhất vẫn là:', 'The most worthwhile move is still:'],
+  ['Cứ bám vào việc này trước:', 'Stick with this one first:'],
+];
+
+/** cv_status enum → human Vietnamese; unknown values pass through raw (never invented). */
+const CV_STATUS_VI: Record<string, string> = {
+  missing: 'chưa có trong CV',
+  partial: 'mới có một phần',
+  weak: 'còn mờ nhạt',
+  present: 'đã có',
+};
+
+function buildRefusal(
+  reason: string,
+  resolved: {
+    dimension?: DiagnosisDimensionFact;
+    gap?: DiagnosisGapFact;
+    otherMatch?: { fact: DiagnosisOtherMatchFact; index1: number };
+    toolResult?: { toolName: string; data: unknown };
+  },
+  facts: DiagnosisFacts,
+  language?: string,
+  /** The advisor's own prior turns — the escalation counter reads its served refusals off it. */
+  advisorSaid?: string,
+): DiagnosisChatResult {
+  const isEn = isEnglish(language);
+  const family = REFUSAL_FAMILY[reason] ?? 'numbers';
+  const variants = REFUSAL_COPY[family];
+  const step = Math.min(priorRefusalCount(family, advisorSaid ?? ''), variants.length - 1);
+  const parts: string[] = [variants[step][isEn ? 1 : 0]];
+  const gapLead = GAP_HOOK_LEAD[step][isEn ? 1 : 0];
+  const actionLead = ACTION_HOOK_LEAD[step][isEn ? 1 : 0];
+
+  const { dimension, gap, otherMatch, toolResult } = resolved;
+  if (gap) {
     parts.push(
       isEn
-        ? `Verified CV dimension: ${input.dimension.key} is ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim()
-        : `Mục đã xác minh: ${input.dimension.key} đang ở ${input.dimension.score20}/20. ${input.dimension.rationale}`.trim(),
+        ? `${gapLead} ${gap.display_name} is ${gap.cv_status} in your CV — the step worth taking: ${gap.recommended_next_action}.`
+        : `${gapLead} ${gap.display_name} đang ${CV_STATUS_VI[gap.cv_status] ?? gap.cv_status} — bước đáng làm nhất: ${gap.recommended_next_action}.`,
     );
-    suggested_next_step = input.facts.top_summary.prioritized_actions[0] ?? null;
-  }
-
-  if (input.gap) {
-    const demand =
-      input.gap.market_demand === null
-        ? ''
-        : isEn
-          ? ` Market demand: ${input.gap.market_demand}%.`
-          : ` Nhu cầu thị trường: ${input.gap.market_demand}%.`;
+  } else if (dimension) {
     parts.push(
       isEn
-        ? `Verified gap: ${input.gap.display_name} is ${input.gap.cv_status}; priority ${input.gap.severity}.${demand} Next action: ${input.gap.recommended_next_action}.`
-        : `Gap đã xác minh: ${input.gap.display_name} đang là ${input.gap.cv_status}; độ ưu tiên ${input.gap.severity}.${demand} Bước tiếp theo: ${input.gap.recommended_next_action}.`,
+        ? `${gapLead} your ${dimension.key} sits at ${dimension.score20}/20. ${dimension.rationale}`.trim()
+        : `${gapLead} mục ${dimension.key} của bạn đang ${dimension.score20}/20. ${dimension.rationale}`.trim(),
     );
-    suggested_next_step = input.gap.recommended_next_action;
-  }
-
-  if (input.otherMatch) {
-    const title =
-      input.otherMatch.jd_title ??
-      (isEn ? 'an unnamed recent JD match' : 'một JD match gần đây chưa có tên');
+  } else if (otherMatch) {
+    // A comparison turn died on a fabricated garnish (a salary, an invented number). The stored
+    // comparison itself is verified — keep it, so the user still gets the answer they asked for.
+    const m = otherMatch.fact;
+    const title = m.jd_title ?? (isEn ? 'an unnamed recent JD' : 'một JD gần đây chưa có tên');
     const score =
-      input.otherMatch.overall_score === null
+      m.overall_score === null
         ? isEn
           ? 'no stored score'
           : 'chưa có điểm đã lưu'
-        : isEn
-          ? `${input.otherMatch.overall_score}/100`
-          : `${input.otherMatch.overall_score}/100`;
-    const gaps = input.otherMatch.top_gaps.length
-      ? input.otherMatch.top_gaps.join(', ')
+        : `${m.overall_score}/100`;
+    const gaps = m.top_gaps.length
+      ? m.top_gaps.join(', ')
       : isEn
         ? 'no stored top gaps'
         : 'không có gap chính đã lưu';
     parts.push(
+      // "main gaps", not "top gaps" — this string replays into history and "top" is a token the
+      // ranking gate hunts; code-authored copy must never teach the model the banned register.
       isEn
-        ? `Recent JD match: ${title} has ${score}. Stored top gaps: ${gaps}. Use this only as comparison context against your current diagnosis.`
-        : `JD match gần đây: ${title} có ${score}. Gap chính đã lưu: ${gaps}. Chỉ dùng thông tin này để so sánh với chẩn đoán hiện tại của bạn.`,
+        ? `What I can compare from your stored data: the ${title} match sits at ${score}; its stored main gaps: ${gaps}.`
+        : `Điều mình so sánh được từ dữ liệu đã lưu của bạn: JD ${title} đang ở ${score}, gap chính đã lưu: ${gaps}.`,
     );
-    suggested_next_step = null;
-  }
-
-  if (input.toolResult) {
-    const wrapped = input.toolResult.data as { untrusted_data?: Record<string, unknown> };
+  } else if (toolResult && toolResult.toolName === 'github.enrich') {
+    const wrapped = toolResult.data as { untrusted_data?: Record<string, unknown> };
     const d = wrapped.untrusted_data ?? {};
-    if (input.toolResult.toolName === 'github.enrich') {
-      const exists = Boolean(d.exists);
-      const repoCount = Array.isArray(d.public_repos) ? d.public_repos.length : 0;
-      const days = typeof d.recent_activity_days === 'number' ? d.recent_activity_days : null;
-      parts.push(
-        !exists
-          ? isEn
-            ? 'Verified GitHub: no public account found for that username.'
-            : 'Đã kiểm tra GitHub: không tìm thấy tài khoản công khai với username đó.'
-          : isEn
-            ? `Verified GitHub: ${repoCount} public repo(s) found${days !== null ? `, most recent activity ${days} day(s) ago` : ''}.`
-            : `Đã kiểm tra GitHub: tìm thấy ${repoCount} repo công khai${days !== null ? `, hoạt động gần nhất ${days} ngày trước` : ''}.`,
-      );
-    }
+    const exists = Boolean(d.exists);
+    const repoCount = Array.isArray(d.public_repos) ? d.public_repos.length : 0;
+    parts.push(
+      !exists
+        ? isEn
+          ? 'What I did verify: no public GitHub account was found for that username.'
+          : 'Điều mình đã kiểm tra được: không tìm thấy tài khoản GitHub công khai với username đó.'
+        : isEn
+          ? `What I did verify: your GitHub has ${repoCount} public repo(s).`
+          : `Điều mình đã kiểm tra được: GitHub của bạn có ${repoCount} repo công khai.`,
+    );
+  } else if (facts.top_summary.prioritized_actions[0]) {
+    parts.push(`${actionLead} ${facts.top_summary.prioritized_actions[0]}`);
   }
 
   return {
     answer: stripRawUrls(parts.join(' ')),
-    ...(input.dimension ? { cited_dimension: input.dimension.key } : {}),
-    ...(input.gap ? { cited_gap_id: input.gap.requirement_id } : {}),
-    suggested_next_step,
+    ...(dimension ? { cited_dimension: dimension.key } : {}),
+    ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
+    ...(otherMatch ? { cited_other_match_index: otherMatch.index1 } : {}),
+    ...(toolResult ? { cited_tool: toolResult.toolName } : {}),
+    suggested_next_step:
+      gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null,
   };
 }
 
@@ -425,8 +575,13 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // Still "1"-only — "1 <any of these>" cannot be a score, a percentage or a salary; the worst case
 // ("CV bạn chỉ có 1 dự án") mis-counts the record at exactly one, the same ceiling the original
 // việc/bullet entries accepted.
+// "kỹ năng/mục/phần" joined after a live run measured "chọn đúng 1 kỹ năng để bổ sung trước" lost —
+// the exact advice register this list exists to keep alive. "phần" carries a lookahead so "1 phần
+// trăm" never rides in on it (the % surface belongs to the licensing layer, but no free passes).
+// "thành tích" joined after a measured loss (2026-07-17: "thêm 1–2 thành tích có số vào CV"
+// died on the range) — an achievement is a deliverable to write, not a metric to fake.
 const ADVICE_NOUN =
-  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|kỹ năng|mục|phần(?!\s*trăm)|thành tích|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section|achievements?)(?![\p{L}\p{N}])/iu;
 
 function isBenignQuantity(text: string, index: number, token: string): boolean {
   if (!/^[1-9]$/.test(token)) return false;
@@ -440,8 +595,39 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
     return n === 1 || before.includes(`(${n - 1})`);
   if (/(?:^|\n)[ \t]*$/.test(before) && /^[.)]\s+\p{L}/u.test(after))
     return n === 1 || new RegExp(`(?:^|\\n)[ \\t]*${n - 1}[.)]\\s`).test(before);
-  // (b) the quantity ONE over an advice noun.
-  return n === 1 && ADVICE_NOUN.test(after);
+  // (a3) MID-LINE ordinal run — "ưu tiên theo thứ tự: 1) bổ sung…; 2) thêm…". The header long
+  //     predicted this shape would need buying back "only if a live run shows them costing real
+  //     turns"; measured 2026-07-17: a memory turn ("Có, mình nhớ bạn chỉ còn đúng 2 tuần…")
+  //     died on its "1)" and the replacing refusal ignored the stated deadline — the gate kill
+  //     CAUSED the run's worst-judged turn. "Điểm CV: 9. Rất thấp" stays gated: the opener is
+  //     exempt only when a SECOND marker follows later, and n>1 only inside an ascending run.
+  if (/^[.)]\s+\p{L}/u.test(after)) {
+    if (n === 1 && /(?:^|[^\d])2[.)]\s/.test(after)) return true;
+    if (n > 1 && new RegExp(`${n - 1}[.)]\\s`).test(before)) return true;
+  }
+  // (c) "số 1" — the noun-BEFORE-number idiom ("ưu tiên số 1", "việc số 1"). Measured: 2 of 25
+  //     live turns lost to it. ONE only, same ceiling argument as (b); the after-guard keeps
+  //     "điểm số 1/20" and "số 1%" facing the gate — those are a scale and a rate, not the idiom.
+  if (n === 1 && /(?:^|[^\p{L}])số\s*$/iu.test(before) && !/^\s*[/\d%,.]/.test(after)) return true;
+  // (d) a SMALL single-digit RANGE over an advice noun — "sửa 1–2 bullet", "viết 2-3 câu". The
+  //     exact shape the file header predicted would need buying back "only if a live run shows
+  //     them costing real turns": measured 07-16, two MO-HO turns died on "1–2 bullet". Both
+  //     digits are exempt only as a PAIR bracketing the noun, and both must be ≤3 — the measured
+  //     buys are 1–2 and 2-3, and without the cap an adversarial probe (2026-07-17) shipped
+  //     "còn thiếu 7-8 kỹ năng" / "có 5-6 bullet chưa có số liệu": a fabricated COUNT of the
+  //     record, the same class rule (b) caps at two. "9–10 điểm" and "3–5 gap" still face the
+  //     gate ("điểm"/"gap" are not advice nouns), and a lone digit before a dash is untouched.
+  const rangeAhead = after.match(/^\s*[-–]\s*[1-3](?![\p{L}\p{N}])/u);
+  if (n <= 3 && rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
+  if (n <= 3 && /[1-3]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
+  // (b) the quantities ONE and TWO over an advice noun. TWO joined after a measured loss
+  //     (2026-07-17: "Nếu bạn sửa đúng 2 chỗ này trước…" — an honest refusal turn died on the
+  //     "2"). Same ceiling shape: "2 <advice noun>" cannot be a score, a percentage or a
+  //     salary; score-ish nouns (điểm, gap) are not in ADVICE_NOUN so "2 điểm"/"2 gap" still
+  //     face the gate. "gap" is bought for the ONE case only (measured: "ưu tiên đúng 1 gap
+  //     nên sửa trước") — counts of the record above one are FACTS-contradictable.
+  if (n === 1 && /^\s*gap(?![\p{L}\p{N}])/iu.test(after)) return true;
+  return n <= 2 && ADVICE_NOUN.test(after);
 }
 
 /**
@@ -464,32 +650,61 @@ const UNVERIFIABLE_CLAIM: ReadonlyArray<readonly [string, RegExp]> = [
   // noun list and inherits its fail-open (an unlisted "HR" walks through) — accepted for this class
   // only, because a hedged claim with NO number is the softest of the family and the prompt now
   // forbids the whole subject; the numeric forms below are closed structurally, not by nouns.
+  // ponytail: the comparison-target set (người|ứng viên|bạn|hồ sơ|cv), the "khác/còn lại"
+  // set, the quantifier set (đa số|đa phần|…) and the actor set are all deny-lists — the
+  // file's own doctrine is that these fail OPEN on the next unlisted synonym and are kept
+  // only as defense-in-depth. hồ sơ/cv, còn lại, đa phần, hr and the "actor nào/đều cũng"
+  // reorder were each added after an adversarial run shipped them; the class is NOT closed.
   [
     'peer_comparison',
-    /mặt bằng chung|(?:so với|hơn|kém|thua)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn)|(?:ứng viên|người|bạn)\s+khác|(?:đa số|phần lớn|hầu hết|nhiều|most|the majority of)\s+(?:các |những |ứng viên|nhà tuyển dụng|công ty|doanh nghiệp|tin tuyển dụng|candidates?|applicants?|employers?|recruiters?|companies)+(?!\p{L})|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
+    /mặt bằng chung|(?:so với|hơn|kém|thua|nhỉnh hơn)\s+(?:những |các |đa số |phần lớn |hầu hết |nhiều )*(?:người|ứng viên|bạn|hồ sơ|cv)|(?:ứng viên|người|bạn|hồ sơ)\s+(?:khác|còn lại)|(?:đa số|đa phần|phần lớn|hầu hết|nhiều|most|the majority of)\s+(?:các |những |ứng viên|nhà tuyển dụng|hr|công ty|doanh nghiệp|tin tuyển dụng|candidates?|applicants?|employers?|recruiters?|companies)+(?!\p{L})|(?:nhà tuyển dụng|công ty|doanh nghiệp|hr|bên tuyển|nơi)\s+(?:nào\s+)?(?:cũng|đều)\s+(?:yêu cầu|đòi|cần|muốn|thích|chuộng)|compared to (?:most |other |the average )?(?:candidates?|applicants?)|other candidates|(?:above|below)\s+average|average for (?:this|the) role/iu,
   ],
+  // ponytail: same deny-list caveat. "nửa trên/dưới", "thứ nhất/nhì", "tốp/tốp có triển
+  // vọng" and the weak-band grades (nhóm/hạng yếu…) were bought in from an adversarial run;
+  // the next spelled ordinal or unlisted band still slips.
   [
     'ranking',
-    /top\s*(?:\d|đầu|tier)|xếp hạng|percentile|thứ hạng|(?:nhóm|phân khúc)\s+(?:đầu|giữa|dưới|cuối|nổi bật|dẫn đầu)|(?:nổi bật|nổi trội)\s+hơn|standout group/iu,
+    /top\s*(?:\d|đầu|tier)|tốp\s*(?:\d|đầu|trên|có)|xếp hạng|percentile|thứ hạng|thứ (?:nhất|nhì|hai|ba)|(?:đứng|nằm|xếp|thuộc)\s+(?:ở\s+)?nửa\s+(?:trên|dưới|đầu|cuối)|nửa\s+(?:trên|dưới)\b|(?:nhóm|phân khúc|hạng|đẳng cấp)\s+(?:đầu|giữa|dưới|cuối|trên|nổi bật|dẫn đầu|yếu|kém|thấp|xoàng)|(?:nổi bật|nổi trội)\s+hơn|standout group/iu,
   ],
   // \p{L} boundary is load-bearing: without it "mức khá" matched inside "mức KHÁC", so an ordinary
   // sentence ("các gap ở mức khác nhau") was discarded as a fabricated grade.
+  // ponytail: the grade-word set stays a deny-list. The seniority-band arm (chưa tới tầm
+  // senior…) and "đẳng cấp thấp" came from an adversarial run; an unlisted band word slips.
   [
     'grade_label',
-    /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|fairly average|pretty average/iu,
+    /trung bình khá(?!\p{L})|(?:mức|tầm|loại|hạng)(?:\s+độ)?\s+(?:trung bình|khá|giỏi|xuất sắc|kém)(?!\p{L})|(?:chưa\s+(?:tới|đạt|đến)|đạt|ở|thuộc|tầm)\s*(?:tầm|mức|hạng|đẳng cấp|trình độ|level)?\s*(?:senior|junior|mid-?level|fresher|intern|lead|principal)(?![\p{L}])|đẳng cấp\s+(?:cao|thấp|trung)|fairly average|pretty average/iu,
   ],
   // The odds phrase is a claim only when it gets VALUED — "khả năng đậu của bạn là khá cao" grades
   // an unknowable; "sửa xong, cơ hội được gọi phỏng vấn sẽ tốt hơn" is the direction-of-improvement
   // closer every honest advisor uses (measured over-blocked: the encouragement register the prompt
   // itself asks for). So the VN arm requires a valuation tail (là/:/khoảng/cao/thấp/bao nhiêu/digit)
   // and the EN arm a graded adjective — improvement verbs stay free.
+  // "bị loại|trượt|rớt" (reject-odds) join the pass verbs — "71% khả năng bạn bị loại" is
+  // the same unknowable, negated. The idiom arm (nộp đâu trúng đó / dư sức được nhận / chắc
+  // suất) asserts hire certainty with no odds noun at all. ponytail: idiom list is
+  // defense-in-depth; a fresh idiom slips.
+  // The valuation may sit AFTER the outcome ("cơ hội đậu … cao") or BEFORE it ("71% khả năng
+  // bạn bị loại" — a licensed field-% reattached to a hire outcome). Both arms require a
+  // valuation so the improvement register stays free ("giảm khả năng bị loại" has no number).
   [
     'hire_odds',
-    /(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng)[^.!?]{0,15}?(?:là|:|khoảng|tầm|bao nhiêu|cao|thấp|\d|%)|chắc (?:đậu|trúng)|(?:chances?|odds) of (?:getting|being|landing)[^.!?]{0,30}?(?:high|low|good|great|slim|strong|\d|%)/iu,
+    /\d+\s*%\s*(?:là\s+)?(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng|pass|phỏng vấn|qua vòng|vào vòng|bị loại|trượt|rớt|được nhận)|(?:khả năng|tỉ lệ|tỷ lệ|xác suất|cơ hội)[^.!?]{0,25}(?:đậu|trúng tuyển|pass|gọi (?:đi )?phỏng vấn|qua vòng|vào vòng|bị loại|trượt|rớt)[^.!?]{0,15}?(?:là|:|khoảng|tầm|bao nhiêu|cao|thấp|\d|%)|chắc (?:đậu|trúng|suất)|nộp\s+đâu\s+(?:trúng|đậu|được)\s+đó|dư\s+sức\s+(?:được nhận|đậu|trúng|pass)|(?:chances?|odds) of (?:getting|being|landing)[^.!?]{0,30}?(?:high|low|good|great|slim|strong|\d|%)/iu,
   ],
+  // Salary is a total blind spot — FACTS carry no pay data at all — so ANY compensation talk
+  // is a claim, and the widening below is STRUCTURAL, not a synonym chase. (1) concept nouns:
+  // "đãi ngộ/thù lao/lương thưởng/gói offer" joined after a live run shipped "Mức đãi ngộ …
+  // 58 triệu" (58 is a FACTS token — the overall_score — so the number gate waved it through,
+  // and the old lương-only arm never fired). (2) a money AMOUNT: a number OR a spelled number
+  // ("hai mươi triệu") before a currency unit, or a currency symbol. The negative lookahead
+  // keeps a genuine count out ("2 triệu người dùng" in an achievement bullet). ponytail: a
+  // bare "X triệu" with no money context still slips — rare, and the concept arm covers the
+  // sentences that actually read as pay.
+  // The lương/thu-nhập arm keeps its valuation-tail requirement UNCHANGED — the salary refusal
+  // copy itself says "Chuyện lương thì mình chịu…", and a bare-"lương" match would flag the
+  // very refusal it triggers (replay-safe rule). Only genuinely NEW forms are appended.
   [
     'salary',
-    /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation/iu,
+    /(?:mức lương|lương|thu nhập)[^.!?]{0,20}(?:khoảng|tầm|dự kiến|bao nhiêu|thường|tốt|cao|ổn)|mức lương|salary|pay range|compensation|đãi\s*ngộ|thù\s*lao|lương\s*thưởng|(?:gói|mức)\s*offer|(?:\d[\d.,]*|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mươi|chục|trăm|nghìn)\s*(?:triệu|tỷ|tỉ)(?![^.!?]{0,12}(?:người|users?|khách|lượt|views?|dòng|bản\s*ghi|record|sao))|[₫$€]\s*\d|\d\s*(?:usd|vnđ|vnd)/iu,
   ],
   // Statistic SCAFFOLDS — sentence frames that exist only to state a rate, caught by their frame so
   // the noun inside them is irrelevant. "Cứ 100 tin tuyển dụng thì có 71 tin dùng ATS" carries the
@@ -666,8 +881,12 @@ function attachedStatClaim(text: string, prov: StatProvenance): boolean {
  *  private mirror in the smoke once measured pre-fix behaviour and made a working fix look broken).
  *  Omitting `prov` means NOTHING licenses a statistic — the strictest reading. */
 export function unverifiableClaim(text: string, prov?: StatProvenance): string | null {
-  for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(text)) return label;
-  if (attachedStatClaim(text, prov ?? EMPTY_PROVENANCE)) return 'peer_stat';
+  // Fold first (see ungroundedNumbers): the numeric arms below — PCT_TOKEN, the peer_stat
+  // scaffold, the ranking/hire-odds tails — all require ASCII \d, so a fullwidth '71%' or a
+  // circled score walked straight through every one of them until this line existed.
+  const norm = text.normalize('NFKC');
+  for (const [label, re] of UNVERIFIABLE_CLAIM) if (re.test(norm)) return label;
+  if (attachedStatClaim(norm, prov ?? EMPTY_PROVENANCE)) return 'peer_stat';
   return null;
 }
 
@@ -700,7 +919,9 @@ export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string
   // always been token-level (it checks provenance, never what a number is ASSERTED to mean), so this
   // widens an existing seam rather than opening a new kind of one.
   if (conversation) {
-    for (const token of conversation.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+    // Fold the conversation the same way the served text is folded, so "２ tuần" the user
+    // typed licenses "2" the advisor repeats back — the two sides must agree on glyph form.
+    for (const token of conversation.normalize('NFKC').match(/\d+(?:[.,]\d+)?/g) ?? []) {
       allowed.add(token.replace(',', '.'));
     }
   }
@@ -710,12 +931,26 @@ export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string
 /** Every number in `text` that FACTS (+ what the candidate said) cannot account for. Exported so the
  *  calibration harness can NAME the token that cost a turn instead of guessing at it. */
 export function ungroundedNumbers(text: string, allowed: Set<string>): string[] {
+  // NFKC folds fullwidth (９８), superscript (³⁰), circled (⑱) and every other
+  // compatibility digit glyph onto ASCII, so /\d/ actually SEES the quantity. Without it
+  // the number gate is blind to a re-encoded digit — an adversary shipped this file's own
+  // corpus-blocked strings verbatim just by typing '９８' for '98'. Scan the folded copy;
+  // the ORIGINAL text still ships, so folding can only ADD detections, never suppress one.
+  const norm = text.normalize('NFKC');
   const ungrounded = new Set<string>();
-  for (const match of text.matchAll(/\d+(?:[.,]\d+)?/g)) {
+  for (const match of norm.matchAll(/\d+(?:[.,]\d+)?/g)) {
     const token = match[0].replace(',', '.');
     if (allowed.has(token)) continue;
-    if (isBenignQuantity(text, match.index, match[0])) continue;
+    if (isBenignQuantity(norm, match.index, match[0])) continue;
     ungrounded.add(token);
+  }
+  // NFKC folds COMPATIBILITY digits only. Arabic-Indic '٩٨' and Devanagari '९८' are canonical
+  // Nd glyphs the fold leaves alone, so ASCII \d — and every arm that builds on it — can never
+  // read their value ("Điểm ATS của bạn là ٩٨" shipped verbatim in the 2026-07-17 adversarial
+  // probe). FACTS numbers are ASCII, so a digit that survives the fold non-ASCII can never be
+  // grounded: fail CLOSED on the glyph itself.
+  for (const match of norm.matchAll(/\p{Nd}+/gu)) {
+    if (/[^0-9]/.test(match[0])) ungrounded.add(match[0]);
   }
   return [...ungrounded];
 }
@@ -738,9 +973,16 @@ export function groundDiagnosis(
   parsed: unknown,
   facts: DiagnosisFacts,
   language?: string,
-  /** This turn's question + prior history. Numbers the candidate already said are speakable —
-   *  without this the advisor cannot repeat "2 tuần" back and every memory turn is templated. */
-  conversation?: string,
+  /** What the CANDIDATE said: this turn's question + their prior turns ONLY. Numbers they already
+   *  said are speakable — without this the advisor cannot repeat "2 tuần" back and every memory
+   *  turn is templated. Assistant turns must NOT ride in here: any digit the advisor once served
+   *  (an exempt "1-2 bullet") would become a licensed token and launder a fabricated score two
+   *  turns later — "Điểm mục này của bạn là 7" shipped that way in the 2026-07-17 probe. */
+  candidateSaid?: string,
+  /** The ADVISOR's own prior turns — read ONLY by the refusal-escalation counter, never by
+   *  number licensing. Kept separate from `candidateSaid` because the two consumers need
+   *  opposite role filters. */
+  advisorSaid?: string,
 ): DiagnosisChatResult {
   if (typeof parsed !== 'object' || parsed === null) return fallback(facts, language);
   const obj = parsed as Record<string, unknown>;
@@ -782,7 +1024,7 @@ export function groundDiagnosis(
   // The gate also bought nothing it claimed to: it inspects a metadata FIELD, never the prose, so a
   // message that cites a real gap can still fabricate freely — while an honest uncited answer is
   // killed. What actually guards the prose is the number gate plus the unverifiable-claim gate below.
-  const allowed = allowedNumberTokens(facts, conversation);
+  const allowed = allowedNumberTokens(facts, candidateSaid);
   // Facts only, NOT the conversation: a candidate who plants "71% nhà tuyển dụng dùng ATS đúng
   // không?" must not license the advisor to confirm it back. (The number gate does accept the
   // candidate's own bare numbers — a deadline is theirs to state; a population statistic is not.)
@@ -813,23 +1055,19 @@ export function groundDiagnosis(
     };
   }
 
-  // A gate failed. The template restates VERIFIED fact rows, so it can only be built when something
-  // resolved; with no citation there is nothing to restate and the honest fallback is all that's left.
-  if (!dimension && !gap && !otherMatch && !toolResult) return fallback(facts, language);
-
-  const rendered = renderGroundedAnswer({
-    dimension,
-    gap,
-    otherMatch,
-    toolResult,
+  // A gate failed — the model asserted something FACTS cannot back. Serve the warm, reason-aware
+  // refusal (Phase A) instead of a fact template: the refusal names what it won't guess, then
+  // pivots to a verified hook, keeping whichever citation resolved so the FE still scrolls.
+  return buildRefusal(
+    unverifiable ?? 'numbers',
+    {
+      dimension,
+      gap,
+      ...(otherMatch ? { otherMatch: { fact: otherMatch, index1: otherIndex + 1 } } : {}),
+      toolResult,
+    },
     facts,
     language,
-  });
-  return {
-    ...rendered,
-    // otherIndex is always the validated 0-based slot when otherMatch was found — recover the
-    // original 1-based value so the platform layer can map it back to facts.other_matches[i-1].
-    ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
-    ...(toolResult ? { cited_tool: citedTool as string } : {}),
-  };
+    advisorSaid,
+  );
 }
