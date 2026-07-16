@@ -31,6 +31,7 @@ import {
   statProvenance,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
+import { askDirective, buildTurnContext } from '../modules/diagnosis-chat/conversation-state';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
 
 dotenv.config({ override: true });
@@ -226,6 +227,8 @@ async function main(): Promise<void> {
   const allBad: string[] = [];
   const allFlags: string[] = [];
   const allKills: string[] = [];
+  const bucketTally: Record<string, number> = {};
+  const askByPersona: Record<string, number> = {};
 
   for (const p of PERSONAS) {
     log(`\n\n${'█'.repeat(80)}\n██ PERSONA: ${p.id}\n██ ${p.goal}\n${'█'.repeat(80)}`);
@@ -233,52 +236,63 @@ async function main(): Promise<void> {
     let userMsg = p.opener;
 
     for (let turn = 1; turn <= TURNS; turn++) {
-      // ── advisor turn (prod-faithful) ──
+      // ── advisor turn (prod-faithful): REAL buildTurnContext, exactly like the service ──
+      const threadHistory = thread.map((m) => ({ role: m.role, content: m.text }));
+      const ctx = buildTurnContext(facts, threadHistory, userMsg, 'vi');
       const history = thread
         .slice(-10)
         .map((m) => `${m.role}: ${m.text}`)
         .join('\n');
-      const userPrompt = render({
-        language: 'vi',
-        facts: JSON.stringify(facts, null, 2),
-        history: history || '(no prior messages)',
-        focus: p.focus,
-        question: userMsg,
-      });
-      let parsed: unknown = null;
-      let modelMsg = '';
-      try {
-        const r = await client.chat.completions.create({
-          model,
-          temperature: 0.3,
-          max_completion_tokens: 600,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'diagnosis_chat',
-              strict: true,
-              schema: DIAGNOSIS_CHAT_SCHEMA as Record<string, unknown>,
-            },
-          },
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: userPrompt },
-          ],
-        });
-        parsed = JSON.parse(r.choices[0].message.content ?? '{}');
-        modelMsg = String((parsed as { message?: string }).message ?? '');
-      } catch (e) {
-        modelMsg = `<<LLM ERROR ${(e as Error).message}>>`;
-      }
       // Mirror the service: it hands grounding the conversation so the candidate's OWN numbers
       // (a deadline they stated) are speakable. Omitting it here measured the pre-fix behaviour.
-      const conversation = [history, userMsg].filter(Boolean).join('\n');
-      const g = groundDiagnosis(parsed, facts, 'vi', conversation);
+      const conversation = [...threadHistory.map((m) => m.content), userMsg]
+        .filter(Boolean)
+        .join('\n');
+
+      let parsed: unknown = null;
+      let modelMsg = '';
+      if (ctx.canned === null) {
+        const userPrompt = render({
+          language: 'vi',
+          facts: JSON.stringify(facts, null, 2),
+          context: ctx.contextBlock,
+          history: history || '(no prior messages)',
+          focus: p.focus,
+          question: userMsg,
+        });
+        try {
+          const r = await client.chat.completions.create({
+            model,
+            temperature: 0.3,
+            max_completion_tokens: 600,
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'diagnosis_chat',
+                strict: true,
+                schema: DIAGNOSIS_CHAT_SCHEMA as Record<string, unknown>,
+              },
+            },
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: userPrompt },
+            ],
+          });
+          parsed = JSON.parse(r.choices[0].message.content ?? '{}');
+          modelMsg = String((parsed as { message?: string }).message ?? '');
+        } catch (e) {
+          modelMsg = `<<LLM ERROR ${(e as Error).message}>>`;
+        }
+      }
+      const g =
+        ctx.canned !== null
+          ? { answer: ctx.canned, suggested_next_step: null as string | null }
+          : groundDiagnosis(parsed, facts, 'vi', conversation);
       const served = g.answer; // what prod persists + shows
       // WHY the model's prose lost. Without this the smoke could only see the SERVED text, so a
-      // template could mean either "the model wrote nothing worth serving" or "the model wrote a
+      // refusal could mean either "the model wrote nothing worth serving" or "the model wrote a
       // good answer and a gate ate it" — the two need opposite fixes, and guessing picked wrong.
-      const killed = served !== modelMsg;
+      const killed = ctx.canned === null && served !== modelMsg;
       const killReason = !killed
         ? ''
         : (unverifiableClaim(modelMsg, statProvenance(facts)) ??
@@ -286,29 +300,36 @@ async function main(): Promise<void> {
             ? `số ngoài FACTS: ${ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).join(', ')}`
             : 'model trả về rỗng / parse lỗi'));
       const bucket =
-        served.startsWith('Mình chưa đủ dữ kiện') || served.startsWith('Mình chưa có đủ dữ liệu')
-          ? 'FALLBACK'
-          : /^(Mục đã xác minh:|Gap đã xác minh:|JD match gần đây:|Đã kiểm tra GitHub:)/.test(
-                served,
-              )
-            ? 'TEMPLATE'
-            : 'PROSE';
+        ctx.canned !== null
+          ? 'CANNED'
+          : served.startsWith('Mình chưa đủ dữ kiện') ||
+              served.startsWith('Mình chưa có đủ dữ liệu')
+            ? 'FALLBACK'
+            : killed
+              ? 'REFUSAL' // Phase A: a gate kill serves the warm reason-aware refusal
+              : 'PROSE';
       const bad = badNumbers(served, conversation);
       const flags = claimFlags(served);
       allBad.push(...bad);
       allFlags.push(...flags);
       if (killed) allKills.push(killReason);
+      bucketTally[bucket] = (bucketTally[bucket] ?? 0) + 1;
+      if (served.includes('?')) askByPersona[p.id] = (askByPersona[p.id] ?? 0) + 1;
 
       thread.push({ role: 'user', text: userMsg });
       thread.push({ role: 'assistant', text: served, bucket, bad, flags });
 
+      const cited = 'cited_dimension' in g ? g : ({} as ReturnType<typeof groundDiagnosis>);
       log(`\n  ┌─ lượt ${turn} ─────────────────────────────────────────────`);
       log(`  │ 👤 ${userMsg}`);
+      log(
+        `  │    🧠 intent=${ctx.intent} · role=${ctx.state.target_role ?? '—'} · deadline=${ctx.state.deadline ?? '—'} · ask=${askDirective(ctx.state, ctx.intent, userMsg) ?? '—'}`,
+      );
       if (killed) log(`  │ ✂️  GATE ĐỔI (${killReason}) — model đã viết: ${modelMsg}`);
       log(`  │ 🐬 [${bucket}] ${served}`);
       if (g.suggested_next_step) log(`  │    ↳ gợi ý: ${g.suggested_next_step}`);
       log(
-        `  │    cite: dim=${g.cited_dimension ?? '-'} gap=${g.cited_gap_id ?? '-'} | hỏi-ngược-lại=${served.includes('?') ? 'CÓ ❓' : 'không'}`,
+        `  │    cite: dim=${cited.cited_dimension ?? '-'} gap=${cited.cited_gap_id ?? '-'} | hỏi-ngược-lại=${served.includes('?') ? 'CÓ ❓' : 'không'}`,
       );
       if (bad.length) log(`  │ 🔴 SỐ NGOÀI FACTS: ${bad.join(', ')}`);
       if (flags.length) log(`  │ 🟠 CẦN KIỂM: ${flags.join(' · ')}`);
@@ -370,6 +391,15 @@ async function main(): Promise<void> {
             .join(' | ')
         : '(không có)'
     }`,
+  );
+  log(
+    `📊 Bucket: ${Object.entries(bucketTally)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k} ×${v}`)
+      .join(' | ')}`,
+  );
+  log(
+    `❓ Hỏi-ngược theo persona: ${PERSONAS.map((p) => `${p.id}=${askByPersona[p.id] ?? 0}`).join(' · ')}`,
   );
   log('='.repeat(80));
 }
