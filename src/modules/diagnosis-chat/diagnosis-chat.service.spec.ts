@@ -177,9 +177,15 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
       prompts as never,
       { invoke: jest.fn() } as never,
     );
-    await service.turn({ question: 'mình không biết bắt đầu từ đâu luôn', facts: FACTS });
+    const result = await service.turn({
+      question: 'mình không biết bắt đầu từ đâu luôn',
+      facts: FACTS,
+    });
     const vars = prompts.render.mock.calls[0][1] as Record<string, string>;
     expect(vars.context).toContain('ONE short question asking which role');
+    // The model's answer ('ok') dropped the ordered question → the backstop appends it.
+    expect(result.answer).toContain('nhắm vị trí nào');
+    expect(result.answer.includes('?')).toBe(true);
   });
 });
 

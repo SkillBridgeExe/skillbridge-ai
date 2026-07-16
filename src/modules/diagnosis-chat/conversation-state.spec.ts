@@ -1,5 +1,6 @@
 import {
   askDirective,
+  ensureAskBack,
   buildTurnContext,
   extractConversationState,
   routeIntent,
@@ -285,6 +286,47 @@ describe('routeIntent — adversarial hardening', () => {
     expect(routeIntent('cám ơn bot nhìu', FACTS)).toBe('thanks');
     for (const q of ['ok', 'ừ', 'uk', 'đc', 'vâng', '?', '...']) {
       expect(routeIntent(q, FACTS)).toBe('advice');
+    }
+  });
+});
+
+describe('ensureAskBack — the ask-back backstop (model obeyed the Directive 1/4 turns, measured)', () => {
+  it('appends the standard question when the served answer has none', () => {
+    const out = ensureAskBack('Bạn nên sửa bullet trước.', 'role', 'vi');
+    expect(out).toContain('Bạn nên sửa bullet trước.');
+    expect(out).toContain('nhắm vị trí nào');
+    expect(out.includes('?')).toBe(true);
+  });
+
+  it('never stacks a second question onto an answer that already asks one', () => {
+    const answered = 'Sửa bullet trước nhé. Bạn đang nhắm vị trí nào?';
+    expect(ensureAskBack(answered, 'role', 'vi')).toBe(answered);
+  });
+
+  it('no directive → untouched', () => {
+    expect(ensureAskBack('Trả lời.', null, 'vi')).toBe('Trả lời.');
+  });
+
+  it('the appended ask REGISTERS as asked next turn (vi and en, role and deadline) — no nag loop', () => {
+    for (const lang of ['vi', 'en']) {
+      const askedRole = extractConversationState(
+        [bot(ensureAskBack('Câu trả lời.', 'role', lang))],
+        'nên sửa gì?',
+      );
+      expect(askedRole.asked_role).toBe(true);
+      const askedDl = extractConversationState(
+        [bot(ensureAskBack('Câu trả lời.', 'deadline', lang))],
+        'nên sửa gì?',
+      );
+      expect(askedDl.asked_deadline).toBe(true);
+    }
+  });
+
+  it('backstop copy carries no digits (it is persisted and replayed into history)', () => {
+    for (const ask of ['role', 'deadline'] as const) {
+      for (const lang of ['vi', 'en']) {
+        expect(ensureAskBack('x.', ask, lang)).not.toMatch(/\d/);
+      }
     }
   });
 });

@@ -10,7 +10,7 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   groundDiagnosis,
 } from './diagnosis-grounding';
-import { buildTurnContext } from './conversation-state';
+import { buildTurnContext, ensureAskBack } from './conversation-state';
 
 const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
@@ -171,6 +171,9 @@ export class DiagnosisChatService {
       const grounded = groundDiagnosis(parsed, facts, language, conversation);
       return {
         ...grounded,
+        // Ask-back backstop: code decided WHEN to ask; if the model dropped the question anyway
+        // (measured: obeyed 1 of 4 directive turns), code appends the standard one.
+        answer: ensureAskBack(grounded.answer, ctx.ask, language),
         trace: {
           promptTokens: result.tokenUsage?.promptTokens ?? 0,
           completionTokens: result.tokenUsage?.completionTokens ?? 0,
@@ -190,6 +193,7 @@ export class DiagnosisChatService {
 
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    return groundDiagnosis(parsed, facts, language, conversation);
+    const fallback = groundDiagnosis(parsed, facts, language, conversation);
+    return { ...fallback, answer: ensureAskBack(fallback.answer, ctx.ask, language) };
   }
 }

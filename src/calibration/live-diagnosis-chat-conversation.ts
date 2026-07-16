@@ -31,7 +31,11 @@ import {
   statProvenance,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
-import { askDirective, buildTurnContext } from '../modules/diagnosis-chat/conversation-state';
+import {
+  askDirective,
+  buildTurnContext,
+  ensureAskBack,
+} from '../modules/diagnosis-chat/conversation-state';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
 
 dotenv.config({ override: true });
@@ -288,11 +292,14 @@ async function main(): Promise<void> {
         ctx.canned !== null
           ? { answer: ctx.canned, suggested_next_step: null as string | null }
           : groundDiagnosis(parsed, facts, 'vi', conversation);
-      const served = g.answer; // what prod persists + shows
+      // Mirror the service: the ask-back backstop appends the standard question when the model
+      // dropped the one the Directive ordered. `killed` compares BEFORE the append — an appended
+      // question is compliance enforcement, not a gate kill, and must not bucket as REFUSAL.
+      const served = ctx.canned !== null ? g.answer : ensureAskBack(g.answer, ctx.ask, 'vi'); // what prod persists + shows
       // WHY the model's prose lost. Without this the smoke could only see the SERVED text, so a
       // refusal could mean either "the model wrote nothing worth serving" or "the model wrote a
       // good answer and a gate ate it" — the two need opposite fixes, and guessing picked wrong.
-      const killed = ctx.canned === null && served !== modelMsg;
+      const killed = ctx.canned === null && g.answer !== modelMsg;
       const killReason = !killed
         ? ''
         : (unverifiableClaim(modelMsg, statProvenance(facts)) ??

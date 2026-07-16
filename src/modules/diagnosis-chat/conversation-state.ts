@@ -47,6 +47,9 @@ export interface DiagnosisTurnContext {
   canned: string | null;
   /** Rendered into the prompt's context injection point; never empty (stable placeholder). */
   contextBlock: string;
+  /** The code-computed ask-back order for this turn (also woven into contextBlock as a Directive).
+   *  The service uses it for {@link ensureAskBack} — the model cannot be trusted to obey alone. */
+  ask: 'role' | 'deadline' | null;
 }
 
 interface HistoryMessage {
@@ -268,7 +271,7 @@ const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: string }>
 /** Questions where knowing the role/timeline would actually CHANGE the advice. A definitional
  *  question ("điểm ATS nghĩa là gì?") gets no ask — asking there is noise, not care. */
 const ADVICE_SEEKING =
-  /nên|làm\s+(?:gì|sao)|bắt\s+đầu|cải\s+thiện|sửa|ưu\s+tiên|học\s+(?:gì|cái\s+gì|thêm)|trước\s+tiên|tiếp\s+theo|lộ\s+trình|kế\s+hoạch|hướng\s+dẫn|giúp\s+(?:mình|em|tớ)\s+với|what\s+should|how\s+(?:do|can)\s+i|improve|fix|prioritize|where\s+(?:do|should)\s+i\s+start|help\s+me/iu;
+  /nên|làm\s+(?:gì|sao)|bắt\s+đầu|cải\s+thiện|sửa|ưu\s+tiên|học\s+(?:gì|cái\s+gì|thêm)|trước\s+tiên|tiếp\s+theo|lộ\s+trình|kế\s+hoạch|hướng\s+dẫn|giúp\s+(?:mình|em|tớ)\s+với|chỉ\s+(?:mình|em|tớ|giúp)|cái\s+nào|ví\s+dụ|what\s+should|how\s+(?:do|can)\s+i|improve|fix|prioritize|where\s+(?:do|should)\s+i\s+start|help\s+me|example/iu;
 
 export function askDirective(
   state: DiagnosisConversationState,
@@ -335,5 +338,39 @@ export function buildTurnContext(
   }
   if (directives.length) lines.push('Directive:', ...directives.map((d) => `- ${d}`));
 
-  return { state, intent, canned, contextBlock: lines.join('\n') };
+  return { state, intent, canned, contextBlock: lines.join('\n'), ask };
+}
+
+// ── the ask-back BACKSTOP (code appends what the model was told to ask and didn't) ──────────────
+
+/** No digits, and phrased so ASKED_ROLE_RE/ASKED_DEADLINE_RE recognize it in history — the
+ *  backstop must register as "already asked" next turn, or it would nag forever. */
+const ASK_FALLBACK: Record<'role' | 'deadline', [string, string]> = {
+  // [vi, en]
+  role: [
+    'Mà bạn đang nhắm vị trí nào vậy? Biết rồi mình sẽ chỉ đúng chỗ đáng sửa hơn.',
+    'By the way, which role are you aiming for? Knowing it helps me point you at the right fixes.',
+  ],
+  deadline: [
+    'Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy? Mình sẽ liệu cơm gắp mắm theo đó.',
+    'By the way, how much time do you have before the deadline? I can size the plan to it.',
+  ],
+};
+
+/**
+ * Measured (live 25-turn, 07-16): the ask Directive alone was obeyed in 1 of 4 turns it fired —
+ * the model answers well and then simply drops the closing question (or flattens it into an
+ * offer). The WHEN is code's decision, so the DO becomes code's too: if the served answer carries
+ * no question at all, append the standard one. This is the needs_detail principle finished — the
+ * LLM phrases nicer asks when it complies, and this backstop guarantees the turn asks either way.
+ * Only for turns the directive fired on; never stacks a second question onto an existing one.
+ */
+export function ensureAskBack(
+  answer: string,
+  ask: 'role' | 'deadline' | null,
+  language?: string,
+): string {
+  if (!ask || answer.includes('?')) return answer;
+  const lang = language?.toLowerCase().startsWith('en') ? 1 : 0;
+  return `${answer.trim()} ${ASK_FALLBACK[ask][lang]}`;
 }
