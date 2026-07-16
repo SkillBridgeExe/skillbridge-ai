@@ -37,6 +37,7 @@ import {
   ensureAskBack,
 } from '../modules/diagnosis-chat/conversation-state';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
+import { judgeConversation, summarizeJudgement, JudgedTurn } from './diagnosis-chat-judge';
 
 dotenv.config({ override: true });
 
@@ -233,6 +234,18 @@ async function main(): Promise<void> {
   const allKills: string[] = [];
   const bucketTally: Record<string, number> = {};
   const askByPersona: Record<string, number> = {};
+  // Phase D: LLM-judge scores what the safety counters can't see (naturalness/helpfulness).
+  // Default the judge to a DIFFERENT model from the advisor — a model judging its own prose
+  // inflates and compresses the scores (self-preference bias). Override with DIAGNOSIS_JUDGE_MODEL.
+  const judgeModel = process.env.DIAGNOSIS_JUDGE_MODEL || 'gpt-4o';
+  // The judge is given the same FACTS the advisor had, so "grounded in the diagnosis" is
+  // checkable rather than taken on faith (rubric red-team finding #1).
+  const factsSummary = JSON.stringify(facts, null, 2);
+  const judged: Array<{ persona: string; t: JudgedTurn }> = [];
+  let judgeFailures = 0;
+  if (judgeModel === model) {
+    log(`\n⚠️  judge model == advisor model (${model}) — điểm có xu hướng tự thổi phồng`);
+  }
 
   for (const p of PERSONAS) {
     log(`\n\n${'█'.repeat(80)}\n██ PERSONA: ${p.id}\n██ ${p.goal}\n${'█'.repeat(80)}`);
@@ -366,6 +379,27 @@ async function main(): Promise<void> {
         break;
       }
     }
+
+    // ── Phase D: judge the finished conversation (diagnostic — a judge failure
+    //    never kills the run, it just reports itself). ──
+    try {
+      const scores = await judgeConversation(
+        client,
+        judgeModel,
+        factsSummary,
+        thread.map((m) => ({ role: m.role, text: m.text })),
+      );
+      log(`\n  🎭 JUDGE (${judgeModel}):`);
+      for (const t of scores) {
+        judged.push({ persona: p.id, t });
+        log(
+          `  │ lượt ${t.turn}: nat=${t.naturalness} help=${t.helpfulness}${t.template_feel ? ' · TEMPLATE-FEEL' : ''}${t.ignored_question ? ' · NÉ CÂU HỎI' : ''}${t.contradiction ? ' · MÂU THUẪN' : ''} — ${t.note}`,
+        );
+      }
+    } catch (e) {
+      judgeFailures += 1;
+      log(`\n  🎭 JUDGE ERROR (${p.id}): ${(e as Error).message}`);
+    }
   }
 
   log(`\n\n${'='.repeat(80)}\nTỔNG KẾT`);
@@ -408,6 +442,15 @@ async function main(): Promise<void> {
   log(
     `❓ Hỏi-ngược theo persona: ${PERSONAS.map((p) => `${p.id}=${askByPersona[p.id] ?? 0}`).join(' · ')}`,
   );
+  const j = summarizeJudgement(judged);
+  log(
+    `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,
+  );
+  for (const w of j.worst) {
+    log(
+      `   ⚠️ tệ nhất — ${w.persona} lượt ${w.t.turn} (nat=${w.t.naturalness} help=${w.t.helpfulness}): ${w.t.note}`,
+    );
+  }
   log('='.repeat(80));
 }
 
