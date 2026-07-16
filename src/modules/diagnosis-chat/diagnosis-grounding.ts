@@ -188,29 +188,120 @@ const REFUSAL_FAMILY: Record<string, 'peers' | 'odds' | 'salary' | 'stat'> = {
 // Copy is written to be REPLAY-SAFE: it is persisted and echoed into the next prompt's history, so
 // it must not contain the phrases the gates hunt ("tỉ lệ đậu", "ứng viên khác", comparatives) — the
 // model imitates its conversation partner, and the refusal must never teach it the banned register.
-const REFUSAL_COPY: Record<'peers' | 'odds' | 'salary' | 'stat' | 'numbers', [string, string]> = {
-  // [vi, en]
+//
+// Each family carries VARIANTS, escalating with repetition. Measured (judged baseline 2026-07-17):
+// a persona baiting five turns in a row got the SAME refusal sentence five times — 9 of 25 turns
+// flagged template-feel, almost all of them this echo. Variant 0 is the first-refusal copy (it
+// measured well on first use), variant 1 acknowledges the repeat, variant 2 is short and gently
+// final. Selection is DETERMINISTIC — buildRefusal counts how many refusals of the same family
+// already sit in the conversation history (the copy is served verbatim, so a substring count works;
+// deleting the thread resets it naturally). No randomness: same history → same reply, replayable.
+// Exported for the fabrication-gate spec: every variant must hold both invariants.
+export const REFUSAL_COPY: Record<
+  'peers' | 'odds' | 'salary' | 'stat' | 'numbers',
+  Array<[string, string]>
+> = {
+  // [vi, en] per escalation step
   peers: [
-    'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
-    "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+    [
+      'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
+      "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+    ],
+    [
+      'Vẫn phải là câu trả lời cũ nha — muốn đặt bạn cạnh người ta thì phải có dữ liệu của người ta, mà mình thì chỉ được xem hồ sơ của bạn thôi.',
+      "Same answer as before, I'm afraid — putting you next to anyone else needs their data, and yours is the only file I get to see.",
+    ],
+    [
+      'Câu này mình xin giữ nguyên: không có dữ liệu thì mình không đoán, đoán sai còn hại bạn hơn. Mình dồn sức vào cái sửa được nhé.',
+      "I'll keep my answer as it is: no data, no guessing — a wrong guess would hurt you more. Let's put the energy where we can fix things.",
+    ],
   ],
   odds: [
-    'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
-    "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+    [
+      'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
+      "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+    ],
+    [
+      'Câu này mình vẫn phải lắc đầu như lần trước — kết quả cuối nằm ở phía người xét hồ sơ, dữ liệu của bạn không tính ra được.',
+      "Still shaking my head on this one, like last time — the final call sits with whoever reads the application, and your data can't compute it.",
+    ],
+    [
+      'Mình giữ nguyên nè: chuyện kết quả mình không đoán. Thứ mình giúp chắc tay được là làm CV mạnh lên trước khi bạn nộp.',
+      "Keeping my answer: I don't guess outcomes. What I can reliably help with is making the CV stronger before you send it.",
+    ],
   ],
   salary: [
-    'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
-    "Salary is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
+    [
+      // EN deliberately avoids the word "salary" — it is a token the salary arm hunts bare, so
+      // the copy would flag itself on replay (caught by the standalone-variant invariant test).
+      'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
+      "Pay is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
+    ],
+    [
+      'Khoản đó mình vẫn mù tịt như lần trước bạn hỏi nha — mình không có dữ liệu trả công nào hết, có ép mình cũng chịu.',
+      'Still as blind on that as when you last asked — I hold no pay data at all, no matter how hard you push.',
+    ],
+    [
+      'Mình xin giữ câu cũ: không có dữ liệu thì mình không phát giá bừa. Quay lại cái mình đo được trong CV nhé.',
+      "I'll stand by my old answer: no data means I won't quote figures. Back to what I can actually measure in your CV.",
+    ],
   ],
   stat: [
-    'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
-    "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
+    [
+      'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
+      "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
+    ],
+    [
+      'Mình vẫn phải từ chối như lần trước — con số đó không nằm trong nguồn đã xác minh của mình, nói ra là chế.',
+      "Same refusal as before — that number isn't in any source I've verified, so saying it would be making it up.",
+    ],
+    [
+      'Câu này mình giữ nguyên: không nguồn thì không nói. Mình chỉ đứng về phía những gì kiểm chứng được trong hồ sơ của bạn.',
+      "Keeping this one as is: no source, no number. I only stand behind what's verifiable in your file.",
+    ],
   ],
   numbers: [
-    'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
-    "On this one I'll stick to what your verified data actually shows.",
+    [
+      'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
+      "On this one I'll stick to what your verified data actually shows.",
+    ],
+    [
+      'Như nãy mình nói đó — ngoài dữ liệu đã xác minh của bạn ra thì mình không thêm thắt gì đâu.',
+      "Like I said just now — beyond your verified data I won't embellish a thing.",
+    ],
+    [
+      'Mình giữ đúng nguyên tắc cũ: chỉ nói điều dữ liệu của bạn chứng minh được.',
+      'Sticking to my old rule: I only say what your data can prove.',
+    ],
   ],
 };
+
+/** How many refusals of this family are already in the conversation. The copy is code-authored and
+ *  served verbatim, so counting its occurrences as substrings of the history is exact — long,
+ *  distinctive sentences make a collision with user-typed text practically impossible. */
+function priorRefusalCount(family: keyof typeof REFUSAL_COPY, conversation: string): number {
+  let count = 0;
+  for (const [vi, en] of REFUSAL_COPY[family]) {
+    count += conversation.split(vi).length - 1;
+    count += conversation.split(en).length - 1;
+  }
+  return count;
+}
+
+// Hook lead-ins rotate on the same escalation index, so a repeated bait never replays the whole
+// sentence verbatim — the verified DATA stays identical (it should), only the framing moves.
+const GAP_HOOK_LEAD: Array<[string, string]> = [
+  ['Điều mình nói chắc được:', 'What I can say for sure:'],
+  // Not "chắc chắn được" — the diagnostic claim heuristics hunt "chắc chắn (đậu|được)"
+  // (certainly-hired), and code-authored copy must not pollute even the diagnostics.
+  ['Cái mình vẫn nói chắc được là:', 'What I can still say for sure:'],
+  ['Còn đây là thứ trong tầm tay:', "And here's what's actually in reach:"],
+];
+const ACTION_HOOK_LEAD: Array<[string, string]> = [
+  ['Thứ chắc chắn đáng làm ngay:', "What's definitely worth doing right now:"],
+  ['Việc đáng làm nhất vẫn là:', 'The most worthwhile move is still:'],
+  ['Cứ bám vào việc này trước:', 'Stick with this one first:'],
+];
 
 /** cv_status enum → human Vietnamese; unknown values pass through raw (never invented). */
 const CV_STATUS_VI: Record<string, string> = {
@@ -230,23 +321,29 @@ function buildRefusal(
   },
   facts: DiagnosisFacts,
   language?: string,
+  /** This turn's question + prior history — the escalation counter reads prior refusals off it. */
+  conversation?: string,
 ): DiagnosisChatResult {
   const isEn = isEnglish(language);
   const family = REFUSAL_FAMILY[reason] ?? 'numbers';
-  const parts: string[] = [REFUSAL_COPY[family][isEn ? 1 : 0]];
+  const variants = REFUSAL_COPY[family];
+  const step = Math.min(priorRefusalCount(family, conversation ?? ''), variants.length - 1);
+  const parts: string[] = [variants[step][isEn ? 1 : 0]];
+  const gapLead = GAP_HOOK_LEAD[step][isEn ? 1 : 0];
+  const actionLead = ACTION_HOOK_LEAD[step][isEn ? 1 : 0];
 
   const { dimension, gap, otherMatch, toolResult } = resolved;
   if (gap) {
     parts.push(
       isEn
-        ? `What I can say for sure: ${gap.display_name} is ${gap.cv_status} in your CV — the step worth taking: ${gap.recommended_next_action}.`
-        : `Điều mình nói chắc được: ${gap.display_name} đang ${CV_STATUS_VI[gap.cv_status] ?? gap.cv_status} — bước đáng làm nhất: ${gap.recommended_next_action}.`,
+        ? `${gapLead} ${gap.display_name} is ${gap.cv_status} in your CV — the step worth taking: ${gap.recommended_next_action}.`
+        : `${gapLead} ${gap.display_name} đang ${CV_STATUS_VI[gap.cv_status] ?? gap.cv_status} — bước đáng làm nhất: ${gap.recommended_next_action}.`,
     );
   } else if (dimension) {
     parts.push(
       isEn
-        ? `What I can say for sure: your ${dimension.key} sits at ${dimension.score20}/20. ${dimension.rationale}`.trim()
-        : `Điều mình nói chắc được: mục ${dimension.key} của bạn đang ${dimension.score20}/20. ${dimension.rationale}`.trim(),
+        ? `${gapLead} your ${dimension.key} sits at ${dimension.score20}/20. ${dimension.rationale}`.trim()
+        : `${gapLead} mục ${dimension.key} của bạn đang ${dimension.score20}/20. ${dimension.rationale}`.trim(),
     );
   } else if (otherMatch) {
     // A comparison turn died on a fabricated garnish (a salary, an invented number). The stored
@@ -286,11 +383,7 @@ function buildRefusal(
           : `Điều mình đã kiểm tra được: GitHub của bạn có ${repoCount} repo công khai.`,
     );
   } else if (facts.top_summary.prioritized_actions[0]) {
-    parts.push(
-      isEn
-        ? `What's definitely worth doing right now: ${facts.top_summary.prioritized_actions[0]}`
-        : `Thứ chắc chắn đáng làm ngay: ${facts.top_summary.prioritized_actions[0]}`,
-    );
+    parts.push(`${actionLead} ${facts.top_summary.prioritized_actions[0]}`);
   }
 
   return {
@@ -510,11 +603,14 @@ function isBenignQuantity(text: string, index: number, token: string): boolean {
   const rangeAhead = after.match(/^\s*[-–]\s*[1-9](?![\p{L}\p{N}])/u);
   if (rangeAhead && ADVICE_NOUN.test(after.slice(rangeAhead[0].length))) return true;
   if (/[1-9]\s*[-–]\s*$/.test(before) && ADVICE_NOUN.test(after)) return true;
-  // (b) the quantity ONE over an advice noun. "gap" is bought for the ONE case only
-  //     (measured 2026-07-17: "ưu tiên đúng 1 gap nên sửa trước" lost a real turn) and stays
-  //     OUT of ADVICE_NOUN so ranges ("3-5 gap") keep facing the gate — a range over gaps
-  //     asserts a count of the record, which FACTS can contradict.
-  return n === 1 && (ADVICE_NOUN.test(after) || /^\s*gap(?![\p{L}\p{N}])/iu.test(after));
+  // (b) the quantities ONE and TWO over an advice noun. TWO joined after a measured loss
+  //     (2026-07-17: "Nếu bạn sửa đúng 2 chỗ này trước…" — an honest refusal turn died on the
+  //     "2"). Same ceiling shape: "2 <advice noun>" cannot be a score, a percentage or a
+  //     salary; score-ish nouns (điểm, gap) are not in ADVICE_NOUN so "2 điểm"/"2 gap" still
+  //     face the gate. "gap" is bought for the ONE case only (measured: "ưu tiên đúng 1 gap
+  //     nên sửa trước") — counts of the record above one are FACTS-contradictable.
+  if (n === 1 && /^\s*gap(?![\p{L}\p{N}])/iu.test(after)) return true;
+  return n <= 2 && ADVICE_NOUN.test(after);
 }
 
 /**
@@ -940,5 +1036,6 @@ export function groundDiagnosis(
     },
     facts,
     language,
+    conversation,
   );
 }

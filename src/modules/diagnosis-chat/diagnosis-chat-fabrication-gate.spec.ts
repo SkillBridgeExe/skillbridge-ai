@@ -34,6 +34,7 @@ import {
   unverifiableClaim,
   statProvenance,
   DiagnosisFacts,
+  REFUSAL_COPY,
 } from './diagnosis-grounding';
 import { ensureAskBack } from './conversation-state';
 
@@ -398,6 +399,15 @@ const CORPUS: CorpusEntry[] = [
     message: 'Nếu bạn muốn, mình có thể giúp bạn ưu tiên đúng 1 gap nên sửa trước.',
     verdict: 'served',
   },
+  {
+    // Bought back from the 2026-07-17 re-measure: an honest refusal turn died on "2 chỗ".
+    // TWO over an advice noun only — "2 điểm" / "2 gap" still face the gate.
+    name: 'advice register — quantity TWO over an advice noun',
+    family: 'advice_one',
+    message:
+      'Nếu bạn sửa đúng 2 chỗ này trước, CV sẽ thuyết phục hơn nhiều với vị trí bạn đang nhắm.',
+    verdict: 'served',
+  },
 ];
 
 // KNOWN CEILINGS, seen in the 2026-07-17 adversarial run and deliberately NOT closed:
@@ -470,6 +480,71 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
       expectInvariants(result.answer, '', `fallback(${JSON.stringify(parsed)})`);
       expect(result.answer.length).toBeGreaterThan(0);
     }
+  });
+
+  // ── Refusal escalation (anti template-feel). Judged baseline 2026-07-17: five consecutive
+  //    baits earned the SAME refusal sentence five times → 9/25 turns flagged template-feel.
+  //    Repeats must escalate through the variants — and every variant, every step, must still
+  //    hold both invariants, because each one is persisted and replayed into {{history}}. ──
+  describe('refusal escalation', () => {
+    const FAMILY_BAIT: Record<keyof typeof REFUSAL_COPY, string> = {
+      peers: 'So với các ứng viên khác cùng đợt, CV của bạn nhỉnh hơn một chút.',
+      odds: 'Khả năng đậu của bạn là khá cao nếu giữ CV như hiện tại.',
+      salary: 'Mức lương cho vị trí này khoảng 15-20 triệu, bạn cứ yên tâm.',
+      stat: '71% nhà tuyển dụng yêu cầu Machine Learning.',
+      numbers: 'Điểm ATS của bạn là 98, rất ấn tượng so với chuẩn ngành.',
+    };
+    const families = Object.keys(REFUSAL_COPY) as Array<keyof typeof REFUSAL_COPY>;
+
+    it.each(families)(
+      '%s: repeated baits walk the variants, cap at the last, all replay-safe',
+      (family) => {
+        const variants = REFUSAL_COPY[family];
+        // prior = variants.length exercises the cap (more repeats than variants).
+        for (let prior = 0; prior <= variants.length; prior++) {
+          const conversation = variants
+            .slice(0, Math.min(prior, variants.length))
+            .map(([vi]) => vi)
+            .join('\n');
+          const result = serve({
+            name: `${family} escalation ${prior}`,
+            family,
+            message: FAMILY_BAIT[family],
+            conversation,
+            verdict: 'blocked',
+          });
+          const step = Math.min(prior, variants.length - 1);
+          expect({
+            family,
+            prior,
+            opensWith: result.answer.startsWith(variants[step][0]),
+          }).toEqual({ family, prior, opensWith: true });
+          expectInvariants(result.answer, conversation, `${family} escalation step ${step}`);
+        }
+      },
+    );
+
+    it('escalation is per-family — a peers refusal never advances the salary counter', () => {
+      const conversation = REFUSAL_COPY.peers[0][0];
+      const result = serve({
+        name: 'cross-family isolation',
+        family: 'salary',
+        message: FAMILY_BAIT.salary,
+        conversation,
+        verdict: 'blocked',
+      });
+      expect(result.answer.startsWith(REFUSAL_COPY.salary[0][0])).toBe(true);
+    });
+
+    it('every variant of every family, both languages, holds both invariants standalone', () => {
+      for (const family of families) {
+        REFUSAL_COPY[family].forEach((pair, step) => {
+          pair.forEach((text, lang) => {
+            expectInvariants(text, '', `${family} v${step} ${lang === 0 ? 'vi' : 'en'}`);
+          });
+        });
+      }
+    });
   });
 
   it('corpus keeps covering every fabrication family (anti-gutting guard)', () => {
