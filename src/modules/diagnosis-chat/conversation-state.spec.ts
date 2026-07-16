@@ -217,3 +217,74 @@ describe('buildTurnContext — the single entry point the service and harnesses 
     expect(ctx.contextBlock).toContain('cited_other_match_index');
   });
 });
+
+// ── Regression: adversarial probe findings (07-16). Every case below SHIPPED a wrong Known or a
+// nag loop before the guards existed — none of these is hypothetical. ──
+describe('extractConversationState — adversarial hardening', () => {
+  it('negation / hypothetical / deliberation / someone-else NEVER become a Known role', () => {
+    for (const q of [
+      'mình KHÔNG nhắm vị trí Data Analyst nữa',
+      'mình không nhắm Data Analyst nữa đâu',
+      'nếu mình nhắm vị trí Tester thì sao?',
+      'bạn nghĩ mình có nên nhắm vị trí AI Engineer không?',
+      'bạn mình nhắm vị trí DevOps còn mình thì chưa biết',
+      'mình muốn làm ở HN',
+      'mình muốn làm mai mối cho vui',
+    ]) {
+      expect(extractConversationState([], q).target_role).toBeNull();
+    }
+  });
+
+  it('a duration plan / a past event / a non-time count are NOT deadlines', () => {
+    for (const q of [
+      'mình cần 2 tuần để học Docker',
+      'còn 3 môn nữa là tốt nghiệp',
+      '2 tuần trước mình có phỏng vấn',
+    ]) {
+      expect(extractConversationState([], q).deadline).toBeNull();
+    }
+  });
+
+  it('a BARE reply right after the advisor asked the role IS the role ("chắc là data analyst quá")', () => {
+    const asked = bot('Bạn đang nhắm vị trí nào vậy?');
+    expect(extractConversationState([asked, user('AI Engineer')], 'vậy giờ sao?').target_role).toBe(
+      'AI Engineer',
+    );
+    expect(
+      extractConversationState([asked, user('chắc là data analyst quá')], 'ok').target_role,
+    ).toBe('data analyst');
+    expect(
+      extractConversationState([asked, user('kệ đi, nói tiếp đi')], 'ok').target_role,
+    ).toBeNull();
+  });
+
+  it('asked_role is detected even when the model phrases the ask WITHOUT "vị trí" (nag-loop killer)', () => {
+    const s = extractConversationState(
+      [bot('Bạn nên sửa bullet trước. Bạn đang hướng tới công việc nào vậy?'), user('vậy sửa sao')],
+      'vậy nên sửa gì trước đây',
+    );
+    expect(s.asked_role).toBe(true);
+    expect(askDirective(s, 'advice', 'vậy nên sửa gì trước đây')).not.toBe('role');
+  });
+
+  it('the canned greeting/meta strings in history never set asked_role/asked_deadline', () => {
+    const greet = buildTurnContext(FACTS, [], 'chào bạn', 'vi').canned as string;
+    const meta = buildTurnContext(FACTS, [], 'bạn là ai', 'vi').canned as string;
+    const s = extractConversationState([bot(greet), user('ừ'), bot(meta)], 'nên làm gì trước?');
+    expect(s.asked_role).toBe(false);
+    expect(s.asked_deadline).toBe(false);
+  });
+});
+
+describe('routeIntent — adversarial hardening', () => {
+  it('a meta opener carrying THEIR score is a real question, not canned meta', () => {
+    expect(routeIntent('bạn là ai mà chấm CV mình có 58 điểm vậy', FACTS)).toBe('advice');
+  });
+
+  it('teencode thanks is canned; bare acks and continues are not', () => {
+    expect(routeIntent('cám ơn bot nhìu', FACTS)).toBe('thanks');
+    for (const q of ['ok', 'ừ', 'uk', 'đc', 'vâng', '?', '...']) {
+      expect(routeIntent(q, FACTS)).toBe('advice');
+    }
+  });
+});

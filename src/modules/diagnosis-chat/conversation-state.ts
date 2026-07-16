@@ -70,15 +70,29 @@ const ROLE_PATTERNS: RegExp[] = [
  *  NOTE: JS `\b` is ASCII-only — it never fires after "và"/"nhé"/"ạ" — so the boundary is the
  *  explicit Unicode lookahead. */
 const ROLE_TAIL =
-  /\s+(?:và|với|trong|trước|sau|nhé|nha|nghen|thì|mà|luôn|rồi|nữa|thôi|đã|không|ko|hả|à|ạ|á|vì|nên|hay|hoặc|and|with|in|before|but|or|so)(?![\p{L}\p{N}])[\s\S]*$/iu;
+  /\s+(?:và|với|trong|trước|sau|còn|chứ|nhé|nha|nghen|thì|mà|luôn|rồi|nữa|thôi|đã|không|ko|hả|à|ạ|á|vì|nên|hay|hoặc|and|with|in|before|but|or|so)(?![\p{L}\p{N}])[\s\S]*$/iu;
 
-/** A capture that contains any of these is a question/junk, not a title. */
+/**
+ * The words IMMEDIATELY BEFORE a role pattern that flip its meaning: negation ("mình KHÔNG nhắm X
+ * nữa"), hypothetical/deliberation ("nếu mình nhắm X thì sao?", "có nên nhắm X không?"), someone
+ * else's role ("bạn mình nhắm X"). All were MEASURED shipping a wrong role as Known — the worst
+ * failure this file has, because the prompt tells the model to TRUST the Known lines. Up to two
+ * intervening words so the guard also covers the "vị trí X" sub-pattern ("KHÔNG nhắm vị trí X").
+ * Fail-soft: a false hit costs one missed personalization, never a wrong one.
+ */
+const ROLE_PRE_GUARD =
+  /(?:không|ko|hông|chưa|đừng|nếu|giả\s+sử|lỡ|nên|hay\s+là|bạn\s+(?:mình|em|tôi|tớ)|anh\s+mình|chị\s+mình|em\s+mình|nó)(?:\s+[\p{L}\p{N}]+){0,2}\s*$/iu;
+
+/** A capture containing any of these is a question/place/junk, not a title. Unicode lookarounds,
+ *  not `\b` — `\bgì\b` never matches ("ì" is not ASCII \w, so the boundary does not exist). */
 const ROLE_REJECT =
-  /\b(?:nào|gì|đâu|sao|which|what|where|cv|hồ sơ|resume|bài tập|xong|này|đó|đấy|kia|tuyển dụng|khác)\b/iu;
+  /(?<![\p{L}])(?:nào|gì|đâu|sao|which|what|where|cv|hồ\s*sơ|resume|bài\s*tập|xong|này|đó|đấy|kia|tuyển\s*dụng|khác|ở|tại)(?![\p{L}])/iu;
 
-/** Lowercase titles still accepted when they contain a recognizable role word ("backend dev"). */
+/** Lowercase titles still accepted when they contain a recognizable role word ("backend dev").
+ *  Unicode word boundaries are load-bearing: without them "ai" matched inside "mai"/"dài" and
+ *  shipped "mai mối" as a target role (measured). */
 const ROLE_WORD =
-  /engineer|developer|dev|analyst|designer|tester|qa|qc|data|ai|ml|backend|back-end|frontend|front-end|fullstack|full-stack|devops|mobile|web|game|product|project|business|marketing|sales|scientist|architect|intern|fresher|junior|senior|manager|lead|pm|ba|hr|kế toán|nhân sự|lập trình|kiểm thử|phân tích|thiết kế|tuyển dụng viên/iu;
+  /(?<![\p{L}])(?:engineer|developer|dev|analyst|designer|tester|qa|qc|data|ai|ml|backend|back-end|frontend|front-end|fullstack|full-stack|devops|mobile|web|game|product|project|business|marketing|sales|scientist|architect|intern|fresher|junior|senior|manager|lead|pm|ba|hr|kế\s+toán|nhân\s+sự|lập\s+trình|kiểm\s+thử|phân\s+tích|thiết\s+kế)(?![\p{L}])/iu;
 
 function cleanRole(capture: string): string | null {
   const role = capture.replace(ROLE_TAIL, '').trim().replace(/\s+/g, ' ');
@@ -101,16 +115,57 @@ const DEADLINE_PATTERNS: RegExp[] = [
   /\bin\s+(\d{1,3}\s*(?:weeks?|days?|months?))\b/iu,
 ];
 
-/** Did an assistant turn already ask this? Detected on the SERVED text (what history replays). */
+/** Did an assistant turn already ask this? Detected on the SERVED text (what history replays).
+ *  Wide on purpose — the MODEL phrases the ask ("Bạn đang hướng tới công việc nào vậy?" has
+ *  neither "vị trí" nor "role"); a missed detection here means nagging every turn (measured). */
 const ASKED_ROLE_RE =
-  /(?:vị\s*trí|role|position)[^.!?\n]{0,40}\?|(?:nhắm|ứng\s*tuyển|target)[^.!?\n]{0,40}\?/iu;
+  /(?:vị\s*trí|role|position|công\s+việc|nghề|job|hướng\s+(?:tới|đến)|định\s+hướng|aiming)[^.!?\n]{0,40}\?|(?:nhắm|ứng\s*tuyển|target)[^.!?\n]{0,40}\?/iu;
 const ASKED_DEADLINE_RE =
-  /(?:bao\s+lâu|bao\s+nhiêu\s+(?:tuần|ngày|thời\s+gian)|khi\s+nào\s+nộp|deadline|còn\s+(?:bao\s+nhiêu|nhiều)\s+thời\s+gian|how\s+(?:long|much\s+time))[^.!?\n]{0,40}\?/iu;
+  /(?:bao\s+lâu|bao\s+nhiêu\s+(?:tuần|ngày|thời\s+gian)|khi\s+nào\s+nộp|deadline|hạn\s+nộp|còn\s+(?:bao\s+nhiêu|nhiều)\s+thời\s+gian|how\s+(?:long|much\s+time)|timeline)[^.!?\n]{0,40}\?/iu;
+
+/** Leading fillers / trailing particles around a BARE answer ("chắc là data analyst quá"). */
+const BARE_LEAD =
+  /^(?:dạ|vâng|ừm?|uh|thì|là|chắc(?:\s+là)?|có\s+lẽ(?:\s+là)?|mình\s+(?:nghĩ\s+(?:là\s+)?|định\s+|muốn\s+)?|em\s+|kiểu(?:\s+như)?\s*|maybe|probably|i\s+think)\s+/iu;
+const BARE_TAIL = /(?:\s*(?:quá|á|đó|đấy|nha|nhé|nhỉ|ạ|luôn|chăng|thôi|đi|ha|hen|\.|!|~))+$/iu;
+const BARE_DEADLINE =
+  /^(\d{1,3}\s*(?:tuần|ngày|tháng|weeks?|days?|months?))(?:\s*(?:nữa|thôi|left))?$/iu;
+
+function stripBare(text: string): string {
+  let t = text.trim();
+  for (let i = 0; i < 3; i++) t = t.replace(BARE_LEAD, '');
+  return t.replace(BARE_TAIL, '').trim();
+}
+
+function roleFrom(text: string): string | null {
+  let found: string | null = null;
+  for (const re of ROLE_PATTERNS) {
+    const m = re.exec(text);
+    if (!m || typeof m.index !== 'number') continue;
+    // The 30 chars before the match decide whether it MEANS a target role at all —
+    // "mình KHÔNG nhắm X nữa" / "nếu mình nhắm X" / "bạn mình nhắm X" all shipped a wrong Known.
+    const windowBefore = text.slice(Math.max(0, m.index - 30), m.index);
+    if (ROLE_PRE_GUARD.test(windowBefore)) continue;
+    const role = cleanRole(m[1]);
+    if (role) found = role;
+  }
+  return found;
+}
+
+function deadlineFrom(text: string): string | null {
+  let found: string | null = null;
+  for (const re of DEADLINE_PATTERNS) {
+    const m = text.match(re);
+    if (m) found = m[1].trim().replace(/\s+/g, ' ');
+  }
+  return found;
+}
 
 /**
  * Read the structured state out of the conversation. `history` should be the WIDEST window the
  * caller has (the platform passes more rows than the prompt shows); `question` is this turn's
- * message, which may itself state the role/deadline. Later statements win over earlier ones.
+ * message, which may itself state the role/deadline. One chronological pass: later statements win,
+ * and a short BARE reply right after the advisor's own ask ("Bạn nhắm vị trí nào?" → "AI Engineer")
+ * counts as the answer even though it has no pattern anchor of its own.
  */
 export function extractConversationState(
   history: HistoryMessage[],
@@ -122,23 +177,38 @@ export function extractConversationState(
     asked_role: false,
     asked_deadline: false,
   };
-  const userTexts = [...history.filter((m) => m.role === 'user').map((m) => m.content), question];
-  for (const text of userTexts) {
-    for (const re of ROLE_PATTERNS) {
-      const m = text.match(re);
-      const role = m ? cleanRole(m[1]) : null;
-      if (role) state.target_role = role;
+  let justAskedRole = false;
+  let justAskedDeadline = false;
+
+  const readUserText = (text: string): void => {
+    const role = roleFrom(text);
+    if (role) state.target_role = role;
+    else if (justAskedRole) {
+      const bare = stripBare(text);
+      const bareRole = bare.length <= 40 ? cleanRole(bare) : null;
+      if (bareRole) state.target_role = bareRole;
     }
-    for (const re of DEADLINE_PATTERNS) {
-      const m = text.match(re);
+    const deadline = deadlineFrom(text);
+    if (deadline) state.deadline = deadline;
+    else if (justAskedDeadline) {
+      const m = stripBare(text).match(BARE_DEADLINE);
       if (m) state.deadline = m[1].trim().replace(/\s+/g, ' ');
     }
-  }
+    justAskedRole = false;
+    justAskedDeadline = false;
+  };
+
   for (const m of history) {
-    if (m.role !== 'assistant') continue;
-    if (ASKED_ROLE_RE.test(m.content)) state.asked_role = true;
-    if (ASKED_DEADLINE_RE.test(m.content)) state.asked_deadline = true;
+    if (m.role === 'assistant') {
+      justAskedRole = ASKED_ROLE_RE.test(m.content);
+      justAskedDeadline = ASKED_DEADLINE_RE.test(m.content);
+      if (justAskedRole) state.asked_role = true;
+      if (justAskedDeadline) state.asked_deadline = true;
+    } else {
+      readUserText(m.content);
+    }
   }
+  readUserText(question);
   return state;
 }
 
@@ -153,7 +223,7 @@ const GREETING_RE =
   /^\s*(?:hi+|hello+|hey+|yo|alo+|helo+|hé\s*lô|lô|chào(?:\s+(?:bạn|bot|em|anh|chị|buổi\s+(?:sáng|chiều|tối)))?|xin\s+chào|good\s+(?:morning|afternoon|evening))\s*[!.~^\-_*]*\s*$/iu;
 
 const THANKS_RE =
-  /^\s*(?:cảm\s*ơn|cám\s*ơn|thank(?:s|\s+you)?|tks|thx|bye+|byebye|tạm\s+biệt)(?:\s+(?:bạn|bot|nhiều|nha|nhé|nghen|so\s+much|a\s+lot))*\s*[!.~]*\s*$/iu;
+  /^\s*(?:cảm\s*ơn|cám\s*ơn|thank(?:s|\s+you)?|tks|thx|bye+|byebye|tạm\s+biệt)(?:\s+(?:bạn|bot|nhiều|nhìu|nhiu|nha|nhé|nghen|so\s+much|a\s+lot))*\s*[!.~]*\s*$/iu;
 
 const META_RE =
   /(?:bạn|mày|you)\s*(?:là\s*(?:ai|gì|bot)|làm\s+được\s+(?:những\s+)?gì|giúp\s+được\s+gì|biết\s+làm\s+gì|có\s+thể\s+làm\s+(?:được\s+)?gì)|who\s+are\s+you|what\s+can\s+you\s+do|are\s+you\s+a\s+bot/iu;
@@ -168,7 +238,9 @@ export function routeIntent(question: string, facts: DiagnosisFacts): DiagnosisI
   const q = question.trim();
   if (GREETING_RE.test(q) && !DOMAIN_HINT.test(q)) return 'greeting';
   if (THANKS_RE.test(q) && !DOMAIN_HINT.test(q)) return 'thanks';
-  if (q.length <= 50 && META_RE.test(q)) return 'meta';
+  // The DOMAIN_HINT guard matters here too: "bạn là ai mà chấm CV mình có 58 điểm vậy" is a real
+  // question about THEIR score wearing a meta opener — canned meta copy would dodge it (measured).
+  if (q.length <= 50 && META_RE.test(q) && !DOMAIN_HINT.test(q)) return 'meta';
   if (RECALL_RE.test(q)) return 'recall';
   if (COMPARE_JD_RE.test(q) && (facts.other_matches?.length ?? 0) > 0) return 'compare_jd';
   return 'advice';
@@ -196,7 +268,7 @@ const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: string }>
 /** Questions where knowing the role/timeline would actually CHANGE the advice. A definitional
  *  question ("điểm ATS nghĩa là gì?") gets no ask — asking there is noise, not care. */
 const ADVICE_SEEKING =
-  /nên|làm\s+gì|bắt\s+đầu|cải\s+thiện|sửa|ưu\s+tiên|học\s+(?:gì|cái\s+gì|thêm)|trước\s+tiên|tiếp\s+theo|lộ\s+trình|kế\s+hoạch|what\s+should|how\s+(?:do|can)\s+i|improve|fix|prioritize|where\s+(?:do|should)\s+i\s+start/iu;
+  /nên|làm\s+(?:gì|sao)|bắt\s+đầu|cải\s+thiện|sửa|ưu\s+tiên|học\s+(?:gì|cái\s+gì|thêm)|trước\s+tiên|tiếp\s+theo|lộ\s+trình|kế\s+hoạch|hướng\s+dẫn|giúp\s+(?:mình|em|tớ)\s+với|what\s+should|how\s+(?:do|can)\s+i|improve|fix|prioritize|where\s+(?:do|should)\s+i\s+start|help\s+me/iu;
 
 export function askDirective(
   state: DiagnosisConversationState,
