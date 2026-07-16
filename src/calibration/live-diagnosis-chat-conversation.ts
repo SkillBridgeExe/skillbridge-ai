@@ -28,7 +28,7 @@ import {
   allowedNumberTokens,
   ungroundedNumbers,
   unverifiableClaim,
-  factsNormText,
+  statProvenance,
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
@@ -281,7 +281,7 @@ async function main(): Promise<void> {
       const killed = served !== modelMsg;
       const killReason = !killed
         ? ''
-        : (unverifiableClaim(modelMsg, factsNormText(facts)) ??
+        : (unverifiableClaim(modelMsg, statProvenance(facts)) ??
           (ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).length
             ? `số ngoài FACTS: ${ungroundedNumbers(modelMsg, allowedNumberTokens(facts, conversation)).join(', ')}`
             : 'model trả về rỗng / parse lỗi'));

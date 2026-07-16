@@ -21,6 +21,8 @@ import { CvReviewParsedResponse } from '../modules/cv-review/dto/cv-review-respo
 import { SkillBridgeGapReport } from '../modules/gap-report/gap-report.service';
 import { GapItem } from '../modules/gap-engine/gap-item';
 import {
+  unverifiableClaim,
+  statProvenance,
   buildDiagnosisFacts,
   groundDiagnosis,
   allowedNumberTokens,
@@ -222,7 +224,8 @@ async function main(): Promise<void> {
       modelMsg = `<<LLM ERROR: ${(err as Error).message}>>`;
     }
 
-    const result = groundDiagnosis(parsed, facts, 'vi');
+    // Mirror the service call shape (it always threads the conversation; single-turn = question).
+    const result = groundDiagnosis(parsed, facts, 'vi', c.q);
     const served = result.answer;
     const bucket =
       served.startsWith('Mình chưa đủ dữ kiện') || served.startsWith('Mình chưa có đủ dữ liệu')
@@ -231,7 +234,7 @@ async function main(): Promise<void> {
             served.startsWith('Gap đã xác minh:') ||
             served.startsWith('JD match gần đây:') ||
             served.startsWith('Đã kiểm tra GitHub:')
-          ? 'TEMPLATE (Gate B giết prose)'
+          ? `TEMPLATE (${unverifiableClaim(modelMsg, statProvenance(facts)) ?? 'số ngoài FACTS'} giết prose)`
           : 'PROSE ✅ (model tự viết → tới tay user)';
 
     rows.push({ q: c.q, note: c.note, bucket, modelMsg, served, bad: offenders(modelMsg) });
