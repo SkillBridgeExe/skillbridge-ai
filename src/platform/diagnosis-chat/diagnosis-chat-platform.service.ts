@@ -9,7 +9,10 @@ import {
   buildDiagnosisFacts,
   DiagnosisChatResult,
   DiagnosisFacts,
+  DiagnosisKnownState,
+  GroundedFact,
 } from '../../modules/diagnosis-chat/diagnosis-grounding';
+import { extractConversationState } from '../../modules/diagnosis-chat/conversation-state';
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.service';
@@ -36,10 +39,19 @@ export interface DiagnosisChatTurnResponse {
   cited_match?: { match_id: string; cv_id: string; jd_title: string | null };
   /** Tool-call citation forwarded verbatim from grounding (M1 fix — was previously dropped here). */
   cited_tool?: string;
+  /** Provenance behind the answer (Wave 2 "visible trust") — optional on the wire so older
+   *  clients ignore it; absent when the turn advertised nothing. other_match ids are the REAL
+   *  match_id (swapped from grounding's 1-based index here, same as cited_match). */
+  grounded_facts?: GroundedFact[];
+  /** Deterministic memory mirror — what the dolphin currently knows, verbatim. */
+  known_state?: DiagnosisKnownState;
 }
 
 export interface DiagnosisChatThreadResponse {
   turns: Array<{ role: 'user' | 'assistant'; text: string; ts: string }>;
+  /** Rebuilt from the SAME persisted rows the turns come from — deterministic, so the FE memory
+   *  card is correct on restore. covered_gaps stays [] here: no facts are loaded on this path. */
+  known_state?: DiagnosisKnownState;
 }
 
 /**
@@ -88,12 +100,25 @@ export class DiagnosisChatPlatformService {
       order: { createdAt: 'ASC' },
     });
 
+    const windowRows = rows.slice(-40);
+    // Deterministic mirror on restore: the SAME extractor the live turn uses, over the SAME
+    // window — question is '' because there is no current turn. covered_gaps needs facts,
+    // which this path never loads → honestly empty rather than a stale guess.
+    const state = extractConversationState(
+      windowRows.map((message) => ({ role: message.role, content: message.content })),
+      '',
+    );
     return {
-      turns: rows.slice(-40).map((message) => ({
+      turns: windowRows.map((message) => ({
         role: message.role,
         text: message.content,
         ts: message.createdAt.toISOString(),
       })),
+      known_state: {
+        target_role: state.target_role,
+        deadline: state.deadline,
+        covered_gaps: [],
+      },
     };
   }
 
@@ -328,6 +353,20 @@ export class DiagnosisChatPlatformService {
       }
     }
     if (answer.cited_tool) out.cited_tool = answer.cited_tool;
+    // Optional-chained: older DiagnosisChatResult mocks (and any defensive path) may omit the
+    // field — the wire must degrade to "no provenance", never throw.
+    if (answer.grounded_facts?.length) {
+      const facts = answer.grounded_facts.flatMap((f): GroundedFact[] => {
+        if (f.kind !== 'other_match') return [f];
+        // Same swap cited_match does: grounding only knows the 1-based index; the real
+        // deep-linkable id lives in the summaries kept in scope here. No summary → DROP the
+        // fact — a raw index must never ship as an id.
+        const match = otherMatches[Number(f.id) - 1];
+        return match ? [{ ...f, id: match.match_id, label: match.jd_title ?? f.label }] : [];
+      });
+      if (facts.length) out.grounded_facts = facts;
+    }
+    if (answer.known_state) out.known_state = answer.known_state;
     return out;
   }
 }
