@@ -206,6 +206,17 @@ export function extractConversationState(
       justAskedDeadline = false;
       return;
     }
+    // TANGLED forget attempt (strict parse DECLINED — verb mid-sentence, mixed payload,
+    // too long): skip extraction entirely, fail toward "don't capture". Running roleFrom
+    // over "quên vị trí Data Analyst và sửa CV giúp mình với" re-asserted the exact role
+    // the user tried to erase as newly-Known (probe-confirmed 2026-07-18) — a WRONG Known
+    // is this file's one forbidden failure; a missed capture costs one personalization.
+    // "đừng/chớ quên ..." is the opposite speech act (= remember) and stays capturable.
+    if (LOOSE_FORGET_VERB_RE.test(text) && MEMORY_FIELD_RE.test(text)) {
+      justAskedRole = false;
+      justAskedDeadline = false;
+      return;
+    }
     const role = roleFrom(text);
     if (role) state.target_role = role;
     else if (justAskedRole) {
@@ -271,6 +282,15 @@ const WHAT_YOU_KNOW_RE =
  *  from the message, so "nhớ kỹ là JD này cần Docker nhé" (nothing capturable) reaches the LLM. */
 const REMEMBER_RE =
   /^\s*(?:nhớ|ghi\s+nhớ|ghi\s+lại|lưu\s+lại|remember)\s+(?:giùm|dùm|giúp|hộ|cho)?\s*(?:mình|tôi|tớ|em|me)?\s*(?:là|rằng|that)?\s*[:,]?/iu;
+
+/** LOOSE forget detection — EXTRACTOR-only safety net behind parseForgetCommand. Any forget-ish
+ *  verb ("đừng/chớ quên" excluded — that's a remember) paired with a memory-field word means the
+ *  sentence is ABOUT erasing memory: never capture a field out of it, even when the strict parse
+ *  declined to execute it. See the probe-pinned tests ("TANGLED forget"). */
+const LOOSE_FORGET_VERB_RE =
+  /(?:(?<!đừng\s)(?<!chớ\s)(?:quên|xóa|xoá|bỏ|forget|clear)|đừng\s+nhớ)(?![\p{L}])/iu;
+const MEMORY_FIELD_RE =
+  /(?:mục\s*tiêu|vị\s*trí|role|định\s*hướng|target|deadline|thời\s*hạn|hạn\s*(?:nộp|chót)|thời\s*gian)/iu;
 
 /** "quên deadline đi" → which fields to drop; null = not a clean forget command (falls to LLM).
  *  Shared by routeIntent AND the extractor's nullifier so the router can never disagree with

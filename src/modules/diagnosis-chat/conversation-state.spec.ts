@@ -194,6 +194,38 @@ describe('memory verbs — what_you_know / forget / remember (Wave 2, code-route
     expect(s.deadline).toBeNull();
   });
 
+  it('a TANGLED forget attempt never re-captures the field it tried to erase (probe 2026-07-18)', () => {
+    // parseForgetCommand DECLINES these (mixed payload / verb mid-sentence) — the extractor
+    // must fail toward "don't capture": asserting the forgotten value as newly-Known is the
+    // one forbidden failure (it rides into the prompt's trust-it block AND known_state).
+    expect(
+      extractConversationState([], 'quên vị trí Data Analyst và sửa CV giúp mình với').target_role,
+    ).toBeNull();
+    expect(
+      extractConversationState([], 'bạn giúp mình quên vị trí Data Analyst đi nha').target_role,
+    ).toBeNull();
+    expect(
+      extractConversationState([], 'bạn giúp mình quên cái deadline 3 ngày kia đi').deadline,
+    ).toBeNull();
+  });
+
+  it('a tangled forget is DECLINED (old value kept), and a clean forget afterwards still works', () => {
+    const history = [
+      user('Mình nhắm vị trí AI Engineer nhé'),
+      user('quên vị trí Data Analyst và sửa CV giúp mình với'),
+    ];
+    expect(extractConversationState(history, 'giờ sao?').target_role).toBe('AI Engineer');
+    expect(
+      extractConversationState([...history, user('quên vị trí đi')], 'giờ sao?').target_role,
+    ).toBeNull();
+  });
+
+  it('"đừng quên ..." is the OPPOSITE speech act (remember) — capture still works', () => {
+    expect(
+      extractConversationState([], 'đừng quên là mình nhắm vị trí Data Analyst nhé').target_role,
+    ).toBe('Data Analyst');
+  });
+
   it('a LATER statement after a forget wins again (later-wins is preserved)', () => {
     const history = [
       user('mình định nhắm Data Analyst'),
