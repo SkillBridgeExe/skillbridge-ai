@@ -98,6 +98,17 @@ export interface DiagnosisFacts {
   tool_results?: Record<string, unknown>;
 }
 
+/** One provenance entry behind a served answer — built ONLY from what the gate already resolved
+ *  (citations) or licensed (candidate-said numbers). Never model-emitted, never guessed post-hoc:
+ *  the FE renders these as "Dựa trên N dữ kiện" chips, so an entry here is a claim of verification. */
+export interface GroundedFact {
+  kind: 'dimension' | 'gap' | 'other_match' | 'tool' | 'conversation';
+  /** dimension key | gap requirement_id | 1-based other_match index (platform swaps in the real
+   *  match_id) | tool name | the number token itself for kind 'conversation'. */
+  id: string;
+  label: string;
+}
+
 export interface DiagnosisChatResult {
   answer: string;
   /** Gate verdict, exposed for the FE mascot pose. 'grounded' = prose passed both gates
@@ -114,6 +125,9 @@ export interface DiagnosisChatResult {
   /** Validated tool name (e.g. 'github.enrich') — present ONLY when it matched a real facts.tool_results
    *  key. Forwarded verbatim to the wire so the FE can render its tool-citation chip. */
   cited_tool?: string;
+  /** Provenance behind THIS answer (Wave 2 "visible trust"). Empty on refusal/canned/fallback —
+   *  a turn that makes no claims owes no sources (honest-empty; the FE hides the row at N=0). */
+  grounded_facts: GroundedFact[];
   suggested_next_step?: string | null;
   trace?: {
     promptTokens: number;
@@ -403,6 +417,9 @@ function buildRefusal(
     ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
     ...(otherMatch ? { cited_other_match_index: otherMatch.index1 } : {}),
     ...(toolResult ? { cited_tool: toolResult.toolName } : {}),
+    // A refusal declines to claim — citations stay as scroll targets, but there is no
+    // provenance to advertise. "Dựa trên N dữ kiện" over a refusal would be a lie.
+    grounded_facts: [],
     suggested_next_step:
       gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null,
   };
@@ -520,7 +537,7 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
       ? "I don't have enough diagnosis data to answer specifically yet — please re-run your CV diagnosis and ask again."
       : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
   }
-  return { answer: stripRawUrls(answer), answer_kind: 'grounded' };
+  return { answer: stripRawUrls(answer), answer_kind: 'grounded', grounded_facts: [] };
 }
 
 // ── Advisor v2 number gate — the deterministic wall between "the model phrased verified facts"
@@ -1054,6 +1071,20 @@ export function groundDiagnosis(
     // template uses: the cited gap's next action, else the top prioritized action.
     const verifiedSuggestion =
       gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null;
+    // Provenance = exactly the citations the gate resolved above, in citation order. Invalid
+    // citations were already stripped, so a fact here is one the FE may honestly advertise.
+    const groundedFacts: GroundedFact[] = [];
+    if (dimension)
+      groundedFacts.push({ kind: 'dimension', id: dimension.key, label: dimension.key });
+    if (gap) groundedFacts.push({ kind: 'gap', id: gap.requirement_id, label: gap.display_name });
+    if (otherMatch)
+      groundedFacts.push({
+        kind: 'other_match',
+        id: String(otherIndex + 1),
+        label: otherMatch.jd_title ?? '',
+      });
+    if (toolResult)
+      groundedFacts.push({ kind: 'tool', id: toolResult.toolName, label: toolResult.toolName });
     return {
       answer: modelMessage,
       answer_kind: 'grounded',
@@ -1061,6 +1092,7 @@ export function groundDiagnosis(
       ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
       ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
       ...(toolResult ? { cited_tool: citedTool as string } : {}),
+      grounded_facts: groundedFacts,
       suggested_next_step: suggestionOk ? stripRawUrls(rawSuggestion) : verifiedSuggestion,
     };
   }

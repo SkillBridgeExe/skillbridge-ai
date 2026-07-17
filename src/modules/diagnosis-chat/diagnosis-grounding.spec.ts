@@ -1369,3 +1369,74 @@ describe('answer_kind — the pose signal for the FE mascot (Wave 1)', () => {
     expect(groundDiagnosis({ message: '   ' }, facts).answer_kind).toBe('grounded');
   });
 });
+
+describe('grounded_facts — provenance is exact by construction (Wave 2)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('a served answer lists exactly the citations the gate resolved', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker đang là gap ưu tiên của bạn.',
+        cited_dimension: 'action_verbs',
+        cited_gap_id: 'jd:hard_skill:docker',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([
+      { kind: 'dimension', id: 'action_verbs', label: 'action_verbs' },
+      { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+    ]);
+  });
+
+  it('other_match and tool citations become facts (1-based index / tool name as id)', () => {
+    const factsWith: DiagnosisFacts = {
+      ...buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]), null, [
+        { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] },
+        { jd_title: 'Backend Developer', overall_score: 55, top_gaps: ['Docker'] },
+      ]),
+      tool_results: {
+        'github.enrich': { untrusted_data: { exists: true, public_repos: [] } },
+      },
+    };
+    const result = groundDiagnosis(
+      {
+        message: 'JD Backend Developer đang ở 55, GitHub của bạn có hoạt động thật.',
+        cited_other_match_index: 2,
+        cited_tool: 'github.enrich',
+      },
+      factsWith,
+    );
+    expect(result.grounded_facts).toEqual([
+      { kind: 'other_match', id: '2', label: 'Backend Developer' },
+      { kind: 'tool', id: 'github.enrich', label: 'github.enrich' },
+    ]);
+  });
+
+  it('an INVALID citation produces no fact (stripped citations stay stripped)', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Bạn nên vá Docker trước.',
+        cited_dimension: 'not_a_dimension',
+        cited_gap_id: 'jd:soft_skill:nope',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('a refusal claims nothing → empty grounded_facts, while citations survive as scroll targets', () => {
+    const result = groundDiagnosis(
+      { message: 'Điểm ATS của bạn là 98.', cited_gap_id: 'jd:hard_skill:docker' },
+      facts,
+    );
+    expect(result.answer_kind).toBe('refusal');
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('the deterministic fallback carries empty grounded_facts', () => {
+    expect(groundDiagnosis(null, facts).grounded_facts).toEqual([]);
+  });
+});
