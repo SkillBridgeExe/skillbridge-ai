@@ -947,11 +947,19 @@ export function allowedNumberTokens(facts: DiagnosisFacts, conversation?: string
   if (conversation) {
     // Fold the conversation the same way the served text is folded, so "２ tuần" the user
     // typed licenses "2" the advisor repeats back — the two sides must agree on glyph form.
-    for (const token of conversation.normalize('NFKC').match(/\d+(?:[.,]\d+)?/g) ?? []) {
-      allowed.add(token.replace(',', '.'));
+    for (const token of numberTokensIn(conversation)) {
+      allowed.add(token);
     }
   }
   return allowed;
+}
+
+/** The ONE tokenizer every licensing side shares: NFKC-fold, then each /\d+(?:[.,]\d+)?/ run with
+ *  ',' folded to '.' — the exact law ungroundedNumbers scans with. Exported so the served-answer
+ *  provenance scan (grounded_facts kind 'conversation') can never drift from the gate itself. */
+export function numberTokensIn(text: string): string[] {
+  const norm = text.normalize('NFKC');
+  return (norm.match(/\d+(?:[.,]\d+)?/g) ?? []).map((t) => t.replace(',', '.'));
 }
 
 /** Every number in `text` that FACTS (+ what the candidate said) cannot account for. Exported so the
@@ -1085,6 +1093,21 @@ export function groundDiagnosis(
       });
     if (toolResult)
       groundedFacts.push({ kind: 'tool', id: toolResult.toolName, label: toolResult.toolName });
+    // Kind 'conversation': a served number FACTS cannot back but the candidate's own speech
+    // licensed — surfaced as "bạn đã nói", never as verification. Scanned on the SAME message
+    // the gates saw (ensureAskBack appends after, outside this function), with the SAME
+    // tokenizer the gate uses. Register-exempt numbers ("1-2 bullet") are in neither set and
+    // are deliberately NOT advertised: an exemption is not provenance.
+    if (candidateSaid) {
+      const factsOnly = allowedNumberTokens(facts);
+      const candidateTokens = new Set(numberTokensIn(candidateSaid));
+      const advertised = new Set<string>();
+      for (const token of numberTokensIn(modelMessage)) {
+        if (factsOnly.has(token) || !candidateTokens.has(token) || advertised.has(token)) continue;
+        advertised.add(token);
+        groundedFacts.push({ kind: 'conversation', id: token, label: token });
+      }
+    }
     return {
       answer: modelMessage,
       answer_kind: 'grounded',
