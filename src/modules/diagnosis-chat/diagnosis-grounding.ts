@@ -100,6 +100,11 @@ export interface DiagnosisFacts {
 
 export interface DiagnosisChatResult {
   answer: string;
+  /** Gate verdict, exposed for the FE mascot pose. 'grounded' = prose passed both gates
+   *  (or the deterministic fallback — FACTS-built, the dolphin has nothing to apologize for);
+   *  'refusal' = a gate replaced the prose; 'canned' = code-authored greeting/thanks/meta
+   *  (set by the service — grounding never sees those turns). */
+  answer_kind: 'grounded' | 'refusal' | 'canned';
   cited_dimension?: DiagnosisDimensionKey;
   cited_gap_id?: string;
   /** Validated 1-based index into facts.other_matches (mirrors the LLM's cited_other_match_index) —
@@ -390,6 +395,7 @@ function buildRefusal(
 
   return {
     answer: stripRawUrls(parts.join(' ')),
+    answer_kind: 'refusal',
     ...(dimension ? { cited_dimension: dimension.key } : {}),
     ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
     ...(otherMatch ? { cited_other_match_index: otherMatch.index1 } : {}),
@@ -511,7 +517,7 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
       ? "I don't have enough diagnosis data to answer specifically yet — please re-run your CV diagnosis and ask again."
       : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
   }
-  return { answer: stripRawUrls(answer) };
+  return { answer: stripRawUrls(answer), answer_kind: 'grounded' };
 }
 
 // ── Advisor v2 number gate — the deterministic wall between "the model phrased verified facts"
@@ -1047,6 +1053,7 @@ export function groundDiagnosis(
       gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null;
     return {
       answer: modelMessage,
+      answer_kind: 'grounded',
       ...(dimension ? { cited_dimension: dimension.key } : {}),
       ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
       ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),

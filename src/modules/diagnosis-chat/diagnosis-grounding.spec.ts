@@ -1359,3 +1359,17 @@ describe('isBenignQuantity — advice-register buys measured on the 07-16 live r
     }
   });
 });
+
+describe('answer_kind — the pose signal for the FE mascot (Wave 1)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('served prose → grounded; gate kill → refusal; deterministic fallback → grounded', () => {
+    const served = groundDiagnosis({ message: 'Bạn nên sửa bullet đầu tiên cho có số liệu.' }, facts);
+    expect(served.answer_kind).toBe('grounded');
+    const killed = groundDiagnosis({ message: 'Điểm ATS của bạn là 98.' }, facts);
+    expect(killed.answer_kind).toBe('refusal');
+    // The fallback is FACTS-built prose — the dolphin has nothing to apologize for.
+    expect(groundDiagnosis(null, facts).answer_kind).toBe('grounded');
+    expect(groundDiagnosis({ message: '   ' }, facts).answer_kind).toBe('grounded');
+  });
+});
