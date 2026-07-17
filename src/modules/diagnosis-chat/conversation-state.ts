@@ -389,6 +389,14 @@ export function buildTurnContext(
     directives.push(
       'Weave the Known lines into the advice where they matter (their role shapes WHICH gap first; their deadline shapes HOW MUCH to attempt). Never ask for what is already Known.',
     );
+    // Wave 1 (the Duolingo List-of-Facts lesson): remembered state the user never SEES being
+    // remembered buys no trust. On advice turns, order the model to SHOW the memory — the facts
+    // are code-extracted, so speaking them back carries zero fabrication risk.
+    if (intent === 'advice') {
+      directives.push(
+        'When the advice depends on it, OPEN by naturally weaving in what they told you (their goal/deadline) in one clause — demonstrate the memory, never re-ask for it.',
+      );
+    }
   }
   if (directives.length) lines.push('Directive:', ...directives.map((d) => `- ${d}`));
 
