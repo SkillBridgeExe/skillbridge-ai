@@ -36,7 +36,7 @@ import {
   DiagnosisFacts,
   REFUSAL_COPY,
 } from './diagnosis-grounding';
-import { ensureAskBack, CANNED } from './conversation-state';
+import { buildTurnContext, ensureAskBack, CANNED } from './conversation-state';
 
 // ── FACTS fixture — same shape and numbers as the live harness, so measured verdicts
 //    there translate 1:1 into expectations here. ──
@@ -679,6 +679,37 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
     for (const [intent, pair] of Object.entries(CANNED)) {
       expectInvariants(pair.vi, '', `canned ${intent} vi`);
       expectInvariants(pair.en, '', `canned ${intent} en`);
+    }
+  });
+
+  // Wave 2 COMPOSED canned (memory verbs): built through the REAL buildTurnContext, never a
+  // mirror. Digits may appear ONLY as state values the candidate said — so the invariants run
+  // with the very utterances that created the state as the licensing conversation.
+  it('composed memory-verb echoes, both languages, hold both invariants', () => {
+    const saidRole = 'Mình nhắm vị trí Data Analyst nhé';
+    const saidDeadline = 'mình còn đúng 2 tuần nữa';
+    const history = [
+      { role: 'user' as const, content: saidRole },
+      { role: 'user' as const, content: saidDeadline },
+    ];
+    const conversation = `${saidRole}\n${saidDeadline}`;
+    const cases: Array<[string, string]> = [];
+    for (const lang of ['vi', 'en'] as const) {
+      const mirror = buildTurnContext(
+        facts,
+        history,
+        lang === 'vi' ? 'bạn nhớ gì về mình?' : 'what do you know about me?',
+        lang,
+      );
+      cases.push([`what_you_know ${lang}`, mirror.canned as string]);
+      const forget = buildTurnContext(facts, history, 'quên thời hạn đi', lang);
+      cases.push([`forget ${lang}`, forget.canned as string]);
+      const remember = buildTurnContext(facts, [], 'nhớ giùm mình: mình chỉ còn 3 ngày nữa', lang);
+      cases.push([`remember ${lang}`, remember.canned as string]);
+    }
+    for (const [label, text] of cases) {
+      expect(text).toBeTruthy();
+      expectInvariants(text, `${conversation}\nnhớ giùm mình: mình chỉ còn 3 ngày nữa`, label);
     }
   });
 

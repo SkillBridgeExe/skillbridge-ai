@@ -379,6 +379,85 @@ describe('DiagnosisChatPlatformService.turnCvOnly — CV-only route (no JD match
   });
 });
 
+describe('DiagnosisChatPlatformService — visible trust wire (Wave 2)', () => {
+  it('grounded_facts ride the wire; an other_match index is swapped for the real match_id', async () => {
+    const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
+      {
+        match_id: 'match-other-1',
+        cv_id: 'cv-other-1',
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ]);
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [
+        { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+        { kind: 'other_match', id: '1', label: 'Frontend Developer' },
+      ],
+    });
+    const { service } = makeService({ listRecentMatchSummariesForUser, turn });
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.grounded_facts).toEqual([
+      { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+      { kind: 'other_match', id: 'match-other-1', label: 'Frontend Developer' },
+    ]);
+  });
+
+  it('an other_match fact with no matching summary is DROPPED — never served with a raw index id', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [{ kind: 'other_match', id: '3', label: 'Gone JD' }],
+    });
+    const { service } = makeService({ turn }); // no summaries (CV-only style)
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.grounded_facts).toBeUndefined();
+  });
+
+  it('known_state rides the wire verbatim', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [],
+      known_state: { target_role: 'Data Analyst', deadline: '2 tuần', covered_gaps: ['Docker'] },
+    });
+    const { service } = makeService({ turn });
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.known_state).toEqual({
+      target_role: 'Data Analyst',
+      deadline: '2 tuần',
+      covered_gaps: ['Docker'],
+    });
+  });
+
+  it('getThread rebuilds known_state from the persisted rows (covered_gaps empty — no facts at restore)', async () => {
+    const rows = [
+      {
+        role: 'user',
+        content: 'Mình nhắm vị trí AI Engineer nhé',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Ghi nhận nhé.',
+        createdAt: new Date('2026-01-01T00:01:00.000Z'),
+      },
+    ];
+    const messagesFind = jest.fn().mockResolvedValue(rows);
+    const { service } = makeService({ messagesFind });
+    const result = await service.getThread(USER_ID, MATCH_ID);
+    expect(result.known_state).toEqual({
+      target_role: 'AI Engineer',
+      deadline: null,
+      covered_gaps: [],
+    });
+  });
+});
+
 describe('DiagnosisChatPlatformService thread endpoints (MB1)', () => {
   it('returns persisted turns ASC for owned conversation', async () => {
     const rows = Array.from({ length: 42 }, (_, i) => ({

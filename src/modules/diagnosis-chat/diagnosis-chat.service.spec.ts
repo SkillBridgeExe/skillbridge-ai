@@ -227,6 +227,64 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
   });
 });
 
+describe('DiagnosisChatService.turn — known_state mirror (Wave 2)', () => {
+  const HISTORY = [
+    { role: 'user' as const, content: 'Mình nhắm vị trí Data Analyst nhé' },
+    { role: 'user' as const, content: 'mình còn đúng 2 tuần nữa' },
+    { role: 'assistant' as const, content: 'Docker đang là gap ưu tiên của bạn.' },
+  ];
+  const llmOk = () =>
+    jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+
+  it('a grounded turn mirrors the deterministic state back — role, deadline, covered gaps', async () => {
+    const service = makeService(llmOk());
+    const result = await service.turn({
+      question: 'giờ nên làm gì?',
+      facts: FACTS,
+      history: HISTORY,
+    });
+    expect(result.known_state).toEqual({
+      target_role: 'Data Analyst',
+      deadline: '2 tuần nữa',
+      covered_gaps: ['Docker'],
+    });
+  });
+
+  it('a canned turn carries the same mirror (and empty grounded_facts)', async () => {
+    const complete = jest.fn();
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn', facts: FACTS, history: HISTORY });
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.answer_kind).toBe('canned');
+    expect(result.grounded_facts).toEqual([]);
+    expect(result.known_state?.target_role).toBe('Data Analyst');
+  });
+
+  it('the LLM-failure fallback still mirrors state — the FE card never blanks on a bad turn', async () => {
+    const complete = jest.fn().mockRejectedValue(new Error('LLM down'));
+    const service = makeService(complete);
+    const result = await service.turn({
+      question: 'giờ nên làm gì?',
+      facts: FACTS,
+      history: HISTORY,
+    });
+    expect(result.known_state?.target_role).toBe('Data Analyst');
+    expect(result.known_state?.deadline).toBe('2 tuần nữa');
+  });
+
+  it('nothing known → nulls and empty list, never a missing field', async () => {
+    const service = makeService(llmOk());
+    const result = await service.turn({ question: 'giờ nên làm gì?', facts: FACTS });
+    expect(result.known_state).toEqual({ target_role: null, deadline: null, covered_gaps: [] });
+  });
+});
+
 describe('DiagnosisChatService.turn — tool loop', () => {
   it('when userId is present and the decision call proposes github.enrich, merges tool facts before the final call', async () => {
     const complete = jest

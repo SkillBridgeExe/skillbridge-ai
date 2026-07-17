@@ -38,12 +38,22 @@ export interface DiagnosisConversationState {
   asked_deadline: boolean;
 }
 
-export type DiagnosisIntent = 'greeting' | 'thanks' | 'meta' | 'recall' | 'compare_jd' | 'advice';
+export type DiagnosisIntent =
+  | 'greeting'
+  | 'thanks'
+  | 'meta'
+  | 'recall'
+  | 'compare_jd'
+  | 'what_you_know'
+  | 'forget'
+  | 'remember'
+  | 'advice';
 
 export interface DiagnosisTurnContext {
   state: DiagnosisConversationState;
   intent: DiagnosisIntent;
-  /** Non-null → serve this verbatim and skip the LLM entirely (greeting/thanks/meta). */
+  /** Non-null → serve this verbatim and skip the LLM entirely (greeting/thanks/meta static copy,
+   *  plus the COMPOSED memory-verb echoes — code-built from state, so still zero fabrication). */
   canned: string | null;
   /** Rendered into the prompt's context injection point; never empty (stable placeholder). */
   contextBlock: string;
@@ -184,6 +194,29 @@ export function extractConversationState(
   let justAskedDeadline = false;
 
   const readUserText = (text: string): void => {
+    // Wave 2 FORGET: nullify BEFORE extraction and stop — "quên vị trí AI Engineer đi" must not
+    // re-capture the role from the forget sentence itself. The marker persists in history, so
+    // this branch re-nullifies on every future re-scan: forgetting is durable by construction
+    // (and later-wins still holds — a NEW statement after the marker sets the field again).
+    const forget = parseForgetCommand(text);
+    if (forget) {
+      if (forget.role) state.target_role = null;
+      if (forget.deadline) state.deadline = null;
+      justAskedRole = false;
+      justAskedDeadline = false;
+      return;
+    }
+    // TANGLED forget attempt (strict parse DECLINED — verb mid-sentence, mixed payload,
+    // too long): skip extraction entirely, fail toward "don't capture". Running roleFrom
+    // over "quên vị trí Data Analyst và sửa CV giúp mình với" re-asserted the exact role
+    // the user tried to erase as newly-Known (probe-confirmed 2026-07-18) — a WRONG Known
+    // is this file's one forbidden failure; a missed capture costs one personalization.
+    // "đừng/chớ quên ..." is the opposite speech act (= remember) and stays capturable.
+    if (LOOSE_FORGET_VERB_RE.test(text) && MEMORY_FIELD_RE.test(text)) {
+      justAskedRole = false;
+      justAskedDeadline = false;
+      return;
+    }
     const role = roleFrom(text);
     if (role) state.target_role = role;
     else if (justAskedRole) {
@@ -237,6 +270,45 @@ const RECALL_RE =
 const COMPARE_JD_RE =
   /so\s+sánh[^\n]{0,40}(?:jd|match|vị\s*trí|job)|(?:jd|match|job)[^\n]{0,30}(?:nào|which)|(?:hợp|phù\s+hợp)[^\n]{0,20}(?:jd|vị\s*trí|job)\s+nào|which\s+(?:jd|job|match)/iu;
 
+// ── Wave 2 memory verbs (code-routed mirror/forget/remember — same misroute discipline) ─────────
+
+/** The whole message must BE the mirror request — "bạn biết gì về ngành data?" fails the
+ *  về-(mình|tôi|…) tail and falls through to the LLM. Checked BEFORE recall: RECALL_RE's
+ *  "bạn nhớ" branch would otherwise swallow it. */
+const WHAT_YOU_KNOW_RE =
+  /^\s*(?:bạn|cậu|mày|em)?\s*(?:đang|còn)?\s*(?:nhớ|biết)\s+(?:được\s+)?(?:những\s+)?gì(?:\s+về\s+(?:mình|tôi|tớ|em|me))?\s*(?:không|ko|k|nào|vậy|thế|đó|nhỉ)?\s*\??\s*$|^\s*what\s+do\s+you\s+(?:know|remember)\s+about\s+me\s*\??\s*$/iu;
+
+/** Prefix only — the router additionally requires roleFrom/deadlineFrom to CAPTURE something
+ *  from the message, so "nhớ kỹ là JD này cần Docker nhé" (nothing capturable) reaches the LLM. */
+const REMEMBER_RE =
+  /^\s*(?:nhớ|ghi\s+nhớ|ghi\s+lại|lưu\s+lại|remember)\s+(?:giùm|dùm|giúp|hộ|cho)?\s*(?:mình|tôi|tớ|em|me)?\s*(?:là|rằng|that)?\s*[:,]?/iu;
+
+/** LOOSE forget detection — EXTRACTOR-only safety net behind parseForgetCommand. Any forget-ish
+ *  verb ("đừng/chớ quên" excluded — that's a remember) paired with a memory-field word means the
+ *  sentence is ABOUT erasing memory: never capture a field out of it, even when the strict parse
+ *  declined to execute it. See the probe-pinned tests ("TANGLED forget"). */
+const LOOSE_FORGET_VERB_RE =
+  /(?:(?<!đừng\s)(?<!chớ\s)(?:quên|xóa|xoá|bỏ|forget|clear)|đừng\s+nhớ)(?![\p{L}])/iu;
+const MEMORY_FIELD_RE =
+  /(?:mục\s*tiêu|vị\s*trí|role|định\s*hướng|target|deadline|thời\s*hạn|hạn\s*(?:nộp|chót)|thời\s*gian)/iu;
+
+/** "quên deadline đi" → which fields to drop; null = not a clean forget command (falls to LLM).
+ *  Shared by routeIntent AND the extractor's nullifier so the router can never disagree with
+ *  what actually gets forgotten. */
+function parseForgetCommand(text: string): { role: boolean; deadline: boolean } | null {
+  const t = text.trim();
+  if (t.length > 80) return null;
+  if (!/^\s*(?:bạn\s+|cậu\s+)?(?:quên|xóa|xoá|bỏ|đừng\s+nhớ|forget|clear)\b/iu.test(t)) return null;
+  // 'vị trí'/'role' are FIELD words here but domain words in DOMAIN_HINT — judge the payload
+  // guard on the sentence with them removed, so "quên deadline đi, còn CV thì sửa sao?" still
+  // falls to the LLM while "quên vị trí đi" stays a clean command.
+  if (DOMAIN_HINT.test(t.replace(/vị\s*trí|role/giu, ' '))) return null;
+  const all = /(?:hết|tất\s*cả|mọi\s*thứ|những\s+gì|everything|all\b)/iu.test(t);
+  const role = all || /(?:mục\s*tiêu|vị\s*trí|role|định\s*hướng|target)/iu.test(t);
+  const deadline = all || /(?:deadline|thời\s*hạn|hạn\s*(?:nộp|chót)|thời\s*gian)/iu.test(t);
+  return role || deadline ? { role, deadline } : null;
+}
+
 export function routeIntent(question: string, facts: DiagnosisFacts): DiagnosisIntent {
   const q = question.trim();
   if (GREETING_RE.test(q) && !DOMAIN_HINT.test(q)) return 'greeting';
@@ -244,8 +316,11 @@ export function routeIntent(question: string, facts: DiagnosisFacts): DiagnosisI
   // The DOMAIN_HINT guard matters here too: "bạn là ai mà chấm CV mình có 58 điểm vậy" is a real
   // question about THEIR score wearing a meta opener — canned meta copy would dodge it (measured).
   if (q.length <= 50 && META_RE.test(q) && !DOMAIN_HINT.test(q)) return 'meta';
+  if (q.length <= 60 && WHAT_YOU_KNOW_RE.test(q)) return 'what_you_know';
+  if (parseForgetCommand(q)) return 'forget';
   if (RECALL_RE.test(q)) return 'recall';
   if (COMPARE_JD_RE.test(q) && (facts.other_matches?.length ?? 0) > 0) return 'compare_jd';
+  if (REMEMBER_RE.test(q) && (roleFrom(q) !== null || deadlineFrom(q) !== null)) return 'remember';
   return 'advice';
 }
 
@@ -268,6 +343,57 @@ export const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: st
     en: "I'm your CV-diagnosis assistant. Everything I say comes from your own verified record — your scores, weak spots, and gaps against the JD — and I help you pick what's worth fixing first. Where do you want to start?",
   },
 };
+
+/** Wave 2 memory-verb echoes — COMPOSED from code-extracted state (vs the static CANNED trio).
+ *  Templates are digit-free by construction; the only digits that can appear are state values the
+ *  candidate said themselves (their licensed speech, replayed verbatim). No '?' anywhere: this
+ *  copy replays into history as ASSISTANT text and must never register on ASKED_ROLE_RE /
+ *  ASKED_DEADLINE_RE, or the ask-back directive dies for the rest of the thread. */
+function composedCanned(
+  intent: DiagnosisIntent,
+  state: DiagnosisConversationState,
+  question: string,
+  lang: 'vi' | 'en',
+): string | null {
+  const en = lang === 'en';
+  if (intent === 'what_you_know') {
+    const parts: string[] = [];
+    if (state.target_role)
+      parts.push(en ? `you're aiming for ${state.target_role}` : `bạn nhắm ${state.target_role}`);
+    if (state.deadline)
+      parts.push(
+        en ? `your time budget is ${state.deadline}` : `quỹ thời gian của bạn là ${state.deadline}`,
+      );
+    if (!parts.length)
+      return en
+        ? "Beyond your diagnosis I haven't noted anything about you yet — tell me your target role and timeline, and I'll keep both in mind."
+        : 'Ngoài bản chẩn đoán thì mình chưa ghi nhớ gì thêm về bạn — bạn cứ nói mục tiêu và quỹ thời gian, mình sẽ nhớ.';
+    return en
+      ? `Here's what I'm holding onto: ${parts.join(', ')}. Tell me to forget any of it and it's gone.`
+      : `Mình đang nhớ: ${parts.join(', ')}. Muốn mình bỏ điều nào thì bảo "quên ... đi" nhé.`;
+  }
+  if (intent === 'forget') {
+    const target = parseForgetCommand(question);
+    if (!target) return null;
+    const names = [
+      ...(target.role ? [en ? 'your target role' : 'mục tiêu của bạn'] : []),
+      ...(target.deadline ? [en ? 'your deadline' : 'thời hạn của bạn'] : []),
+    ];
+    // Field NAME only, never the forgotten value — echoing the value back would both defeat
+    // the point and re-teach digits into history.
+    return en
+      ? `Done — I've forgotten ${names.join(' and ')}. I won't lean on it from here on.`
+      : `Đã quên ${names.join(' và ')} rồi nhé. Từ giờ mình sẽ không dựa vào đó nữa.`;
+  }
+  if (intent === 'remember') {
+    const value = roleFrom(question) ?? deadlineFrom(question);
+    if (!value) return null;
+    return en
+      ? `Noted: ${value}. I'll factor it into everything from here.`
+      : `Nhớ rồi nhé: ${value}. Từ giờ mình sẽ tính theo hướng đó.`;
+  }
+  return null;
+}
 
 // ── the ask-back condition (needs_detail, done the code way) ─────────────────────────────────────
 
@@ -336,7 +462,9 @@ export function buildTurnContext(
   const lang: 'vi' | 'en' = language?.toLowerCase().startsWith('en') ? 'en' : 'vi';
 
   const canned =
-    intent === 'greeting' || intent === 'thanks' || intent === 'meta' ? CANNED[intent][lang] : null;
+    intent === 'greeting' || intent === 'thanks' || intent === 'meta'
+      ? CANNED[intent][lang]
+      : composedCanned(intent, state, question, lang);
 
   const lines: string[] = [
     'Known about the candidate (extracted by code from this conversation — trust it, do not re-ask):',

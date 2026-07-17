@@ -171,6 +171,10 @@ interface Persona {
   goal: string;
   opener: string;
   focus: string;
+  /** Wave 2: deterministic probe turns injected INSTEAD of the user-sim for turns 2..(1+len),
+   *  each with the intent the router MUST pick — misroute here is the worst failure the
+   *  memory verbs have, so it is measured, not assumed. */
+  scripted?: Array<{ text: string; expect: string }>;
 }
 const PERSONAS: Persona[] = [
   {
@@ -197,6 +201,14 @@ const PERSONAS: Persona[] = [
     opener:
       'Mình đang nhắm vị trí AI Engineer và mình chỉ còn đúng 2 tuần trước deadline nộp. Nên làm gì trước?',
     focus: 'gap_results',
+    // Wave 2 memory-verb probes: mirror → forget → re-remember, in that order, so the run also
+    // demonstrates the full lifecycle (the mirror shows both facts; the forget drops one; the
+    // remember writes a new one) before the free-form turn 5.
+    scripted: [
+      { text: 'bạn nhớ gì về mình?', expect: 'what_you_know' },
+      { text: 'quên thời hạn đi', expect: 'forget' },
+      { text: 'nhớ giùm mình: mình chỉ còn 3 ngày nữa thôi', expect: 'remember' },
+    ],
   },
   {
     id: 'LAC-DE',
@@ -238,6 +250,10 @@ async function main(): Promise<void> {
   const allFlags: string[] = [];
   const allKills: string[] = [];
   const bucketTally: Record<string, number> = {};
+  const intentTally: Record<string, number> = {};
+  // Wave 2: scripted memory-verb probes — expected vs actual route, misroute must be 0.
+  let probeTotal = 0;
+  let probeMisroute = 0;
   const askByPersona: Record<string, number> = {};
   // Wave 1: demonstrated-memory counter — of the PROSE turns where code-extracted state
   // (role/deadline) was known, how many actually SPOKE it back to the user.
@@ -260,11 +276,21 @@ async function main(): Promise<void> {
     log(`\n\n${'█'.repeat(80)}\n██ PERSONA: ${p.id}\n██ ${p.goal}\n${'█'.repeat(80)}`);
     const thread: Line[] = [];
     let userMsg = p.opener;
+    let expectedIntent: string | null = null;
 
     for (let turn = 1; turn <= TURNS; turn++) {
       // ── advisor turn (prod-faithful): REAL buildTurnContext, exactly like the service ──
       const threadHistory = thread.map((m) => ({ role: m.role, content: m.text }));
       const ctx = buildTurnContext(facts, threadHistory, userMsg, 'vi');
+      intentTally[ctx.intent] = (intentTally[ctx.intent] ?? 0) + 1;
+      if (expectedIntent) {
+        probeTotal += 1;
+        if (ctx.intent !== expectedIntent) {
+          probeMisroute += 1;
+          log(`  │ 🎯 MISROUTE: expect=${expectedIntent} · got=${ctx.intent} · "${userMsg}"`);
+        }
+        expectedIntent = null;
+      }
       const history = thread
         .slice(-10)
         .map((m) => `${m.role}: ${m.text}`)
@@ -382,6 +408,14 @@ async function main(): Promise<void> {
 
       if (turn === TURNS) break;
 
+      // Wave 2 scripted probe for the NEXT turn (deterministic — never LLM-simmed).
+      const probe = p.scripted?.[turn - 1];
+      if (probe) {
+        userMsg = probe.text;
+        expectedIntent = probe.expect;
+        continue;
+      }
+
       // ── user-sim turn ──
       const simSystem = `Bạn đang ĐÓNG VAI người dùng thật của một web chấm CV, nói tiếng Việt tự nhiên, ngắn (1-2 câu), như chat thật. ${p.goal} KHÔNG bao giờ phá vai, KHÔNG giải thích, chỉ viết đúng tin nhắn tiếp theo của bạn.`;
       const simHistory = thread
@@ -471,6 +505,13 @@ async function main(): Promise<void> {
   log(
     `🧠 Phô-trí-nhớ: ${recallShown}/${recallEligible} lượt PROSE có state được nhắc lại thành lời`,
   );
+  log(
+    `🧭 Intent: ${Object.entries(intentTally)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k} ×${v}`)
+      .join(' | ')}`,
+  );
+  log(`🎯 Probe động-từ-nhớ (script): misroute ${probeMisroute}/${probeTotal}`);
   const j = summarizeJudgement(judged);
   log(
     `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · voice ${j.avgVoice.toFixed(2)} · tone-tin-xấu ${j.avgBadNewsTone.toFixed(2)} (${j.badNewsTurns} lượt) · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,

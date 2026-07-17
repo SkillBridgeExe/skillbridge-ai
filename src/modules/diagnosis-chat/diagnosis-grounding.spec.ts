@@ -1369,3 +1369,125 @@ describe('answer_kind — the pose signal for the FE mascot (Wave 1)', () => {
     expect(groundDiagnosis({ message: '   ' }, facts).answer_kind).toBe('grounded');
   });
 });
+
+describe('grounded_facts — provenance is exact by construction (Wave 2)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('a served answer lists exactly the citations the gate resolved', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker đang là gap ưu tiên của bạn.',
+        cited_dimension: 'action_verbs',
+        cited_gap_id: 'jd:hard_skill:docker',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([
+      { kind: 'dimension', id: 'action_verbs', label: 'action_verbs' },
+      { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+    ]);
+  });
+
+  it('other_match and tool citations become facts (1-based index / tool name as id)', () => {
+    const factsWith: DiagnosisFacts = {
+      ...buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]), null, [
+        { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] },
+        { jd_title: 'Backend Developer', overall_score: 55, top_gaps: ['Docker'] },
+      ]),
+      tool_results: {
+        'github.enrich': { untrusted_data: { exists: true, public_repos: [] } },
+      },
+    };
+    const result = groundDiagnosis(
+      {
+        message: 'JD Backend Developer đang ở 55, GitHub của bạn có hoạt động thật.',
+        cited_other_match_index: 2,
+        cited_tool: 'github.enrich',
+      },
+      factsWith,
+    );
+    expect(result.grounded_facts).toEqual([
+      { kind: 'other_match', id: '2', label: 'Backend Developer' },
+      { kind: 'tool', id: 'github.enrich', label: 'github.enrich' },
+    ]);
+  });
+
+  it('an INVALID citation produces no fact (stripped citations stay stripped)', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Bạn nên vá Docker trước.',
+        cited_dimension: 'not_a_dimension',
+        cited_gap_id: 'jd:soft_skill:nope',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('a refusal claims nothing → empty grounded_facts, while citations survive as scroll targets', () => {
+    const result = groundDiagnosis(
+      { message: 'Điểm ATS của bạn là 98.', cited_gap_id: 'jd:hard_skill:docker' },
+      facts,
+    );
+    expect(result.answer_kind).toBe('refusal');
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('the deterministic fallback carries empty grounded_facts', () => {
+    expect(groundDiagnosis(null, facts).grounded_facts).toEqual([]);
+  });
+
+  describe("kind 'conversation' — candidate-licensed numbers are labeled, not laundered", () => {
+    it('a number licensed ONLY by candidate speech becomes a conversation fact', () => {
+      const result = groundDiagnosis(
+        { message: 'Với 2 tuần còn lại, bạn nên vá Docker trước.' },
+        facts,
+        'vi',
+        'mình còn đúng 2 tuần trước deadline',
+      );
+      expect(result.answer_kind).toBe('grounded');
+      expect(result.grounded_facts).toEqual([{ kind: 'conversation', id: '2', label: '2' }]);
+    });
+
+    it('a token FACTS already backs is NOT labeled conversation, even if the candidate said it too', () => {
+      // 14 = action_verbs score20 — FACTS provenance wins over the echo.
+      const result = groundDiagnosis(
+        { message: 'Điểm action_verbs của bạn là 14/20.', cited_dimension: 'action_verbs' },
+        facts,
+        'vi',
+        'điểm 14 của mình thấp không?',
+      );
+      expect(result.grounded_facts).toEqual([
+        { kind: 'dimension', id: 'action_verbs', label: 'action_verbs' },
+      ]);
+    });
+
+    it('no candidate speech → no conversation facts', () => {
+      const result = groundDiagnosis({ message: 'Bạn nên vá Docker trước.' }, facts, 'vi');
+      expect(result.grounded_facts).toEqual([]);
+    });
+
+    it('a token repeated in the answer yields ONE fact', () => {
+      const result = groundDiagnosis(
+        { message: 'Còn 2 tuần — với 2 tuần đó, tập trung Docker.' },
+        facts,
+        'vi',
+        'mình còn 2 tuần',
+      );
+      expect(result.grounded_facts.filter((f) => f.kind === 'conversation')).toHaveLength(1);
+    });
+
+    it('advice-register exempt numbers (1-2 bullet) are served but NEVER advertised as provenance', () => {
+      const result = groundDiagnosis(
+        { message: 'Thêm 1-2 bullet định lượng vào phần kinh nghiệm nhé.' },
+        facts,
+        'vi',
+      );
+      expect(result.answer_kind).toBe('grounded');
+      expect(result.grounded_facts).toEqual([]);
+    });
+  });
+});
