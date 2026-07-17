@@ -114,7 +114,13 @@ export class DiagnosisChatService {
       return { answer: ctx.canned, suggested_next_step: null, answer_kind: 'canned' };
     }
 
-    const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
+    // System = truth rules (frontmatter of the chat prompt) + PERSONA (body of the character
+    // sheet — a versioned prompt asset). Two separate layers on purpose: gate changes must never
+    // shift the personality, and a voice rewrite must never touch the rules (Wave 1).
+    const character = this.prompts.get('mascot_character_v1').body.trim();
+    const system = [this.prompts.get(PROMPT_CODE).meta.system ?? '', character]
+      .filter(Boolean)
+      .join('\n\n');
     const renderPrompt = (facts: DiagnosisFacts) =>
       this.prompts.render(PROMPT_CODE, {
         language,

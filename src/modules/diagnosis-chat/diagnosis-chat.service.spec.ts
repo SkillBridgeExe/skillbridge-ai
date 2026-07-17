@@ -26,7 +26,13 @@ function makeService(
 ): DiagnosisChatService {
   const prompts = {
     render: jest.fn().mockReturnValue('rendered-user-prompt'),
-    get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+    // Code-aware: the service reads the RULES from the chat prompt's frontmatter and the
+    // PERSONA from the character sheet's body (Wave 1) — two separate layers.
+    get: jest.fn((code: string) =>
+      code === 'mascot_character_v1'
+        ? { body: 'Nhân cách cá heo SkillBridge — Thẳng mà ấm.', meta: {} }
+        : { body: '', meta: { system: 'system-prompt' } },
+    ),
   };
   // positional construction (llm, prompts, registry) — all mocked.
   return new DiagnosisChatService(
@@ -128,6 +134,22 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
     expect(result.answer).toBe('ok');
   });
 
+  it('system prompt = base rules + character sheet persona, in that order (Wave 1)', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    await service.turn({ question: 'nên làm gì trước?', facts: FACTS });
+    const system = (complete.mock.calls[0][0] as Array<{ content: string }>)[0].content;
+    expect(system).toContain('system-prompt');
+    expect(system).toContain('Thẳng mà ấm');
+    expect(system.indexOf('system-prompt')).toBeLessThan(system.indexOf('Thẳng mà ấm'));
+  });
+
   it('canned greeting carries answer_kind=canned; a grounded turn carries grounded (Wave 1)', async () => {
     const complete = jest.fn().mockResolvedValue({
       parsedJson: { message: 'Bạn nên sửa bullet cho có số liệu trước.' },
@@ -154,7 +176,7 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
     });
     const prompts = {
       render: jest.fn().mockReturnValue('rendered-user-prompt'),
-      get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+      get: jest.fn().mockReturnValue({ body: '', meta: { system: 'system-prompt' } }),
     };
     const service = new DiagnosisChatService(
       { complete } as never,
@@ -186,7 +208,7 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
     });
     const prompts = {
       render: jest.fn().mockReturnValue('rendered-user-prompt'),
-      get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+      get: jest.fn().mockReturnValue({ body: '', meta: { system: 'system-prompt' } }),
     };
     const service = new DiagnosisChatService(
       { complete } as never,

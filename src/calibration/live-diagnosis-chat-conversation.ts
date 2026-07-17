@@ -43,7 +43,12 @@ dotenv.config({ override: true });
 
 const raw = readFileSync(join(process.cwd(), 'prompts', 'diagnosis_chat_v1.md'), 'utf8');
 const fm = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-const system = (fm?.[1].match(/^system:\s*(.*)$/m)?.[1] ?? '').trim();
+// Mirror the service (Wave 1): system = truth rules + character-sheet persona (body of the asset).
+const characterRaw = readFileSync(join(process.cwd(), 'prompts', 'mascot_character_v1.md'), 'utf8');
+const character = (characterRaw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/)?.[1] ?? '').trim();
+const system = [(fm?.[1].match(/^system:\s*(.*)$/m)?.[1] ?? '').trim(), character]
+  .filter(Boolean)
+  .join('\n\n');
 const body = fm?.[2] ?? '';
 const render = (vars: Record<string, string>): string =>
   body.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => vars[k] ?? '');

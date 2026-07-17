@@ -23,6 +23,7 @@ export interface PromptTemplate {
 const REQUIRED_TEMPLATES = [
   'cv_parse_v1',
   'cv_review_v1',
+  'mascot_character_v1',
   'cv_rewrite_v1',
   'cv_jd_match_v1',
   'cv_jd_match_v2',
