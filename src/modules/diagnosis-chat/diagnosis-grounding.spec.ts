@@ -10,6 +10,7 @@ import {
   allowedNumberTokens,
   statProvenance,
   ungroundedNumbers,
+  unverifiableClaim,
   REFUSAL_COPY,
 } from './diagnosis-grounding';
 
@@ -1278,16 +1279,20 @@ describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () =>
   it('refusal copy itself is REPLAY-SAFE: it passes both gates it explains', () => {
     // Iterate the REAL copy, never a hardcoded mirror — a mirror silently goes stale on the
     // next copy rework (it did on the Wave 1 scene-redirect edit; this file's own rule).
+    const prov = statProvenance(facts);
     for (const family of Object.keys(REFUSAL_COPY) as Array<keyof typeof REFUSAL_COPY>) {
       for (const [vi, en] of REFUSAL_COPY[family]) {
         // salary copy legitimately contains the word "lương" — the salary REGEX matches the
-        // topic, which is exactly why the model may never write it; the code-authored copy does
-        // not pass through unverifiableClaim in prod. What MUST hold: no digits, no % tokens, so
-        // the number gate and the licensing layer can never fire on an echo.
+        // topic, which is exactly why the model may never write it. Prod never runs the
+        // code-authored copy through the gates, so BOTH are asserted here instead: no digits
+        // (number gate can never fire on an echo) and no claim-shaped phrasing (a future copy
+        // rework must not introduce a sentence unverifiableClaim would flag).
         expect(vi).not.toMatch(/\d/);
         expect(en).not.toMatch(/\d/);
         expect(ungroundedNumbers(vi, allowedNumberTokens(facts))).toEqual([]);
         expect(ungroundedNumbers(en, allowedNumberTokens(facts))).toEqual([]);
+        expect(unverifiableClaim(vi, prov)).toBeNull();
+        expect(unverifiableClaim(en, prov)).toBeNull();
       }
     }
   });
