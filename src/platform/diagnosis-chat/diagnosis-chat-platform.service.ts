@@ -306,7 +306,10 @@ export class DiagnosisChatPlatformService {
     answer: DiagnosisChatResult,
     otherMatches: OtherMatchSummary[],
   ): DiagnosisChatTurnResponse {
-    const out: DiagnosisChatTurnResponse = { answer: answer.answer, answer_kind: answer.answer_kind };
+    const out: DiagnosisChatTurnResponse = {
+      answer: answer.answer,
+      answer_kind: answer.answer_kind,
+    };
     if (answer.cited_dimension) out.cited_dimension = answer.cited_dimension;
     if (answer.cited_gap_id) out.cited_gap_id = answer.cited_gap_id;
     if (answer.suggested_next_step !== undefined) {

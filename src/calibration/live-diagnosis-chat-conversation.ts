@@ -468,7 +468,9 @@ async function main(): Promise<void> {
   log(
     `❓ Hỏi-ngược theo persona: ${PERSONAS.map((p) => `${p.id}=${askByPersona[p.id] ?? 0}`).join(' · ')}`,
   );
-  log(`🧠 Phô-trí-nhớ: ${recallShown}/${recallEligible} lượt PROSE có state được nhắc lại thành lời`);
+  log(
+    `🧠 Phô-trí-nhớ: ${recallShown}/${recallEligible} lượt PROSE có state được nhắc lại thành lời`,
+  );
   const j = summarizeJudgement(judged);
   log(
     `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · voice ${j.avgVoice.toFixed(2)} · tone-tin-xấu ${j.avgBadNewsTone.toFixed(2)} (${j.badNewsTurns} lượt) · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,

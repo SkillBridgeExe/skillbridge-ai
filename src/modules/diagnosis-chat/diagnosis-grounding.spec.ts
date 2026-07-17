@@ -10,6 +10,7 @@ import {
   allowedNumberTokens,
   statProvenance,
   ungroundedNumbers,
+  REFUSAL_COPY,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -356,7 +357,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       facts,
     );
     // Phase A: the kill serves the refusal, hooked on the cited gap (gap outranks dimension).
-    expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
+    expect(result.answer).toContain('dữ liệu đã xác minh');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
@@ -1153,7 +1154,7 @@ describe('groundDiagnosis — Advisor v3 gates', () => {
       expect(result.answer).not.toContain('91');
       // Phase A: no more generic "chưa đủ dữ kiện" on a gate kill — the refusal names its ground
       // and still hands over a verified next step.
-      expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
+      expect(result.answer).toContain('dữ liệu đã xác minh');
       expect(result.answer).toContain('Add Docker evidence');
     });
 
@@ -1252,14 +1253,14 @@ describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () =>
 
   it('hire-odds bait → the odds refusal, in Vietnamese, with a verified forward step', () => {
     const r = refusalOf('Khả năng đậu của bạn là khá cao.');
-    expect(r.answer).toContain('Đậu hay không thì mình không đoán');
+    expect(r.answer).toContain('đậu hay không mình không đoán');
     expect(r.answer).toContain('Add Docker evidence');
     expect(r.suggested_next_step).toBe('Add Docker evidence');
   });
 
   it('peer-comparison bait → the peers refusal', () => {
     const r = refusalOf('Bạn giỏi hơn phần lớn ứng viên khác.');
-    expect(r.answer).toContain('So sánh kiểu đó thì mình không làm được thật');
+    expect(r.answer).toContain('so sánh kiểu đó thì mình không làm được thật');
   });
 
   it('salary bait → the salary refusal, localized to English', () => {
@@ -1275,32 +1276,19 @@ describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () =>
   });
 
   it('refusal copy itself is REPLAY-SAFE: it passes both gates it explains', () => {
-    for (const [vi, en] of [
-      [
-        'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
-        "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
-      ],
-      [
-        'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
-        "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
-      ],
-      [
-        'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
-        "Salary is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
-      ],
-      [
-        'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
-        "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
-      ],
-    ]) {
-      // salary copy legitimately contains the word "lương/salary" — the salary REGEX matches the
-      // topic, which is exactly why the model may never write it; the code-authored copy does not
-      // pass through unverifiableClaim in prod. What MUST hold: no digits, no % tokens, so the
-      // number gate and the licensing layer can never fire on an echo.
-      expect(vi).not.toMatch(/\d/);
-      expect(en).not.toMatch(/\d/);
-      expect(ungroundedNumbers(vi, allowedNumberTokens(facts))).toEqual([]);
-      expect(ungroundedNumbers(en, allowedNumberTokens(facts))).toEqual([]);
+    // Iterate the REAL copy, never a hardcoded mirror — a mirror silently goes stale on the
+    // next copy rework (it did on the Wave 1 scene-redirect edit; this file's own rule).
+    for (const family of Object.keys(REFUSAL_COPY) as Array<keyof typeof REFUSAL_COPY>) {
+      for (const [vi, en] of REFUSAL_COPY[family]) {
+        // salary copy legitimately contains the word "lương" — the salary REGEX matches the
+        // topic, which is exactly why the model may never write it; the code-authored copy does
+        // not pass through unverifiableClaim in prod. What MUST hold: no digits, no % tokens, so
+        // the number gate and the licensing layer can never fire on an echo.
+        expect(vi).not.toMatch(/\d/);
+        expect(en).not.toMatch(/\d/);
+        expect(ungroundedNumbers(vi, allowedNumberTokens(facts))).toEqual([]);
+        expect(ungroundedNumbers(en, allowedNumberTokens(facts))).toEqual([]);
+      }
     }
   });
 });
@@ -1364,7 +1352,10 @@ describe('answer_kind — the pose signal for the FE mascot (Wave 1)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
   it('served prose → grounded; gate kill → refusal; deterministic fallback → grounded', () => {
-    const served = groundDiagnosis({ message: 'Bạn nên sửa bullet đầu tiên cho có số liệu.' }, facts);
+    const served = groundDiagnosis(
+      { message: 'Bạn nên sửa bullet đầu tiên cho có số liệu.' },
+      facts,
+    );
     expect(served.answer_kind).toBe('grounded');
     const killed = groundDiagnosis({ message: 'Điểm ATS của bạn là 98.' }, facts);
     expect(killed.answer_kind).toBe('refusal');

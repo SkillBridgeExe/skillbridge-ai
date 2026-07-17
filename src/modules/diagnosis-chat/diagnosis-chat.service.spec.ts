@@ -61,7 +61,7 @@ describe('DiagnosisChatService.turn', () => {
     const result = await service.turn({ question: 'where am I weakest?', facts: FACTS });
     // The fabricated "98" kills the prose → Phase A refusal: warm copy + the cited gap as the
     // verified hook (gap outranks dimension), never the old fact template.
-    expect(result.answer).toContain('dữ liệu đã xác minh của bạn');
+    expect(result.answer).toContain('dữ liệu đã xác minh');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
