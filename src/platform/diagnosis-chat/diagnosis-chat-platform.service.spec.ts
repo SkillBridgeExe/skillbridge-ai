@@ -79,6 +79,7 @@ function makeService(overrides?: {
       overrides?.turn ??
       jest.fn().mockResolvedValue({
         answer: 'Focus on skills_relevance.',
+        answer_kind: 'grounded',
         cited_dimension: 'skills_relevance',
         cited_gap_id: 'jd:hard_skill:docker',
         suggested_next_step: null,
@@ -207,6 +208,12 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     expect(factsArg).not.toHaveProperty('progress');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('progress lookup failed'));
     warn.mockRestore();
+  });
+
+  it('answer_kind rides the wire to the FE (Wave 1 mascot pose)', async () => {
+    const { service } = makeService();
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.answer_kind).toBe('grounded');
   });
 
   it('adds recent other match summaries to facts for cross-JD comparison', async () => {

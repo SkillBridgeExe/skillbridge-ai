@@ -111,7 +111,7 @@ export class DiagnosisChatService {
     // fabrication surface — and never reach the LLM or the tool loop.
     const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
     if (ctx.canned !== null) {
-      return { answer: ctx.canned, suggested_next_step: null };
+      return { answer: ctx.canned, suggested_next_step: null, answer_kind: 'canned' };
     }
 
     const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';

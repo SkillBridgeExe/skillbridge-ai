@@ -128,6 +128,22 @@ describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
     expect(result.answer).toBe('ok');
   });
 
+  it('canned greeting carries answer_kind=canned; a grounded turn carries grounded (Wave 1)', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'Bạn nên sửa bullet cho có số liệu trước.' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    const canned = await service.turn({ question: 'chào bạn', facts: FACTS });
+    expect(canned.answer_kind).toBe('canned');
+    expect(complete).not.toHaveBeenCalled();
+    const grounded = await service.turn({ question: 'nên làm gì trước?', facts: FACTS });
+    expect(grounded.answer_kind).toBe('grounded');
+  });
+
   it('threads the context block into the prompt: a role stated 30 messages ago is still Known, and no ask is issued for it', async () => {
     const complete = jest.fn().mockResolvedValue({
       parsedJson: { message: 'ok' },
