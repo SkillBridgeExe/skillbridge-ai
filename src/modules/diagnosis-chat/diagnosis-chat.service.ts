@@ -7,10 +7,11 @@ import { PromptsService } from '../prompts/prompts.service';
 import {
   DiagnosisChatResult,
   DiagnosisFacts,
+  DiagnosisKnownState,
   DIAGNOSIS_DIMENSION_KEYS,
   groundDiagnosis,
 } from './diagnosis-grounding';
-import { buildTurnContext, ensureAskBack } from './conversation-state';
+import { buildTurnContext, coveredGapNames, ensureAskBack } from './conversation-state';
 
 const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
@@ -110,12 +111,20 @@ export class DiagnosisChatService {
     // asked) + intent route. Greetings/thanks/meta are answered by CODE — warm, instant, zero
     // fabrication surface — and never reach the LLM or the tool loop.
     const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
+    // The memory mirror rides EVERY return path — code-extracted state, so echoing it back is
+    // exact by definition. A canned/fallback turn must not blank the FE card.
+    const knownState: DiagnosisKnownState = {
+      target_role: ctx.state.target_role,
+      deadline: ctx.state.deadline,
+      covered_gaps: coveredGapNames(input.facts, allHistory),
+    };
     if (ctx.canned !== null) {
       return {
         answer: ctx.canned,
         suggested_next_step: null,
         answer_kind: 'canned',
         grounded_facts: [],
+        known_state: knownState,
       };
     }
 
@@ -194,6 +203,7 @@ export class DiagnosisChatService {
       const grounded = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
       return {
         ...grounded,
+        known_state: knownState,
         // Ask-back backstop: code decided WHEN to ask; if the model dropped the question anyway
         // (measured: obeyed 1 of 4 directive turns), code appends the standard one.
         answer: ensureAskBack(grounded.answer, ctx.ask, language),
@@ -217,6 +227,10 @@ export class DiagnosisChatService {
     // On a failed/empty call, parsed stays null → groundDiagnosis returns the deterministic fallback,
     // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
     const fallback = groundDiagnosis(parsed, facts, language, candidateSaid, advisorSaid);
-    return { ...fallback, answer: ensureAskBack(fallback.answer, ctx.ask, language) };
+    return {
+      ...fallback,
+      known_state: knownState,
+      answer: ensureAskBack(fallback.answer, ctx.ask, language),
+    };
   }
 }

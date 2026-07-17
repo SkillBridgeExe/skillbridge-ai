@@ -109,6 +109,15 @@ export interface GroundedFact {
   label: string;
 }
 
+/** The deterministic conversation memory, mirrored back to the FE every turn (Wave 2 memory
+ *  mirror). Built by CODE from the extracted state — there is no hidden inference layer, so
+ *  rendering it verbatim is 100% accurate by definition. */
+export interface DiagnosisKnownState {
+  target_role: string | null;
+  deadline: string | null;
+  covered_gaps: string[];
+}
+
 export interface DiagnosisChatResult {
   answer: string;
   /** Gate verdict, exposed for the FE mascot pose. 'grounded' = prose passed both gates
@@ -128,6 +137,9 @@ export interface DiagnosisChatResult {
   /** Provenance behind THIS answer (Wave 2 "visible trust"). Empty on refusal/canned/fallback —
    *  a turn that makes no claims owes no sources (honest-empty; the FE hides the row at N=0). */
   grounded_facts: GroundedFact[];
+  /** Set by the SERVICE on every return path (grounding never sees history) — optional here so
+   *  groundDiagnosis construction sites don't fabricate an empty mirror the service overwrites. */
+  known_state?: DiagnosisKnownState;
   suggested_next_step?: string | null;
   trace?: {
     promptTokens: number;
