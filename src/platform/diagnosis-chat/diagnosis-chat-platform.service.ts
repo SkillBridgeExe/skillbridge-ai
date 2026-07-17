@@ -25,6 +25,9 @@ const DAILY_CHAT_LIMIT = 50;
 
 export interface DiagnosisChatTurnResponse {
   answer: string;
+  /** Gate verdict forwarded for the FE mascot pose (Wave 1) — optional on the wire so older
+   *  clients simply ignore it. */
+  answer_kind?: 'grounded' | 'refusal' | 'canned';
   cited_dimension?: string;
   cited_gap_id?: string;
   suggested_next_step?: string | null;
@@ -303,7 +306,10 @@ export class DiagnosisChatPlatformService {
     answer: DiagnosisChatResult,
     otherMatches: OtherMatchSummary[],
   ): DiagnosisChatTurnResponse {
-    const out: DiagnosisChatTurnResponse = { answer: answer.answer };
+    const out: DiagnosisChatTurnResponse = {
+      answer: answer.answer,
+      answer_kind: answer.answer_kind,
+    };
     if (answer.cited_dimension) out.cited_dimension = answer.cited_dimension;
     if (answer.cited_gap_id) out.cited_gap_id = answer.cited_gap_id;
     if (answer.suggested_next_step !== undefined) {

@@ -111,10 +111,16 @@ export class DiagnosisChatService {
     // fabrication surface — and never reach the LLM or the tool loop.
     const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
     if (ctx.canned !== null) {
-      return { answer: ctx.canned, suggested_next_step: null };
+      return { answer: ctx.canned, suggested_next_step: null, answer_kind: 'canned' };
     }
 
-    const system = this.prompts.get(PROMPT_CODE).meta.system ?? '';
+    // System = truth rules (frontmatter of the chat prompt) + PERSONA (body of the character
+    // sheet — a versioned prompt asset). Two separate layers on purpose: gate changes must never
+    // shift the personality, and a voice rewrite must never touch the rules (Wave 1).
+    const character = this.prompts.get('mascot_character_v1').body.trim();
+    const system = [this.prompts.get(PROMPT_CODE).meta.system ?? '', character]
+      .filter(Boolean)
+      .join('\n\n');
     const renderPrompt = (facts: DiagnosisFacts) =>
       this.prompts.render(PROMPT_CODE, {
         language,

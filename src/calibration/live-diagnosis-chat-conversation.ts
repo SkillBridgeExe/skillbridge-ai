@@ -43,7 +43,12 @@ dotenv.config({ override: true });
 
 const raw = readFileSync(join(process.cwd(), 'prompts', 'diagnosis_chat_v1.md'), 'utf8');
 const fm = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-const system = (fm?.[1].match(/^system:\s*(.*)$/m)?.[1] ?? '').trim();
+// Mirror the service (Wave 1): system = truth rules + character-sheet persona (body of the asset).
+const characterRaw = readFileSync(join(process.cwd(), 'prompts', 'mascot_character_v1.md'), 'utf8');
+const character = (characterRaw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/)?.[1] ?? '').trim();
+const system = [(fm?.[1].match(/^system:\s*(.*)$/m)?.[1] ?? '').trim(), character]
+  .filter(Boolean)
+  .join('\n\n');
 const body = fm?.[2] ?? '';
 const render = (vars: Record<string, string>): string =>
   body.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => vars[k] ?? '');
@@ -234,6 +239,10 @@ async function main(): Promise<void> {
   const allKills: string[] = [];
   const bucketTally: Record<string, number> = {};
   const askByPersona: Record<string, number> = {};
+  // Wave 1: demonstrated-memory counter — of the PROSE turns where code-extracted state
+  // (role/deadline) was known, how many actually SPOKE it back to the user.
+  let recallEligible = 0;
+  let recallShown = 0;
   // Phase D: LLM-judge scores what the safety counters can't see (naturalness/helpfulness).
   // Default the judge to a DIFFERENT model from the advisor — a model judging its own prose
   // inflates and compresses the scores (self-preference bias). Override with DIAGNOSIS_JUDGE_MODEL.
@@ -342,6 +351,16 @@ async function main(): Promise<void> {
       if (killed) allKills.push(killReason);
       bucketTally[bucket] = (bucketTally[bucket] ?? 0) + 1;
       if (served.includes('?')) askByPersona[p.id] = (askByPersona[p.id] ?? 0) + 1;
+      if (bucket === 'PROSE' && (ctx.state.target_role || ctx.state.deadline)) {
+        recallEligible += 1;
+        const servedLower = served.toLowerCase();
+        if (
+          (ctx.state.target_role && servedLower.includes(ctx.state.target_role.toLowerCase())) ||
+          (ctx.state.deadline && servedLower.includes(ctx.state.deadline.toLowerCase()))
+        ) {
+          recallShown += 1;
+        }
+      }
 
       thread.push({ role: 'user', text: userMsg });
       thread.push({ role: 'assistant', text: served, bucket, bad, flags });
@@ -449,9 +468,12 @@ async function main(): Promise<void> {
   log(
     `❓ Hỏi-ngược theo persona: ${PERSONAS.map((p) => `${p.id}=${askByPersona[p.id] ?? 0}`).join(' · ')}`,
   );
+  log(
+    `🧠 Phô-trí-nhớ: ${recallShown}/${recallEligible} lượt PROSE có state được nhắc lại thành lời`,
+  );
   const j = summarizeJudgement(judged);
   log(
-    `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,
+    `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · voice ${j.avgVoice.toFixed(2)} · tone-tin-xấu ${j.avgBadNewsTone.toFixed(2)} (${j.badNewsTurns} lượt) · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,
   );
   for (const w of j.worst) {
     log(

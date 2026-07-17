@@ -26,6 +26,10 @@ export interface JudgedTurn {
   turn: number;
   naturalness: number; // 1–5
   helpfulness: number; // 1–5
+  /** 1–5 adherence to the character sheet's four named qualities (Wave 1). */
+  voice_adherence: number;
+  /** 0 = no bad news in this turn; 1–5 = how well bad news was delivered (Wave 1). */
+  negative_news_tone: number;
   ignored_question: boolean;
   template_feel: boolean;
   contradiction: boolean;
@@ -43,6 +47,8 @@ export const JUDGE_SCHEMA = {
           turn: { type: 'integer' },
           naturalness: { type: 'integer', minimum: 1, maximum: 5 },
           helpfulness: { type: 'integer', minimum: 1, maximum: 5 },
+          voice_adherence: { type: 'integer', minimum: 1, maximum: 5 },
+          negative_news_tone: { type: 'integer', minimum: 0, maximum: 5 },
           ignored_question: { type: 'boolean' },
           template_feel: { type: 'boolean' },
           contradiction: { type: 'boolean' },
@@ -52,6 +58,8 @@ export const JUDGE_SCHEMA = {
           'turn',
           'naturalness',
           'helpfulness',
+          'voice_adherence',
+          'negative_news_tone',
           'ignored_question',
           'template_feel',
           'contradiction',
@@ -92,6 +100,8 @@ CỜ:
 ignored_question = true nếu lượt đó không đáp trúng điều user vừa hỏi (kể cả khi nội dung hay). NGOẠI LỆ BẮT BUỘC: user đòi dữ liệu cố vấn không có (tỉ lệ đậu, lương, so sánh ứng viên khác, xếp hạng) và cố vấn từ chối rõ + mở hướng đi tiếp → KHÔNG đánh cờ này; từ chối đúng là một câu trả lời trúng.
 template_feel = true nếu lượt đó đọc như văn mẫu (đặc biệt khi câu mở hoặc câu đuôi lặp gần y hệt một lượt khác).
 contradiction = true nếu lượt này mâu thuẫn điều cố vấn đã nói ở lượt trước (đổi thứ tự ưu tiên, đổi con số) HOẶC quên chi tiết user đã khai (deadline, vị trí nhắm) mà không thừa nhận; khi đó helpfulness tối đa 2 và note phải nêu lượt bị mâu thuẫn.
+voice_adherence (1-5): chấm theo 4 tính cách đã đặt tên của cố vấn: (1) Thẳng mà ấm — nói thật điểm yếu, không nịnh, không phũ; (2) Cụ thể tới từng bullet — khuyên là việc làm được hôm nay; (3) Lạc quan có căn cứ — tin user tiến bộ được VÌ dữ liệu chỉ đường, không động viên suông; (4) Biết mình biết gì — giới hạn dữ liệu nói to và tự tin, không xin lỗi lan man. 5 = ra đủ chất cả 4; 3 = trung tính vô hại nhưng không ra tính cách nào; 1 = phạm trực diện (nịnh, đạo lý suông, hoặc tự ti dài dòng).
+negative_news_tone (0-5): CHỈ chấm khi lượt này phải nói tin xấu (điểm thấp, gap lớn, lời từ chối). 0 = lượt này không có tin xấu nào. 5 = thật + ấm + kèm ngay bước tiếp theo; 3 = thật nhưng khô; 1 = phũ, hoặc né sự thật để lấy lòng.
 note = 1 câu tiếng Việt nói vì sao chấm vậy. Chấm 4 thì note PHẢI nêu đúng 1 điểm trừ cụ thể; nêu được từ 2 điểm trừ trở lên thì chấm 3. Trong một hội thoại, lượt tốt nhất và lượt kém nhất hiếm khi cùng điểm — hãy phân biệt.
 
 Trả về đúng một object JSON theo schema, mỗi lượt trả lời của cố vấn một phần tử, theo thứ tự lượt.`;
@@ -168,6 +178,10 @@ export async function judgeConversation(
 export function summarizeJudgement(all: Array<{ persona: string; t: JudgedTurn }>): {
   avgNaturalness: number;
   avgHelpfulness: number;
+  avgVoice: number;
+  /** Average over ONLY the turns that carried bad news (negative_news_tone > 0). */
+  avgBadNewsTone: number;
+  badNewsTurns: number;
   naturalnessAtLeast4: number;
   helpfulnessAtLeast4: number;
   templateFeel: number;
@@ -178,9 +192,15 @@ export function summarizeJudgement(all: Array<{ persona: string; t: JudgedTurn }
 } {
   const total = all.length;
   const sum = (f: (t: JudgedTurn) => number): number => all.reduce((a, x) => a + f(x.t), 0);
+  const badNews = all.filter((x) => x.t.negative_news_tone > 0);
   return {
     avgNaturalness: total ? sum((t) => t.naturalness) / total : 0,
     avgHelpfulness: total ? sum((t) => t.helpfulness) / total : 0,
+    avgVoice: total ? sum((t) => t.voice_adherence) / total : 0,
+    avgBadNewsTone: badNews.length
+      ? badNews.reduce((a, x) => a + x.t.negative_news_tone, 0) / badNews.length
+      : 0,
+    badNewsTurns: badNews.length,
     naturalnessAtLeast4: all.filter((x) => x.t.naturalness >= 4).length,
     helpfulnessAtLeast4: all.filter((x) => x.t.helpfulness >= 4).length,
     templateFeel: all.filter((x) => x.t.template_feel).length,

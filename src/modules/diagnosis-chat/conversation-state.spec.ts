@@ -290,6 +290,21 @@ describe('coveredGapNames + anti-repetition directive (measured: 6/25 turns re-r
     ]);
   });
 
+  it('when role or deadline is known on an advice turn, the directive orders a demonstrated recall (Wave 1)', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [user('mình nhắm vị trí AI Engineer, còn 2 tuần nữa nộp')],
+      'nên làm gì trước?',
+      'vi',
+    );
+    expect(ctx.contextBlock).toContain('demonstrate the memory');
+  });
+
+  it('no known state → no recall directive (nothing to demonstrate)', () => {
+    const ctx = buildTurnContext(FACTS, [], 'nên làm gì trước?', 'vi');
+    expect(ctx.contextBlock).not.toContain('demonstrate the memory');
+  });
+
   it('regex metacharacters in a display name (C++) neither crash nor overmatch', () => {
     const FACTS_CPP: DiagnosisFacts = {
       ...FACTS,

@@ -100,6 +100,11 @@ export interface DiagnosisFacts {
 
 export interface DiagnosisChatResult {
   answer: string;
+  /** Gate verdict, exposed for the FE mascot pose. 'grounded' = prose passed both gates
+   *  (or the deterministic fallback — FACTS-built, the dolphin has nothing to apologize for);
+   *  'refusal' = a gate replaced the prose; 'canned' = code-authored greeting/thanks/meta
+   *  (set by the service — grounding never sees those turns). */
+  answer_kind: 'grounded' | 'refusal' | 'canned';
   cited_dimension?: DiagnosisDimensionKey;
   cited_gap_id?: string;
   /** Validated 1-based index into facts.other_matches (mirrors the LLM's cited_other_match_index) —
@@ -202,10 +207,13 @@ export const REFUSAL_COPY: Record<
   Array<[string, string]>
 > = {
   // [vi, en] per escalation step
+  // v0 of every family opens by REDIRECTING into the scene (the report) before saying no —
+  // the Duolingo "bot thinks it's in a cafe" move: the boundary reads as where the dolphin
+  // LIVES, not as a policy. Wave 1; invariant-tested standalone like all refusal copy.
   peers: [
     [
-      'So sánh kiểu đó thì mình không làm được thật — mình chỉ có dữ liệu chẩn đoán của riêng bạn, không có của ai để đặt cạnh, nên nói ra là đoán bừa.',
-      "I honestly can't make that comparison — I only have your own diagnosis data, no one else's to put beside it, so anything I said there would be a guess.",
+      'Mình chỉ nhìn thấy bản chẩn đoán của riêng bạn thôi — so sánh kiểu đó thì mình không làm được thật, không có dữ liệu của ai để đặt cạnh, nên nói ra là đoán bừa.',
+      "All I can see is your own diagnosis — I honestly can't make that comparison, there's no one else's data to put beside it, so anything I said there would be a guess.",
     ],
     [
       'Vẫn phải là câu trả lời cũ nha — muốn đặt bạn cạnh người ta thì phải có dữ liệu của người ta, mà mình thì chỉ được xem hồ sơ của bạn thôi.',
@@ -218,8 +226,8 @@ export const REFUSAL_COPY: Record<
   ],
   odds: [
     [
-      'Đậu hay không thì mình không đoán đâu — dữ liệu của bạn không tính ra được điều đó, và một con số bịa thì hại hơn là giúp.',
-      "Whether you'll get the offer isn't something I'll guess — your data can't produce that, and a made-up number would hurt more than help.",
+      'Thứ mình nhìn được là bản chẩn đoán của bạn, không phải quyết định của nhà tuyển dụng — nên đậu hay không mình không đoán đâu, một con số bịa thì hại hơn là giúp.',
+      "What I can see is your diagnosis, not the recruiter's decision — so whether you'll get the offer isn't something I'll guess; a made-up number would hurt more than help.",
     ],
     [
       'Câu này mình vẫn phải lắc đầu như lần trước — kết quả cuối nằm ở phía người xét hồ sơ, dữ liệu của bạn không tính ra được.',
@@ -234,8 +242,8 @@ export const REFUSAL_COPY: Record<
     [
       // EN deliberately avoids the word "salary" — it is a token the salary arm hunts bare, so
       // the copy would flag itself on replay (caught by the standalone-variant invariant test).
-      'Chuyện lương thì mình chịu thật — trong tay mình không có chút dữ liệu lương nào, nên mình không dám đoán bừa cho bạn.',
-      "Pay is honestly a blind spot for me — I have no pay data at all, so I'd rather not guess a number for you.",
+      'Bản chẩn đoán của bạn không có trang nào về chuyện lương — khoản đó mình chịu thật, không có chút dữ liệu lương nào trong tay, nên mình không dám đoán bừa cho bạn.',
+      "Your diagnosis has no page about pay — that's honestly a blind spot for me, I have no pay data at all, so I'd rather not guess a number for you.",
     ],
     [
       'Khoản đó mình vẫn mù tịt như lần trước bạn hỏi nha — mình không có dữ liệu trả công nào hết, có ép mình cũng chịu.',
@@ -248,8 +256,8 @@ export const REFUSAL_COPY: Record<
   ],
   stat: [
     [
-      'Con số kiểu đó mình không có nguồn đã xác minh, nên mình không nói liều.',
-      "I don't have a verified source for that kind of number, so I'd rather not throw one out.",
+      'Mình đang ngồi trong dữ liệu của bạn, không phải của thị trường — con số kiểu đó mình không có nguồn đã xác minh, nên không nói liều.',
+      "I live inside your data, not the market's — I don't have a verified source for that kind of number, so I'd rather not throw one out.",
     ],
     [
       'Mình vẫn phải từ chối như lần trước — con số đó không nằm trong nguồn đã xác minh của mình, nói ra là chế.',
@@ -262,8 +270,8 @@ export const REFUSAL_COPY: Record<
   ],
   numbers: [
     [
-      'Chỗ này mình chỉ dám nói những gì dữ liệu đã xác minh của bạn thật sự có.',
-      "On this one I'll stick to what your verified data actually shows.",
+      'Mình đang ngồi ngay trong bản chẩn đoán của bạn, nên chỗ này chỉ dám nói những gì dữ liệu đã xác minh thật sự có.',
+      "I sit right inside your diagnosis, so here I'll only say what your verified data actually shows.",
     ],
     [
       'Như nãy mình nói đó — ngoài dữ liệu đã xác minh của bạn ra thì mình không thêm thắt gì đâu.',
@@ -390,6 +398,7 @@ function buildRefusal(
 
   return {
     answer: stripRawUrls(parts.join(' ')),
+    answer_kind: 'refusal',
     ...(dimension ? { cited_dimension: dimension.key } : {}),
     ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
     ...(otherMatch ? { cited_other_match_index: otherMatch.index1 } : {}),
@@ -511,7 +520,7 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
       ? "I don't have enough diagnosis data to answer specifically yet — please re-run your CV diagnosis and ask again."
       : 'Mình chưa có đủ dữ liệu chẩn đoán để trả lời cụ thể — bạn hãy chạy lại phần chẩn đoán CV rồi hỏi lại nhé.';
   }
-  return { answer: stripRawUrls(answer) };
+  return { answer: stripRawUrls(answer), answer_kind: 'grounded' };
 }
 
 // ── Advisor v2 number gate — the deterministic wall between "the model phrased verified facts"
@@ -1047,6 +1056,7 @@ export function groundDiagnosis(
       gap?.recommended_next_action ?? facts.top_summary.prioritized_actions[0] ?? null;
     return {
       answer: modelMessage,
+      answer_kind: 'grounded',
       ...(dimension ? { cited_dimension: dimension.key } : {}),
       ...(gap ? { cited_gap_id: gap.requirement_id } : {}),
       ...(otherMatch ? { cited_other_match_index: otherIndex + 1 } : {}),
