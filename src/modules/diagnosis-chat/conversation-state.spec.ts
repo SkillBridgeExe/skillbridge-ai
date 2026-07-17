@@ -134,6 +134,122 @@ describe('routeIntent — deterministic pre-LLM router (misroute = worst failure
   });
 });
 
+describe('memory verbs — what_you_know / forget / remember (Wave 2, code-routed)', () => {
+  it.each(['bạn nhớ gì về mình?', 'bạn đang nhớ những gì?', 'what do you know about me?'])(
+    'what_you_know: %s',
+    (q) => {
+      expect(routeIntent(q, FACTS)).toBe('what_you_know');
+    },
+  );
+
+  it.each([
+    'quên deadline đi',
+    'quên vị trí đi nha',
+    'quên hết những gì mình nói đi',
+    'xóa thời hạn giùm mình',
+  ])('forget: %s', (q) => {
+    expect(routeIntent(q, FACTS)).toBe('forget');
+  });
+
+  it.each([
+    'nhớ giùm mình: mình nhắm vị trí Backend Intern',
+    'nhớ giùm là mình chỉ còn 3 ngày nữa nhé',
+  ])('remember (a value was actually captured): %s', (q) => {
+    expect(routeIntent(q, FACTS)).toBe('remember');
+  });
+
+  it('anti-misroute: a forget verb CARRYING a real question falls to the LLM', () => {
+    expect(routeIntent('quên deadline đi, còn CV thì sửa sao?', FACTS)).toBe('advice');
+  });
+
+  it('anti-misroute: a remember imperative with NO capturable value falls to the LLM', () => {
+    expect(routeIntent('nhớ kỹ là JD này cần Docker nhé', FACTS)).toBe('advice');
+  });
+
+  it('anti-misroute: asking about a SPECIFIC remembered thing stays recall (unchanged)', () => {
+    expect(routeIntent('bạn có nhớ mình nhắm vị trí gì không?', FACTS)).toBe('recall');
+  });
+
+  it('anti-misroute: "bạn biết gì về ngành data?" is a domain question, not a mirror request', () => {
+    expect(routeIntent('bạn biết gì về ngành data?', FACTS)).toBe('advice');
+  });
+
+  it('FORGET nullifies durably on every re-scan (state is re-derived per turn)', () => {
+    const history = [user('Mình nhắm vị trí AI Engineer nhé'), bot('ok'), user('quên vị trí đi')];
+    expect(extractConversationState(history, 'giờ sao?').target_role).toBeNull();
+  });
+
+  it('FORGET must not re-capture the role from the forget sentence itself', () => {
+    expect(extractConversationState([], 'quên vị trí AI Engineer đi nha').target_role).toBeNull();
+  });
+
+  it('FORGET is field-scoped: dropping the deadline keeps the role', () => {
+    const history = [
+      user('Mình nhắm vị trí AI Engineer nhé'),
+      user('mình còn đúng 2 tuần nữa'),
+      user('quên thời hạn đi'),
+    ];
+    const s = extractConversationState(history, 'giờ sao?');
+    expect(s.target_role).toBe('AI Engineer');
+    expect(s.deadline).toBeNull();
+  });
+
+  it('a LATER statement after a forget wins again (later-wins is preserved)', () => {
+    const history = [
+      user('mình định nhắm Data Analyst'),
+      user('quên mục tiêu đi'),
+      user('thôi mình nhắm Backend Developer'),
+    ];
+    expect(extractConversationState(history, 'ok?').target_role).toBe('Backend Developer');
+  });
+
+  it('what_you_know echoes the state verbatim and never reads as an ask to the history scanner', () => {
+    const history = [user('Mình nhắm vị trí AI Engineer nhé'), user('mình còn đúng 2 tuần nữa')];
+    const ctx = buildTurnContext(FACTS, history, 'bạn nhớ gì về mình?', 'vi');
+    expect(ctx.intent).toBe('what_you_know');
+    expect(ctx.canned).toContain('AI Engineer');
+    expect(ctx.canned).toContain('2 tuần');
+    // Replayed into history as ASSISTANT text: it must not register as "already asked",
+    // or the ask-back directive dies for the rest of the thread. Uses the REAL regexes.
+    const replay = extractConversationState([bot(ctx.canned as string)], 'x');
+    expect(replay.asked_role).toBe(false);
+    expect(replay.asked_deadline).toBe(false);
+  });
+
+  it('what_you_know with nothing known is honest and digit-free', () => {
+    const ctx = buildTurnContext(FACTS, [], 'bạn nhớ gì về mình?', 'vi');
+    expect(ctx.canned).not.toMatch(/\d/);
+    expect(ctx.canned).toContain('chưa');
+  });
+
+  it('forget echoes the FIELD name, never the forgotten value, and the state is already nullified THIS turn', () => {
+    const history = [user('mình còn đúng 2 tuần nữa')];
+    const ctx = buildTurnContext(FACTS, history, 'quên thời hạn đi', 'vi');
+    expect(ctx.intent).toBe('forget');
+    expect(ctx.canned).toContain('Đã quên');
+    expect(ctx.canned).not.toMatch(/\d/);
+    expect(ctx.state.deadline).toBeNull();
+  });
+
+  it('remember acks the captured value verbatim', () => {
+    const ctx = buildTurnContext(FACTS, [], 'nhớ giùm mình: mình nhắm vị trí Backend Intern', 'vi');
+    expect(ctx.intent).toBe('remember');
+    expect(ctx.canned).toContain('Backend Intern');
+    expect(ctx.state.target_role).toBe('Backend Intern');
+  });
+
+  it('english variants compose in english', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [user('Mình nhắm vị trí AI Engineer nhé')],
+      'what do you know about me?',
+      'en',
+    );
+    expect(ctx.canned).toContain('AI Engineer');
+    expect(ctx.canned).not.toContain('Mình đang nhớ');
+  });
+});
+
 describe('askDirective — the needs_detail condition, computed by code', () => {
   it('MO-HO opener (no role known, advice-seeking) → ask role', () => {
     const s = extractConversationState([], 'mình không biết bắt đầu từ đâu luôn');
