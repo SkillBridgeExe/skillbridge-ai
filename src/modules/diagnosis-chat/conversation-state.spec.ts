@@ -848,6 +848,9 @@ describe('stale deadline → ask-back machinery re-fires ONCE (Wave 3, measured 
     const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
     expect(ctx.state.asked_deadline).toBe(true);
     expect(ctx.ask).toBeNull();
+    // ...and the DIRECTIVE channel goes quiet with it — ungated, the expiry line ordered a
+    // re-ask on every post-dodge turn while the ask channel was one-shot (review, 2nd pass).
+    expect(ctx.contextBlock).not.toContain('updated timeline');
   });
 
   it('a FRESH deadline never trips the stale re-ask', () => {
@@ -891,6 +894,7 @@ describe('ELICITED deadline + stale → the re-ask still fires (review MAJOR: as
     const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
     expect(ctx.state.asked_deadline).toBe(true);
     expect(ctx.ask).toBeNull(); // asked once, user dodged → never nag
+    expect(ctx.contextBlock).not.toContain('updated timeline'); // directive channel quiet too
   });
 
   it('answering the stale re-ask with a fresh deadline clears both the ask and the staleness', () => {
@@ -903,6 +907,15 @@ describe('ELICITED deadline + stale → the re-ask still fires (review MAJOR: as
     expect(ctx.state.deadline).toBe('5 ngày');
     expect(ctx.contextBlock).not.toContain('may ALREADY be past');
     expect(ctx.ask).toBeNull();
+  });
+
+  it('stale deadline + unknown role → ONE ask only: role wins, the expiry re-ask stands down', () => {
+    const history = [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(20) }];
+    const ctx = buildTurnContext(FACTS, history, 'giờ mình nên làm gì trước?');
+    expect(ctx.ask).toBe('role');
+    expect(ctx.contextBlock).toContain('ONE short question asking which role');
+    expect(ctx.contextBlock).not.toContain('updated timeline'); // no two-questions turn
+    expect(ctx.contextBlock).toContain('may ALREADY be past'); // honesty stays regardless
   });
 });
 

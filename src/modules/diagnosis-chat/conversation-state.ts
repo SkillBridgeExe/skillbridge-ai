@@ -642,12 +642,15 @@ export function buildTurnContext(
       'They are asking to compare their JD/match options. Conclude with ONE choice from other_matches and set cited_other_match_index to it.',
     );
   }
-  if (stale) {
+  // The re-ask directive rides ONLY the turn the ask channel fires — ungated it nagged every
+  // stale turn after a dodge, and collided with a role ask in the same block (review, 2nd pass).
+  // Honesty survives without it: the Known line above already carries "may ALREADY be past".
+  const ask = askDirective(state, intent, question, stale);
+  if (stale && ask === 'deadline') {
     directives.push(
       'Their stated deadline is old and its window has likely closed. Do NOT plan around it as if current — acknowledge time may have moved on, and gently ask ONCE for their updated timeline.',
     );
   }
-  const ask = askDirective(state, intent, question, stale);
   if (ask === 'role') {
     directives.push(
       'They have NOT told you which role they are targeting, and it would change this advice. After answering from FACTS, end your message with ONE short question asking which role they are aiming for — nothing else appended.',
