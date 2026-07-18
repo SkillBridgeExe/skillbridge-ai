@@ -528,6 +528,22 @@ export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]
     );
 }
 
+// ── per-intent FACTS selection (Wave 3 — the Sierra typed-blocks lesson) ────────────────────────
+
+/**
+ * Choose the FACT groups a turn actually needs. v0 cut: `other_matches` matter ONLY on a
+ * comparison turn — everywhere else they are prompt noise AND an over-wide licensing surface
+ * (their scores stayed speakable on turns whose context never showed them).
+ * The caller MUST feed the SAME trimmed object to the prompt render and to groundDiagnosis, so
+ * the licensing set is exactly as wide as the context the model actually saw — fail-closed.
+ */
+export function factsForIntent(facts: DiagnosisFacts, intent: DiagnosisIntent): DiagnosisFacts {
+  if (intent === 'compare_jd' || !facts.other_matches?.length) return facts;
+  const trimmed = { ...facts };
+  delete trimmed.other_matches;
+  return trimmed;
+}
+
 // ── the shared entry point ───────────────────────────────────────────────────────────────────────
 
 /**

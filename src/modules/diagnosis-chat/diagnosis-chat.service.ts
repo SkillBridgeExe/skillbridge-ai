@@ -11,7 +11,12 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   groundDiagnosis,
 } from './diagnosis-grounding';
-import { buildTurnContext, coveredGapNames, ensureAskBack } from './conversation-state';
+import {
+  buildTurnContext,
+  coveredGapNames,
+  ensureAskBack,
+  factsForIntent,
+} from './conversation-state';
 
 const PROMPT_CODE = 'diagnosis_chat_v1';
 const MAX_HISTORY = 10; // bounded window (mirror learning-chat MAX_HISTORY)
@@ -169,7 +174,10 @@ export class DiagnosisChatService {
       .filter(Boolean)
       .join('\n');
 
-    let facts = input.facts;
+    // Wave 3 (3C): a non-comparison turn does not need other people's JDs in context. The SAME
+    // trimmed object feeds the prompt AND groundDiagnosis below, so the gate licenses exactly
+    // what the model saw — an other-match score on an advice turn is now an ungrounded number.
+    let facts = factsForIntent(input.facts, ctx.intent);
     const declarations = toolDeclarationsForFlow(FLOW);
     if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
       const loop = await runChatToolLoop(

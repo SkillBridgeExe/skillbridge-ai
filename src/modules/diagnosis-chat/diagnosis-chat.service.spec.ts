@@ -374,3 +374,61 @@ describe('DiagnosisChatService.turn — tool loop', () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Wave 3 (3C): per-intent facts trim — prompt and gate see the SAME context', () => {
+  const FACTS_MATCHES: DiagnosisFacts = {
+    ...FACTS,
+    other_matches: [{ jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] }],
+  };
+
+  function makeCapturingService(complete: jest.Mock) {
+    const render = jest.fn().mockReturnValue('rendered-user-prompt');
+    const prompts = {
+      render,
+      get: jest.fn((code: string) =>
+        code === 'mascot_character_v1'
+          ? { body: 'Nhân cách cá heo.', meta: {} }
+          : { body: '', meta: { system: 'system-prompt' } },
+      ),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    return { service, render };
+  }
+
+  it('an advice turn renders FACTS without other_matches — and their numbers lose their licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'JD Frontend kia bạn được 72 điểm đó.' },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'mình nên sửa gì trước?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toBeUndefined();
+    expect(result.answer).not.toContain('72'); // licensing shrank with the context — fail-closed
+  });
+
+  it('a compare_jd turn keeps other_matches in both the prompt and the licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'Frontend Developer đang là lựa chọn hợp hơn cho bạn.',
+        cited_other_match_index: 1,
+      },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'JD nào hợp mình nhất?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toHaveLength(1);
+    expect(result.answer).toContain('Frontend Developer');
+  });
+});

@@ -6,6 +6,7 @@ import {
   deadlineSpanDays,
   deadlineStale,
   extractConversationState,
+  factsForIntent,
   routeIntent,
 } from './conversation-state';
 import { DiagnosisFacts } from './diagnosis-grounding';
@@ -800,5 +801,23 @@ describe('coveredGapNames — forget + different role still reads as a change', 
       bot('OK.'),
     ];
     expect(coveredGapNames(gapFacts, history)).toEqual([]);
+  });
+});
+
+describe('factsForIntent — per-intent FACTS trim (Wave 3, 3C)', () => {
+  it('drops other_matches on a non-comparison turn', () => {
+    const trimmed = factsForIntent(FACTS_WITH_MATCHES, 'advice');
+    expect(trimmed.other_matches).toBeUndefined();
+    expect(trimmed.overall_score).toBe(FACTS_WITH_MATCHES.overall_score);
+    // the original object is untouched — the service reuses input.facts for known_state
+    expect(FACTS_WITH_MATCHES.other_matches).toHaveLength(1);
+  });
+
+  it('keeps other_matches on a compare_jd turn', () => {
+    expect(factsForIntent(FACTS_WITH_MATCHES, 'compare_jd').other_matches).toHaveLength(1);
+  });
+
+  it('is a no-op when there are no other_matches', () => {
+    expect(factsForIntent(FACTS, 'advice')).toBe(FACTS);
   });
 });
