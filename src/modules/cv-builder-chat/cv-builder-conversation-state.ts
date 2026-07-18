@@ -44,10 +44,13 @@ export interface CvBuilderConversationState {
   /** Gaps the user has already supplied detail for THIS conversation (later turns can add more;
    *  never re-derived from scratch — it is a running log over the whole scan). */
   answered_gaps: Array<{ field_path: string; gap: string }>;
-  /** The ONE gap the companion last asked about and has not yet gotten an answer for (one-shot —
-   *  asking twice is nagging). Null once answered. Sticky across turns that do not re-ask, mirroring
-   *  diagnosis-chat's `asked_role`/`asked_deadline` persistence. */
-  asked_gap: { field_path: string; gap: string } | null;
+  /** EVERY gap the companion has asked about this session and NOT yet gotten an answer for — a
+   *  CUMULATIVE outstanding set, deduped by gap KIND. One-shot per kind: a gap in here is never
+   *  re-asked (asking twice is nagging). A gap is ADDED when an assistant turn asks it and REMOVED
+   *  when the user answers it. A single slot was the old shape and it re-armed a nag: with 2+ open
+   *  gaps, a newer ask overwrote the older dodged one, so the older gap looked un-asked and got
+   *  re-asked forever (result→tech→result…). Sticky across turns that do not resolve an entry. */
+  asked_gaps: Array<{ field_path: string; gap: string }>;
 }
 
 export type CvBuilderIntent =
@@ -85,7 +88,7 @@ export type HistoryMessage = { role: 'user' | 'assistant'; content: string; at?:
 type BulletGapAsk = 'result' | 'tech' | 'action';
 
 /** No real `field_path` can be recovered from prose (see file docstring) — this stamps the
- *  placeholder onto `asked_gap`/`answered_gaps` entries so the field stays a `string` per the
+ *  placeholder onto `asked_gaps`/`answered_gaps` entries so the field stays a `string` per the
  *  interface; `active_field_path` itself is left null (never set to this placeholder) so a genuine
  *  `facts.focus.field_path` default in `buildTurnContext` is never shadowed by a meaningless value. */
 const UNKNOWN_FIELD = '(unspecified field)';
@@ -208,9 +211,11 @@ const ASK_PRIORITY: BulletGapAsk[] = ['result', 'action', 'tech'];
  * the sibling diagnosis-chat companion: telling the model "ask when you don't know X" got obeyed
  * ~1 of 4 turns — so code decides WHEN here too; the LLM only phrases via `ensureAskBack`.
  *
- * "Already answered/asked" is judged by gap KIND only (`state.answered_gaps`/`state.asked_gap`),
+ * "Already answered/asked" is judged by gap KIND only (`state.answered_gaps`/`state.asked_gaps`),
  * never per-field — see the file docstring's `answered_gaps` note for why a real field-level
  * comparison isn't possible (the real `field_path` is an opaque FE id never restated in prose).
+ * `asked_gaps` is the FULL outstanding set, not one slot: checking the whole set is what stops a
+ * second gap's ask from re-arming a nag for an earlier dodged one (the bug this shape fixes).
  * ponytail (Slice-4 harness-tuning item, not a safety concern): this means once the user answers a
  * gap KIND, it is not re-asked for the rest of the session even on a different field. The natural
  * suppressor is that `facts.focus.gaps` is recomputed from the live draft every turn — once a
@@ -227,10 +232,11 @@ export function askDirective(
   const focus = facts.focus;
   if (!focus) return null;
   const answeredKinds = new Set(state.answered_gaps.map((g) => g.gap));
+  const askedKinds = new Set(state.asked_gaps.map((g) => g.gap));
   for (const gap of ASK_PRIORITY) {
     if (!focus.gaps.includes(gap)) continue;
     if (answeredKinds.has(gap)) continue;
-    if (state.asked_gap?.gap === gap) continue; // still outstanding this turn — don't nag
+    if (askedKinds.has(gap)) continue; // already asked this session (answered or not) — never nag
     return { field_path: focus.field_path, gap };
   }
   return null;
@@ -256,11 +262,12 @@ function roleFrom(text: string): string | null {
 // ── state extraction ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Read the structured state out of the conversation. One chronological pass: an outstanding
- * `asked_gap` is STICKY (persists across turns that do not re-ask, exactly like diagnosis-chat's
- * `asked_role`/`asked_deadline`), but only the turn IMMEDIATELY after an ask gets a capture attempt
- * — later turns never retroactively consume a stale ask, so a topic change can never be misread as
- * an answer several turns later.
+ * Read the structured state out of the conversation. One chronological pass. Every asked-but-unanswered
+ * gap accumulates in `asked_gaps` (deduped by kind) and is STICKY (persists across later turns), so a
+ * second gap's ask can never make an earlier dodged one look un-asked and re-arm a nag. Only the turn
+ * IMMEDIATELY after an ask gets a capture attempt — later turns never retroactively consume a stale
+ * ask, so a topic change can never be misread as an answer several turns later. A captured answer both
+ * records into `answered_gaps` AND removes that kind from `asked_gaps` (it's resolved, not outstanding).
  */
 export function extractConversationState(
   history: HistoryMessage[],
@@ -270,14 +277,17 @@ export function extractConversationState(
     target_role: null,
     active_field_path: null,
     answered_gaps: [],
-    asked_gap: null,
+    asked_gaps: [],
   };
   let justAskedGap: { field_path: string; gap: BulletGapAsk } | null = null;
 
   const readUserText = (text: string): void => {
     if (justAskedGap && answersGap(text, justAskedGap.gap)) {
+      // the answer CONSUMES the ask — record it AND drop it from the outstanding set (resolved,
+      // one-shot, never nag on a captured gap). Dodge does NOT enter here → the gap stays outstanding.
       state.answered_gaps.push({ field_path: justAskedGap.field_path, gap: justAskedGap.gap });
-      state.asked_gap = null; // the answer CONSUMES the ask — one-shot, never nag on a captured gap
+      const answered = justAskedGap.gap;
+      state.asked_gaps = state.asked_gaps.filter((g) => g.gap !== answered);
     }
     const role = roleFrom(text);
     if (role) state.target_role = role;
@@ -288,12 +298,14 @@ export function extractConversationState(
     if (m.role === 'assistant') {
       const gap = askedGapFrom(m.content);
       if (gap) {
-        const ask = { field_path: UNKNOWN_FIELD, gap };
-        state.asked_gap = ask;
-        justAskedGap = ask;
+        // ADD to the outstanding set (dedupe by KIND); older outstanding gaps stay put.
+        if (!state.asked_gaps.some((g) => g.gap === gap)) {
+          state.asked_gaps.push({ field_path: UNKNOWN_FIELD, gap });
+        }
+        justAskedGap = { field_path: UNKNOWN_FIELD, gap };
       } else {
-        // this turn did not ask — no immediate-capture window opens, but a PRIOR outstanding
-        // `asked_gap` is left untouched (sticky) until a capture or a newer ask resolves it.
+        // this turn did not ask — no immediate-capture window opens; the outstanding set is left
+        // untouched (sticky) until a capture resolves an entry.
         justAskedGap = null;
       }
     } else {

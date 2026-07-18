@@ -45,14 +45,14 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
     const s = extractConversationState(history, 'giảm load 40%');
     expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
-    expect(s.asked_gap).toBeNull();
+    expect(s.asked_gaps).toEqual([]);
   });
 
   it('WRONG-capture guard: a dodge that does not answer the asked gap leaves it outstanding', () => {
     const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
     const s = extractConversationState(history, 'ok cảm ơn nha');
     expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
-    expect(s.asked_gap).toEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
   });
 
   it('one-shot: only the turn IMMEDIATELY after the ask gets a capture attempt', () => {
@@ -65,20 +65,20 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     // a later turn stating a metric should NOT retroactively consume the stale ask
     const s = extractConversationState(history, 'giảm load 40%');
     expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
-    expect(s.asked_gap).toEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
   });
 
   it('an outstanding ask is sticky across a non-asking assistant turn', () => {
     const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, bot('ok')];
     const s = extractConversationState(history, 'chưa biết nữa');
-    expect(s.asked_gap).toEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
   });
 
   it('captures a tech-gap answer ("dùng React với Node") after a tech-ask', () => {
     const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
     const s = extractConversationState(history, 'dùng React với Node');
     expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
-    expect(s.asked_gap).toBeNull();
+    expect(s.asked_gaps).toEqual([]);
   });
 
   it('captures an action-gap answer after an action-ask', () => {
@@ -109,7 +109,7 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
     const s = extractConversationState(history, 'trước đây chưa đo nhưng giờ giảm 40%');
     expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
-    expect(s.asked_gap).toBeNull();
+    expect(s.asked_gaps).toEqual([]);
   });
 
   it('a compound word containing "thôi" ("thôi thúc") is not misread as the dodge particle', () => {
@@ -131,7 +131,7 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
     const s = extractConversationState(history, 'giảm 40% thôi');
     expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
-    expect(s.asked_gap).toBeNull();
+    expect(s.asked_gaps).toEqual([]);
   });
 
   it('captures tech when the answer ends in the particle "thôi" ("mình dùng React thôi")', () => {
@@ -323,11 +323,63 @@ describe('askDirective — the proactive ask-ONE-gap decision (code decides WHEN
   it('no ask when nothing is focused', () => {
     expect(
       askDirective(
-        { target_role: null, active_field_path: null, answered_gaps: [], asked_gap: null },
+        { target_role: null, active_field_path: null, answered_gaps: [], asked_gaps: [] },
         'write',
         FACTS_NO_FOCUS,
       ),
     ).toBeNull();
+  });
+
+  // ── the nag this state shape exists to kill: two open gaps, each dodged in turn. A single-slot
+  // `asked_gap` forgot the older dodged gap once the newer one was asked and re-asked it forever
+  // (result→tech→result…). The cumulative `asked_gaps` set keeps BOTH outstanding → no re-ask.
+  it('HEADLINE: two gaps each asked-and-dodged both stay outstanding → askDirective is null (no nag)', () => {
+    const history = [
+      bot('Dự án đó bạn đo được kết quả gì chưa?'), // asks result
+      user('để sau đi'), // dodge (not captured)
+      bot('Bạn dùng công nghệ gì cho phần này vậy?'), // asks tech
+      user('chưa biết đâu'), // dodge (not captured)
+    ];
+    const s = extractConversationState(history, 'ok giờ viết lại giúp mình');
+    expect(s.answered_gaps).toEqual([]); // neither dodge was captured
+    expect(s.asked_gaps.map((g) => g.gap).sort()).toEqual(['result', 'tech']); // both outstanding
+    // FACTS.focus.gaps === ['result','tech'] → both already asked → nothing left to ask
+    expect(askDirective(s, 'write', FACTS)).toBeNull();
+  });
+
+  it('2-gap one-shot: dodging result asks TECH next (not result again); dodging tech too → null', () => {
+    const afterResultDodge = extractConversationState(
+      [bot('Dự án đó bạn đo được kết quả gì chưa?')],
+      'chưa biết nữa', // dodge — result stays outstanding
+    );
+    expect(afterResultDodge.asked_gaps.map((g) => g.gap)).toEqual(['result']);
+    // the OTHER open gap (tech) is asked next, NOT result again
+    expect(askDirective(afterResultDodge, 'write', FACTS)).toEqual({
+      field_path: FACTS.focus!.field_path,
+      gap: 'tech',
+    });
+    // once tech is also asked-and-dodged, both are outstanding → nothing left to ask
+    const afterTechDodge = extractConversationState(
+      [
+        bot('Dự án đó bạn đo được kết quả gì chưa?'),
+        user('chưa biết nữa'),
+        bot('Bạn dùng công nghệ gì cho phần này vậy?'),
+        user('hmm chưa rõ'),
+      ],
+      'giờ sao nữa',
+    );
+    expect(askDirective(afterTechDodge, 'write', FACTS)).toBeNull();
+  });
+
+  it('answering a gap removes it from asked_gaps and lets the OTHER open gap be asked next', () => {
+    const s = extractConversationState([bot('Dự án đó bạn đo được kết quả gì chưa?')], 'giảm 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
+    expect(s.asked_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+    // tech is still an open, unasked gap on FACTS.focus → next advice turn asks tech
+    expect(askDirective(s, 'write', FACTS)).toEqual({
+      field_path: FACTS.focus!.field_path,
+      gap: 'tech',
+    });
   });
 });
 
