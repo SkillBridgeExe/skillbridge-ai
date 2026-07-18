@@ -31,6 +31,17 @@ describe('PromptsService interview voice templates', () => {
   });
 });
 
+describe('PromptsService mascot_character_cvbuilder_v1', () => {
+  it('loads and its scene is rescoped away from the CV diagnosis', async () => {
+    const service = new PromptsService(new TemplateRenderer());
+    await service.onModuleInit();
+
+    const template = service.get('mascot_character_cvbuilder_v1');
+    expect(template.filename).toBe('mascot_character_cvbuilder_v1.md');
+    expect(template.body).not.toContain('chẩn đoán');
+  });
+});
+
 describe('PromptsService cv_builder_chat_v1', () => {
   it('loads and renders with all six injection points filled', async () => {
     const service = new PromptsService(new TemplateRenderer());
