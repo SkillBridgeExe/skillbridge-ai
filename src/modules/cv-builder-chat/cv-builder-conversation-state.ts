@@ -127,14 +127,33 @@ const ACTION_VERB_ANSWER_RE =
  *  captures — no dodge regex required. Only `action`'s ACTION_VERB_ANSWER_RE is loose enough that an
  *  incidental verb inside a deferral ("thôi mình tạo cái khác sau" → "tạo") would false-capture.
  *
- *  This matches ONLY unambiguous deferral markers. It deliberately does NOT match a sentence-final
- *  limiting-particle "thôi" ("tạo dashboard thôi" = "I just made a dashboard", a REAL answer) — the
- *  root-cause bug of the prior rounds was a bare/final `thôi` in the old blanket DODGE_RE discarding
- *  such answers. "thôi" here is a deferral ONLY when it LEADS the reply (`^\s*thôi` = "nah, …"), and
- *  even then not the compound "thôi thúc" (motivate). `chưa` requires a deferral continuation
- *  (có/biết/xong/đâu) — a bare "chưa" is a common hedge inside a genuine answer. */
+ *  This matches ONLY unambiguous deferral markers, each anchored so it can't fire inside a genuine
+ *  answer that merely mentions the same words:
+ *  - `để (sau|mai|lúc khác|khi khác)` — NOT bare `để … đó` ("để đó cho anh xem" = "there it is, take a
+ *    look" is a real answer, not a deferral).
+ *  - `khỏi (cần|phải)` — "no need to" is a deferral; bare `khỏi` alone is not, and `khỏi lo` ("no
+ *    worries") is deliberately left OUT of the companion list: a standalone "khỏi lo" carries no
+ *    action verb so ACTION_VERB_ANSWER_RE never even fires on it (nothing to wrongly suppress), while
+ *    "… xong rồi, khỏi lo" (a real answer with a reassurance tag) DOES carry one and must capture.
+ *  - `hỏi ai đó (đã|xem|thử)` / `(mình) (nghĩ|coi|xem) (lại|đã)` — "ask/think first" idioms restored
+ *    (e.g. "để hỏi sếp đã", "để mình coi đã") — clear deferrals, not real answers.
+ *  - leading `^\s*thôi\b` (not the compound "thôi thúc") — "thôi" is a deferral ONLY when it LEADS the
+ *    reply ("nah, …"); a sentence-final limiting-particle "thôi" ("tạo dashboard thôi" = "I just made
+ *    a dashboard") is a REAL answer and must not match — the root-cause bug of the prior rounds.
+ *  - `chưa (có|biết|xong|đâu)` — requires a deferral continuation; a bare "chưa" is a common hedge
+ *    inside a genuine answer.
+ *  - removed entirely: bare `không cần` (fires inside "đã tạo dashboard, không cần thư viện ngoài" — a
+ *    real answer) and bare `cái khác` (fires inside "tạo dashboard với vài cái khác nữa" — more real
+ *    work, not a deferral).
+ *
+ *  ponytail: the action gap is the fuzziest of the three signals — verb-in-answer vs. verb-in-deferral
+ *  is inherently ambiguous prose, not a clean-cut regex problem. This guard covers the clear,
+ *  unambiguous idioms named by review; any residual edge phrasing that still slips through is a
+ *  Slice-4 harness-tuning item, not a safety concern — `groundCvChat`'s anti-fabrication gate blocks
+ *  all fabrication regardless of what this guard misses (a missed deferral only costs one wrong-topic
+ *  capture that a later correction turn overwrites, never a fabricated CV claim). */
 const ACTION_DEFERRAL_RE =
-  /để\s+(?:sau|mai|lúc\s+khác|khi\s+khác|đó)|khỏi(?![\p{L}\p{N}])|không\s+cần|cái\s+khác|^\s*thôi\b(?!\s+thúc)|\bskip\b|\blater\b|\bnevermind\b|chưa\s*(?:có|biết|xong|đâu)/iu;
+  /để\s+(?:sau|mai|lúc\s+khác|khi\s+khác)|khỏi\s+(?:cần|phải)|hỏi\s+\S+\s+(?:đã|xem|thử)|(?:mình\s*)?(?:nghĩ|coi|xem)\s*(?:lại|đã)|^\s*thôi\b(?!\s+thúc)|\bskip\b|\blater\b|\bnevermind\b|chưa\s*(?:có|biết|xong|đâu)/iu;
 
 /** Does this reply name a KNOWN technology from `NAMED_TECH` (the same curated gazetteer
  *  `groundCvRewrite`'s anti-fabrication gate arm (c) uses)? Deliberately NOT "any capitalized

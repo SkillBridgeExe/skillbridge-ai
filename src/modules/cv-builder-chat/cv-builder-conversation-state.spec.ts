@@ -138,6 +138,45 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
   });
 
+  // ── Round-4 tightening: ACTION_DEFERRAL_RE's prior alternatives (bare `khỏi`, bare `không cần`,
+  // bare `cái khác`, `để … đó`) were over-broad and false-suppressed these genuine answers.
+  it('captures action for a real answer carrying a "khỏi lo" reassurance tag ("… xong rồi, khỏi lo")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard xong rồi, khỏi lo');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "không cần" ("…, không cần thư viện ngoài")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình đã tạo dashboard, không cần thư viện ngoài');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "cái khác" ("… với vài cái khác nữa")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard với vài cái khác nữa');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "để đó" ("… để đó cho anh xem")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo xong rồi, để đó cho anh xem');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  // ── restored "ask/think first" deferral idioms — clear deferrals, must keep being rejected.
+  it('does NOT capture action for a "hỏi ai đó đã" deferral ("để hỏi sếp đã, …")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để hỏi sếp đã, chắc là mình sẽ tạo báo cáo');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('does NOT capture action for a "coi/nghĩ lại đã" deferral ("để mình coi đã, …")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để mình coi đã, chắc tạo thêm phần login');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
   it('a restated target role is captured (informational)', () => {
     const s = extractConversationState([], 'mình đang nhắm vị trí Backend Developer');
     expect(s.target_role).toBe('Backend Developer');
