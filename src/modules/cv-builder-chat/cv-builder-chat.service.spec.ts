@@ -104,4 +104,50 @@ describe('CvBuilderChatService.turn', () => {
     });
     expect(res.answer_kind).toBe('refusal');
   });
+
+  it('answers a greeting from code, no LLM call, with known_state attached', async () => {
+    const prompts = makePrompts();
+    const llm = { complete: jest.fn() };
+    const service = new CvBuilderChatService(llm as never, prompts as never);
+    const res = await service.turn({ question: 'hi', facts: FACTS, language: 'vi' });
+    expect(llm.complete).not.toHaveBeenCalled();
+    expect(res.answer_kind).toBe('canned');
+    expect(res.known_state).toBeDefined();
+  });
+
+  it('appends the ask on an advice turn where the model dropped it (ensureAskBack)', async () => {
+    const prompts = makePrompts();
+    // FACTS.focus already carries an unanswered 'result' gap; the question is advice-seeking
+    // ('write' intent), so askDirective fires — the model's reply below carries no '?' at all.
+    const llm = {
+      complete: jest.fn().mockResolvedValue({
+        parsedJson: {
+          message: 'Gợi ý dùng động từ mạnh hơn.',
+          used_facts: [],
+          proposed_edit: null,
+          cited_field_path: null,
+          suggested_next_step: null,
+        },
+        text: '',
+        tokenUsage: {},
+      }),
+    };
+    const service = new CvBuilderChatService(llm as never, prompts as never);
+    const res = await service.turn({
+      question: 'giúp mình viết project này mạnh hơn',
+      facts: FACTS,
+      language: 'vi',
+    });
+    expect(res.answer).toContain('?'); // the ask-back was appended
+    expect(res.known_state).toBeDefined();
+  });
+
+  it('known_state rides the LLM-failure fallback path too', async () => {
+    const prompts = makePrompts();
+    const llm = { complete: jest.fn().mockRejectedValue(new Error('timeout')) };
+    const service = new CvBuilderChatService(llm as never, prompts as never);
+    const res = await service.turn({ question: 'x', facts: FACTS, language: 'vi' });
+    expect(res.answer_kind).toBe('canned');
+    expect(res.known_state).toBeDefined();
+  });
 });

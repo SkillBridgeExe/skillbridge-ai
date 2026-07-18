@@ -2,8 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../prompts/prompts.service';
 import { CvBuilderChatFacts } from './cv-builder-chat.facts';
-import { CvBuilderChatResult, groundCvChat } from './cv-chat-grounding';
+import { CvBuilderChatResult, CvBuilderKnownState, groundCvChat } from './cv-chat-grounding';
 import { CV_BUILDER_CHAT_SCHEMA } from './cv-builder-chat.schema';
+import { buildTurnContext, ensureAskBack } from './cv-builder-conversation-state';
 
 const PROMPT_CODE = 'cv_builder_chat_v1';
 const CHARACTER_CODE = 'mascot_character_cvbuilder_v1';
@@ -36,18 +37,22 @@ function safeParse(text: string): unknown {
 }
 
 /**
- * One grounded CV-builder companion turn: render cv_builder_chat_v1 over the user's own draft FACTS →
- * schema-enforced LLM call → groundCvChat (drop any fabricated number/tech/url/entity/credential/date,
- * verify a proposed edit against the shipped rewrite anti-invention counter). The LLM only PHRASES;
- * code owns the facts and the grounding boundary.
+ * One grounded CV-builder companion turn: conversation brain (`buildTurnContext` — deterministic
+ * state + intent route + canned short-circuit) → render cv_builder_chat_v1 over the user's own draft
+ * FACTS → schema-enforced LLM call → groundCvChat (drop any fabricated number/tech/url/entity/
+ * credential/date, verify a proposed edit against the shipped rewrite anti-invention counter) →
+ * `ensureAskBack` backstop. The LLM only PHRASES; code owns the facts, the ask-WHEN decision, and the
+ * grounding boundary.
  *
- * No brain yet (Slice 2 adds it): no intent routing, no conversation state extraction, no tool loop —
- * CV-builder tools are dormant per spec (the draft is read server-side as facts, there is no tool loop),
- * so this depends on LlmService + PromptsService only. IO-light (no DB) so the AI-lane flow is fully
- * testable without cross-lane wiring; the platform layer wraps persistence + quota + tracing.
+ * Still no tool loop (Slice 2 is state/intent/ask only) — CV-builder tools are dormant per spec (the
+ * draft is read server-side as facts), so this depends on LlmService + PromptsService only. IO-light
+ * (no DB) so the AI-lane flow is fully testable without cross-lane wiring; the platform layer wraps
+ * persistence + quota + tracing.
  *
  * Resilience: an LLM transport error (timeout / 429 / 5xx) must NOT 500 the turn — groundCvChat(null, ...)
- * serves the deterministic honest fallback (mirrors diagnosis-chat).
+ * serves the deterministic honest fallback (mirrors diagnosis-chat). `known_state` (mirrored from
+ * `ctx.state`) rides EVERY return path, including canned and fallback, so the FE memory card is never
+ * blanked.
  */
 @Injectable()
 export class CvBuilderChatService {
@@ -66,6 +71,29 @@ export class CvBuilderChatService {
       .map((m) => `${m.role}: ${m.content}`)
       .join('\n');
 
+    // Conversation brain (Slice 2): deterministic state (active field, restated target role,
+    // answered/asked bullet gaps) + intent route. Greetings/thanks/meta are answered by CODE — warm,
+    // instant, zero fabrication surface — and never reach the LLM.
+    const ctx = buildTurnContext(input.facts, allHistory, input.question, language);
+    // The memory mirror rides EVERY return path — code-extracted state, so echoing it back is exact
+    // by definition. A canned/fallback turn must not blank the FE card. Shape matches
+    // CvBuilderKnownState (cv-chat-grounding.ts): gap KIND only, never the opaque field_path.
+    const knownState: CvBuilderKnownState = {
+      target_role: ctx.state.target_role,
+      active_field_path: ctx.state.active_field_path,
+      answered_gaps: ctx.state.answered_gaps.map((g) => g.gap),
+    };
+    if (ctx.canned !== null) {
+      return {
+        answer: ctx.canned,
+        answer_kind: 'canned',
+        proposed_edit: null,
+        grounded_facts: [],
+        suggested_next_step: null,
+        known_state: knownState,
+      };
+    }
+
     // System = truth rules (frontmatter of the chat prompt) + PERSONA (body of the CV-builder
     // character sheet) — same two-layer split as diagnosis-chat, using the CV persona (Task 1.5).
     const character = this.prompts.get(CHARACTER_CODE).body.trim();
@@ -77,7 +105,7 @@ export class CvBuilderChatService {
       facts: JSON.stringify(input.facts, null, 2),
       focus: input.facts.focus ? JSON.stringify(input.facts.focus, null, 2) : '(none)',
       history: history || '(no prior messages)',
-      context: '(none)', // no conversation brain yet — Slice 2 fills this in.
+      context: ctx.contextBlock,
       question: input.question,
     });
 
@@ -111,6 +139,11 @@ export class CvBuilderChatService {
       const grounded = groundCvChat(parsed, input.facts, language, candidateSaid);
       return {
         ...grounded,
+        // Ask-back backstop: code decided WHEN to ask (`ctx.ask`); if the model dropped the
+        // question anyway (measured on the sibling companion: obeyed ~1 of 4 directive turns),
+        // code appends the standard one.
+        answer: ensureAskBack(grounded.answer, ctx.ask, language),
+        known_state: knownState,
         trace: {
           promptTokens: result.tokenUsage?.promptTokens ?? 0,
           completionTokens: result.tokenUsage?.completionTokens ?? 0,
@@ -124,8 +157,9 @@ export class CvBuilderChatService {
       );
     }
 
-    // On a failed/empty call, parsed stays null → groundCvChat returns the deterministic fallback,
-    // localized via `language` so an English user is not answered in Vietnamese on every LLM failure.
-    return groundCvChat(parsed, input.facts, language, candidateSaid);
+    // On a failed/empty call the LLM never produced `parsed` → groundCvChat(null, ...) returns the
+    // deterministic fallback, localized via `language` so an English user is not answered in
+    // Vietnamese on every LLM failure.
+    return { ...groundCvChat(null, input.facts, language, candidateSaid), known_state: knownState };
   }
 }
