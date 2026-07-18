@@ -13,6 +13,7 @@
 import {
   groundCvRewrite,
   numberTokens,
+  NUMBER_TOKEN_RE,
   hasWord,
   urlTokens,
   properNounPhrases,
@@ -132,20 +133,63 @@ function firstNonAsciiDigitRun(nfkcText: string): string | null {
 }
 
 /**
+ * A CV-writing advice noun — a count of what to WRITE, not a metric about the record. ALLOW-list on
+ * purpose (mirrors diagnosis-grounding's `ADVICE_NOUN`): the deny-list shape fails OPEN, so the first
+ * noun nobody listed would ship "còn thiếu 5 dự án" as fact; an unlisted noun just falls back to the
+ * gate (a templated turn), which is safe. Anchored `^\s*` → the noun must sit IMMEDIATELY on the
+ * number. Score-ish surfaces are excluded so no scale can ride in on a stray word.
+ */
+const CV_ADVICE_NOUN =
+  /^\s*(?:công nghệ|công cụ|phiên bản|bản|chỗ|điểm|bullet|câu|dòng|gạch đầu dòng|ý|số liệu|số|kết quả|động từ|chi tiết|thông tin|việc|phần|mục|technolog(?:y|ies)|tools?|versions?|bullets?|lines?|points?|numbers?|results?|details?|verbs?|things?|parts?)(?![\p{L}\p{N}])/iu;
+
+/**
+ * Is this ungrounded number a BENIGN writing-craft quantity the prose gate must NOT read as
+ * fabrication? Mirrors the diagnosis doctrine (`isBenignQuantity`, diagnosis-grounding.ts): a small
+ * UNITLESS integer (or small unitless range) sitting on a CV-writing advice noun is a count of what
+ * to WRITE ("thêm 2-3 phiên bản", "yếu ở 3 chỗ", "cho mình biết 1 công nghệ"), never a claim about
+ * the user's record. `token` is the NFKC-folded, space-stripped number token; `before`/`after` are the
+ * slices of the (NFKC-folded) text around the raw match.
+ *
+ * A unit-bearing number ("40%", "3-5 years"), a scale half ("3/5"), a value >5, or a bare number with
+ * no advice noun stays gated — none is an advice count, and "N <advice-noun>" (1≤N≤5, no unit) cannot
+ * assemble into a fabricated %, salary or score, so this never reopens a real fabrication.
+ */
+function isBenignCvQuantity(before: string, after: string, token: string): boolean {
+  const range = token.match(/^(\d{1,2})-(\d{1,2})$/);
+  // pure integer or pure integer-range only. A unit/decimal/3+-digit token ("40%", "3.5", "100") is
+  // never an advice count → not benign (stays gated).
+  if (!range && !/^\d{1,2}$/.test(token)) return false;
+  const values = range ? [Number(range[1]), Number(range[2])] : [Number(token)];
+  if (values.some((n) => n < 1 || n > 5)) return false; // small counts only (1..5, both ends of a range)
+  if (/[\d/]$/.test(before)) return false; // the other half of a scale — "3/5", or a split larger number
+  if (/^\s*[/%]/.test(after)) return false; // a rate/scale continues after the number — "5/10", "5 %"
+  return CV_ADVICE_NOUN.test(after); // an advice noun must sit immediately on the number
+}
+
+/**
  * The first token in `text` that asserts a fact the user never licensed, or null. `licensed` is the
- * user's own words + the original focused text, ALREADY NFKC-folded. START STRICT: any ungrounded
- * number / tech / url / entity / credential / temporal token → this fires (benign-advice allowance is
- * deferred to Slice 4 against the harness). Reuses the shipped rewrite nets verbatim.
+ * user's own words + the original focused text + the user's own target role, ALREADY NFKC-folded. Any
+ * ungrounded number / tech / url / entity / credential / temporal token → this fires. ONE deliberate
+ * relief (Slice-4 tuning, measured against the harness): a benign writing-craft quantity
+ * ({@link isBenignCvQuantity}) is NOT a fabrication and passes. Reuses the shipped rewrite nets verbatim.
  */
 export function firstUngroundedToken(text: string, licensed: string): string | null {
   const t = text.normalize('NFKC');
   const src = licensed; // already NFKC-folded by the caller
   const srcLower = src.toLowerCase();
 
-  // (b) numbers — unit-aware, exact token ("40%" ≠ "40ms", "3-5 years" ≠ "5 years").
+  // (b) numbers — unit-aware, exact token ("40%" ≠ "40ms", "3-5 years" ≠ "5 years"). Iterate the same
+  //     NUMBER_TOKEN_RE positionally so an ungrounded token can be checked for the benign-advice shape.
   const allowedNumbers = new Set(numberTokens(src));
-  for (const num of numberTokens(t)) if (!allowedNumbers.has(num)) return num;
-  // fail CLOSED on non-ASCII Nd glyphs the ASCII scan above can't read.
+  for (const m of t.matchAll(NUMBER_TOKEN_RE)) {
+    const norm = m[0].replace(/\s+/g, '').toLowerCase();
+    if (!/\d/.test(norm) || allowedNumbers.has(norm)) continue;
+    const at = m.index ?? 0;
+    if (isBenignCvQuantity(t.slice(0, at), t.slice(at + m[0].length), norm)) continue;
+    return m[0].trim();
+  }
+  // fail CLOSED on non-ASCII Nd glyphs the ASCII scan above can't read (a fabricated metric is never
+  // "benign" — this arm is untouched by the advice allowance).
   const nonAscii = firstNonAsciiDigitRun(t);
   if (nonAscii !== null) return nonAscii;
 
@@ -205,8 +249,16 @@ export function groundCvChat(
   }
   const p = parsed as CvBuilderChatModelOutput;
 
-  // licensed corpus = the user's OWN turns + the original focused text ONLY (never the assistant's).
-  const licensed = (candidateSaid + ' ' + (facts.focus?.current_text ?? '')).normalize('NFKC');
+  // licensed corpus = the user's OWN turns + the original focused text + their OWN target role ONLY
+  // (never the assistant's). target_role is the user's stated goal, so naming it back ("cho vị trí
+  // Full-stack Developer") is not invention; a DIFFERENT invented title stays uncovered and caught.
+  const licensed = (
+    candidateSaid +
+    ' ' +
+    (facts.focus?.current_text ?? '') +
+    ' ' +
+    (facts.target_role ?? '')
+  ).normalize('NFKC');
 
   // 2) prose gate — any ungrounded fact token → refuse, and NEVER echo the fabricating message.
   if (firstUngroundedToken(p.message, licensed) !== null) {

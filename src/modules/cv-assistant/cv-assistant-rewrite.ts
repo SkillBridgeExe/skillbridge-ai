@@ -153,7 +153,7 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
  * gate unit-aware ("30%" ≠ "30ms") and range-atomic ("3-5 years" does not authorize the bare digits
  * 3 or 5 as standalone metrics) — both real anti-fabrication holes a bare-digit set would miss.
  */
-const NUMBER_TOKEN_RE =
+export const NUMBER_TOKEN_RE =
   /\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)?/giu;
 
 /** normalized number+unit tokens (spaces stripped, lowercased) for exact, unit-aware comparison. */

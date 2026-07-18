@@ -158,3 +158,108 @@ it('gates a fabricated suggested_next_step on the PROPOSED-EDIT path too (ground
   expect(r.proposed_edit).not.toBeNull();
   expect(r.suggested_next_step).toBeNull();
 });
+
+// ---- Slice-4 tuning: buy back benign advice quantities (must NOT be refusal) ----------
+// A small unitless count/range over a CV-writing advice noun is a count of what to WRITE, not a
+// claim about the user's record. These good advice turns were being downgraded to a canned refusal.
+
+const roleFacts = { ...facts, target_role: 'Full-stack Developer' };
+
+const proseOnly = (message: string, next: string | null = null) => ({
+  message,
+  used_facts: [],
+  proposed_edit: null,
+  cited_field_path: null,
+  suggested_next_step: next,
+});
+
+it('buys back "1 công nghệ" — a benign writing-craft count, not a fabricated metric', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn cho mình biết 1 công nghệ chính bạn dùng nhé'),
+    facts,
+    'vi',
+    '', // user has said nothing yet
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('công nghệ'); // the advice survives, not a canned refusal
+});
+
+it('buys back a "2-3 phiên bản" range over an advice noun', () => {
+  const r = groundCvChat(
+    proseOnly('Để mình viết thêm 2-3 phiên bản cho bạn chọn nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('phiên bản');
+});
+
+it('buys back "yếu ở 3 chỗ" — a count of writing spots, not a score', () => {
+  const r = groundCvChat(
+    proseOnly('Đoạn này đang yếu ở 3 chỗ, mình sửa giúp bạn nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('3 chỗ');
+});
+
+it("licenses the user's OWN target_role in prose (not a fabricated entity)", () => {
+  const r = groundCvChat(
+    proseOnly('Mình sẽ chỉnh để mạnh hơn cho vị trí Full-stack Developer nhé'),
+    roleFacts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('Full-stack Developer');
+});
+
+// ---- Slice-4 tuning: the buy-back must NOT reopen a real fabrication (STAY refusal) ----------
+
+it('still refuses a UNIT-BEARING number the user never gave ("40% thời gian")', () => {
+  const r = groundCvChat(
+    proseOnly('Như bạn nói, bạn đã giảm 40% thời gian xử lý'),
+    facts,
+    'vi',
+    'ok tiếp đi', // user never said 40%
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('40%');
+});
+
+it('still refuses an ungrounded tech in prose that is NOT the target_role ("Firebase")', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn nên dùng Firebase Auth cho phần đăng nhập nhé'),
+    facts,
+    'vi',
+    'giúp mình phần đăng nhập', // never said Firebase; target_role = Data Analyst
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('Firebase');
+});
+
+it('still refuses a DIFFERENT invented title (≠ the licensed target_role)', () => {
+  const r = groundCvChat(
+    proseOnly('Mình ghi bạn là Trưởng Nhóm Kỹ Thuật cho oai nhé'),
+    roleFacts, // target_role = Full-stack Developer, NOT this title
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('Trưởng Nhóm Kỹ Thuật');
+});
+
+it('still refuses a FULLWIDTH-digit metric in prose ("giảm ４０%") — fail-closed intact', () => {
+  const r = groundCvChat(
+    proseOnly('Như bạn nói, bạn đã giảm ４０% thời gian'),
+    facts,
+    'vi',
+    'ok tiếp đi',
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('40%');
+  expect(r.answer).not.toContain('４０％');
+});
