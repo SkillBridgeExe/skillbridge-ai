@@ -34,6 +34,7 @@ import {
 import {
   askDirective,
   buildTurnContext,
+  deadlineStale,
   ensureAskBack,
 } from '../modules/diagnosis-chat/conversation-state';
 import { DIAGNOSIS_CHAT_SCHEMA } from '../modules/diagnosis-chat/diagnosis-chat.service';
@@ -175,6 +176,9 @@ interface Persona {
    *  each with the intent the router MUST pick — misroute here is the worst failure the
    *  memory verbs have, so it is measured, not assumed. */
   scripted?: Array<{ text: string; expect: string }>;
+  /** Wave 3 (accuracy-over-time): stamp the OPENER row this many days in the past — the only way
+   *  an in-memory thread can represent "the user came back after the deadline elapsed". */
+  backdateOpenerDays?: number;
 }
 const PERSONAS: Persona[] = [
   {
@@ -216,6 +220,18 @@ const PERSONAS: Persona[] = [
     opener: 'bạn có biết học React ở đâu rẻ không, mà thôi CV mình sao rồi',
     focus: 'cv_audit',
   },
+  {
+    id: 'QUA-HAN',
+    goal: 'Bạn quay lại sau một thời gian dài không mở app. Hạn "2 tuần" bạn nói hồi trước ĐÃ TRÔI QUA từ lâu nhưng bạn KHÔNG tự nhắc lại chuyện thời hạn — bạn chỉ hỏi tiếp về kế hoạch, xem cố vấn có tự nhận ra mốc cũ đã hết và hỏi lại mốc mới không, hay vẫn lên kế hoạch như còn nguyên 2 tuần.',
+    opener:
+      'Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa là hết hạn nộp. Nên ưu tiên gì?',
+    focus: 'gap_results',
+    backdateOpenerDays: 20,
+    scripted: [
+      { text: 'giờ mình nên ưu tiên làm gì tiếp theo đây?', expect: 'advice' },
+      { text: 'bạn nhớ gì về mình?', expect: 'what_you_know' },
+    ],
+  },
 ];
 
 const TURNS = 5;
@@ -223,6 +239,7 @@ const TURNS = 5;
 interface Line {
   role: 'user' | 'assistant';
   text: string;
+  at?: string;
   bucket?: string;
   bad?: string[];
   flags?: string[];
@@ -259,6 +276,11 @@ async function main(): Promise<void> {
   // (role/deadline) was known, how many actually SPOKE it back to the user.
   let recallEligible = 0;
   let recallShown = 0;
+  // Wave 3 (accuracy-over-time): on turns where the stated deadline has EXPIRED by wall clock,
+  // did the advisor ask for an updated timeline (good) / keep parading the dead value (bad)?
+  let staleTurns = 0;
+  let staleAskedBack = 0;
+  let staleParade = 0;
   // Phase D: LLM-judge scores what the safety counters can't see (naturalness/helpfulness).
   // Default the judge to a DIFFERENT model from the advisor — a model judging its own prose
   // inflates and compresses the scores (self-preference bias). Override with DIAGNOSIS_JUDGE_MODEL.
@@ -280,8 +302,9 @@ async function main(): Promise<void> {
 
     for (let turn = 1; turn <= TURNS; turn++) {
       // ── advisor turn (prod-faithful): REAL buildTurnContext, exactly like the service ──
-      const threadHistory = thread.map((m) => ({ role: m.role, content: m.text }));
+      const threadHistory = thread.map((m) => ({ role: m.role, content: m.text, at: m.at }));
       const ctx = buildTurnContext(facts, threadHistory, userMsg, 'vi');
+      const stale = deadlineStale(ctx.state, new Date());
       intentTally[ctx.intent] = (intentTally[ctx.intent] ?? 0) + 1;
       if (expectedIntent) {
         probeTotal += 1;
@@ -388,14 +411,28 @@ async function main(): Promise<void> {
         }
       }
 
-      thread.push({ role: 'user', text: userMsg });
+      if (stale && bucket !== 'FALLBACK') {
+        staleTurns += 1;
+        if (served.includes('?')) staleAskedBack += 1;
+        if (ctx.state.deadline && served.toLowerCase().includes(ctx.state.deadline.toLowerCase()))
+          staleParade += 1;
+      }
+
+      thread.push({
+        role: 'user',
+        text: userMsg,
+        at:
+          turn === 1 && p.backdateOpenerDays
+            ? new Date(Date.now() - p.backdateOpenerDays * 86_400_000).toISOString()
+            : new Date().toISOString(),
+      });
       thread.push({ role: 'assistant', text: served, bucket, bad, flags });
 
       const cited = 'cited_dimension' in g ? g : ({} as ReturnType<typeof groundDiagnosis>);
       log(`\n  ┌─ lượt ${turn} ─────────────────────────────────────────────`);
       log(`  │ 👤 ${userMsg}`);
       log(
-        `  │    🧠 intent=${ctx.intent} · role=${ctx.state.target_role ?? '—'} · deadline=${ctx.state.deadline ?? '—'} · ask=${askDirective(ctx.state, ctx.intent, userMsg) ?? '—'}`,
+        `  │    🧠 intent=${ctx.intent} · role=${ctx.state.target_role ?? '—'} · deadline=${ctx.state.deadline ?? '—'}${stale ? ' ⏳QUÁ-HẠN' : ''} · ask=${askDirective(ctx.state, ctx.intent, userMsg) ?? '—'}`,
       );
       if (killed) log(`  │ ✂️  GATE ĐỔI (${killReason}) — model đã viết: ${modelMsg}`);
       log(`  │ 🐬 [${bucket}] ${served}`);
@@ -512,6 +549,9 @@ async function main(): Promise<void> {
       .join(' | ')}`,
   );
   log(`🎯 Probe động-từ-nhớ (script): misroute ${probeMisroute}/${probeTotal}`);
+  log(
+    `⏳ Quá-hạn (accuracy-over-time): ${staleTurns} lượt stale · hỏi-lại-mốc-mới ${staleAskedBack}/${staleTurns} · nhắc-nguyên-văn-deadline-cũ ${staleParade} (xem tay: trích lại để hỏi là OK, lên kế hoạch như còn nguyên là FAIL)`,
+  );
   const j = summarizeJudgement(judged);
   log(
     `🎭 Judge (${judgeModel}${judgeFailures ? ` · ${judgeFailures} hội thoại LỖI JUDGE` : ''}): nat ${j.avgNaturalness.toFixed(2)} · help ${j.avgHelpfulness.toFixed(2)} · voice ${j.avgVoice.toFixed(2)} · tone-tin-xấu ${j.avgBadNewsTone.toFixed(2)} (${j.badNewsTurns} lượt) · nat≥4 ${j.naturalnessAtLeast4}/${j.total} · help≥4 ${j.helpfulnessAtLeast4}/${j.total} · template-feel ${j.templateFeel} · né-câu-hỏi ${j.ignoredQuestion} · mâu-thuẫn ${j.contradiction}`,
