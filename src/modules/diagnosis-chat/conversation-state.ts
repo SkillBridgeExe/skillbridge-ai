@@ -94,13 +94,15 @@ const ROLE_TAIL =
 /**
  * The words IMMEDIATELY BEFORE a role pattern that flip its meaning: negation ("mình KHÔNG nhắm X
  * nữa"), hypothetical/deliberation ("nếu mình nhắm X thì sao?", "có nên nhắm X không?"), someone
- * else's role ("bạn mình nhắm X"). All were MEASURED shipping a wrong role as Known — the worst
+ * else's role ("bạn mình nhắm X"), and a JD/employer mention ("bên FPT đang tuyển vị trí X",
+ * "JD này cần vị trí X" — Wave 3 review probe: these flipped the role AND archived the covered-gap
+ * coverage). All were MEASURED shipping a wrong role as Known — the worst
  * failure this file has, because the prompt tells the model to TRUST the Known lines. Up to two
  * intervening words so the guard also covers the "vị trí X" sub-pattern ("KHÔNG nhắm vị trí X").
  * Fail-soft: a false hit costs one missed personalization, never a wrong one.
  */
 const ROLE_PRE_GUARD =
-  /(?:không|ko|hông|chưa|đừng|nếu|giả\s+sử|lỡ|nên|hay\s+là|bạn\s+(?:mình|em|tôi|tớ)|anh\s+mình|chị\s+mình|em\s+mình|nó)(?:\s+[\p{L}\p{N}]+){0,2}\s*$/iu;
+  /(?:không|ko|hông|chưa|đừng|nếu|giả\s+sử|lỡ|nên|hay\s+là|bạn\s+(?:mình|em|tôi|tớ)|anh\s+mình|chị\s+mình|em\s+mình|nó|tuyển|cần|yêu\s+cầu)(?:\s+[\p{L}\p{N}]+){0,2}\s*$/iu;
 
 /** A capture containing any of these is a question/place/junk, not a title. Unicode lookarounds,
  *  not `\b` — `\bgì\b` never matches ("ì" is not ASCII \w, so the boundary does not exist). */
@@ -227,22 +229,33 @@ export function extractConversationState(
       justAskedDeadline = false;
       return;
     }
+    // Capturing a value CONSUMES any earlier ask for it (Wave 3 review, probe-confirmed): an
+    // elicited deadline left asked_deadline pinned true forever, which silenced the stale
+    // re-ask on the mainline flow the ask-back machinery itself creates. Resetting on capture
+    // keeps one-shot intact — a LATER ask row (e.g. the stale backstop) sets the flag again.
     const role = roleFrom(text);
-    if (role) state.target_role = role;
-    else if (justAskedRole) {
+    if (role) {
+      state.target_role = role;
+      state.asked_role = false;
+    } else if (justAskedRole) {
       const bare = stripBare(text);
       const bareRole = bare.length <= 40 ? cleanRole(bare) : null;
-      if (bareRole) state.target_role = bareRole;
+      if (bareRole) {
+        state.target_role = bareRole;
+        state.asked_role = false;
+      }
     }
     const deadline = deadlineFrom(text);
     if (deadline) {
       state.deadline = deadline;
       state.deadline_stated_at = at ?? null;
+      state.asked_deadline = false;
     } else if (justAskedDeadline) {
       const m = stripBare(text).match(BARE_DEADLINE);
       if (m) {
         state.deadline = m[1].trim().replace(/\s+/g, ' ');
         state.deadline_stated_at = at ?? null;
+        state.asked_deadline = false;
       }
     }
     justAskedRole = false;
@@ -542,8 +555,23 @@ export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]
  * The caller MUST feed the SAME trimmed object to the prompt render and to groundDiagnosis, so
  * the licensing set is exactly as wide as the context the model actually saw — fail-closed.
  */
-export function factsForIntent(facts: DiagnosisFacts, intent: DiagnosisIntent): DiagnosisFacts {
+export function factsForIntent(
+  facts: DiagnosisFacts,
+  intent: DiagnosisIntent,
+  question = '',
+): DiagnosisFacts {
   if (intent === 'compare_jd' || !facts.other_matches?.length) return facts;
+  // A question that NAMES one of the other matches ("JD Frontend kia thì sao?") keeps them even
+  // outside compare_jd — trimming there answers with amnesia about data the product owns (Wave 3
+  // review probe). Token match ≥4 chars; a false keep just restores pre-trim behavior, zero risk.
+  const q = question.toLowerCase();
+  const namesAMatch = facts.other_matches.some((m) =>
+    (m.jd_title ?? '')
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .some((word) => word.length >= 4 && q.includes(word)),
+  );
+  if (namesAMatch) return facts;
   const trimmed = { ...facts };
   delete trimmed.other_matches;
   return trimmed;

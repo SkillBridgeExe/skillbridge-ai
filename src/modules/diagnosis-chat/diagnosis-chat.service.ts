@@ -189,7 +189,7 @@ export class DiagnosisChatService {
     // Wave 3 (3C): a non-comparison turn does not need other people's JDs in context. The SAME
     // trimmed object feeds the prompt AND groundDiagnosis below, so the gate licenses exactly
     // what the model saw — an other-match score on an advice turn is now an ungrounded number.
-    let facts = factsForIntent(input.facts, ctx.intent);
+    let facts = factsForIntent(input.facts, ctx.intent, input.question);
     const declarations = toolDeclarationsForFlow(FLOW);
     if (declarations.length > 0 && input.userId && mightNeedTool(FLOW, input.question)) {
       const loop = await runChatToolLoop(

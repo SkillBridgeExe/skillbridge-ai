@@ -61,3 +61,10 @@ describe('mightNeedTool', () => {
     expect(mightNeedTool('unknown_flow', 'https://x.dev github repo')).toBe(false);
   });
 });
+
+describe('mightNeedTool — English coverage for the wave 3 hints (review MINOR)', () => {
+  it('english learning-progress phrasings reach the roadmap tool', () => {
+    expect(mightNeedTool('diagnosis_chat', 'how is my learning progress going?')).toBe(true);
+    expect(mightNeedTool('diagnosis_chat', 'how far along am I with my courses?')).toBe(true);
+  });
+});

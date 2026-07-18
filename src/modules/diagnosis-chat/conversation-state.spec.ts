@@ -859,3 +859,99 @@ describe('stale deadline → ask-back machinery re-fires ONCE (Wave 3, measured 
     expect(ctx.ask).toBeNull();
   });
 });
+
+// ── Wave 3 pre-merge review pins (probe-confirmed findings → permanent tests) ────────────────────
+
+describe('ELICITED deadline + stale → the re-ask still fires (review MAJOR: asked_deadline pinned true)', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  it('capture consumes the earlier ask: the mainline elicited flow re-asks when stale', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, CV mình nên sửa gì trước?'), at: daysAgo(21) },
+      {
+        ...bot('Cứ sửa bullet trước. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'),
+        at: daysAgo(21),
+      },
+      { ...user('2 tuần'), at: daysAgo(20) },
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'giờ mình nên ưu tiên gì tiếp theo đây?');
+    expect(ctx.state.deadline).toBe('2 tuần');
+    expect(ctx.state.asked_deadline).toBe(false); // the answer consumed the ask
+    expect(ctx.ask).toBe('deadline'); // ensureAskBack will append — was null before the fix
+  });
+
+  it('one-shot still holds: the stale backstop ask re-arms the flag until answered', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, CV mình nên sửa gì trước?'), at: daysAgo(21) },
+      { ...bot('Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'), at: daysAgo(21) },
+      { ...user('2 tuần'), at: daysAgo(20) },
+      { ...bot('OK. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?') }, // the stale backstop
+      user('chưa rõ nữa'),
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
+    expect(ctx.state.asked_deadline).toBe(true);
+    expect(ctx.ask).toBeNull(); // asked once, user dodged → never nag
+  });
+
+  it('answering the stale re-ask with a fresh deadline clears both the ask and the staleness', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, còn 2 tuần nữa thôi'), at: daysAgo(20) },
+      { ...bot('Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?') },
+      { ...user('giờ còn đúng 5 ngày') },
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'mình nên làm gì trước?');
+    expect(ctx.state.deadline).toBe('5 ngày');
+    expect(ctx.contextBlock).not.toContain('may ALREADY be past');
+    expect(ctx.ask).toBeNull();
+  });
+});
+
+describe('third-party role mentions never flip the role NOR archive coverage (review MINOR)', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [
+      { gap_id: 'g1', display_name: 'SQL' },
+      { gap_id: 'g2', display_name: 'PyTorch' },
+    ] as never,
+  };
+
+  it.each([
+    'Bên FPT đang tuyển vị trí Business Analyst, JD đó hợp với mình không?',
+    'JD này cần vị trí Data Engineer à?',
+    'tin tuyển dụng ghi yêu cầu vị trí Senior Developer đó',
+  ])('no wrong capture: %s', (q) => {
+    expect(extractConversationState([], q).target_role).toBeNull();
+  });
+
+  it('a JD mention between advice turns does not archive the covered gaps', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé. Với PyTorch thì học sau.'),
+      user('Bên FPT đang tuyển vị trí Business Analyst, JD đó hợp với mình không?'),
+      bot('JD đó lệch hướng bạn đang nhắm.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL', 'PyTorch']);
+  });
+
+  it('a first-person application statement still captures (ứng tuyển is not a JD mention)', () => {
+    expect(extractConversationState([], 'em ứng tuyển vào Data Analyst ạ').target_role).toBe(
+      'Data Analyst',
+    );
+  });
+});
+
+describe('factsForIntent keeps other_matches when the question NAMES one (review MINOR)', () => {
+  it('a named-match question outside compare_jd keeps the data it names', () => {
+    const kept = factsForIntent(
+      FACTS_WITH_MATCHES,
+      'advice',
+      'JD Frontend kia mình được bao nhiêu điểm?',
+    );
+    expect(kept.other_matches).toHaveLength(1);
+  });
+
+  it('an unrelated advice question still trims', () => {
+    const trimmed = factsForIntent(FACTS_WITH_MATCHES, 'advice', 'mình nên sửa bullet nào trước?');
+    expect(trimmed.other_matches).toBeUndefined();
+  });
+});

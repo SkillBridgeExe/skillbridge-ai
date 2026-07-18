@@ -69,7 +69,8 @@ const GITHUB_HINT = /\bgithub\b|\brepo(?:s|sitory)?\b/i;
 const LINK_HINT = /https?:\/\/|\blink\b|\burl\b|\bcòn (?:sống|hoạt động)\b|\bvalid\b/i;
 // Wave 3 read-tools: false negatives here silently disable a tool, so the nets are wide-ish —
 // a false positive only costs one cheap decision call.
-const ROADMAP_HINT = /lộ\s*trình|roadmap|tiến\s*độ|học\s+(?:tới|đến|xong)|bài\s+học|khóa\s+học/iu;
+const ROADMAP_HINT =
+  /lộ\s*trình|roadmap|tiến\s*độ|học\s+(?:tới|đến|xong)|bài\s+học|khóa\s+học|progress|learn|course|study/iu;
 const INTERVIEW_HINT = /phỏng\s*vấn|interview|mock/iu;
 
 export function mightNeedTool(flow: string, question: string): boolean {
