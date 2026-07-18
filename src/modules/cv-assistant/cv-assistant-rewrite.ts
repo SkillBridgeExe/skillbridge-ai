@@ -269,7 +269,7 @@ export function urlTokens(text: string): string[] {
 }
 
 /** credential claims — fabricating a certificate is a hard reject (P3-5 case 1). */
-const CREDENTIAL_WORDS = [
+export const CREDENTIAL_WORDS = [
   'certified',
   'certification',
   'certificate',
