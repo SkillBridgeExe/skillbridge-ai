@@ -141,3 +141,20 @@ it('gates suggested_next_step through the fabrication net → grounded prose, bu
   expect(r.answer_kind).toBe('grounded');
   expect(r.suggested_next_step).toBeNull();
 });
+
+it('gates a fabricated suggested_next_step on the PROPOSED-EDIT path too (grounded edit stays, chip is nulled)', () => {
+  const parsed = {
+    message: 'Đây nhé.',
+    used_facts: ['react', '40%'],
+    proposed_edit: {
+      field_path: 'projects[0].description',
+      after: 'Built e-commerce web with React, cut page load time 40%',
+    },
+    cited_field_path: 'projects[0].description',
+    suggested_next_step: 'Thêm chứng chỉ AWS và mức tăng 55% nữa nhé', // AWS + chứng chỉ + 55% never licensed
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'mình dùng react, giảm load 40%');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.proposed_edit).not.toBeNull();
+  expect(r.suggested_next_step).toBeNull();
+});
