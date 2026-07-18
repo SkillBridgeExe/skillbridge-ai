@@ -56,6 +56,18 @@ export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
   },
 };
 
+/** Wave 3 (3D, dormant knob): LIGHT intents may run a cheaper model — the fabrication gate makes
+ *  down-tiering safe (worst case = a warm refusal), never free: flipping the env REQUIRES a full
+ *  corpus re-run + one live run first. Unset env → routing identical to before this knob. */
+const LIGHT_INTENTS: ReadonlySet<string> = new Set(['compare_jd']);
+
+export function modelForIntent(intent: string): string | undefined {
+  if (LIGHT_INTENTS.has(intent)) {
+    return process.env.DIAGNOSIS_CHAT_MODEL_LIGHT || process.env.DIAGNOSIS_CHAT_MODEL || undefined;
+  }
+  return process.env.DIAGNOSIS_CHAT_MODEL || undefined;
+}
+
 export interface DiagnosisChatHistoryMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -209,7 +221,7 @@ export class DiagnosisChatService {
           responseSchema: DIAGNOSIS_CHAT_SCHEMA,
           temperature: DEFAULT_TEMPERATURE,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
-          model: process.env.DIAGNOSIS_CHAT_MODEL || undefined,
+          model: modelForIntent(ctx.intent),
         },
       );
       parsed = result.parsedJson ?? safeParse(result.text);

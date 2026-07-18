@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { DiagnosisChatService } from './diagnosis-chat.service';
+import { DiagnosisChatService, modelForIntent } from './diagnosis-chat.service';
 import { DiagnosisFacts } from './diagnosis-grounding';
 
 const FACTS: DiagnosisFacts = {
@@ -430,5 +430,34 @@ describe('Wave 3 (3C): per-intent facts trim — prompt and gate see the SAME co
     const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
     expect(factsArg.other_matches).toHaveLength(1);
     expect(result.answer).toContain('Frontend Developer');
+  });
+});
+
+describe('Wave 3 (3D): modelForIntent — dormant per-intent routing knob', () => {
+  const OLD_ENV = { ...process.env };
+  afterEach(() => {
+    process.env.DIAGNOSIS_CHAT_MODEL = OLD_ENV.DIAGNOSIS_CHAT_MODEL;
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = OLD_ENV.DIAGNOSIS_CHAT_MODEL_LIGHT;
+  });
+
+  it('unset env → undefined for every intent (provider default, exactly as before the knob)', () => {
+    delete process.env.DIAGNOSIS_CHAT_MODEL;
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBeUndefined();
+    expect(modelForIntent('compare_jd')).toBeUndefined();
+  });
+
+  it('DIAGNOSIS_CHAT_MODEL alone routes ALL intents (light falls back to it)', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-5.4-mini');
+  });
+
+  it('_LIGHT set → ONLY the light intents down-tier; advice keeps the main model', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = 'gpt-4o-mini';
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-4o-mini');
   });
 });
