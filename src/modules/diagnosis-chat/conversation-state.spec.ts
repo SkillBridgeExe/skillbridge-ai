@@ -737,3 +737,68 @@ describe('buildTurnContext — stale deadline changes the Known line, directives
     expect(stale.contextBlock).toContain('may ALREADY be past');
   });
 });
+
+describe('coveredGapNames — role change archives old-role coverage (Wave 3)', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [
+      { gap_id: 'g1', display_name: 'SQL' },
+      { gap_id: 'g2', display_name: 'PyTorch' },
+    ] as never,
+  };
+
+  it('only assistant turns AFTER the last role change count as coverage', () => {
+    const history = [
+      user('mình định nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('thôi mình chuyển sang nhắm Backend Developer rồi'),
+      bot('Vậy giờ mở PyTorch trước nhé.'),
+    ];
+    // SQL WAS advised — but under the old role → archived; PyTorch named after the change → kept.
+    expect(coveredGapNames(gapFacts, history)).toEqual(['PyTorch']);
+  });
+
+  it('restating the SAME role does not archive anything', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('như mình nói, mình nhắm Data Analyst đó'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+
+  it('the FIRST role statement never archives the pre-role advice', () => {
+    const history = [bot('Ưu tiên SQL trước nhé.'), user('à, mình nhắm Data Analyst'), bot('OK.')];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+
+  it('forget-then-restate of the SAME role keeps coverage (no phantom change)', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('quên vị trí đi'),
+      user('mình nhắm Data Analyst nhé'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+});
+
+describe('coveredGapNames — forget + different role still reads as a change', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [{ gap_id: 'g1', display_name: 'SQL' }] as never,
+  };
+
+  it('quên vị trí đi + a NEW role afterwards archives the old-role coverage', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('quên vị trí đi'),
+      user('mình nhắm Backend Developer nhé'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual([]);
+  });
+});

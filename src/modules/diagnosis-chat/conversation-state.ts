@@ -489,8 +489,28 @@ export function askDirective(
  * count — the user typing "Machine Learning?" has not been ADVISED about it yet.
  */
 export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]): string[] {
+  // Wave 3 (3B): advice given while the candidate targeted a DIFFERENT role is ARCHIVED — only
+  // assistant turns after the LAST role change count as coverage. Otherwise the anti-repetition
+  // directive keeps steering AWAY from gaps that were advised for the old role and deserve a
+  // fresh pass for the new one. Same fail-soft primitives as extraction (forget turns skipped,
+  // tangled-forget turns skipped); a missed change keeps today's behavior, never breaks it.
+  // `currentRole` tracks the last CAPTURED role even across a forget — so "quên vị trí đi" +
+  // "mình nhắm Backend nhé" still reads as a CHANGE vs the pre-forget role, while forgetting
+  // alone (or restating the same role) archives nothing.
+  let currentRole: string | null = null;
+  let boundary = -1;
+  for (let i = 0; i < history.length; i++) {
+    const m = history[i];
+    if (m.role !== 'user') continue;
+    if (parseForgetCommand(m.content)) continue;
+    if (LOOSE_FORGET_VERB_RE.test(m.content) && MEMORY_FIELD_RE.test(m.content)) continue;
+    const role = roleFrom(m.content);
+    if (!role) continue;
+    if (currentRole !== null && role.toLowerCase() !== currentRole.toLowerCase()) boundary = i;
+    currentRole = role;
+  }
   const advisorText = history
-    .filter((m) => m.role === 'assistant')
+    .filter((m, i) => m.role === 'assistant' && i > boundary)
     .map((m) => m.content)
     .join('\n');
   if (!advisorText) return [];

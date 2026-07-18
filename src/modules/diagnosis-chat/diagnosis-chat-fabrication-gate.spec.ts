@@ -659,6 +659,22 @@ describe('CI gate: bịa = 0 over the fabrication corpus', () => {
       expectInvariants(result.answer, '', 'laundering refusal');
     });
 
+    // Wave 3 (3B supersede pin): FACTS are rebuilt from the LATEST review every turn, so after a
+    // re-scan the only place an OLD score survives is the advisor's own prior turns — and those
+    // are exactly the role that never licenses. Diagnosis supersede is correct by construction.
+    it('a superseded score surviving only in advisorSaid stays unspeakable after a re-scan', () => {
+      const staleEcho = 'Điểm tổng của bạn vẫn là 55 nhé.'; // 55 ∉ current FACTS (58)
+      const result = groundDiagnosis(
+        { message: staleEcho },
+        facts,
+        'vi',
+        'điểm của mình giờ sao rồi?',
+        'Điểm tổng của bạn là 55. Ưu tiên sửa bullet.', // pre-rescan turn
+      );
+      expect(result.answer).not.toBe(staleEcho);
+      expectInvariants(result.answer, '', 'superseded-score refusal');
+    });
+
     it('the same digit DOES stay speakable when the CANDIDATE said it', () => {
       const message = 'Với 7 ngày còn lại thì tập trung Machine Learning trước.';
       const result = groundDiagnosis(
