@@ -304,21 +304,23 @@ export class DiagnosisChatPlatformService {
   }
 
   /**
-   * One conversation per (user, cv) for the CV-only path. Scoped by {userId, cvId, matchId: IS NULL} so
-   * it can never read another user's thread AND never collides with a JD chat for the same CV (which is
-   * keyed by matchId, with cvId left null). Ownership of the cv is already enforced upstream by
-   * getLatestReview(userId, cvId) being userId-scoped.
+   * One conversation per (user, cv, purpose='diagnosis') for the CV-only path. Scoped by
+   * {userId, cvId, matchId: IS NULL, purpose: 'diagnosis'} so it can never read another user's thread
+   * AND never collides with a JD chat for the same CV (keyed by matchId, cvId left null) NOR with the
+   * CV-builder-chat thread (which shares the exact same (userId, cvId, matchId: NULL) key but tags its
+   * rows purpose='cv_builder' — without this filter the two threads would corrupt each other). Ownership
+   * of the cv is already enforced upstream by getLatestReview(userId, cvId) being userId-scoped.
    */
   private async resolveCvConversation(
     userId: string,
     cvId: string,
   ): Promise<ChatConversationEntity> {
     const existing = await this.conversations.findOne({
-      where: { userId, cvId, matchId: IsNull() },
+      where: { userId, cvId, matchId: IsNull(), purpose: 'diagnosis' },
     });
     if (existing) return existing;
     return this.conversations.save(
-      this.conversations.create({ userId, cvId, matchId: null, title: null }),
+      this.conversations.create({ userId, cvId, matchId: null, purpose: 'diagnosis', title: null }),
     );
   }
 

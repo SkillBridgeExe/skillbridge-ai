@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { IsNull } from 'typeorm';
+import { ERROR_CODES } from '../../common/constants/error-codes';
 import { emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { CvBuilderChatPlatformService } from './cv-builder-chat-platform.service';
 import { CvBuilderChatRequestDto } from './dto/cv-builder-chat.dto';
@@ -47,7 +48,11 @@ function makeConversationsRepo(seed: FakeConversationRow[] = []) {
     rows.push(row);
     return row;
   });
-  const del = jest.fn(async () => ({ affected: 1 }));
+  const del = jest.fn(async ({ id }: { id: string }) => {
+    const idx = rows.findIndex((row) => row.id === id);
+    if (idx >= 0) rows.splice(idx, 1);
+    return { affected: idx >= 0 ? 1 : 0 };
+  });
   return { findOne, create, save, delete: del, rows };
 }
 
@@ -157,6 +162,69 @@ describe('CvBuilderChatPlatformService.turn — purpose keying', () => {
   });
 });
 
+describe('CvBuilderChatPlatformService — getThread/deleteThread purpose isolation', () => {
+  function seedBothPurposes() {
+    const diagnosisRow: FakeConversationRow = {
+      id: 'conv-diagnosis-1',
+      userId: USER_ID,
+      cvId: CV_ID,
+      matchId: null,
+      purpose: 'diagnosis',
+      title: null,
+    };
+    const builderRow: FakeConversationRow = {
+      id: 'conv-builder-1',
+      userId: USER_ID,
+      cvId: CV_ID,
+      matchId: null,
+      purpose: 'cv_builder',
+      title: null,
+    };
+    return {
+      diagnosisRow,
+      builderRow,
+      conversations: makeConversationsRepo([diagnosisRow, builderRow]),
+    };
+  }
+
+  it('getThread returns only the cv_builder thread turns, ignoring a diagnosis row seeded for the same (userId, cvId)', async () => {
+    const { builderRow, conversations } = seedBothPurposes();
+    const messagesFind = jest.fn().mockResolvedValue([
+      {
+        role: 'user',
+        content: 'cv builder msg',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        metadata: null,
+      },
+    ]);
+    const { service } = makeService({ conversations, messagesFind });
+
+    const result = await service.getThread(USER_ID, CV_ID);
+
+    expect(conversations.findOne).toHaveBeenCalledWith({
+      where: { userId: USER_ID, cvId: CV_ID, matchId: IsNull(), purpose: 'cv_builder' },
+    });
+    expect(messagesFind).toHaveBeenCalledWith({
+      where: { conversationId: builderRow.id },
+      order: { createdAt: 'ASC' },
+    });
+    expect(result.turns).toEqual([
+      { role: 'user', text: 'cv builder msg', ts: '2026-01-01T00:00:00.000Z' },
+    ]);
+  });
+
+  it('deleteThread deletes only the cv_builder conversation — the diagnosis row for the same (userId, cvId) survives', async () => {
+    const { diagnosisRow, builderRow, conversations } = seedBothPurposes();
+    const { service } = makeService({ conversations });
+
+    await service.deleteThread(USER_ID, CV_ID);
+
+    expect(conversations.delete).toHaveBeenCalledWith({ id: builderRow.id });
+    expect(conversations.rows.find((r) => r.id === builderRow.id)).toBeUndefined();
+    expect(conversations.rows.find((r) => r.id === diagnosisRow.id)).toEqual(diagnosisRow);
+  });
+});
+
 describe('CvBuilderChatPlatformService.turn — server-read target_role', () => {
   it('reads target_role server-side via getOwnedCvForChat; the DTO has no role field to inject', async () => {
     const getOwnedCvForChat = jest.fn().mockResolvedValue({
@@ -181,7 +249,17 @@ describe('CvBuilderChatPlatformService.turn — quota (429)', () => {
     const countRequestsSince = jest.fn().mockResolvedValue(50); // DAILY_CHAT_LIMIT
     const { service, chat, saved } = makeService({ countRequestsSince });
 
-    await expect(service.turn(USER_ID, CV_ID, DTO)).rejects.toThrow(HttpException);
+    let err: unknown;
+    try {
+      await service.turn(USER_ID, CV_ID, DTO);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(HttpException);
+    expect((err as HttpException).getStatus()).toBe(429);
+    expect((err as HttpException).getResponse()).toMatchObject({
+      errorCode: ERROR_CODES.FEATURE_USAGE_LIMIT_REACHED,
+    });
     expect(chat.turn).not.toHaveBeenCalled();
     expect(saved).toHaveLength(0);
   });

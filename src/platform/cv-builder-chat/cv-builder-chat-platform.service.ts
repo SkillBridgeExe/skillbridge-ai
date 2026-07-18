@@ -76,10 +76,14 @@ export class CvBuilderChatPlatformService {
     cvId: string,
     dto: CvBuilderChatRequestDto,
   ): Promise<CvBuilderChatTurnResponse> {
-    const { document, targetRole } = await this.cvs.getOwnedCvForChat(userId, cvId);
+    const {
+      document,
+      targetRole,
+      language: cvLanguage,
+    } = await this.cvs.getOwnedCvForChat(userId, cvId);
     const facts = buildCvBuilderFacts(document, dto.focused_field ?? null, targetRole);
     const conversation = await this.resolveCvBuilderConversation(userId, cvId);
-    return this.runTurn(userId, cvId, conversation, facts, dto);
+    return this.runTurn(userId, cvId, conversation, facts, dto, cvLanguage);
   }
 
   async getThread(userId: string, cvId: string): Promise<CvBuilderChatThreadResponse> {
@@ -130,6 +134,7 @@ export class CvBuilderChatPlatformService {
     conversation: ChatConversationEntity,
     facts: CvBuilderChatFacts,
     dto: CvBuilderChatRequestDto,
+    cvLanguage: string,
   ): Promise<CvBuilderChatTurnResponse> {
     await this.assertQuota(userId);
     const history = await this.loadHistory(conversation.id);
@@ -162,7 +167,9 @@ export class CvBuilderChatPlatformService {
       const answer = await this.chat.turn({
         question: maskedQuestion,
         facts,
-        language: dto.language ?? 'vi',
+        // FE's explicit choice wins; otherwise fall back to the CV's own detected language before
+        // the hardcoded default — respects a Vietnamese CV even when the client didn't specify.
+        language: dto.language ?? cvLanguage ?? 'vi',
         history: history.map((m) => ({ role: m.role, content: maskPii(m.content), at: m.at })),
         userId,
         aiRequestId,
