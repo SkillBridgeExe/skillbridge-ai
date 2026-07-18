@@ -31,6 +31,28 @@ const TOOL_DECLARATIONS: Record<string, LlmToolDeclaration> = {
       additionalProperties: false,
     },
   },
+  'roadmap.progress': {
+    name: 'roadmap.progress',
+    description:
+      "Read the candidate's OWN learning-roadmap progress (per-skill checklist counts and mastered lessons). Call this ONLY when the user asks how their learning or roadmap is going (e.g. 'mình học tới đâu rồi', 'lộ trình của mình sao rồi'). It takes NO parameters and always reads the current user's own data — never anyone else's.",
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  'interview.history': {
+    name: 'interview.history',
+    description:
+      "Read the candidate's OWN recent mock-interview results (up to 3 completed sessions with overall scores). Call this ONLY when the user asks about their past interview practice or interview scores (e.g. 'mấy buổi phỏng vấn thử của mình sao rồi'). It takes NO parameters and always reads the current user's own data — never anyone else's.",
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
 };
 
 export function toolDeclarationsForFlow(flow: string): LlmToolDeclaration[] {
@@ -45,9 +67,17 @@ export function toolDeclarationsForFlow(flow: string): LlmToolDeclaration[] {
 // false positives (an unnecessary decision call) are what this exists to prevent.
 const GITHUB_HINT = /\bgithub\b|\brepo(?:s|sitory)?\b/i;
 const LINK_HINT = /https?:\/\/|\blink\b|\burl\b|\bcòn (?:sống|hoạt động)\b|\bvalid\b/i;
+// Wave 3 read-tools: false negatives here silently disable a tool, so the nets are wide-ish —
+// a false positive only costs one cheap decision call.
+const ROADMAP_HINT = /lộ\s*trình|roadmap|tiến\s*độ|học\s+(?:tới|đến|xong)|bài\s+học|khóa\s+học/iu;
+const INTERVIEW_HINT = /phỏng\s*vấn|interview|mock/iu;
 
 export function mightNeedTool(flow: string, question: string): boolean {
-  if (flow === 'diagnosis_chat') return GITHUB_HINT.test(question);
+  if (flow === 'diagnosis_chat') {
+    return (
+      GITHUB_HINT.test(question) || ROADMAP_HINT.test(question) || INTERVIEW_HINT.test(question)
+    );
+  }
   if (flow === 'learning_chat') return LINK_HINT.test(question);
   return false;
 }

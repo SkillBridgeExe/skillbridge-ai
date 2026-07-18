@@ -1243,6 +1243,39 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
     );
     expect(result.cited_tool).toBeUndefined();
   });
+
+  it('wave 3: a NEW read-tool rides the same generic path — numbers licensed, citation + grounded_facts kind tool', () => {
+    const factsWithRoadmap: DiagnosisFacts = {
+      ...facts,
+      tool_results: {
+        'roadmap.progress': {
+          untrusted_data: {
+            tracked: true,
+            skills: [{ skill: 'sql', checked_items: 7, mastered: false }],
+            mastered_count: 0,
+          },
+        },
+      },
+    };
+    const result = groundDiagnosis(
+      {
+        message: 'Bạn đã tick 7 mục checklist cho SQL — tiếp tục nhé.',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'roadmap.progress',
+      },
+      factsWithRoadmap,
+      'vi',
+    );
+    expect(result.answer).toContain('7'); // tool numbers auto-licensed, no per-tool wiring
+    expect(result.cited_tool).toBe('roadmap.progress');
+    expect(result.grounded_facts).toContainEqual({
+      kind: 'tool',
+      id: 'roadmap.progress',
+      label: 'roadmap.progress',
+    });
+  });
 });
 
 // ── Phase A: the warm refusal — every gate kill now says WHY, warmly, and still moves them forward ──

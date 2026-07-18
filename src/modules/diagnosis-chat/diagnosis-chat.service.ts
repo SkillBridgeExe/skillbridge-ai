@@ -43,7 +43,10 @@ export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
     cited_dimension: { type: ['string', 'null'], enum: [...DIAGNOSIS_DIMENSION_KEYS, null] },
     cited_gap_id: { type: ['string', 'null'] },
     cited_other_match_index: { type: ['number', 'null'] },
-    cited_tool: { type: ['string', 'null'], enum: ['github.enrich', null] },
+    cited_tool: {
+      type: ['string', 'null'],
+      enum: ['github.enrich', 'roadmap.progress', 'interview.history', null],
+    },
     suggested_next_step: { type: ['string', 'null'] },
   },
 };
