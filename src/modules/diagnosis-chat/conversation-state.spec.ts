@@ -3,6 +3,8 @@ import {
   ensureAskBack,
   buildTurnContext,
   coveredGapNames,
+  deadlineSpanDays,
+  deadlineStale,
   extractConversationState,
   routeIntent,
 } from './conversation-state';
@@ -570,5 +572,168 @@ describe('ensureAskBack — the ask-back backstop (model obeyed the Directive 1/
         expect(ensureAskBack('x.', ask, lang)).not.toMatch(/\d/);
       }
     }
+  });
+});
+
+// ── Wave 3 (3B): deterministic deadline expiry ────────────────────────────────────────────────────
+
+describe('deadlineSpanDays — honest span or null, never a guessed calendar date', () => {
+  it.each([
+    ['2 tuần', 14],
+    ['3 ngày', 3],
+    ['1 tháng', 30],
+    ['2 weeks', 14],
+    ['3 days', 3],
+    ['1 month', 30],
+    ['tuần sau', 7],
+    ['ngày mai', 1],
+    ['cuối tuần', 7],
+    ['tháng sau', 30],
+    ['cuối tháng', 30],
+    ['1 tháng rưỡi', 45],
+  ])('"%s" → %s days', (phrase, days) => {
+    expect(deadlineSpanDays(phrase)).toBe(days);
+  });
+
+  it('returns null for a named month — no honest relative span exists', () => {
+    expect(deadlineSpanDays('cuối tháng 8')).toBeNull();
+    expect(deadlineSpanDays('đầu tháng 12')).toBeNull();
+  });
+});
+
+describe('deadline_stated_at + deadlineStale', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const NOW = new Date();
+
+  it('records the timestamp of the HISTORY row that stated the deadline', () => {
+    const at = daysAgo(20);
+    const s = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at }],
+      'nên làm gì trước?',
+    );
+    expect(s.deadline).toBe('2 tuần nữa');
+    expect(s.deadline_stated_at).toBe(at);
+  });
+
+  it('a deadline stated in the CURRENT question is fresh by definition (stated_at null, never stale)', () => {
+    const s = extractConversationState([], 'mình chỉ còn 2 tuần nữa thôi');
+    expect(s.deadline).toBe('2 tuần nữa');
+    expect(s.deadline_stated_at).toBeNull();
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+
+  it('later-wins updates the timestamp along with the value', () => {
+    const recentAt = daysAgo(1);
+    const s = extractConversationState(
+      [
+        { ...user('mình còn 2 tuần'), at: daysAgo(30) },
+        { ...user('giờ mình chỉ còn 3 ngày thôi'), at: recentAt },
+      ],
+      'ổn không?',
+    );
+    expect(s.deadline).toBe('3 ngày');
+    expect(s.deadline_stated_at).toBe(recentAt);
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+
+  it('stale when the stated span has elapsed since the stating row', () => {
+    const s = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(20) }],
+      'nên làm gì trước?',
+    );
+    expect(deadlineStale(s, NOW)).toBe(true);
+  });
+
+  it('NOT stale while still inside the span, and never stale for an unparseable phrase', () => {
+    const inside = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(3) }],
+      'x?',
+    );
+    expect(deadlineStale(inside, NOW)).toBe(false);
+    const named = extractConversationState(
+      [{ ...user('hạn nộp trước cuối tháng 8'), at: daysAgo(300) }],
+      'x?',
+    );
+    expect(named.deadline).toBe('cuối tháng 8');
+    expect(deadlineStale(named, NOW)).toBe(false);
+  });
+
+  it('forget wipes the timestamp with the value (expiry can never resurrect a forgotten deadline)', () => {
+    const s = extractConversationState(
+      [{ ...user('mình còn 2 tuần'), at: daysAgo(20) }, user('quên thời hạn đi')],
+      'x?',
+    );
+    expect(s.deadline).toBeNull();
+    expect(s.deadline_stated_at).toBeNull();
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+});
+
+describe('buildTurnContext — stale deadline changes the Known line, directives, and canned echo', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const staleHistory = [
+    { ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'), at: daysAgo(20) },
+  ];
+
+  it('marks the Known line as possibly past and directs a gentle re-ask, without inventing digits', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì trước?');
+    expect(ctx.contextBlock).toContain('may ALREADY be past');
+    expect(ctx.contextBlock).toContain('gently ask ONCE for their updated timeline');
+    // replay safety: the ONLY digit tokens in the block are the user's own licensed "2" (from
+    // "2 tuần") — the expiry copy itself must never add new ones ("20 days ago" would).
+    const digits = ctx.contextBlock.match(/\d+/g) ?? [];
+    expect(new Set(digits)).toEqual(new Set(['2']));
+  });
+
+  it('fresh deadline keeps the original Known line and weave directives', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [
+        {
+          ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'),
+          at: daysAgo(1),
+        },
+      ],
+      'giờ mình nên làm gì trước?',
+    );
+    expect(ctx.contextBlock).toContain('- Time budget/deadline: 2 tuần');
+    expect(ctx.contextBlock).not.toContain('may ALREADY be past');
+    expect(ctx.contextBlock).toContain('their deadline shapes HOW MUCH to attempt');
+  });
+
+  it('stale → the demonstrate-memory opener weaves the GOAL only, never the dead deadline', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì trước?');
+    expect(ctx.contextBlock).toContain('weaving in their goal in one clause');
+    expect(ctx.contextBlock).not.toContain('their deadline shapes HOW MUCH to attempt');
+  });
+
+  it('what_you_know canned echo flags the stale value honestly — no question mark, no new digits', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'bạn nhớ gì về mình?');
+    expect(ctx.intent).toBe('what_you_know');
+    expect(ctx.canned).toContain('bạn từng nói quỹ thời gian là 2 tuần');
+    expect(ctx.canned).toContain('chưa chắc còn đúng');
+    expect(ctx.canned).not.toContain('?');
+    expect((ctx.canned ?? '').match(/\d+/g) ?? []).toEqual(['2']);
+  });
+
+  it('an explicit now parameter drives staleness deterministically (harness hook)', () => {
+    const statedAt = '2026-07-01T00:00:00.000Z';
+    const history = [{ ...user('mình chỉ còn 3 ngày nữa thôi'), at: statedAt }];
+    const fresh = buildTurnContext(
+      FACTS,
+      history,
+      'x nên làm gì?',
+      'vi',
+      new Date('2026-07-02T00:00:00Z'),
+    );
+    const stale = buildTurnContext(
+      FACTS,
+      history,
+      'x nên làm gì?',
+      'vi',
+      new Date('2026-07-10T00:00:00Z'),
+    );
+    expect(fresh.contextBlock).not.toContain('may ALREADY be past');
+    expect(stale.contextBlock).toContain('may ALREADY be past');
   });
 });

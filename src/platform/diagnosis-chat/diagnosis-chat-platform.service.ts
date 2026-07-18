@@ -105,7 +105,11 @@ export class DiagnosisChatPlatformService {
     // window — question is '' because there is no current turn. covered_gaps needs facts,
     // which this path never loads → honestly empty rather than a stale guess.
     const state = extractConversationState(
-      windowRows.map((message) => ({ role: message.role, content: message.content })),
+      windowRows.map((message) => ({
+        role: message.role,
+        content: message.content,
+        at: message.createdAt.toISOString(),
+      })),
       '',
     );
     return {
@@ -202,7 +206,7 @@ export class DiagnosisChatPlatformService {
         facts,
         focus: dto.focus,
         language: dto.language ?? 'vi',
-        history: history.map((m) => ({ role: m.role, content: maskPii(m.content) })),
+        history: history.map((m) => ({ role: m.role, content: maskPii(m.content), at: m.at })),
         userId,
         aiRequestId,
       });
@@ -324,7 +328,13 @@ export class DiagnosisChatPlatformService {
       order: { createdAt: 'DESC' },
       take: STATE_WINDOW,
     });
-    return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
+    // `at` feeds ONLY the deterministic deadline-expiry rule (Wave 3) — the transcript the model
+    // sees stays timestamp-free.
+    return rows.reverse().map((message) => ({
+      role: message.role,
+      content: message.content,
+      at: message.createdAt.toISOString(),
+    }));
   }
 
   private toResponse(

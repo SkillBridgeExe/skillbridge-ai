@@ -54,6 +54,8 @@ export const DIAGNOSIS_CHAT_SCHEMA: Record<string, unknown> = {
 export interface DiagnosisChatHistoryMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** ISO created_at of the persisted row — read only by the deadline-expiry rule (Wave 3). */
+  at?: string;
 }
 
 export interface DiagnosisChatTurnInput {
