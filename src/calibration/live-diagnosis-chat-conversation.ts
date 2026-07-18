@@ -32,7 +32,6 @@ import {
   DiagnosisFacts,
 } from '../modules/diagnosis-chat/diagnosis-grounding';
 import {
-  askDirective,
   buildTurnContext,
   deadlineStale,
   ensureAskBack,
@@ -432,7 +431,7 @@ async function main(): Promise<void> {
       log(`\n  ┌─ lượt ${turn} ─────────────────────────────────────────────`);
       log(`  │ 👤 ${userMsg}`);
       log(
-        `  │    🧠 intent=${ctx.intent} · role=${ctx.state.target_role ?? '—'} · deadline=${ctx.state.deadline ?? '—'}${stale ? ' ⏳QUÁ-HẠN' : ''} · ask=${askDirective(ctx.state, ctx.intent, userMsg) ?? '—'}`,
+        `  │    🧠 intent=${ctx.intent} · role=${ctx.state.target_role ?? '—'} · deadline=${ctx.state.deadline ?? '—'}${stale ? ' ⏳QUÁ-HẠN' : ''} · ask=${ctx.ask ?? '—'}`,
       );
       if (killed) log(`  │ ✂️  GATE ĐỔI (${killReason}) — model đã viết: ${modelMsg}`);
       log(`  │ 🐬 [${bucket}] ${served}`);

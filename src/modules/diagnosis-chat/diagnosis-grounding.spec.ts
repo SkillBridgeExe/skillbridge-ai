@@ -1524,3 +1524,20 @@ describe('grounded_facts — provenance is exact by construction (Wave 2)', () =
     });
   });
 });
+
+describe('benign quantity — "1 số liệu" (measured loss, Wave 3 run 2026-07-18)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('the killed advice register now serves verbatim: 1 bullet / 1 số liệu / 1 động từ', () => {
+    const message =
+      'Lấy 1 bullet ở dự án gần nhất, thêm 1 số liệu đo được và mở đầu bằng 1 động từ mạnh.';
+    const result = groundDiagnosis({ message }, facts, 'vi');
+    expect(result.answer).toBe(message);
+  });
+
+  it('"số liệu" buys quantities ≤2 only — a count-of-record above the cap still faces the gate', () => {
+    const message = 'CV bạn đang có 7 số liệu rồi đó.';
+    const result = groundDiagnosis({ message }, facts, 'vi');
+    expect(result.answer).not.toBe(message);
+  });
+});

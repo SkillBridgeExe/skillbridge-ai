@@ -470,10 +470,15 @@ export function askDirective(
   state: DiagnosisConversationState,
   intent: DiagnosisIntent,
   question: string,
+  deadlineIsStale = false,
 ): 'role' | 'deadline' | null {
   if (intent !== 'advice' || !ADVICE_SEEKING.test(question)) return null;
   if (state.target_role === null && !state.asked_role) return 'role';
-  if (state.deadline === null && !state.asked_deadline) return 'deadline';
+  // A stale deadline counts as unknown here (Wave 3 — measured: the stale Directive alone got
+  // 0/4 re-asks, the model flattens the question into an offer, same failure ensureAskBack was
+  // built for). One-shot by construction: the appended ask registers via ASKED_DEADLINE_RE on
+  // the next re-scan, so asked_deadline flips true and this never nags.
+  if ((state.deadline === null || deadlineIsStale) && !state.asked_deadline) return 'deadline';
   return null;
 }
 
@@ -614,12 +619,14 @@ export function buildTurnContext(
       'Their stated deadline is old and its window has likely closed. Do NOT plan around it as if current — acknowledge time may have moved on, and gently ask ONCE for their updated timeline.',
     );
   }
-  const ask = askDirective(state, intent, question);
+  const ask = askDirective(state, intent, question, stale);
   if (ask === 'role') {
     directives.push(
       'They have NOT told you which role they are targeting, and it would change this advice. After answering from FACTS, end your message with ONE short question asking which role they are aiming for — nothing else appended.',
     );
-  } else if (ask === 'deadline') {
+  } else if (ask === 'deadline' && !stale) {
+    // On a stale turn the expiry directive above already orders the re-ask — a second "they
+    // have NOT told you" line would contradict the Known line that shows the old value.
     directives.push(
       'They have NOT told you how much time they have, and it would change this advice. After answering from FACTS, end your message with ONE short question asking about their timeline — nothing else appended.',
     );

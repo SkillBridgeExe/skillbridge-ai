@@ -821,3 +821,41 @@ describe('factsForIntent — per-intent FACTS trim (Wave 3, 3C)', () => {
     expect(factsForIntent(FACTS, 'advice')).toBe(FACTS);
   });
 });
+
+describe('stale deadline → ask-back machinery re-fires ONCE (Wave 3, measured 0/4 directive-only)', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const staleHistory = [
+    { ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'), at: daysAgo(20) },
+  ];
+
+  it('an advice-seeking turn over a stale deadline sets ask=deadline (ensureAskBack will append)', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì tiếp theo đây?');
+    expect(ctx.ask).toBe('deadline');
+    // the generic "they have NOT told you" line must NOT ride along — the expiry directive owns
+    // the re-ask on stale turns (the generic line would contradict the Known line's old value).
+    expect(ctx.contextBlock).not.toContain('They have NOT told you how much time');
+    expect(ensureAskBack('Cứ sửa bullet trước.', ctx.ask, 'vi')).toContain('?');
+  });
+
+  it('one-shot: after the backstop ask registers in history, a stale turn does not nag again', () => {
+    const history = [
+      ...staleHistory,
+      {
+        ...bot('Cứ sửa bullet trước. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'),
+      },
+      user('chưa rõ nữa'),
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
+    expect(ctx.state.asked_deadline).toBe(true);
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('a FRESH deadline never trips the stale re-ask', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [{ ...user('Mình nhắm vị trí Data Analyst, còn 2 tuần nữa.'), at: daysAgo(1) }],
+      'giờ mình nên làm gì tiếp theo đây?',
+    );
+    expect(ctx.ask).toBeNull();
+  });
+});
