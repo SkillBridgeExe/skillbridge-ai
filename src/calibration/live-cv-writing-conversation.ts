@@ -79,6 +79,9 @@ const system = [(fm?.[1].match(/^system:\s*(.*)$/m)?.[1] ?? '').trim(), characte
   .filter(Boolean)
   .join('\n\n');
 const body = fm?.[2] ?? '';
+// ponytail: bypasses PromptsService's sanitizePromptVars injection-redaction chokepoint — inert
+// today (no persona/bait line matches its injection patterns) but a deliberate simplification, not
+// an oversight; re-implement here only if a bait probe is ever added that should exercise it.
 const render = (vars: Record<string, string>): string =>
   body.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => vars[k] ?? '');
 
@@ -228,7 +231,9 @@ function describeKill(
 }
 
 async function main(): Promise<void> {
-  const client = new OpenAI();
+  // Mirror src/infrastructure/llm/providers/openai.provider.ts's resilience so the LLM-failure
+  // branch below is exercised no more often here than it is in prod.
+  const client = new OpenAI({ maxRetries: 5, timeout: 60_000 });
   const model =
     process.env.CV_BUILDER_CHAT_MODEL || process.env.OPENAI_MODEL_DEFAULT || 'gpt-4o-mini';
   const judgeModel = resolveCvJudgeModel(model);
@@ -291,6 +296,7 @@ async function main(): Promise<void> {
 
       let parsed: CvBuilderChatModelOutput | null = null;
       let modelMsg = '';
+      let llmFailed = false;
       if (ctx.canned === null) {
         const userPrompt = render({
           language: 'vi',
@@ -321,6 +327,7 @@ async function main(): Promise<void> {
           parsed = JSON.parse(r.choices[0].message.content ?? '{}') as CvBuilderChatModelOutput;
           modelMsg = String(parsed?.message ?? '');
         } catch (e) {
+          llmFailed = true;
           modelMsg = `<<LLM ERROR ${(e as Error).message}>>`;
         }
       }
@@ -336,7 +343,17 @@ async function main(): Promise<void> {
               suggested_next_step: null,
             }
           : groundCvChat(parsed, facts, 'vi', candidateSaid);
-      const served = ctx.canned !== null ? g.answer : ensureAskBack(g.answer, ctx.ask, 'vi'); // what prod persists + shows
+      // Mirror the service's TWO code paths exactly (ensureAskBack fires ONLY on the try-succeeded
+      // path, ~cv-builder-chat.service.ts:144-145): the catch there returns groundCvChat(null, ...)
+      // DIRECTLY (~line 163), no ensureAskBack — so a real LLM-transport failure here must not add
+      // an ask-back either, or the smoke inflates elicitationHits/elicitationEligible with a string
+      // prod never actually served.
+      const served =
+        ctx.canned !== null
+          ? g.answer // canned short-circuit — never touches groundCvChat or ensureAskBack
+          : llmFailed
+            ? g.answer // groundCvChat(null, ...) fallback — service's catch path, no ensureAskBack
+            : ensureAskBack(g.answer, ctx.ask, 'vi'); // service's try-succeeded path
 
       // WHY the model's prose lost. Without this the smoke could only see the SERVED text, so a
       // refusal/fallback could mean either "the model tried to fabricate and got caught" or "the
