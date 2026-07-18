@@ -110,6 +110,34 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'tech' }));
   });
 
+  // ── sentence-final limiting-particle "thôi" (= "only/just") is part of a REAL answer, not a dodge.
+  // The prior rounds' blanket DODGE_RE discarded these; the restructure keys off precise per-gap
+  // signals so the particle no longer suppresses a genuine answer.
+  it('captures result when the answer ends in the particle "thôi" ("giảm 40% thôi")', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'giảm 40% thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gap).toBeNull();
+  });
+
+  it('captures tech when the answer ends in the particle "thôi" ("mình dùng React thôi")', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'mình dùng React thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
+  });
+
+  it('captures action when the answer ends in the particle "thôi" ("mình tạo dashboard thôi")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('does NOT capture action for a leading-"để mai" deferral ("để mai mình làm")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để mai mình làm');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
   it('a restated target role is captured (informational)', () => {
     const s = extractConversationState([], 'mình đang nhắm vị trí Backend Developer');
     expect(s.target_role).toBe('Backend Developer');

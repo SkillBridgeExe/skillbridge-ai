@@ -121,16 +121,20 @@ const RESULT_CUE_RE =
 const ACTION_VERB_ANSWER_RE =
   /(?<![\p{L}\p{N}])(?:xây|triển\s*khai|tạo|thiết\s*kế|phát\s*triển|tối\s*ưu|dẫn\s*dắt|ra\s*mắt|chuyển\s*đổi|tự\s*động\s*hoá|built|implemented|created|designed|developed|shipped|deployed|led|optimized|refactored|migrated|automated|launched)(?![\p{L}\p{N}])/iu;
 
-/** Deferral/refusal phrases (vi + en) — a dodge is NEVER an answer, no matter what stray token it
- *  happens to contain ("chưa có số, tầm 2 tuần nữa" has a time-unit token; "để hỏi Nam đã" has a
- *  capitalized name). This is the backstop: it must win even if a token-level check above is fooled,
- *  so it is checked FIRST in {@link answersGap}, before any gap-specific pattern.
- *  `chưa` REQUIRES a deferral continuation (có/biết/xong/đâu) — a bare "chưa" ("not yet") is an
- *  extremely common hedge inside a genuine answer ("trước đây chưa đo nhưng giờ giảm 40%") and must
- *  not itself discard the real result that follows. `thôi` excludes an immediate "thúc" so the
- *  compound word "thôi thúc" (motivate) is never misread as the deferral particle "thôi". */
-const DODGE_RE =
-  /để\s*(?:sau|mai|lúc\s*khác|(?:mình\s*)?(?:nghĩ|coi)\s*đã)|thôi(?:\s+(?!thúc)|$)|chưa\s*(?:có|biết|xong|đâu)|hỏi\s+\S+\s+(?:đã|xem|thử)|xem\s*lại|later|not\s*sure|dunno|skip|nevermind/iu;
+/** Deferral guard for the `action` gap ONLY (see {@link answersGap} for why the other two gaps need
+ *  no dodge guard at all). `result` is already fenced by METRIC_RE/RESULT_CUE_RE and `tech` by the
+ *  NAMED_TECH gazetteer, so a deferral for those simply lacks a metric / a known tech and never
+ *  captures — no dodge regex required. Only `action`'s ACTION_VERB_ANSWER_RE is loose enough that an
+ *  incidental verb inside a deferral ("thôi mình tạo cái khác sau" → "tạo") would false-capture.
+ *
+ *  This matches ONLY unambiguous deferral markers. It deliberately does NOT match a sentence-final
+ *  limiting-particle "thôi" ("tạo dashboard thôi" = "I just made a dashboard", a REAL answer) — the
+ *  root-cause bug of the prior rounds was a bare/final `thôi` in the old blanket DODGE_RE discarding
+ *  such answers. "thôi" here is a deferral ONLY when it LEADS the reply (`^\s*thôi` = "nah, …"), and
+ *  even then not the compound "thôi thúc" (motivate). `chưa` requires a deferral continuation
+ *  (có/biết/xong/đâu) — a bare "chưa" is a common hedge inside a genuine answer. */
+const ACTION_DEFERRAL_RE =
+  /để\s+(?:sau|mai|lúc\s+khác|khi\s+khác|đó)|khỏi(?![\p{L}\p{N}])|không\s+cần|cái\s+khác|^\s*thôi\b(?!\s+thúc)|\bskip\b|\blater\b|\bnevermind\b|chưa\s*(?:có|biết|xong|đâu)/iu;
 
 /** Does this reply name a KNOWN technology from `NAMED_TECH` (the same curated gazetteer
  *  `groundCvRewrite`'s anti-fabrication gate arm (c) uses)? Deliberately NOT "any capitalized
@@ -140,16 +144,18 @@ function looksLikeTechAnswer(text: string): boolean {
   return NAMED_TECH.some((tech) => hasWord(text, tech));
 }
 
-/** Does this reply plausibly supply the detail for the gap that was just asked about? Deliberately
- *  permissive (a false accept just records a slightly-off gap label; the forbidden failure is
- *  recording an answer for a gap the user's reply had NOTHING to do with, which these patterns are
- *  specific enough to avoid — a plain dodge like "bạn tên gì vậy?" matches none of them). A dodge
- *  (DODGE_RE) is checked first and short-circuits to "no capture" regardless of gap. */
+/** Does this reply plausibly supply the detail for the gap that was just asked about? Each gap is
+ *  gated by its OWN precise answer-signal — there is NO blanket dodge short-circuit (the prior rounds'
+ *  root-cause defect: an unanchored dodge regex checked first discarded genuine answers that merely
+ *  contained a stray token like a sentence-final "thôi"). A deferral for `result`/`tech` already
+ *  fails to capture because it carries no metric / result-cue / known tech, so no dodge guard is
+ *  needed there. Only `action` needs one: ACTION_VERB_ANSWER_RE is loose enough that an incidental
+ *  verb inside a deferral would false-capture, so the action branch (and ONLY it) subtracts
+ *  {@link ACTION_DEFERRAL_RE}. Forbidden failure is a WRONG capture; a missed one only costs a re-ask. */
 function answersGap(text: string, gap: BulletGapAsk): boolean {
-  if (DODGE_RE.test(text)) return false;
   if (gap === 'result') return METRIC_RE.test(text) || RESULT_CUE_RE.test(text);
   if (gap === 'tech') return looksLikeTechAnswer(text);
-  return ACTION_VERB_ANSWER_RE.test(text); // 'action'
+  return ACTION_VERB_ANSWER_RE.test(text) && !ACTION_DEFERRAL_RE.test(text); // 'action'
 }
 
 // ── target-role restatement (informational only — see the interface doc) ───────────────────────
