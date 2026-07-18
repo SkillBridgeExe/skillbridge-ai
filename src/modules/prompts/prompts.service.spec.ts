@@ -31,6 +31,32 @@ describe('PromptsService interview voice templates', () => {
   });
 });
 
+describe('PromptsService cv_builder_chat_v1', () => {
+  it('loads and renders with all six injection points filled', async () => {
+    const service = new PromptsService(new TemplateRenderer());
+    await service.onModuleInit();
+
+    expect(service.get('cv_builder_chat_v1').filename).toBe('cv_builder_chat_v1.md');
+
+    const rendered = service.render('cv_builder_chat_v1', {
+      language: 'vi',
+      facts: '{"target_role":"Data Analyst"}',
+      focus: 'projects[0].description — gaps: result',
+      history: 'user: xin chào',
+      context: 'Directive: ask for a number.',
+      question: 'Viết lại bullet này giúp mình.',
+    });
+
+    expect(rendered).toContain('vi');
+    expect(rendered).toContain('{"target_role":"Data Analyst"}');
+    expect(rendered).toContain('projects[0].description — gaps: result');
+    expect(rendered).toContain('user: xin chào');
+    expect(rendered).toContain('Directive: ask for a number.');
+    expect(rendered).toContain('Viết lại bullet này giúp mình.');
+    expect(rendered).not.toMatch(/\{\{\s*\w+\s*\}\}/);
+  });
+});
+
 describe('PromptsService.render prompt-injection sanitizing (MEASURE M6)', () => {
   async function makeService(): Promise<PromptsService> {
     const service = new PromptsService(new TemplateRenderer());

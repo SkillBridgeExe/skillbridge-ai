@@ -27,6 +27,7 @@ const REQUIRED_TEMPLATES = [
   'cv_rewrite_v1',
   'cv_jd_match_v1',
   'cv_jd_match_v2',
+  'cv_builder_chat_v1',
   'answer_insight_v1',
   'interview_coaching_v1',
   'interview_plan_v1',
