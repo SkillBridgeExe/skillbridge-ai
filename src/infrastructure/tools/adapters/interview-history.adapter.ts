@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { InterviewSessionEntity } from '../../../database/entities/interview-session.entity';
@@ -36,8 +36,11 @@ export class InterviewHistoryAdapter implements ToolAdapter<
   readonly name = 'interview.history';
 
   constructor(
+    // Optional: under NODE_ENV=test the ToolsModule registers no repos (no DataSource in e2e) —
+    // same TracingService pattern; without a repo the tool reports honest-empty, never throws.
+    @Optional()
     @InjectRepository(InterviewSessionEntity)
-    private readonly sessions: Repository<InterviewSessionEntity>,
+    private readonly sessions?: Repository<InterviewSessionEntity>,
   ) {}
 
   argsSchema(_args: unknown): Record<string, never> {
@@ -46,7 +49,7 @@ export class InterviewHistoryAdapter implements ToolAdapter<
   }
 
   async invoke(_args: Record<string, never>, ctx: ToolContext): Promise<InterviewHistoryResult> {
-    if (!ctx.userId) return { has_history: false, sessions: [] };
+    if (!ctx.userId || !this.sessions) return { has_history: false, sessions: [] };
     const rows = await this.sessions.find({
       where: { userId: ctx.userId, status: 'COMPLETED', overallScore: Not(IsNull()) },
       order: { startedAt: 'DESC' },

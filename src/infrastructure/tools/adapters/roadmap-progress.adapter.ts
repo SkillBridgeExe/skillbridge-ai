@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LearningSessionProgressEntity } from '../../../database/entities/learning-session-progress.entity';
@@ -32,8 +32,11 @@ export class RoadmapProgressAdapter implements ToolAdapter<
   readonly name = 'roadmap.progress';
 
   constructor(
+    // Optional: under NODE_ENV=test the ToolsModule registers no repos (no DataSource in e2e) —
+    // same TracingService pattern; without a repo the tool reports honest-empty, never throws.
+    @Optional()
     @InjectRepository(LearningSessionProgressEntity)
-    private readonly progress: Repository<LearningSessionProgressEntity>,
+    private readonly progress?: Repository<LearningSessionProgressEntity>,
   ) {}
 
   argsSchema(_args: unknown): Record<string, never> {
@@ -43,7 +46,7 @@ export class RoadmapProgressAdapter implements ToolAdapter<
   }
 
   async invoke(_args: Record<string, never>, ctx: ToolContext): Promise<RoadmapProgressResult> {
-    if (!ctx.userId) return { tracked: false, skills: [], mastered_count: 0 };
+    if (!ctx.userId || !this.progress) return { tracked: false, skills: [], mastered_count: 0 };
     const rows = await this.progress.find({ where: { userId: ctx.userId } });
     const mastered = masteredSkillCanonicals(rows);
     const skills: RoadmapProgressResult['skills'] = [];
