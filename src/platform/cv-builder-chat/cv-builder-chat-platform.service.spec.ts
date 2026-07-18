@@ -265,6 +265,99 @@ describe('CvBuilderChatPlatformService.turn — quota (429)', () => {
   });
 });
 
+describe('CvBuilderChatPlatformService.turn — wire contract (known_state / proposed_edit / grounded_facts)', () => {
+  it("grounded turn: response carries proposed_edit field_path/before/after, honest grounded_facts, and the brain's known_state.answered_gaps", async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'Thêm React vào mô tả nhé.',
+      answer_kind: 'grounded',
+      proposed_edit: { field_path: 'projects[0].description', before: 'x', after: 'x with React' },
+      grounded_facts: [{ kind: 'user_answer', text: 'react' }],
+      known_state: {
+        target_role: 'Data Analyst',
+        active_field_path: 'projects[0].description',
+        answered_gaps: ['tech'],
+      },
+      suggested_next_step: null,
+    });
+    const { service } = makeService({ turn });
+
+    const response = await service.turn(USER_ID, CV_ID, DTO);
+
+    expect(response.proposed_edit).toEqual({
+      field_path: 'projects[0].description',
+      before: 'x',
+      after: 'x with React',
+    });
+    expect(response.grounded_facts).toEqual([{ kind: 'user_answer', text: 'react' }]);
+    expect(response.known_state.answered_gaps).toEqual(['tech']);
+  });
+
+  it('refusal turn: proposed_edit is null and grounded_facts is honest-empty', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'Mình chưa có đủ thông tin thật để viết chỗ đó.',
+      answer_kind: 'refusal',
+      proposed_edit: null,
+      grounded_facts: [],
+      known_state: { target_role: null, active_field_path: null, answered_gaps: [] },
+      suggested_next_step: null,
+    });
+    const { service } = makeService({ turn });
+
+    const response = await service.turn(USER_ID, CV_ID, DTO);
+
+    expect(response.proposed_edit).toBeNull();
+    expect(response.grounded_facts).toEqual([]);
+  });
+});
+
+describe('CvBuilderChatPlatformService.getThread — known_state restore', () => {
+  it("restores known_state from the LAST assistant row's persisted metadata.known_state", async () => {
+    const builderRow: FakeConversationRow = {
+      id: CONVERSATION_ID,
+      userId: USER_ID,
+      cvId: CV_ID,
+      matchId: null,
+      purpose: 'cv_builder',
+      title: null,
+    };
+    const conversations = makeConversationsRepo([builderRow]);
+    const persistedKnownState = {
+      target_role: 'Data Analyst',
+      active_field_path: 'projects[0].description',
+      answered_gaps: ['tech'],
+    };
+    const messagesFind = jest.fn().mockResolvedValue([
+      {
+        role: 'user',
+        content: 'Thêm React được không?',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        metadata: null,
+      },
+      {
+        role: 'assistant',
+        content: 'Thêm React vào mô tả nhé.',
+        createdAt: new Date('2026-01-01T00:00:01.000Z'),
+        metadata: {
+          proposed_edit: {
+            field_path: 'projects[0].description',
+            before: 'x',
+            after: 'x with React',
+          },
+          grounded_facts: [{ kind: 'user_answer', text: 'react' }],
+          known_state: persistedKnownState,
+          suggested_next_step: null,
+        },
+      },
+    ]);
+    const { service } = makeService({ conversations, messagesFind });
+
+    const result = await service.getThread(USER_ID, CV_ID);
+
+    expect(result.known_state).toEqual(persistedKnownState);
+    expect(result.turns).toHaveLength(2);
+  });
+});
+
 describe('CvBuilderChatPlatformService.turn — failure path', () => {
   it('a chat/LLM failure still calls markFailed and rethrows (no swallowed error)', async () => {
     const boom = new Error('llm transport boom');
