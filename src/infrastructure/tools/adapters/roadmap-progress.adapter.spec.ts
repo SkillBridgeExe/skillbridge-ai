@@ -27,6 +27,11 @@ describe('RoadmapProgressAdapter', () => {
     expect(find).not.toHaveBeenCalled();
   });
 
+  it('returns shaped-empty when the repository is absent (@Optional NODE_ENV=test boot), even with a userId', async () => {
+    const result = await new RoadmapProgressAdapter().invoke({}, { userId: 'u1' });
+    expect(result).toEqual({ tracked: false, skills: [], mastered_count: 0 });
+  });
+
   it('maps rows to per-skill checklist counts + mastered flags, skipping unknown session ids', async () => {
     const find = jest
       .fn()

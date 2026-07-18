@@ -19,6 +19,11 @@ describe('InterviewHistoryAdapter', () => {
     expect(find).not.toHaveBeenCalled();
   });
 
+  it('returns shaped-empty when the repository is absent (@Optional NODE_ENV=test boot), even with a userId', async () => {
+    const result = await new InterviewHistoryAdapter().invoke({}, { userId: 'u1' });
+    expect(result).toEqual({ has_history: false, sessions: [] });
+  });
+
   it('queries only scored COMPLETED sessions for the ctx user, newest first, capped at 3', async () => {
     const find = jest.fn().mockResolvedValue([]);
     await makeAdapter(find).invoke({}, { userId: 'u1' });
