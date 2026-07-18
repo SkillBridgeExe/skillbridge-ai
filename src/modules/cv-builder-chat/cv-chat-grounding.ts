@@ -20,7 +20,6 @@ import {
   NAMED_TECH,
   CREDENTIAL_WORDS,
 } from '../cv-assistant/cv-assistant-rewrite';
-import type { AssistantGap } from '../cv-assistant/cv-assistant';
 import type { CvBuilderChatFacts } from './cv-builder-chat.facts';
 import type { CvBuilderChatModelOutput } from './cv-builder-chat.schema';
 
@@ -93,16 +92,9 @@ function proseRefusal(l: Lang): string {
     : "I don't have real detail to write that yet — tell me the exact number or specifics you actually did.";
 }
 
-function editRefusal(
-  l: Lang,
-  v: { reason: 'NEEDS_DETAIL' | 'UNGROUNDED'; gap?: AssistantGap },
-): string {
-  if (v.reason === 'NEEDS_DETAIL' && v.gap) {
-    const h = gapHint(l, v.gap);
-    return l === 'vi'
-      ? `Bạn kể mình nghe thêm về ${h} để mình viết cho chuẩn nhé.`
-      : `Tell me a bit more about ${h} so I can write it properly.`;
-  }
+// `groundCvChat` always calls `groundCvRewrite` with `needs_detail: []`, so its verdict can only fail
+// as UNGROUNDED here — the NEEDS_DETAIL arm was unreachable and has been dropped.
+function editRefusal(l: Lang): string {
   return l === 'vi'
     ? 'Mình chưa có con số hay chi tiết thật cho chỗ đó — bạn cho mình biết cụ thể bạn đã làm gì nhé.'
     : "I don't have the real number or detail for that yet — tell me specifically what you did.";
@@ -119,6 +111,16 @@ function stripRawUrls(text: string): string {
     .replace(/(?:https?:\/\/|www\.)\S+/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+/** gate a `suggested_next_step` chip through the SAME prose net as the message. The chip is rendered
+ *  clickable, persisted, and replayed into history — an ungrounded claim here is the identical
+ *  fabrication the gate refuses one field to the left. Any ungrounded token → drop the chip (null is
+ *  honest; the FE simply shows none — no invented "verified default"). `licensed` is NFKC-folded. */
+function groundSuggestion(next: string | null | undefined, licensed: string): string | null {
+  if (typeof next !== 'string' || !next.trim()) return null;
+  if (firstUngroundedToken(next, licensed) !== null) return null;
+  return stripRawUrls(next);
 }
 
 /** non-ASCII Unicode decimal digits (Arabic-Indic ٤, Devanagari ४ …) survive NFKC and can never be
@@ -225,7 +227,7 @@ export function groundCvChat(
     // fail CLOSED on non-ASCII Nd digits groundCvRewrite's ASCII number scan can't read.
     if (firstNonAsciiDigitRun(afterNfkc) !== null) {
       return {
-        answer: editRefusal(l, { reason: 'UNGROUNDED' }),
+        answer: editRefusal(l),
         answer_kind: 'refusal',
         proposed_edit: null,
         grounded_facts: [],
@@ -250,11 +252,11 @@ export function groundCvChat(
           after: verdict.field_patch.after,
         },
         grounded_facts: honestFacts(facts),
-        suggested_next_step: p.suggested_next_step ?? null,
+        suggested_next_step: groundSuggestion(p.suggested_next_step, licensed),
       };
     }
     return {
-      answer: editRefusal(l, verdict),
+      answer: editRefusal(l),
       answer_kind: 'refusal',
       proposed_edit: null,
       grounded_facts: [],
@@ -268,6 +270,6 @@ export function groundCvChat(
     answer_kind: 'grounded',
     proposed_edit: null,
     grounded_facts: honestFacts(facts),
-    suggested_next_step: p.suggested_next_step ?? null,
+    suggested_next_step: groundSuggestion(p.suggested_next_step, licensed),
   };
 }

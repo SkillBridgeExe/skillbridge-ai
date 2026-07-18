@@ -97,3 +97,47 @@ it('catches a FULLWIDTH-digit fabrication in a proposed edit → refusal (NFKC/f
   expect(r.answer).not.toContain('40%');
   expect(r.answer).not.toContain('４０％');
 });
+
+// ---- gate hardening: prose tech, Arabic-Indic digits, suggested_next_step chip -------
+
+it('refuses a PROSE message that names a tech the user never licensed (NAMED_TECH net)', () => {
+  const parsed = {
+    message: 'Ngon, mình đã thêm Kubernetes vào phần kỹ năng cho bạn.',
+    used_facts: [],
+    proposed_edit: null,
+    cited_field_path: null,
+    suggested_next_step: null,
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'giúp mình mạnh phần kỹ năng'); // never said Kubernetes
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('Kubernetes');
+});
+
+it('catches an ARABIC-INDIC digit fabrication in a proposed edit → refusal (\\p{Nd} fail-closed)', () => {
+  const parsed = {
+    message: 'Đây nhé.',
+    used_facts: [],
+    proposed_edit: {
+      field_path: 'projects[0].description',
+      after: 'Built e-commerce web, cut load time ٤٠%', // Arabic-Indic 40%
+    },
+    cited_field_path: null,
+    suggested_next_step: null,
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'làm web bán hàng'); // no 40 anywhere
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.proposed_edit).toBeNull();
+});
+
+it('gates suggested_next_step through the fabrication net → grounded prose, but the chip is nulled', () => {
+  const parsed = {
+    message: 'Ừ, tiếp thôi nhé.',
+    used_facts: [],
+    proposed_edit: null,
+    cited_field_path: null,
+    suggested_next_step: 'Thêm chứng chỉ AWS và mức tăng 40% vào CV nhé', // AWS + 40% never licensed
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'ok tiếp đi');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.suggested_next_step).toBeNull();
+});
