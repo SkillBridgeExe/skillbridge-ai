@@ -32,6 +32,11 @@ export interface LearningProgressRowLike {
   quizAttempts: unknown;
 }
 
+/** The skill canonical a learning-session row tracks, or null for unknown session ids. */
+export function skillForSessionId(sessionId: string): string | null {
+  return SESSION_ID_TO_SKILL.get(sessionId) ?? null;
+}
+
 /**
  * Skill canonicals whose SkillBridge lesson the user has FULLY mastered: EVERY learning objective
  * passes Khoa's existing per-objective predicate (computeObjectiveMastery — no new threshold
