@@ -618,8 +618,10 @@ function fallback(facts: DiagnosisFacts, language?: string): DiagnosisChatResult
 // trăm" never rides in on it (the % surface belongs to the licensing layer, but no free passes).
 // "thành tích" joined after a measured loss (2026-07-17: "thêm 1–2 thành tích có số vào CV"
 // died on the range) — an achievement is a deliverable to write, not a metric to fake.
+// "số liệu" joined after a measured loss (2026-07-18 Wave 3 run: "thêm 1 số liệu đo được" killed
+// an otherwise-served advice turn) — same deliverable class as "con số", just the formal register.
 const ADVICE_NOUN =
-  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|kỹ năng|mục|phần(?!\s*trăm)|thành tích|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section|achievements?)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:việc|thứ|hướng|cách|bước|ý|chỗ|điều|động từ|bullet|dòng|câu|đoạn|tuần|ngày|tháng|buổi|giờ|dự án|ví dụ|con số|số liệu|kỹ năng|mục|phần(?!\s*trăm)|thành tích|thing|step|way|option|line|sentence|verb|week|day|month|hour|project|example|skills?|section|achievements?)(?![\p{L}\p{N}])/iu;
 
 function isBenignQuantity(text: string, index: number, token: string): boolean {
   if (!/^[1-9]$/.test(token)) return false;

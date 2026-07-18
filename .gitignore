@@ -93,3 +93,6 @@ data/corpus/
 # Tesseract OCR language data — downloaded on demand, cached under os.tmpdir() at runtime.
 # This guard catches any stray cache written to cwd (e.g. a default-cachePath run).
 *.traineddata
+
+# Wave 3 replay extractor output (local working data, curated by hand)
+data/eval/chat-corpus-candidates.json

@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { DiagnosisChatService } from './diagnosis-chat.service';
+import { DiagnosisChatService, modelForIntent } from './diagnosis-chat.service';
 import { DiagnosisFacts } from './diagnosis-grounding';
 
 const FACTS: DiagnosisFacts = {
@@ -372,5 +372,92 @@ describe('DiagnosisChatService.turn — tool loop', () => {
     await service.turn({ question: 'why is my score low?', facts: FACTS, userId: 'u1' });
     expect(invoke).not.toHaveBeenCalled();
     expect(complete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Wave 3 (3C): per-intent facts trim — prompt and gate see the SAME context', () => {
+  const FACTS_MATCHES: DiagnosisFacts = {
+    ...FACTS,
+    other_matches: [{ jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] }],
+  };
+
+  function makeCapturingService(complete: jest.Mock) {
+    const render = jest.fn().mockReturnValue('rendered-user-prompt');
+    const prompts = {
+      render,
+      get: jest.fn((code: string) =>
+        code === 'mascot_character_v1'
+          ? { body: 'Nhân cách cá heo.', meta: {} }
+          : { body: '', meta: { system: 'system-prompt' } },
+      ),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    return { service, render };
+  }
+
+  it('an advice turn renders FACTS without other_matches — and their numbers lose their licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'JD Frontend kia bạn được 72 điểm đó.' },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'mình nên sửa gì trước?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toBeUndefined();
+    expect(result.answer).not.toContain('72'); // licensing shrank with the context — fail-closed
+  });
+
+  it('a compare_jd turn keeps other_matches in both the prompt and the licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'Frontend Developer đang là lựa chọn hợp hơn cho bạn.',
+        cited_other_match_index: 1,
+      },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'JD nào hợp mình nhất?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toHaveLength(1);
+    expect(result.answer).toContain('Frontend Developer');
+  });
+});
+
+describe('Wave 3 (3D): modelForIntent — dormant per-intent routing knob', () => {
+  const OLD_ENV = { ...process.env };
+  afterEach(() => {
+    process.env.DIAGNOSIS_CHAT_MODEL = OLD_ENV.DIAGNOSIS_CHAT_MODEL;
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = OLD_ENV.DIAGNOSIS_CHAT_MODEL_LIGHT;
+  });
+
+  it('unset env → undefined for every intent (provider default, exactly as before the knob)', () => {
+    delete process.env.DIAGNOSIS_CHAT_MODEL;
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBeUndefined();
+    expect(modelForIntent('compare_jd')).toBeUndefined();
+  });
+
+  it('DIAGNOSIS_CHAT_MODEL alone routes ALL intents (light falls back to it)', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-5.4-mini');
+  });
+
+  it('_LIGHT set → ONLY the light intents down-tier; advice keeps the main model', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = 'gpt-4o-mini';
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-4o-mini');
   });
 });

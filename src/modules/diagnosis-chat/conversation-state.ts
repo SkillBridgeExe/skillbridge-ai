@@ -32,6 +32,9 @@ export interface DiagnosisConversationState {
   target_role: string | null;
   /** Their stated time budget/deadline, verbatim ("2 tuần", "cuối tháng 8"); null = never stated. */
   deadline: string | null;
+  /** ISO timestamp of the row that set `deadline` (Wave 3 expiry) — null when the deadline came
+   *  from the CURRENT question (fresh by definition) or the row carried no timestamp. */
+  deadline_stated_at: string | null;
   /** The advisor already asked for the role — asking twice is nagging, not caring. */
   asked_role: boolean;
   /** The advisor already asked about their timeline. */
@@ -65,6 +68,9 @@ export interface DiagnosisTurnContext {
 interface HistoryMessage {
   role: 'user' | 'assistant';
   content: string;
+  /** ISO created_at of the persisted row — optional because harness/spec threads are synthetic.
+   *  Only the deadline-expiry rule reads it; everything else stays timestamp-free. */
+  at?: string;
 }
 
 // ── state extraction ─────────────────────────────────────────────────────────────────────────────
@@ -88,13 +94,15 @@ const ROLE_TAIL =
 /**
  * The words IMMEDIATELY BEFORE a role pattern that flip its meaning: negation ("mình KHÔNG nhắm X
  * nữa"), hypothetical/deliberation ("nếu mình nhắm X thì sao?", "có nên nhắm X không?"), someone
- * else's role ("bạn mình nhắm X"). All were MEASURED shipping a wrong role as Known — the worst
+ * else's role ("bạn mình nhắm X"), and a JD/employer mention ("bên FPT đang tuyển vị trí X",
+ * "JD này cần vị trí X" — Wave 3 review probe: these flipped the role AND archived the covered-gap
+ * coverage). All were MEASURED shipping a wrong role as Known — the worst
  * failure this file has, because the prompt tells the model to TRUST the Known lines. Up to two
  * intervening words so the guard also covers the "vị trí X" sub-pattern ("KHÔNG nhắm vị trí X").
  * Fail-soft: a false hit costs one missed personalization, never a wrong one.
  */
 const ROLE_PRE_GUARD =
-  /(?:không|ko|hông|chưa|đừng|nếu|giả\s+sử|lỡ|nên|hay\s+là|bạn\s+(?:mình|em|tôi|tớ)|anh\s+mình|chị\s+mình|em\s+mình|nó)(?:\s+[\p{L}\p{N}]+){0,2}\s*$/iu;
+  /(?:không|ko|hông|chưa|đừng|nếu|giả\s+sử|lỡ|nên|hay\s+là|bạn\s+(?:mình|em|tôi|tớ)|anh\s+mình|chị\s+mình|em\s+mình|nó|tuyển|cần|yêu\s+cầu)(?:\s+[\p{L}\p{N}]+){0,2}\s*$/iu;
 
 /** A capture containing any of these is a question/place/junk, not a title. Unicode lookarounds,
  *  not `\b` — `\bgì\b` never matches ("ì" is not ASCII \w, so the boundary does not exist). */
@@ -187,13 +195,14 @@ export function extractConversationState(
   const state: DiagnosisConversationState = {
     target_role: null,
     deadline: null,
+    deadline_stated_at: null,
     asked_role: false,
     asked_deadline: false,
   };
   let justAskedRole = false;
   let justAskedDeadline = false;
 
-  const readUserText = (text: string): void => {
+  const readUserText = (text: string, at?: string): void => {
     // Wave 2 FORGET: nullify BEFORE extraction and stop — "quên vị trí AI Engineer đi" must not
     // re-capture the role from the forget sentence itself. The marker persists in history, so
     // this branch re-nullifies on every future re-scan: forgetting is durable by construction
@@ -201,7 +210,10 @@ export function extractConversationState(
     const forget = parseForgetCommand(text);
     if (forget) {
       if (forget.role) state.target_role = null;
-      if (forget.deadline) state.deadline = null;
+      if (forget.deadline) {
+        state.deadline = null;
+        state.deadline_stated_at = null;
+      }
       justAskedRole = false;
       justAskedDeadline = false;
       return;
@@ -217,18 +229,34 @@ export function extractConversationState(
       justAskedDeadline = false;
       return;
     }
+    // Capturing a value CONSUMES any earlier ask for it (Wave 3 review, probe-confirmed): an
+    // elicited deadline left asked_deadline pinned true forever, which silenced the stale
+    // re-ask on the mainline flow the ask-back machinery itself creates. Resetting on capture
+    // keeps one-shot intact — a LATER ask row (e.g. the stale backstop) sets the flag again.
     const role = roleFrom(text);
-    if (role) state.target_role = role;
-    else if (justAskedRole) {
+    if (role) {
+      state.target_role = role;
+      state.asked_role = false;
+    } else if (justAskedRole) {
       const bare = stripBare(text);
       const bareRole = bare.length <= 40 ? cleanRole(bare) : null;
-      if (bareRole) state.target_role = bareRole;
+      if (bareRole) {
+        state.target_role = bareRole;
+        state.asked_role = false;
+      }
     }
     const deadline = deadlineFrom(text);
-    if (deadline) state.deadline = deadline;
-    else if (justAskedDeadline) {
+    if (deadline) {
+      state.deadline = deadline;
+      state.deadline_stated_at = at ?? null;
+      state.asked_deadline = false;
+    } else if (justAskedDeadline) {
       const m = stripBare(text).match(BARE_DEADLINE);
-      if (m) state.deadline = m[1].trim().replace(/\s+/g, ' ');
+      if (m) {
+        state.deadline = m[1].trim().replace(/\s+/g, ' ');
+        state.deadline_stated_at = at ?? null;
+        state.asked_deadline = false;
+      }
     }
     justAskedRole = false;
     justAskedDeadline = false;
@@ -241,11 +269,53 @@ export function extractConversationState(
       if (justAskedRole) state.asked_role = true;
       if (justAskedDeadline) state.asked_deadline = true;
     } else {
-      readUserText(m.content);
+      readUserText(m.content, m.at);
     }
   }
+  // The current question carries no timestamp on purpose — a deadline stated THIS turn is fresh
+  // by definition (deadline_stated_at stays null and the expiry rule never fires on it).
   readUserText(question);
   return state;
+}
+
+// ── deadline expiry (Wave 3 — deterministic, the "Dreaming" problem solved by code) ─────────────
+
+/** Approximate day-span of a RELATIVE deadline phrase ("2 tuần" → 14). Returns null for phrases
+ *  with no honest span ("cuối tháng 8", a named month) — we never guess a calendar date. */
+const SPAN_RE = /(\d{1,3})\s*(tuần|ngày|tháng|weeks?|days?|months?)/iu;
+const KEYWORD_SPANS: Array<[RegExp, number]> = [
+  [/ngày\s+mai/iu, 1],
+  [/tuần\s+(?:sau|tới)|cuối\s+tuần/iu, 7],
+  [/tháng\s+(?:sau|tới)|cuối\s+tháng(?!\s*\d)/iu, 30],
+];
+
+export function deadlineSpanDays(deadline: string): number | null {
+  const m = SPAN_RE.exec(deadline);
+  if (m) {
+    const n = Number(m[1]);
+    const unit = m[2].toLowerCase();
+    const base =
+      unit.startsWith('tuần') || unit.startsWith('week')
+        ? n * 7
+        : unit.startsWith('tháng') || unit.startsWith('month')
+          ? n * 30
+          : n;
+    return /rưỡi/iu.test(deadline) ? Math.round(base * 1.5) : base;
+  }
+  for (const [re, days] of KEYWORD_SPANS) if (re.test(deadline)) return days;
+  return null;
+}
+
+/** True when the stated relative deadline has, by wall clock, already elapsed since the row that
+ *  stated it. Fail-soft in every branch: no timestamp / no parseable span / current-turn statement
+ *  → NOT stale (a wrongly-stale flag would make the advisor distrust a live deadline). */
+export function deadlineStale(state: DiagnosisConversationState, now: Date): boolean {
+  if (!state.deadline || !state.deadline_stated_at) return false;
+  const span = deadlineSpanDays(state.deadline);
+  if (span === null) return false;
+  const stated = Date.parse(state.deadline_stated_at);
+  if (Number.isNaN(stated)) return false;
+  return now.getTime() - stated > span * 86_400_000;
 }
 
 // ── intent router ────────────────────────────────────────────────────────────────────────────────
@@ -354,6 +424,7 @@ function composedCanned(
   state: DiagnosisConversationState,
   question: string,
   lang: 'vi' | 'en',
+  deadlineIsStale = false,
 ): string | null {
   const en = lang === 'en';
   if (intent === 'what_you_know') {
@@ -362,7 +433,13 @@ function composedCanned(
       parts.push(en ? `you're aiming for ${state.target_role}` : `bạn nhắm ${state.target_role}`);
     if (state.deadline)
       parts.push(
-        en ? `your time budget is ${state.deadline}` : `quỹ thời gian của bạn là ${state.deadline}`,
+        deadlineIsStale
+          ? en
+            ? `you once said your time budget was ${state.deadline} — that was a while back, it may no longer hold`
+            : `bạn từng nói quỹ thời gian là ${state.deadline} — cũng lâu rồi, chưa chắc còn đúng`
+          : en
+            ? `your time budget is ${state.deadline}`
+            : `quỹ thời gian của bạn là ${state.deadline}`,
       );
     if (!parts.length)
       return en
@@ -406,10 +483,15 @@ export function askDirective(
   state: DiagnosisConversationState,
   intent: DiagnosisIntent,
   question: string,
+  deadlineIsStale = false,
 ): 'role' | 'deadline' | null {
   if (intent !== 'advice' || !ADVICE_SEEKING.test(question)) return null;
   if (state.target_role === null && !state.asked_role) return 'role';
-  if (state.deadline === null && !state.asked_deadline) return 'deadline';
+  // A stale deadline counts as unknown here (Wave 3 — measured: the stale Directive alone got
+  // 0/4 re-asks, the model flattens the question into an offer, same failure ensureAskBack was
+  // built for). One-shot by construction: the appended ask registers via ASKED_DEADLINE_RE on
+  // the next re-scan, so asked_deadline flips true and this never nags.
+  if ((state.deadline === null || deadlineIsStale) && !state.asked_deadline) return 'deadline';
   return null;
 }
 
@@ -425,8 +507,28 @@ export function askDirective(
  * count — the user typing "Machine Learning?" has not been ADVISED about it yet.
  */
 export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]): string[] {
+  // Wave 3 (3B): advice given while the candidate targeted a DIFFERENT role is ARCHIVED — only
+  // assistant turns after the LAST role change count as coverage. Otherwise the anti-repetition
+  // directive keeps steering AWAY from gaps that were advised for the old role and deserve a
+  // fresh pass for the new one. Same fail-soft primitives as extraction (forget turns skipped,
+  // tangled-forget turns skipped); a missed change keeps today's behavior, never breaks it.
+  // `currentRole` tracks the last CAPTURED role even across a forget — so "quên vị trí đi" +
+  // "mình nhắm Backend nhé" still reads as a CHANGE vs the pre-forget role, while forgetting
+  // alone (or restating the same role) archives nothing.
+  let currentRole: string | null = null;
+  let boundary = -1;
+  for (let i = 0; i < history.length; i++) {
+    const m = history[i];
+    if (m.role !== 'user') continue;
+    if (parseForgetCommand(m.content)) continue;
+    if (LOOSE_FORGET_VERB_RE.test(m.content) && MEMORY_FIELD_RE.test(m.content)) continue;
+    const role = roleFrom(m.content);
+    if (!role) continue;
+    if (currentRole !== null && role.toLowerCase() !== currentRole.toLowerCase()) boundary = i;
+    currentRole = role;
+  }
   const advisorText = history
-    .filter((m) => m.role === 'assistant')
+    .filter((m, i) => m.role === 'assistant' && i > boundary)
     .map((m) => m.content)
     .join('\n');
   if (!advisorText) return [];
@@ -444,6 +546,37 @@ export function coveredGapNames(facts: DiagnosisFacts, history: HistoryMessage[]
     );
 }
 
+// ── per-intent FACTS selection (Wave 3 — the Sierra typed-blocks lesson) ────────────────────────
+
+/**
+ * Choose the FACT groups a turn actually needs. v0 cut: `other_matches` matter ONLY on a
+ * comparison turn — everywhere else they are prompt noise AND an over-wide licensing surface
+ * (their scores stayed speakable on turns whose context never showed them).
+ * The caller MUST feed the SAME trimmed object to the prompt render and to groundDiagnosis, so
+ * the licensing set is exactly as wide as the context the model actually saw — fail-closed.
+ */
+export function factsForIntent(
+  facts: DiagnosisFacts,
+  intent: DiagnosisIntent,
+  question = '',
+): DiagnosisFacts {
+  if (intent === 'compare_jd' || !facts.other_matches?.length) return facts;
+  // A question that NAMES one of the other matches ("JD Frontend kia thì sao?") keeps them even
+  // outside compare_jd — trimming there answers with amnesia about data the product owns (Wave 3
+  // review probe). Token match ≥4 chars; a false keep just restores pre-trim behavior, zero risk.
+  const q = question.toLowerCase();
+  const namesAMatch = facts.other_matches.some((m) =>
+    (m.jd_title ?? '')
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .some((word) => word.length >= 4 && q.includes(word)),
+  );
+  if (namesAMatch) return facts;
+  const trimmed = { ...facts };
+  delete trimmed.other_matches;
+  return trimmed;
+}
+
 // ── the shared entry point ───────────────────────────────────────────────────────────────────────
 
 /**
@@ -456,20 +589,26 @@ export function buildTurnContext(
   history: HistoryMessage[],
   question: string,
   language?: string,
+  now: Date = new Date(),
 ): DiagnosisTurnContext {
   const state = extractConversationState(history, question);
   const intent = routeIntent(question, facts);
   const lang: 'vi' | 'en' = language?.toLowerCase().startsWith('en') ? 'en' : 'vi';
+  const stale = deadlineStale(state, now);
 
   const canned =
     intent === 'greeting' || intent === 'thanks' || intent === 'meta'
       ? CANNED[intent][lang]
-      : composedCanned(intent, state, question, lang);
+      : composedCanned(intent, state, question, lang, stale);
 
   const lines: string[] = [
     'Known about the candidate (extracted by code from this conversation — trust it, do not re-ask):',
     `- Target role: ${state.target_role ?? '(not stated yet)'}`,
-    `- Time budget/deadline: ${state.deadline ?? '(not stated yet)'}`,
+    // A relative deadline decays with the wall clock — once its own span has elapsed since the
+    // row that stated it, serving it as current would be a truthful-yesterday lie today.
+    stale
+      ? `- Time budget/deadline: "${state.deadline}" — stated a while ago and may ALREADY be past; do NOT treat it as current.`
+      : `- Time budget/deadline: ${state.deadline ?? '(not stated yet)'}`,
   ];
 
   // Coverage lines appear only once something HAS been advised — on turn one they would just
@@ -503,26 +642,43 @@ export function buildTurnContext(
       'They are asking to compare their JD/match options. Conclude with ONE choice from other_matches and set cited_other_match_index to it.',
     );
   }
-  const ask = askDirective(state, intent, question);
+  // The re-ask directive rides ONLY the turn the ask channel fires — ungated it nagged every
+  // stale turn after a dodge, and collided with a role ask in the same block (review, 2nd pass).
+  // Honesty survives without it: the Known line above already carries "may ALREADY be past".
+  const ask = askDirective(state, intent, question, stale);
+  if (stale && ask === 'deadline') {
+    directives.push(
+      'Their stated deadline is old and its window has likely closed. Do NOT plan around it as if current — acknowledge time may have moved on, and gently ask ONCE for their updated timeline.',
+    );
+  }
   if (ask === 'role') {
     directives.push(
       'They have NOT told you which role they are targeting, and it would change this advice. After answering from FACTS, end your message with ONE short question asking which role they are aiming for — nothing else appended.',
     );
-  } else if (ask === 'deadline') {
+  } else if (ask === 'deadline' && !stale) {
+    // On a stale turn the expiry directive above already orders the re-ask — a second "they
+    // have NOT told you" line would contradict the Known line that shows the old value.
     directives.push(
       'They have NOT told you how much time they have, and it would change this advice. After answering from FACTS, end your message with ONE short question asking about their timeline — nothing else appended.',
     );
   }
-  if (state.target_role || state.deadline) {
+  // A stale deadline is no longer "usable" state: it must not be woven into advice as current,
+  // and the demonstrate-memory opener must not proudly repeat it.
+  const usableDeadline = stale ? null : state.deadline;
+  if (state.target_role || usableDeadline) {
     directives.push(
-      'Weave the Known lines into the advice where they matter (their role shapes WHICH gap first; their deadline shapes HOW MUCH to attempt). Never ask for what is already Known.',
+      usableDeadline
+        ? 'Weave the Known lines into the advice where they matter (their role shapes WHICH gap first; their deadline shapes HOW MUCH to attempt). Never ask for what is already Known.'
+        : 'Weave their target role into the advice where it matters (it shapes WHICH gap first). Never re-ask for the role.',
     );
     // Wave 1 (the Duolingo List-of-Facts lesson): remembered state the user never SEES being
     // remembered buys no trust. On advice turns, order the model to SHOW the memory — the facts
     // are code-extracted, so speaking them back carries zero fabrication risk.
     if (intent === 'advice') {
       directives.push(
-        'When the advice depends on it, OPEN by naturally weaving in what they told you (their goal/deadline) in one clause — demonstrate the memory, never re-ask for it.',
+        usableDeadline
+          ? 'When the advice depends on it, OPEN by naturally weaving in what they told you (their goal/deadline) in one clause — demonstrate the memory, never re-ask for it.'
+          : 'When the advice depends on it, OPEN by naturally weaving in their goal in one clause — demonstrate the memory, never re-ask for it.',
       );
     }
   }

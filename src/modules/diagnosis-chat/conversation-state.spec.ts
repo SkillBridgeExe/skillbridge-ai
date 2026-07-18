@@ -3,7 +3,10 @@ import {
   ensureAskBack,
   buildTurnContext,
   coveredGapNames,
+  deadlineSpanDays,
+  deadlineStale,
   extractConversationState,
+  factsForIntent,
   routeIntent,
 } from './conversation-state';
 import { DiagnosisFacts } from './diagnosis-grounding';
@@ -570,5 +573,398 @@ describe('ensureAskBack — the ask-back backstop (model obeyed the Directive 1/
         expect(ensureAskBack('x.', ask, lang)).not.toMatch(/\d/);
       }
     }
+  });
+});
+
+// ── Wave 3 (3B): deterministic deadline expiry ────────────────────────────────────────────────────
+
+describe('deadlineSpanDays — honest span or null, never a guessed calendar date', () => {
+  it.each([
+    ['2 tuần', 14],
+    ['3 ngày', 3],
+    ['1 tháng', 30],
+    ['2 weeks', 14],
+    ['3 days', 3],
+    ['1 month', 30],
+    ['tuần sau', 7],
+    ['ngày mai', 1],
+    ['cuối tuần', 7],
+    ['tháng sau', 30],
+    ['cuối tháng', 30],
+    ['1 tháng rưỡi', 45],
+  ])('"%s" → %s days', (phrase, days) => {
+    expect(deadlineSpanDays(phrase)).toBe(days);
+  });
+
+  it('returns null for a named month — no honest relative span exists', () => {
+    expect(deadlineSpanDays('cuối tháng 8')).toBeNull();
+    expect(deadlineSpanDays('đầu tháng 12')).toBeNull();
+  });
+});
+
+describe('deadline_stated_at + deadlineStale', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const NOW = new Date();
+
+  it('records the timestamp of the HISTORY row that stated the deadline', () => {
+    const at = daysAgo(20);
+    const s = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at }],
+      'nên làm gì trước?',
+    );
+    expect(s.deadline).toBe('2 tuần nữa');
+    expect(s.deadline_stated_at).toBe(at);
+  });
+
+  it('a deadline stated in the CURRENT question is fresh by definition (stated_at null, never stale)', () => {
+    const s = extractConversationState([], 'mình chỉ còn 2 tuần nữa thôi');
+    expect(s.deadline).toBe('2 tuần nữa');
+    expect(s.deadline_stated_at).toBeNull();
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+
+  it('later-wins updates the timestamp along with the value', () => {
+    const recentAt = daysAgo(1);
+    const s = extractConversationState(
+      [
+        { ...user('mình còn 2 tuần'), at: daysAgo(30) },
+        { ...user('giờ mình chỉ còn 3 ngày thôi'), at: recentAt },
+      ],
+      'ổn không?',
+    );
+    expect(s.deadline).toBe('3 ngày');
+    expect(s.deadline_stated_at).toBe(recentAt);
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+
+  it('stale when the stated span has elapsed since the stating row', () => {
+    const s = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(20) }],
+      'nên làm gì trước?',
+    );
+    expect(deadlineStale(s, NOW)).toBe(true);
+  });
+
+  it('NOT stale while still inside the span, and never stale for an unparseable phrase', () => {
+    const inside = extractConversationState(
+      [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(3) }],
+      'x?',
+    );
+    expect(deadlineStale(inside, NOW)).toBe(false);
+    const named = extractConversationState(
+      [{ ...user('hạn nộp trước cuối tháng 8'), at: daysAgo(300) }],
+      'x?',
+    );
+    expect(named.deadline).toBe('cuối tháng 8');
+    expect(deadlineStale(named, NOW)).toBe(false);
+  });
+
+  it('forget wipes the timestamp with the value (expiry can never resurrect a forgotten deadline)', () => {
+    const s = extractConversationState(
+      [{ ...user('mình còn 2 tuần'), at: daysAgo(20) }, user('quên thời hạn đi')],
+      'x?',
+    );
+    expect(s.deadline).toBeNull();
+    expect(s.deadline_stated_at).toBeNull();
+    expect(deadlineStale(s, NOW)).toBe(false);
+  });
+});
+
+describe('buildTurnContext — stale deadline changes the Known line, directives, and canned echo', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const staleHistory = [
+    { ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'), at: daysAgo(20) },
+  ];
+
+  it('marks the Known line as possibly past and directs a gentle re-ask, without inventing digits', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì trước?');
+    expect(ctx.contextBlock).toContain('may ALREADY be past');
+    expect(ctx.contextBlock).toContain('gently ask ONCE for their updated timeline');
+    // replay safety: the ONLY digit tokens in the block are the user's own licensed "2" (from
+    // "2 tuần") — the expiry copy itself must never add new ones ("20 days ago" would).
+    const digits = ctx.contextBlock.match(/\d+/g) ?? [];
+    expect(new Set(digits)).toEqual(new Set(['2']));
+  });
+
+  it('fresh deadline keeps the original Known line and weave directives', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [
+        {
+          ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'),
+          at: daysAgo(1),
+        },
+      ],
+      'giờ mình nên làm gì trước?',
+    );
+    expect(ctx.contextBlock).toContain('- Time budget/deadline: 2 tuần');
+    expect(ctx.contextBlock).not.toContain('may ALREADY be past');
+    expect(ctx.contextBlock).toContain('their deadline shapes HOW MUCH to attempt');
+  });
+
+  it('stale → the demonstrate-memory opener weaves the GOAL only, never the dead deadline', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì trước?');
+    expect(ctx.contextBlock).toContain('weaving in their goal in one clause');
+    expect(ctx.contextBlock).not.toContain('their deadline shapes HOW MUCH to attempt');
+  });
+
+  it('what_you_know canned echo flags the stale value honestly — no question mark, no new digits', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'bạn nhớ gì về mình?');
+    expect(ctx.intent).toBe('what_you_know');
+    expect(ctx.canned).toContain('bạn từng nói quỹ thời gian là 2 tuần');
+    expect(ctx.canned).toContain('chưa chắc còn đúng');
+    expect(ctx.canned).not.toContain('?');
+    expect((ctx.canned ?? '').match(/\d+/g) ?? []).toEqual(['2']);
+  });
+
+  it('an explicit now parameter drives staleness deterministically (harness hook)', () => {
+    const statedAt = '2026-07-01T00:00:00.000Z';
+    const history = [{ ...user('mình chỉ còn 3 ngày nữa thôi'), at: statedAt }];
+    const fresh = buildTurnContext(
+      FACTS,
+      history,
+      'x nên làm gì?',
+      'vi',
+      new Date('2026-07-02T00:00:00Z'),
+    );
+    const stale = buildTurnContext(
+      FACTS,
+      history,
+      'x nên làm gì?',
+      'vi',
+      new Date('2026-07-10T00:00:00Z'),
+    );
+    expect(fresh.contextBlock).not.toContain('may ALREADY be past');
+    expect(stale.contextBlock).toContain('may ALREADY be past');
+  });
+});
+
+describe('coveredGapNames — role change archives old-role coverage (Wave 3)', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [
+      { gap_id: 'g1', display_name: 'SQL' },
+      { gap_id: 'g2', display_name: 'PyTorch' },
+    ] as never,
+  };
+
+  it('only assistant turns AFTER the last role change count as coverage', () => {
+    const history = [
+      user('mình định nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('thôi mình chuyển sang nhắm Backend Developer rồi'),
+      bot('Vậy giờ mở PyTorch trước nhé.'),
+    ];
+    // SQL WAS advised — but under the old role → archived; PyTorch named after the change → kept.
+    expect(coveredGapNames(gapFacts, history)).toEqual(['PyTorch']);
+  });
+
+  it('restating the SAME role does not archive anything', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('như mình nói, mình nhắm Data Analyst đó'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+
+  it('the FIRST role statement never archives the pre-role advice', () => {
+    const history = [bot('Ưu tiên SQL trước nhé.'), user('à, mình nhắm Data Analyst'), bot('OK.')];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+
+  it('forget-then-restate of the SAME role keeps coverage (no phantom change)', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('quên vị trí đi'),
+      user('mình nhắm Data Analyst nhé'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL']);
+  });
+});
+
+describe('coveredGapNames — forget + different role still reads as a change', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [{ gap_id: 'g1', display_name: 'SQL' }] as never,
+  };
+
+  it('quên vị trí đi + a NEW role afterwards archives the old-role coverage', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé.'),
+      user('quên vị trí đi'),
+      user('mình nhắm Backend Developer nhé'),
+      bot('OK.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual([]);
+  });
+});
+
+describe('factsForIntent — per-intent FACTS trim (Wave 3, 3C)', () => {
+  it('drops other_matches on a non-comparison turn', () => {
+    const trimmed = factsForIntent(FACTS_WITH_MATCHES, 'advice');
+    expect(trimmed.other_matches).toBeUndefined();
+    expect(trimmed.overall_score).toBe(FACTS_WITH_MATCHES.overall_score);
+    // the original object is untouched — the service reuses input.facts for known_state
+    expect(FACTS_WITH_MATCHES.other_matches).toHaveLength(1);
+  });
+
+  it('keeps other_matches on a compare_jd turn', () => {
+    expect(factsForIntent(FACTS_WITH_MATCHES, 'compare_jd').other_matches).toHaveLength(1);
+  });
+
+  it('is a no-op when there are no other_matches', () => {
+    expect(factsForIntent(FACTS, 'advice')).toBe(FACTS);
+  });
+});
+
+describe('stale deadline → ask-back machinery re-fires ONCE (Wave 3, measured 0/4 directive-only)', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const staleHistory = [
+    { ...user('Mình đang nhắm vị trí Data Analyst và mình chỉ còn 2 tuần nữa.'), at: daysAgo(20) },
+  ];
+
+  it('an advice-seeking turn over a stale deadline sets ask=deadline (ensureAskBack will append)', () => {
+    const ctx = buildTurnContext(FACTS, staleHistory, 'giờ mình nên làm gì tiếp theo đây?');
+    expect(ctx.ask).toBe('deadline');
+    // the generic "they have NOT told you" line must NOT ride along — the expiry directive owns
+    // the re-ask on stale turns (the generic line would contradict the Known line's old value).
+    expect(ctx.contextBlock).not.toContain('They have NOT told you how much time');
+    expect(ensureAskBack('Cứ sửa bullet trước.', ctx.ask, 'vi')).toContain('?');
+  });
+
+  it('one-shot: after the backstop ask registers in history, a stale turn does not nag again', () => {
+    const history = [
+      ...staleHistory,
+      {
+        ...bot('Cứ sửa bullet trước. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'),
+      },
+      user('chưa rõ nữa'),
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
+    expect(ctx.state.asked_deadline).toBe(true);
+    expect(ctx.ask).toBeNull();
+    // ...and the DIRECTIVE channel goes quiet with it — ungated, the expiry line ordered a
+    // re-ask on every post-dodge turn while the ask channel was one-shot (review, 2nd pass).
+    expect(ctx.contextBlock).not.toContain('updated timeline');
+  });
+
+  it('a FRESH deadline never trips the stale re-ask', () => {
+    const ctx = buildTurnContext(
+      FACTS,
+      [{ ...user('Mình nhắm vị trí Data Analyst, còn 2 tuần nữa.'), at: daysAgo(1) }],
+      'giờ mình nên làm gì tiếp theo đây?',
+    );
+    expect(ctx.ask).toBeNull();
+  });
+});
+
+// ── Wave 3 pre-merge review pins (probe-confirmed findings → permanent tests) ────────────────────
+
+describe('ELICITED deadline + stale → the re-ask still fires (review MAJOR: asked_deadline pinned true)', () => {
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  it('capture consumes the earlier ask: the mainline elicited flow re-asks when stale', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, CV mình nên sửa gì trước?'), at: daysAgo(21) },
+      {
+        ...bot('Cứ sửa bullet trước. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'),
+        at: daysAgo(21),
+      },
+      { ...user('2 tuần'), at: daysAgo(20) },
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'giờ mình nên ưu tiên gì tiếp theo đây?');
+    expect(ctx.state.deadline).toBe('2 tuần');
+    expect(ctx.state.asked_deadline).toBe(false); // the answer consumed the ask
+    expect(ctx.ask).toBe('deadline'); // ensureAskBack will append — was null before the fix
+  });
+
+  it('one-shot still holds: the stale backstop ask re-arms the flag until answered', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, CV mình nên sửa gì trước?'), at: daysAgo(21) },
+      { ...bot('Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?'), at: daysAgo(21) },
+      { ...user('2 tuần'), at: daysAgo(20) },
+      { ...bot('OK. Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?') }, // the stale backstop
+      user('chưa rõ nữa'),
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'vậy mình nên ưu tiên gì?');
+    expect(ctx.state.asked_deadline).toBe(true);
+    expect(ctx.ask).toBeNull(); // asked once, user dodged → never nag
+    expect(ctx.contextBlock).not.toContain('updated timeline'); // directive channel quiet too
+  });
+
+  it('answering the stale re-ask with a fresh deadline clears both the ask and the staleness', () => {
+    const history = [
+      { ...user('mình nhắm vị trí Data Analyst, còn 2 tuần nữa thôi'), at: daysAgo(20) },
+      { ...bot('Mà bạn còn bao nhiêu thời gian trước hạn nộp vậy?') },
+      { ...user('giờ còn đúng 5 ngày') },
+    ];
+    const ctx = buildTurnContext(FACTS, history, 'mình nên làm gì trước?');
+    expect(ctx.state.deadline).toBe('5 ngày');
+    expect(ctx.contextBlock).not.toContain('may ALREADY be past');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('stale deadline + unknown role → ONE ask only: role wins, the expiry re-ask stands down', () => {
+    const history = [{ ...user('mình chỉ còn 2 tuần nữa thôi'), at: daysAgo(20) }];
+    const ctx = buildTurnContext(FACTS, history, 'giờ mình nên làm gì trước?');
+    expect(ctx.ask).toBe('role');
+    expect(ctx.contextBlock).toContain('ONE short question asking which role');
+    expect(ctx.contextBlock).not.toContain('updated timeline'); // no two-questions turn
+    expect(ctx.contextBlock).toContain('may ALREADY be past'); // honesty stays regardless
+  });
+});
+
+describe('third-party role mentions never flip the role NOR archive coverage (review MINOR)', () => {
+  const gapFacts: DiagnosisFacts = {
+    ...FACTS,
+    gap_items: [
+      { gap_id: 'g1', display_name: 'SQL' },
+      { gap_id: 'g2', display_name: 'PyTorch' },
+    ] as never,
+  };
+
+  it.each([
+    'Bên FPT đang tuyển vị trí Business Analyst, JD đó hợp với mình không?',
+    'JD này cần vị trí Data Engineer à?',
+    'tin tuyển dụng ghi yêu cầu vị trí Senior Developer đó',
+  ])('no wrong capture: %s', (q) => {
+    expect(extractConversationState([], q).target_role).toBeNull();
+  });
+
+  it('a JD mention between advice turns does not archive the covered gaps', () => {
+    const history = [
+      user('mình nhắm Data Analyst'),
+      bot('Ưu tiên SQL trước nhé. Với PyTorch thì học sau.'),
+      user('Bên FPT đang tuyển vị trí Business Analyst, JD đó hợp với mình không?'),
+      bot('JD đó lệch hướng bạn đang nhắm.'),
+    ];
+    expect(coveredGapNames(gapFacts, history)).toEqual(['SQL', 'PyTorch']);
+  });
+
+  it('a first-person application statement still captures (ứng tuyển is not a JD mention)', () => {
+    expect(extractConversationState([], 'em ứng tuyển vào Data Analyst ạ').target_role).toBe(
+      'Data Analyst',
+    );
+  });
+});
+
+describe('factsForIntent keeps other_matches when the question NAMES one (review MINOR)', () => {
+  it('a named-match question outside compare_jd keeps the data it names', () => {
+    const kept = factsForIntent(
+      FACTS_WITH_MATCHES,
+      'advice',
+      'JD Frontend kia mình được bao nhiêu điểm?',
+    );
+    expect(kept.other_matches).toHaveLength(1);
+  });
+
+  it('an unrelated advice question still trims', () => {
+    const trimmed = factsForIntent(FACTS_WITH_MATCHES, 'advice', 'mình nên sửa bullet nào trước?');
+    expect(trimmed.other_matches).toBeUndefined();
   });
 });
