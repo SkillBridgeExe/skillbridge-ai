@@ -1,0 +1,325 @@
+import { CvBuilderChatFacts } from './cv-builder-chat.facts';
+
+/**
+ * The conversation BRAIN of the CV-builder companion (PURE — no LLM, no IO). Mirrors the mechanism
+ * proven in `diagnosis-chat/conversation-state.ts` (memory over the WIDE history window + a
+ * deterministic pre-LLM router + a one-shot ask-tracking slot), adapted to the CV-builder domain:
+ * instead of "role/deadline", the thing worth remembering is WHICH bullet-writing gap
+ * (`action`/`tech`/`result` — see `cv-assistant.ts`) the candidate just supplied detail for, so the
+ * companion never asks for the same thing twice.
+ *
+ *  - extractConversationState: ONE chronological pass over history + the current question. The
+ *    only forbidden failure is a WRONG capture (recording a gap the user did not actually answer);
+ *    a MISSED capture only costs one re-ask, never a wrong fact. `active_field_path` is left null
+ *    here on purpose: `field_path` is an opaque FE-owned id (`cvbuilder:projects[0].bullets[0]`)
+ *    that is never restated in natural language, so there is no honest way to derive a REAL one from
+ *    prose — `buildTurnContext` (which holds `facts`) is the only place with a truthful source
+ *    (`facts.focus.field_path`), and it fills the default in.
+ *  - routeIntent: entire-message-match canned routes (greeting/thanks/meta) guarded by DOMAIN_HINT,
+ *    same discipline as diagnosis-chat — misrouting a real question as canned is the dangerous
+ *    failure, so every canned route requires the WHOLE message to be the greeting/thanks form (meta
+ *    is also length-capped). Everything else is verb-regex routed; unmatched falls to `write`
+ *    (this file's equivalent of diagnosis-chat's `advice` catch-all).
+ *  - buildTurnContext: the single entry point the service will call (wired in Task 2.3) — state +
+ *    intent + the canned short-circuit + the `{{context}}` block. `ask` is always null here; deciding
+ *    WHEN to ask is Task 2.2's `askDirective`.
+ */
+
+export interface CvBuilderConversationState {
+  /** A role the candidate RESTATED in chat (verbatim); null = never restated. This is purely
+   *  informational — `facts.target_role` (server-read) is the trusted source, so a missed/loose
+   *  capture here costs nothing beyond one skipped personalization line. */
+  target_role: string | null;
+  /** The field/section the conversation is currently about. Always backfilled from
+   *  `facts.focus?.field_path` by `buildTurnContext` (see the file docstring for why extraction
+   *  alone can never derive a real one from prose). */
+  active_field_path: string | null;
+  /** Gaps the user has already supplied detail for THIS conversation (later turns can add more;
+   *  never re-derived from scratch — it is a running log over the whole scan). */
+  answered_gaps: Array<{ field_path: string; gap: string }>;
+  /** The ONE gap the companion last asked about and has not yet gotten an answer for (one-shot —
+   *  asking twice is nagging). Null once answered. Sticky across turns that do not re-ask, mirroring
+   *  diagnosis-chat's `asked_role`/`asked_deadline` persistence. */
+  asked_gap: { field_path: string; gap: string } | null;
+}
+
+export type CvBuilderIntent =
+  | 'greeting'
+  | 'thanks'
+  | 'meta'
+  | 'write'
+  | 'add_metric'
+  | 'shorten'
+  | 'ask_what_to_write'
+  | 'explain'
+  | 'recall';
+
+export interface CvBuilderTurnContext {
+  state: CvBuilderConversationState;
+  intent: CvBuilderIntent;
+  /** Non-null → serve this verbatim and skip the LLM entirely. */
+  canned: string | null;
+  /** Rendered into the prompt's `{{context}}` injection point; never empty. */
+  contextBlock: string;
+  /** The code-computed ask-back decision for this turn. ALWAYS null in this task — Task 2.2's
+   *  `askDirective` decides it. */
+  ask: { field_path: string; gap: string } | null;
+}
+
+export type HistoryMessage = { role: 'user' | 'assistant'; content: string; at?: string };
+
+// ── the gap-ask/answer mechanism ─────────────────────────────────────────────────────────────────
+
+/** the 3 bullet-writing gaps this file's ask-tracking currently covers — see `cv-assistant.ts`'s
+ *  `BulletGap`. ponytail: summary gaps (`role`/`strength`/`evidence`) are NOT covered by
+ *  {@link ASKED_GAP_RE} yet — a summary-focused ask just never gets auto-captured (fail-soft: a
+ *  missed capture, never a wrong one). Add named groups here + in the regex when that ships. */
+type BulletGapAsk = 'result' | 'tech' | 'action';
+
+/** No real `field_path` can be recovered from prose (see file docstring) — this stamps the
+ *  placeholder onto `asked_gap`/`answered_gaps` entries so the field stays a `string` per the
+ *  interface; `active_field_path` itself is left null (never set to this placeholder) so a genuine
+ *  `facts.focus.field_path` default in `buildTurnContext` is never shadowed by a meaningless value. */
+const UNKNOWN_FIELD = '(unspecified field)';
+
+/**
+ * Did an assistant turn ask about ONE specific bullet gap? Named capture groups identify WHICH gap
+ * fired. CROSS-TASK COUPLING: authored here (Task 2.1); Task 2.2's `ASK_COPY` table MUST phrase its
+ * ask-back copy to match one of these branches, or the one-shot capture-consumes-ask mechanism
+ * silently stops working. Wide on purpose — matches the MODEL's own paraphrase of a gap-ask, not
+ * only canned copy (a missed detection here just means one extra re-ask, never a wrong capture).
+ * Digit-free and `?`-anchored per the replay-safety rule: this phrasing replays into history as
+ * assistant text on the next turn, so it must never itself contain a number.
+ */
+const ASKED_GAP_RE =
+  /(?<result>(?:kết\s*quả|hiệu\s*quả|đo\s*được|con\s*số(?:\s*cụ\s*thể)?|impact|result|outcome)[^.!?\n]{0,40}\?)|(?<tech>(?:công\s*nghệ|dùng\s*(?:công\s*cụ|framework|ngôn\s*ngữ)|stack|tech(?:nology)?|tool)[^.!?\n]{0,40}\?)|(?<action>(?:đã\s*làm\s*(?:gì|những\s*gì)|vai\s*trò\s*của\s*bạn|bạn\s*đảm\s*nhận|what\s*did\s*you\s*do|your\s*role)[^.!?\n]{0,40}\?)/iu;
+
+function askedGapFrom(text: string): BulletGapAsk | null {
+  const m = ASKED_GAP_RE.exec(text);
+  if (!m?.groups) return null;
+  if (m.groups.result) return 'result';
+  if (m.groups.tech) return 'tech';
+  if (m.groups.action) return 'action';
+  return null;
+}
+
+/** a number next to a unit/metric ("40%", "200ms", "2x", "10k users") — the same shape
+ *  `cv-assistant.ts` uses to detect a quantified result, kept LOCAL/self-contained rather than
+ *  imported so this pure state module stays decoupled from that gap-analyzer's internals.
+ *  Trailing boundary is the Unicode lookahead, not `\b` — JS `\b` is ASCII-only and never fires
+ *  right after a Vietnamese diacritic vowel ("giờ", "tháng" would silently fail to match with a
+ *  trailing `\b`), the same pitfall diagnosis-chat's ROLE_WORD documents. */
+const METRIC_RE =
+  /\d+(?:\.\d+)?\s?(?:%|x|k|ms|s|gb|mb|users?|reqs?|requests?|hours?|days?|weeks?|months?|năm|giờ|ngày|tuần|tháng)(?![\p{L}\p{N}])/iu;
+const RESULT_CUE_RE =
+  /giảm|tăng|cải\s*thiện|tiết\s*kiệm|rút\s*ngắn|gấp\s*đôi|reduced|increased|saved|improved|grew|doubled|decreased/iu;
+/** Unicode lookarounds, not `\b` — several verbs end in a diacritic vowel ("thiết kế", "tự động
+ *  hoá") where `\b` never fires (see METRIC_RE's note above). */
+const ACTION_VERB_ANSWER_RE =
+  /(?<![\p{L}\p{N}])(?:xây|triển\s*khai|tạo|thiết\s*kế|phát\s*triển|tối\s*ưu|dẫn\s*dắt|ra\s*mắt|chuyển\s*đổi|tự\s*động\s*hoá|built|implemented|created|designed|developed|shipped|deployed|led|optimized|refactored|migrated|automated|launched)(?![\p{L}\p{N}])/iu;
+
+/** a capitalized tech-looking token not at the very start of the reply ("React", "PostgreSQL") —
+ *  same shape `cv-assistant.ts` uses for its own tech-token check. */
+function looksLikeTechAnswer(text: string): boolean {
+  const toks = text.trim().split(/\s+/);
+  return toks.some((raw, i) => {
+    if (i === 0) return false;
+    const t = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    return t.length >= 2 && /^[A-Z][A-Za-z0-9.+#]*$/.test(t);
+  });
+}
+
+/** Does this reply plausibly supply the detail for the gap that was just asked about? Deliberately
+ *  permissive (a false accept just records a slightly-off gap label; the forbidden failure is
+ *  recording an answer for a gap the user's reply had NOTHING to do with, which these patterns are
+ *  specific enough to avoid — a plain dodge like "bạn tên gì vậy?" matches none of them). */
+function answersGap(text: string, gap: BulletGapAsk): boolean {
+  if (gap === 'result') return METRIC_RE.test(text) || RESULT_CUE_RE.test(text);
+  if (gap === 'tech') return looksLikeTechAnswer(text);
+  return ACTION_VERB_ANSWER_RE.test(text); // 'action'
+}
+
+// ── target-role restatement (informational only — see the interface doc) ───────────────────────
+
+const ROLE_RE =
+  /(?:nhắm|target(?:ing)?|ứng\s*tuyển|apply(?:ing)?)\s+(?:tới\s+|vào\s+)?(?:vị\s*trí\s+|role\s+|for\s+(?:a\s+|an\s+)?)?([^\n,.;:!?(]{2,60})|vị\s*trí\s+([^\n,.;:!?(]{2,60})/iu;
+const ROLE_TAIL_RE =
+  /\s+(?:và|với|trong|nhé|nha|thì|luôn|rồi|nữa|thôi|and|with|in|but|or)(?![\p{L}\p{N}])[\s\S]*$/iu;
+const ROLE_REJECT_RE = /(?<![\p{L}])(?:nào|gì|đâu|sao|which|what|cv|resume)(?![\p{L}])/iu;
+
+function roleFrom(text: string): string | null {
+  const m = ROLE_RE.exec(text);
+  if (!m) return null;
+  const raw = (m[1] ?? m[2] ?? '').replace(ROLE_TAIL_RE, '').trim().replace(/\s+/g, ' ');
+  if (raw.length < 2 || raw.length > 40) return null;
+  if (ROLE_REJECT_RE.test(raw)) return null;
+  return raw;
+}
+
+// ── state extraction ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Read the structured state out of the conversation. One chronological pass: an outstanding
+ * `asked_gap` is STICKY (persists across turns that do not re-ask, exactly like diagnosis-chat's
+ * `asked_role`/`asked_deadline`), but only the turn IMMEDIATELY after an ask gets a capture attempt
+ * — later turns never retroactively consume a stale ask, so a topic change can never be misread as
+ * an answer several turns later.
+ */
+export function extractConversationState(
+  history: HistoryMessage[],
+  question: string,
+): CvBuilderConversationState {
+  const state: CvBuilderConversationState = {
+    target_role: null,
+    active_field_path: null,
+    answered_gaps: [],
+    asked_gap: null,
+  };
+  let justAskedGap: { field_path: string; gap: BulletGapAsk } | null = null;
+
+  const readUserText = (text: string): void => {
+    if (justAskedGap && answersGap(text, justAskedGap.gap)) {
+      state.answered_gaps.push({ field_path: justAskedGap.field_path, gap: justAskedGap.gap });
+      state.asked_gap = null; // the answer CONSUMES the ask — one-shot, never nag on a captured gap
+    }
+    const role = roleFrom(text);
+    if (role) state.target_role = role;
+    justAskedGap = null; // only the turn right after an ask gets a capture attempt
+  };
+
+  for (const m of history) {
+    if (m.role === 'assistant') {
+      const gap = askedGapFrom(m.content);
+      if (gap) {
+        const ask = { field_path: UNKNOWN_FIELD, gap };
+        state.asked_gap = ask;
+        justAskedGap = ask;
+      } else {
+        // this turn did not ask — no immediate-capture window opens, but a PRIOR outstanding
+        // `asked_gap` is left untouched (sticky) until a capture or a newer ask resolves it.
+        justAskedGap = null;
+      }
+    } else {
+      readUserText(m.content);
+    }
+  }
+  readUserText(question);
+  return state;
+}
+
+// ── intent router ────────────────────────────────────────────────────────────────────────────────
+
+/** Any of these means the message carries real CV payload — never canned. */
+const DOMAIN_HINT =
+  /cv|bullet|dự\s*án|project|kinh\s*nghiệm|experience|summary|tóm\s*tắt|resume|hồ\s*sơ|gap|kỹ\s*năng|skill|viết|sửa|rewrite|edit|fix|section|mục|câu|đoạn/iu;
+
+/** The ENTIRE message must be the greeting — "chào, CV mình sao rồi" falls through to the LLM
+ *  (the trailing content breaks the `$` anchor before DOMAIN_HINT even needs to fire). */
+const GREETING_RE =
+  /^\s*(?:hi+|hello+|hey+|yo|alo+|helo+|hé\s*lô|lô|chào(?:\s+(?:bạn|bot|em|anh|chị|buổi\s+(?:sáng|chiều|tối)))?|xin\s+chào|good\s+(?:morning|afternoon|evening))\s*[!.~^\-_*]*\s*$/iu;
+
+const THANKS_RE =
+  /^\s*(?:cảm\s*ơn|cám\s*ơn|thank(?:s|\s+you)?|tks|thx|bye+|byebye|tạm\s+biệt)(?:\s+(?:bạn|bot|nhiều|nhìu|nhiu|nha|nhé|nghen|so\s+much|a\s+lot))*\s*[!.~]*\s*$/iu;
+
+/** NOT entire-message anchored (a "who are you" opener can carry a real question after it) — the
+ *  length cap + DOMAIN_HINT guard are what keep this safe, same discipline as diagnosis-chat. */
+const META_RE =
+  /(?:bạn|mày|you)\s*(?:là\s*(?:ai|gì|bot)|làm\s+được\s+(?:những\s+)?gì|giúp\s+được\s+gì|biết\s+làm\s+gì|có\s+thể\s+làm\s+(?:được\s+)?gì)|who\s+are\s+you|what\s+can\s+you\s+do|are\s+you\s+a\s+bot/iu;
+
+const RECALL_RE =
+  /(?:vừa|lúc|hồi|ban)\s+nãy[^\n]{0,40}(?:nói|bảo|khuyên|hỏi)|bạn\s+(?:có\s+)?nhớ|mình\s+(?:đã\s+|vừa\s+)?nói\s+(?:gì|là\s+gì)|nhắc\s+lại\s+(?:giúp|cho|dùm)|what\s+did\s+(?:you|i)\s+(?:just\s+)?say|do\s+you\s+remember|remind\s+me\s+what/iu;
+
+const EXPLAIN_RE = /tại\s*sao|vì\s*sao|giải\s*thích|explain|why\s+(?:is|does|should|do)/iu;
+
+const ADD_METRIC_RE =
+  /thêm\s*(?:số\s*liệu|con\s*số|metric)|định\s*lượng|quantify|add\s*(?:a\s*)?(?:metric|number)|with\s+numbers?|đưa\s*(?:số\s*liệu|con\s*số)\s*vào/iu;
+
+const SHORTEN_RE =
+  /ngắn\s*(?:lại|hơn|gọn)?|rút\s*gọn|cô\s*đọng|súc\s*tích\s*hơn|shorten|make\s+(?:it|this)\s+(?:shorter|more\s+concise)|more\s+concise|trim\s+(?:it|this)/iu;
+
+const ASK_WHAT_TO_WRITE_RE =
+  /nên\s*viết\s*gì|viết\s*gì\s*(?:đây|bây\s*giờ)?|(?:chưa|không)\s*biết\s*viết\s*(?:gì|sao)|what\s+should\s+i\s+write|what\s+(?:to|do\s+i)\s+write|gợi\s*ý\s*(?:nội\s*dung|giúp)/iu;
+
+export function routeIntent(question: string, facts: CvBuilderChatFacts): CvBuilderIntent {
+  const q = question.trim();
+  if (GREETING_RE.test(q) && !DOMAIN_HINT.test(q)) return 'greeting';
+  if (THANKS_RE.test(q) && !DOMAIN_HINT.test(q)) return 'thanks';
+  if (q.length <= 50 && META_RE.test(q) && !DOMAIN_HINT.test(q)) return 'meta';
+  if (RECALL_RE.test(q)) return 'recall';
+  if (EXPLAIN_RE.test(q)) return 'explain';
+  if (ADD_METRIC_RE.test(q)) return 'add_metric';
+  if (SHORTEN_RE.test(q)) return 'shorten';
+  // asking "what should I write" only reads as its own intent when there IS a focused field to
+  // write about; with no focus it is just a generic write/help request.
+  if (ASK_WHAT_TO_WRITE_RE.test(q) && facts.focus !== null) return 'ask_what_to_write';
+  return 'write';
+}
+
+// ── canned replies (code-authored — zero fabrication surface, zero latency) ──────────────────────
+
+// Every line is digit-free and phrased so it never trips ASKED_GAP_RE when it replays into history
+// as assistant text (no gap-ask keyword sits next to a "?").
+export const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: string }> = {
+  greeting: {
+    vi: 'Chào bạn! Mình đang xem CV bạn đang chỉnh đây. Bạn muốn mình giúp viết lại đoạn nào, hay đang phân vân chỗ nào trong CV?',
+    en: "Hey! I'm looking at the CV you're editing right now. Want help rewriting a section, or is there a part you're unsure about?",
+  },
+  thanks: {
+    vi: 'Rất vui được giúp! Có phần nào khác trong CV bạn muốn mình xem tiếp không?',
+    en: 'Happy to help! Anything else in your CV you want me to look at?',
+  },
+  meta: {
+    vi: 'Mình là trợ lý viết CV của bạn. Mình chỉ dựa trên nội dung CV thật của bạn để gợi ý cách viết rõ hơn, mạnh hơn — không tự bịa số liệu hay chi tiết bạn chưa nói. Bạn muốn bắt đầu từ phần nào?',
+    en: "I'm your CV-writing assistant. I only work from your own CV content to help you write it clearer and stronger — I never invent numbers or details you haven't told me. Where do you want to start?",
+  },
+};
+
+// ── the shared entry point ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Everything the service needs to run one intelligent turn: the state, the route, the canned
+ * short-circuit, and the context block that goes into the prompt's `{{context}}` injection point.
+ * `ask` is always null here — Task 2.2's `askDirective` decides it.
+ */
+export function buildTurnContext(
+  facts: CvBuilderChatFacts,
+  history: HistoryMessage[],
+  question: string,
+  language?: string,
+): CvBuilderTurnContext {
+  const state = extractConversationState(history, question);
+  // extractConversationState can never derive a REAL field_path from prose (see file docstring) —
+  // `facts.focus.field_path` is the only honest source, so it backfills whenever text found nothing.
+  if (state.active_field_path === null) state.active_field_path = facts.focus?.field_path ?? null;
+
+  const intent = routeIntent(question, facts);
+  const lang: 'vi' | 'en' = language?.toLowerCase().startsWith('en') ? 'en' : 'vi';
+
+  const canned =
+    intent === 'greeting' || intent === 'thanks' || intent === 'meta' ? CANNED[intent][lang] : null;
+
+  const lines: string[] = [
+    'Known from this conversation (extracted by code — trust it, do not re-ask):',
+    `- Active field: ${state.active_field_path ?? '(not specified)'}`,
+    `- Target role (as restated in chat): ${
+      state.target_role ?? "(not restated — use the CV's own target role)"
+    }`,
+  ];
+  if (state.answered_gaps.length) {
+    lines.push(
+      `- Already answered in this conversation: ${state.answered_gaps
+        .map((g) => g.gap)
+        .join(', ')}`,
+    );
+  }
+
+  const directives: string[] = [];
+  if (intent === 'recall') {
+    directives.push(
+      'They are asking about something already said earlier in this conversation. Answer it plainly from the conversation text; no citation needed.',
+    );
+  }
+  if (directives.length) lines.push('Directive:', ...directives.map((d) => `- ${d}`));
+
+  return { state, intent, canned, contextBlock: lines.join('\n'), ask: null };
+}
