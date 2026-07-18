@@ -1,5 +1,5 @@
 import { CvBuilderChatFacts } from './cv-builder-chat.facts';
-import { hasTechToken } from '../cv-assistant/cv-assistant';
+import { NAMED_TECH, hasWord } from '../cv-assistant/cv-assistant-rewrite';
 
 /**
  * The conversation BRAIN of the CV-builder companion (PURE — no LLM, no IO). Mirrors the mechanism
@@ -124,9 +124,21 @@ const ACTION_VERB_ANSWER_RE =
 /** Deferral/refusal phrases (vi + en) — a dodge is NEVER an answer, no matter what stray token it
  *  happens to contain ("chưa có số, tầm 2 tuần nữa" has a time-unit token; "để hỏi Nam đã" has a
  *  capitalized name). This is the backstop: it must win even if a token-level check above is fooled,
- *  so it is checked FIRST in {@link answersGap}, before any gap-specific pattern. */
+ *  so it is checked FIRST in {@link answersGap}, before any gap-specific pattern.
+ *  `chưa` REQUIRES a deferral continuation (có/biết/xong/đâu) — a bare "chưa" ("not yet") is an
+ *  extremely common hedge inside a genuine answer ("trước đây chưa đo nhưng giờ giảm 40%") and must
+ *  not itself discard the real result that follows. `thôi` excludes an immediate "thúc" so the
+ *  compound word "thôi thúc" (motivate) is never misread as the deferral particle "thôi". */
 const DODGE_RE =
-  /để\s*(?:sau|mai|lúc\s*khác|(?:mình\s*)?(?:nghĩ|coi)\s*đã)|thôi(?:\s|$)|chưa\s*(?:có|biết|xong|đâu)?|hỏi\s+\S+\s+(?:đã|xem|thử)|xem\s*lại|later|not\s*sure|dunno|skip|nevermind/iu;
+  /để\s*(?:sau|mai|lúc\s*khác|(?:mình\s*)?(?:nghĩ|coi)\s*đã)|thôi(?:\s+(?!thúc)|$)|chưa\s*(?:có|biết|xong|đâu)|hỏi\s+\S+\s+(?:đã|xem|thử)|xem\s*lại|later|not\s*sure|dunno|skip|nevermind/iu;
+
+/** Does this reply name a KNOWN technology from `NAMED_TECH` (the same curated gazetteer
+ *  `groundCvRewrite`'s anti-fabrication gate arm (c) uses)? Deliberately NOT "any capitalized
+ *  token" — that flagged a person's name/honorific ("Nam", "Anh") as tech. A real but obscure tech
+ *  outside the gazetteer just costs one re-ask (never a wrong capture), which is the safe direction. */
+function looksLikeTechAnswer(text: string): boolean {
+  return NAMED_TECH.some((tech) => hasWord(text, tech));
+}
 
 /** Does this reply plausibly supply the detail for the gap that was just asked about? Deliberately
  *  permissive (a false accept just records a slightly-off gap label; the forbidden failure is
@@ -136,7 +148,7 @@ const DODGE_RE =
 function answersGap(text: string, gap: BulletGapAsk): boolean {
   if (DODGE_RE.test(text)) return false;
   if (gap === 'result') return METRIC_RE.test(text) || RESULT_CUE_RE.test(text);
-  if (gap === 'tech') return hasTechToken(text);
+  if (gap === 'tech') return looksLikeTechAnswer(text);
   return ACTION_VERB_ANSWER_RE.test(text); // 'action'
 }
 

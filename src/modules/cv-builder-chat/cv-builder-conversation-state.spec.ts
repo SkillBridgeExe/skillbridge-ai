@@ -91,6 +91,25 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
   });
 
+  it('a "chưa" hedge inside a genuine answer is NOT swallowed as a dodge (result IS captured)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'trước đây chưa đo nhưng giờ giảm 40%');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gap).toBeNull();
+  });
+
+  it('a compound word containing "thôi" ("thôi thúc") is not misread as the dodge particle', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'điều đó thôi thúc mình học React');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
+  });
+
+  it("a person's name is NOT captured as a tech answer (tech capture requires a known-tech gazetteer hit)", () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'thật ra Nam là người làm phần đó');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
   it('a restated target role is captured (informational)', () => {
     const s = extractConversationState([], 'mình đang nhắm vị trí Backend Developer');
     expect(s.target_role).toBe('Backend Developer');
