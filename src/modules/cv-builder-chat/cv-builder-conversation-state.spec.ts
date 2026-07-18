@@ -1,5 +1,7 @@
 import {
+  askDirective,
   buildTurnContext,
+  ensureAskBack,
   extractConversationState,
   routeIntent,
 } from './cv-builder-conversation-state';
@@ -21,6 +23,18 @@ const FACTS: CvBuilderChatFacts = {
 };
 
 const FACTS_NO_FOCUS: CvBuilderChatFacts = { ...FACTS, focus: null };
+
+// a focus with ONLY a result gap open (tech/action already fine) — isolates the result branch.
+const FACTS_RESULT_GAP: CvBuilderChatFacts = {
+  ...FACTS,
+  focus: { ...FACTS.focus!, gaps: ['result'] },
+};
+
+// a focus missing BOTH result and action — exercises the result > action priority order.
+const FACTS_RESULT_AND_ACTION_GAP: CvBuilderChatFacts = {
+  ...FACTS,
+  focus: { ...FACTS.focus!, gaps: ['result', 'action'] },
+};
 
 // an assistant turn phrased to fire ASKED_GAP_RE's `result` branch — Task 2.2's real ASK_COPY table
 // must phrase its asks the same way or the capture-consumes-ask mechanism silently breaks.
@@ -248,9 +262,15 @@ describe('buildTurnContext — the shared entry point', () => {
     expect(ctx.intent).toBe('greeting');
   });
 
-  it('a real CV question is never canned and ask is always null in this task', () => {
+  it('a real CV question is never canned; ask is populated when the focused bullet has an open gap', () => {
     const ctx = buildTurnContext(FACTS, [], 'viết lại bullet này giúp mình');
     expect(ctx.canned).toBeNull();
+    expect(ctx.ask).toEqual({ field_path: FACTS.focus!.field_path, gap: 'result' });
+  });
+
+  it('a canned turn (greeting/thanks/meta) never carries an ask', () => {
+    const ctx = buildTurnContext(FACTS, [], 'chào bạn');
+    expect(ctx.canned).not.toBeNull();
     expect(ctx.ask).toBeNull();
   });
 
@@ -262,5 +282,125 @@ describe('buildTurnContext — the shared entry point', () => {
   it('contextBlock carries the known state for the prompt', () => {
     const ctx = buildTurnContext(FACTS, [], 'viết lại bullet này giúp mình');
     expect(ctx.contextBlock).toContain('cvbuilder:projects[0].bullets[0]');
+  });
+});
+
+describe('askDirective — the proactive ask-ONE-gap decision (code decides WHEN)', () => {
+  it('an advice-seeking turn over a bullet missing a result asks ONCE for the result', () => {
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, [], 'giúp mình viết project này mạnh hơn');
+    expect(ctx.ask).toEqual({ field_path: FACTS_RESULT_GAP.focus!.field_path, gap: 'result' });
+  });
+
+  it('a bullet missing BOTH result and action asks for result FIRST (priority order)', () => {
+    const ctx = buildTurnContext(
+      FACTS_RESULT_AND_ACTION_GAP,
+      [],
+      'giúp mình viết project này mạnh hơn',
+    );
+    expect(ctx.ask).toEqual({
+      field_path: FACTS_RESULT_AND_ACTION_GAP.focus!.field_path,
+      gap: 'result',
+    });
+  });
+
+  it('does not re-ask a gap already answered (one-shot, no nag)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, user('giảm load 40%')];
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, history, 'ok giờ sao nữa');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('does not ask again while the same gap is still outstanding (no double-fire mid-dodge)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, user('ok cảm ơn nha')];
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, history, 'giờ sao nữa ha');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('a non-advice intent (e.g. shorten) never asks, even with an open gap', () => {
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, [], 'viết bullet này ngắn lại giúp mình');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('no ask when nothing is focused', () => {
+    expect(
+      askDirective(
+        { target_role: null, active_field_path: null, answered_gaps: [], asked_gap: null },
+        'write',
+        FACTS_NO_FOCUS,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('ensureAskBack — the backstop that appends the standard ask if the model dropped it', () => {
+  it('returns the answer unchanged when ask is null', () => {
+    expect(ensureAskBack('Ổn rồi đó.', null, 'vi')).toBe('Ổn rồi đó.');
+  });
+
+  it('appends ONE question when the model dropped it (vi, result gap)', () => {
+    const out = ensureAskBack(
+      'Mình gợi ý dùng động từ mạnh hơn.',
+      { field_path: 'x', gap: 'result' },
+      'vi',
+    );
+    expect(out).toContain('?');
+  });
+
+  it('does not double-ask when the model already asked its own question', () => {
+    const out = ensureAskBack(
+      'Bạn đo được kết quả gì không?',
+      { field_path: 'x', gap: 'result' },
+      'vi',
+    );
+    expect((out.match(/\?/g) ?? []).length).toBe(1);
+  });
+
+  it('appends the tech-gap question (vi)', () => {
+    const out = ensureAskBack('Gợi ý vậy đã nhé.', { field_path: 'x', gap: 'tech' }, 'vi');
+    expect(out).toContain('?');
+  });
+
+  it('appends the action-gap question (vi)', () => {
+    const out = ensureAskBack('Gợi ý vậy đã nhé.', { field_path: 'x', gap: 'action' }, 'vi');
+    expect(out).toContain('?');
+  });
+
+  it('appends the EN copy for all three gaps when language is en', () => {
+    for (const gap of ['result', 'tech', 'action'] as const) {
+      const out = ensureAskBack('Suggestion text.', { field_path: 'x', gap }, 'en');
+      expect(out).toContain('?');
+    }
+  });
+
+  it('unknown gap kind is a no-op (v1 covers bullet gaps only)', () => {
+    const out = ensureAskBack('Ổn rồi.', { field_path: 'x', gap: 'role' }, 'vi');
+    expect(out).toBe('Ổn rồi.');
+  });
+
+  it('ROUND-TRIP: an ensureAskBack question is recognized by ASKED_GAP_RE so the next answer is captured (result, vi)', () => {
+    const asked = ensureAskBack(
+      'Ok.',
+      { field_path: 'projects[0].bullets[0]', gap: 'result' },
+      'vi',
+    );
+    const s = extractConversationState([user('viết giúp'), bot(asked)], 'giảm 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
+  });
+
+  it('ROUND-TRIP: tech-gap ask-back is recognized by ASKED_GAP_RE (vi)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'tech' }, 'vi');
+    const s = extractConversationState([bot(asked)], 'dùng React với Node');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
+  it('ROUND-TRIP: action-gap ask-back is recognized by ASKED_GAP_RE (vi)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'action' }, 'vi');
+    const s = extractConversationState([bot(asked)], 'mình xây dựng API backend');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('ROUND-TRIP: the EN result ask-back is ALSO recognized by ASKED_GAP_RE (language-agnostic capture)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'result' }, 'en');
+    const s = extractConversationState([bot(asked)], 'we reduced load by 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
   });
 });

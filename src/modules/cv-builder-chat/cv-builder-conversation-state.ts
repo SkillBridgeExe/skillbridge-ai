@@ -22,8 +22,14 @@ import { NAMED_TECH, hasWord } from '../cv-assistant/cv-assistant-rewrite';
  *    is also length-capped). Everything else is verb-regex routed; unmatched falls to `write`
  *    (this file's equivalent of diagnosis-chat's `advice` catch-all).
  *  - buildTurnContext: the single entry point the service will call (wired in Task 2.3) — state +
- *    intent + the canned short-circuit + the `{{context}}` block. `ask` is always null here; deciding
- *    WHEN to ask is Task 2.2's `askDirective`.
+ *    intent + the canned short-circuit + the `{{context}}` block + `ask` (Task 2.2's
+ *    `askDirective` — null on a canned turn).
+ *  - askDirective / ensureAskBack: the proactive ask-ONE-gap loop, mirroring
+ *    `diagnosis-chat/conversation-state.ts`'s proven mechanism. Measured there: a directive alone
+ *    ("ask when you don't know X") was obeyed only ~1 of 4 turns — the model answers well and then
+ *    drops the closing question. So CODE decides WHEN to ask (`askDirective`, gated on intent +
+ *    `facts.focus.gaps` + not-already-answered/asked), and the LLM only phrases it; `ensureAskBack`
+ *    is the backstop that appends the standard question if the served answer carries no `?` at all.
  */
 
 export interface CvBuilderConversationState {
@@ -62,8 +68,9 @@ export interface CvBuilderTurnContext {
   canned: string | null;
   /** Rendered into the prompt's `{{context}}` injection point; never empty. */
   contextBlock: string;
-  /** The code-computed ask-back decision for this turn. ALWAYS null in this task — Task 2.2's
-   *  `askDirective` decides it. */
+  /** The code-computed ask-back decision for this turn (see `askDirective`) — null when nothing
+   *  qualifies, or the turn was served canned. The service uses it for `ensureAskBack` (Task
+   *  2.3): the model cannot be trusted to obey a directive alone. */
   ask: { field_path: string; gap: string } | null;
 }
 
@@ -175,6 +182,58 @@ function answersGap(text: string, gap: BulletGapAsk): boolean {
   if (gap === 'result') return METRIC_RE.test(text) || RESULT_CUE_RE.test(text);
   if (gap === 'tech') return looksLikeTechAnswer(text);
   return ACTION_VERB_ANSWER_RE.test(text) && !ACTION_DEFERRAL_RE.test(text); // 'action'
+}
+
+// ── the ask-back condition (code decides WHEN, mirrors diagnosis-chat's askDirective) ────────────
+
+/** Intents where the candidate is asking for writing help — the only shapes where proactively
+ *  asking for a missing bullet detail is caring, not noise. A `shorten`/`explain`/`recall` turn
+ *  gets no ask: asking there would be a non-sequitur. */
+const ASK_ELIGIBLE_INTENTS: ReadonlySet<CvBuilderIntent> = new Set([
+  'write',
+  'add_metric',
+  'ask_what_to_write',
+]);
+
+/** Which gap to surface first when the focused bullet is missing more than one: result (the
+ *  single strongest CV-writing signal) beats action, which beats tech.
+ *  ponytail: summary gaps (`role`/`strength`/`evidence`) are deliberately OUT of this list for v1
+ *  — {@link ASKED_GAP_RE} and `ASK_COPY` below don't cover them yet either (same scope as the file
+ *  docstring's {@link BulletGapAsk} note). Add a gap here only together with a matching
+ *  `ASKED_GAP_RE` branch and `ASK_COPY` entry, never one without the others. */
+const ASK_PRIORITY: BulletGapAsk[] = ['result', 'action', 'tech'];
+
+/**
+ * Should this turn proactively ask for ONE missing bullet-writing detail, and which? Measured on
+ * the sibling diagnosis-chat companion: telling the model "ask when you don't know X" got obeyed
+ * ~1 of 4 turns — so code decides WHEN here too; the LLM only phrases via `ensureAskBack`.
+ *
+ * "Already answered/asked" is judged by gap KIND only (`state.answered_gaps`/`state.asked_gap`),
+ * never per-field — see the file docstring's `answered_gaps` note for why a real field-level
+ * comparison isn't possible (the real `field_path` is an opaque FE id never restated in prose).
+ * ponytail (Slice-4 harness-tuning item, not a safety concern): this means once the user answers a
+ * gap KIND, it is not re-asked for the rest of the session even on a different field. The natural
+ * suppressor is that `facts.focus.gaps` is recomputed from the live draft every turn — once a
+ * bullet is actually improved the gap disappears from FACTS on its own, so the common case
+ * self-heals without this function ever needing to know which field was involved; `groundCvChat`'s
+ * anti-fabrication gate blocks fabrication regardless of what this proactive nicety misses.
+ */
+export function askDirective(
+  state: CvBuilderConversationState,
+  intent: CvBuilderIntent,
+  facts: CvBuilderChatFacts,
+): { field_path: string; gap: string } | null {
+  if (!ASK_ELIGIBLE_INTENTS.has(intent)) return null;
+  const focus = facts.focus;
+  if (!focus) return null;
+  const answeredKinds = new Set(state.answered_gaps.map((g) => g.gap));
+  for (const gap of ASK_PRIORITY) {
+    if (!focus.gaps.includes(gap)) continue;
+    if (answeredKinds.has(gap)) continue;
+    if (state.asked_gap?.gap === gap) continue; // still outstanding this turn — don't nag
+    return { field_path: focus.field_path, gap };
+  }
+  return null;
 }
 
 // ── target-role restatement (informational only — see the interface doc) ───────────────────────
@@ -316,8 +375,9 @@ export const CANNED: Record<'greeting' | 'thanks' | 'meta', { vi: string; en: st
 
 /**
  * Everything the service needs to run one intelligent turn: the state, the route, the canned
- * short-circuit, and the context block that goes into the prompt's `{{context}}` injection point.
- * `ask` is always null here — Task 2.2's `askDirective` decides it.
+ * short-circuit, the context block that goes into the prompt's `{{context}}` injection point, and
+ * the `ask` decision (Task 2.2's `askDirective` — null on a canned turn, since a canned reply is
+ * served verbatim and never reaches `ensureAskBack`).
  */
 export function buildTurnContext(
   facts: CvBuilderChatFacts,
@@ -359,5 +419,40 @@ export function buildTurnContext(
   }
   if (directives.length) lines.push('Directive:', ...directives.map((d) => `- ${d}`));
 
-  return { state, intent, canned, contextBlock: lines.join('\n'), ask: null };
+  const ask = canned === null ? askDirective(state, intent, facts) : null;
+  return { state, intent, canned, contextBlock: lines.join('\n'), ask };
+}
+
+// ── the ask-back BACKSTOP (code appends what the model was told to ask and didn't) ──────────────
+
+/** One standard question per gap × language, keyed by {@link BulletGapAsk}. CRITICAL COUPLING: each
+ *  string here MUST be phrased so {@link ASKED_GAP_RE} matches it — these are literally the same
+ *  vi phrasings this file's own tests already prove trigger the `result`/`tech`/`action` branches
+ *  (see `ASKED_RESULT` and friends in the spec), so the round-trip is not a hope, it's reused
+ *  working copy. Digit-free per the replay-safety rule (this text replays into history as
+ *  assistant text on the next turn). */
+const ASK_COPY: Record<BulletGapAsk, [string, string]> = {
+  // [vi, en]
+  result: ['Dự án đó bạn đo được kết quả gì chưa?', 'What was the measurable result of that?'],
+  tech: ['Bạn dùng công nghệ gì cho phần này vậy?', 'What tech stack did you use for this?'],
+  action: ['Bạn đã làm gì trong dự án đó vậy?', 'What did you do in that project?'],
+};
+
+/**
+ * Measured on the sibling diagnosis-chat companion (live 25-turn probe): an ask Directive alone
+ * was obeyed in only 1 of 4 turns it fired — the model answers well and then drops the closing
+ * question. The WHEN is code's decision (`askDirective`), so the DO becomes code's backstop too:
+ * if the served answer carries no question at all, append the standard one. Only for turns
+ * `askDirective` actually fired on; never stacks a second question onto an existing one.
+ */
+export function ensureAskBack(
+  answer: string,
+  ask: { field_path: string; gap: string } | null,
+  language?: string,
+): string {
+  if (!ask || answer.includes('?')) return answer;
+  const copy = ASK_COPY[ask.gap as BulletGapAsk];
+  if (!copy) return answer; // ponytail: no copy for this gap kind yet (v1 = bullet gaps only)
+  const lang = language?.toLowerCase().startsWith('en') ? 1 : 0;
+  return `${answer.trim()} ${copy[lang]}`;
 }
