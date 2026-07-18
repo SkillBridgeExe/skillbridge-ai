@@ -1,4 +1,5 @@
 import { CvBuilderChatFacts } from './cv-builder-chat.facts';
+import { hasTechToken } from '../cv-assistant/cv-assistant';
 
 /**
  * The conversation BRAIN of the CV-builder companion (PURE — no LLM, no IO). Mirrors the mechanism
@@ -107,10 +108,12 @@ function askedGapFrom(text: string): BulletGapAsk | null {
  *  `cv-assistant.ts` uses to detect a quantified result, kept LOCAL/self-contained rather than
  *  imported so this pure state module stays decoupled from that gap-analyzer's internals.
  *  Trailing boundary is the Unicode lookahead, not `\b` — JS `\b` is ASCII-only and never fires
- *  right after a Vietnamese diacritic vowel ("giờ", "tháng" would silently fail to match with a
- *  trailing `\b`), the same pitfall diagnosis-chat's ROLE_WORD documents. */
-const METRIC_RE =
-  /\d+(?:\.\d+)?\s?(?:%|x|k|ms|s|gb|mb|users?|reqs?|requests?|hours?|days?|weeks?|months?|năm|giờ|ngày|tuần|tháng)(?![\p{L}\p{N}])/iu;
+ *  right after a Vietnamese diacritic vowel, the same pitfall diagnosis-chat's ROLE_WORD documents.
+ *  Bare TIME units (`năm/giờ/ngày/tuần/tháng`, `hours/days/weeks/months`) are deliberately EXCLUDED —
+ *  a duration ("tầm 2 tuần nữa") is a project timeframe, not a measured result, and unanchored they
+ *  false-captured a time/deferral dodge as an answered `result` gap. A genuine time-based result
+ *  ("giảm 2 giờ build") still gets caught via RESULT_CUE_RE's "giảm" cue below. */
+const METRIC_RE = /\d+(?:\.\d+)?\s?(?:%|x|k|ms|s|gb|mb|users?|reqs?|requests?)(?![\p{L}\p{N}])/iu;
 const RESULT_CUE_RE =
   /giảm|tăng|cải\s*thiện|tiết\s*kiệm|rút\s*ngắn|gấp\s*đôi|reduced|increased|saved|improved|grew|doubled|decreased/iu;
 /** Unicode lookarounds, not `\b` — several verbs end in a diacritic vowel ("thiết kế", "tự động
@@ -118,24 +121,22 @@ const RESULT_CUE_RE =
 const ACTION_VERB_ANSWER_RE =
   /(?<![\p{L}\p{N}])(?:xây|triển\s*khai|tạo|thiết\s*kế|phát\s*triển|tối\s*ưu|dẫn\s*dắt|ra\s*mắt|chuyển\s*đổi|tự\s*động\s*hoá|built|implemented|created|designed|developed|shipped|deployed|led|optimized|refactored|migrated|automated|launched)(?![\p{L}\p{N}])/iu;
 
-/** a capitalized tech-looking token not at the very start of the reply ("React", "PostgreSQL") —
- *  same shape `cv-assistant.ts` uses for its own tech-token check. */
-function looksLikeTechAnswer(text: string): boolean {
-  const toks = text.trim().split(/\s+/);
-  return toks.some((raw, i) => {
-    if (i === 0) return false;
-    const t = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
-    return t.length >= 2 && /^[A-Z][A-Za-z0-9.+#]*$/.test(t);
-  });
-}
+/** Deferral/refusal phrases (vi + en) — a dodge is NEVER an answer, no matter what stray token it
+ *  happens to contain ("chưa có số, tầm 2 tuần nữa" has a time-unit token; "để hỏi Nam đã" has a
+ *  capitalized name). This is the backstop: it must win even if a token-level check above is fooled,
+ *  so it is checked FIRST in {@link answersGap}, before any gap-specific pattern. */
+const DODGE_RE =
+  /để\s*(?:sau|mai|lúc\s*khác|(?:mình\s*)?(?:nghĩ|coi)\s*đã)|thôi(?:\s|$)|chưa\s*(?:có|biết|xong|đâu)?|hỏi\s+\S+\s+(?:đã|xem|thử)|xem\s*lại|later|not\s*sure|dunno|skip|nevermind/iu;
 
 /** Does this reply plausibly supply the detail for the gap that was just asked about? Deliberately
  *  permissive (a false accept just records a slightly-off gap label; the forbidden failure is
  *  recording an answer for a gap the user's reply had NOTHING to do with, which these patterns are
- *  specific enough to avoid — a plain dodge like "bạn tên gì vậy?" matches none of them). */
+ *  specific enough to avoid — a plain dodge like "bạn tên gì vậy?" matches none of them). A dodge
+ *  (DODGE_RE) is checked first and short-circuits to "no capture" regardless of gap. */
 function answersGap(text: string, gap: BulletGapAsk): boolean {
+  if (DODGE_RE.test(text)) return false;
   if (gap === 'result') return METRIC_RE.test(text) || RESULT_CUE_RE.test(text);
-  if (gap === 'tech') return looksLikeTechAnswer(text);
+  if (gap === 'tech') return hasTechToken(text);
   return ACTION_VERB_ANSWER_RE.test(text); // 'action'
 }
 

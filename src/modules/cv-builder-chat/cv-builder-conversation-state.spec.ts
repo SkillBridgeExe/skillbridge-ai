@@ -73,6 +73,24 @@ describe('extractConversationState — capture discipline (WRONG capture is the 
     expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
   });
 
+  it('does NOT capture result when the user dodges with a duration/deferral (bare time units are not metrics)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'chưa có số, tầm 2 tuần nữa mình bổ sung');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+  });
+
+  it('does NOT capture tech when the user dodges by naming a person', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'chưa, để hỏi Nam đã');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
+  it('does NOT capture action when the user dodges', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'thôi mình tạo cái khác sau');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
   it('a restated target role is captured (informational)', () => {
     const s = extractConversationState([], 'mình đang nhắm vị trí Backend Developer');
     expect(s.target_role).toBe('Backend Developer');
