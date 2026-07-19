@@ -1425,6 +1425,23 @@ export class CvsService {
     return cv;
   }
 
+  /**
+   * Public read for the CV-builder chat platform layer — ownership-gated (throws NotFoundException via
+   * findOwnedCv if not owned), returns the draft doc + target_role server-side so the FE can never inject
+   * a role/fact through the chat DTO.
+   */
+  async getOwnedCvForChat(
+    userId: string,
+    cvId: string,
+  ): Promise<{ document: CanonicalCvDocument; targetRole: string | null; language: string }> {
+    const cv = await this.findOwnedCv(userId, cvId);
+    return {
+      document: cv.parsedJson ?? emptyCanonicalCv(cv.language ?? 'en'),
+      targetRole: cv.targetRole ?? null,
+      language: cv.language ?? cv.parsedJson?.language ?? 'en',
+    };
+  }
+
   private assertBuiltCv(cv: CvEntity): void {
     if (cv.cvKind !== 'BUILT') {
       throw new BadRequestException({

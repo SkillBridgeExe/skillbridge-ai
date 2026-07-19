@@ -31,6 +31,9 @@ export class ChatConversationEntity {
   @Column({ type: 'varchar', name: 'title', nullable: true })
   title!: string | null;
 
+  @Column({ type: 'varchar', length: 32, default: 'diagnosis' })
+  purpose!: string; // 'diagnosis' | 'cv_builder' — discriminates threads sharing (userId, cvId)
+
   @OneToMany(() => ChatMessageEntity, (message) => message.conversation)
   messages!: ChatMessageEntity[];
 

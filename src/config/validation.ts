@@ -139,6 +139,13 @@ export const configValidationSchema = Joi.object({
   // fabrication corpus + one live run (the gate makes down-tier safe, not free).
   DIAGNOSIS_CHAT_MODEL_LIGHT: Joi.string().allow('').default(''),
 
+  // CV-writing judge (calibration only, src/calibration/cv-writing-judge.ts) — scores quality
+  // dimensions of the CV-builder-chat advisor's replies (NOT fabrication; that stays a
+  // deterministic gate counter). MUST differ from the advisor model (CV_BUILDER_CHAT_MODEL, or
+  // the provider default if unset) — a judge grading its own model's prose self-inflates scores.
+  // resolveCvJudgeModel() warns (does not throw) if they match. Empty/unset → falls back to 'gpt-4o'.
+  CV_WRITING_JUDGE_MODEL: Joi.string().allow('').default(''),
+
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only
   // when deterministic metrics say it is better. All bounded to protect Cloud Run resources.
