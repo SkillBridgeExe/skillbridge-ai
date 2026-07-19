@@ -263,3 +263,81 @@ it('still refuses a FULLWIDTH-digit metric in prose ("giảm ４０%") — fail-
   expect(r.answer).not.toContain('40%');
   expect(r.answer).not.toContain('４０％');
 });
+
+// ---- two-tier benign rule: CLOSED HOLES — a worded unit / score / record-count must NOT slip in on
+// an "advice noun". `phần` is only benign as "part", never as "phần trăm"; `điểm` is never benign;
+// an ASK noun (count the user is asked to PROVIDE / a count of their record) is benign ONLY at 1.
+
+it('refuses a WORDED-PERCENT metric ("giảm 5 phần trăm") — phần trăm is a unit, not a "part"', () => {
+  const r = groundCvChat(proseOnly('Bạn đã giảm 5 phần trăm thời gian xử lý'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.proposed_edit).toBeNull();
+});
+
+it('refuses a WORDED-PERCENT range ("giảm 2-3 phần trăm")', () => {
+  const r = groundCvChat(proseOnly('Bạn giảm được 2-3 phần trăm nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses a fabricated SCORE ("đạt 5 điểm") — điểm is excluded from the benign list', () => {
+  const r = groundCvChat(proseOnly('CV của bạn đạt 5 điểm rồi nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.proposed_edit).toBeNull();
+});
+
+it('refuses a fabricated proficiency SCORE ("React ở mức 4 điểm")', () => {
+  const r = groundCvChat(proseOnly('Kỹ năng React của bạn ở mức 4 điểm'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses a fabricated COUNT of the record ("đã làm 3 việc") — ASK noun benign only at 1', () => {
+  const r = groundCvChat(proseOnly('Như bạn nói, bạn đã làm 3 việc quan trọng'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses a fabricated COUNT of the record ("có 5 công nghệ mạnh") — ASK noun benign only at 1', () => {
+  const r = groundCvChat(proseOnly('Nhìn CV thì bạn có 5 công nghệ mạnh'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+// ---- two-tier benign rule: KEPT BUY-BACKS — the legitimate writing-craft / ask-one quantities that
+// drive quality must STILL ship (they describe the advice/text, or ask the user for ONE thing).
+
+it('keeps "1 công nghệ" — ASK noun at exactly 1 (asking the user for one thing)', () => {
+  const r = groundCvChat(proseOnly('Bạn cho mình biết 1 công nghệ chính nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('công nghệ');
+});
+
+it('keeps "2-3 phiên bản" — WRITING noun, range max ≤ 3 (a count of the text)', () => {
+  const r = groundCvChat(
+    proseOnly('Để mình viết thêm 2-3 phiên bản cho bạn chọn nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('phiên bản');
+});
+
+it('keeps "3 chỗ" — WRITING noun at 3 (a count of writing spots, not a score)', () => {
+  const r = groundCvChat(
+    proseOnly('Đoạn này đang yếu ở 3 chỗ, mình sửa giúp bạn nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('3 chỗ');
+});
+
+it('keeps "1 chi tiết" — ASK noun at exactly 1', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn kể mình thêm 1 chi tiết cụ thể bạn đã làm nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('chi tiết');
+});

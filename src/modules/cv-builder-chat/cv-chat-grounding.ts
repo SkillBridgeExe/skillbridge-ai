@@ -133,26 +133,37 @@ function firstNonAsciiDigitRun(nfkcText: string): string | null {
 }
 
 /**
- * A CV-writing advice noun — a count of what to WRITE, not a metric about the record. ALLOW-list on
- * purpose (mirrors diagnosis-grounding's `ADVICE_NOUN`): the deny-list shape fails OPEN, so the first
- * noun nobody listed would ship "còn thiếu 5 dự án" as fact; an unlisted noun just falls back to the
- * gate (a templated turn), which is safe. Anchored `^\s*` → the noun must sit IMMEDIATELY on the
- * number. Score-ish surfaces are excluded so no scale can ride in on a stray word.
+ * TWO-TIER benign-noun allow-list. The single old list was too permissive — it let a fabricated
+ * percentage ("5 phần trăm"), a fabricated score ("5 điểm") and a fabricated count of the user's
+ * RECORD ("5 công nghệ mạnh") ride in as "advice". The split distinguishes:
+ *
+ * WRITING_NOUN — a count of the WRITING OUTPUT (the advice/text itself, never the user): "2-3 phiên
+ *   bản", "yếu ở 3 chỗ". Benign for a small integer/range (max ≤ 3).
+ * ASK_NOUN — the model asking the user to PROVIDE one thing: "cho mình 1 công nghệ", "1 kết quả".
+ *   Benign ONLY at exactly 1 — any count >1 is a claim about the user's record, which FACTS can
+ *   contradict.
+ *
+ * Excluded from BOTH (never benign): `điểm`/score nouns (the diagnosis doctrine excludes score on
+ * purpose), and the worded units `phần trăm`/`phần nghìn` (a `phần` that is a percent/per-mille unit,
+ * not a "part"). Allow-list shape fails OPEN, so an unlisted noun just falls back to the gate (safe).
+ * Anchored `^\s*` → the noun must sit IMMEDIATELY on the number.
  */
-const CV_ADVICE_NOUN =
-  /^\s*(?:công nghệ|công cụ|phiên bản|bản|chỗ|điểm|bullet|câu|dòng|gạch đầu dòng|ý|số liệu|số|kết quả|động từ|chi tiết|thông tin|việc|phần|mục|technolog(?:y|ies)|tools?|versions?|bullets?|lines?|points?|numbers?|results?|details?|verbs?|things?|parts?)(?![\p{L}\p{N}])/iu;
+const WRITING_NOUN =
+  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
+const ASK_NOUN =
+  /^\s*(?:công nghệ|công cụ|kết quả|chi tiết|thông tin|số liệu|việc|mục|phần(?!\s*(?:trăm|nghìn))|technolog(?:y|ies)|tools?|results?|details?|things?|parts?)(?![\p{L}\p{N}])/iu;
 
 /**
  * Is this ungrounded number a BENIGN writing-craft quantity the prose gate must NOT read as
- * fabrication? Mirrors the diagnosis doctrine (`isBenignQuantity`, diagnosis-grounding.ts): a small
- * UNITLESS integer (or small unitless range) sitting on a CV-writing advice noun is a count of what
- * to WRITE ("thêm 2-3 phiên bản", "yếu ở 3 chỗ", "cho mình biết 1 công nghệ"), never a claim about
- * the user's record. `token` is the NFKC-folded, space-stripped number token; `before`/`after` are the
- * slices of the (NFKC-folded) text around the raw match.
+ * fabrication? Mirrors the diagnosis doctrine (`isBenignQuantity`, diagnosis-grounding.ts). `token`
+ * is the NFKC-folded, space-stripped number token; `before`/`after` are the slices of the (NFKC-
+ * folded) text around the raw match.
  *
- * A unit-bearing number ("40%", "3-5 years"), a scale half ("3/5"), a value >5, or a bare number with
- * no advice noun stays gated — none is an advice count, and "N <advice-noun>" (1≤N≤5, no unit) cannot
- * assemble into a fabricated %, salary or score, so this never reopens a real fabrication.
+ * Benign iff a UNITLESS integer/range (a unit like `%`/`x`/`k`/`giờ`/`năm` is folded into `token` by
+ * NUMBER_TOKEN_RE and fails the `^\d{1,2}$` shape) AND one of:
+ *   - max value ≤ 3 AND a WRITING_NOUN is adjacent (a count of the text), OR
+ *   - value is exactly 1 (not a range) AND an ASK_NOUN is adjacent (asking for one thing).
+ * Otherwise NOT benign (stays gated) — so a fabricated %, score, salary or record-count cannot pass.
  */
 function isBenignCvQuantity(before: string, after: string, token: string): boolean {
   const range = token.match(/^(\d{1,2})-(\d{1,2})$/);
@@ -160,10 +171,14 @@ function isBenignCvQuantity(before: string, after: string, token: string): boole
   // never an advice count → not benign (stays gated).
   if (!range && !/^\d{1,2}$/.test(token)) return false;
   const values = range ? [Number(range[1]), Number(range[2])] : [Number(token)];
-  if (values.some((n) => n < 1 || n > 5)) return false; // small counts only (1..5, both ends of a range)
+  if (values.some((n) => n < 1)) return false;
   if (/[\d/]$/.test(before)) return false; // the other half of a scale — "3/5", or a split larger number
   if (/^\s*[/%]/.test(after)) return false; // a rate/scale continues after the number — "5/10", "5 %"
-  return CV_ADVICE_NOUN.test(after); // an advice noun must sit immediately on the number
+  // TIER 1 — a count of the WRITING OUTPUT (describes the advice/text, not the user): max ≤ 3.
+  if (Math.max(...values) <= 3 && WRITING_NOUN.test(after)) return true;
+  // TIER 2 — the model asking the user to PROVIDE one thing: exactly 1, never a range.
+  if (!range && values[0] === 1 && ASK_NOUN.test(after)) return true;
+  return false;
 }
 
 /**
