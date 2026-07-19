@@ -300,6 +300,28 @@ it('refuses a fabricated COUNT of the record ("có 5 công nghệ mạnh") — A
   expect(r.answer_kind).toBe('refusal');
 });
 
+// ---- discriminating regression: the CLOSED-HOLES tests above pass "for the wrong reason" — their
+// values exceed the TIER-1 cap (≤3) so they'd refuse even if a guard were removed. These three sit
+// AT the boundary (n==1 / n<=3) where removing the actual guard WOULD flip the outcome to grounded.
+
+it('refuses "giảm 1 phần trăm thời gian xử lý" — locks the phần(?!\\s*trăm) lookahead, not just the cap', () => {
+  const r = groundCvChat(proseOnly('giảm 1 phần trăm thời gian xử lý'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('1 phần trăm');
+  expect(r.answer).not.toContain('phần trăm');
+});
+
+it('refuses "CV của bạn đạt 3 điểm" — locks điểm excluded from WRITING_NOUN at the ≤3 cap', () => {
+  const r = groundCvChat(proseOnly('CV của bạn đạt 3 điểm'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.proposed_edit).toBeNull();
+});
+
+it('refuses "kỹ năng của bạn ở mức 1 điểm" — locks điểm excluded from ASK_NOUN at n==1', () => {
+  const r = groundCvChat(proseOnly('kỹ năng của bạn ở mức 1 điểm'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
 // ---- two-tier benign rule: KEPT BUY-BACKS — the legitimate writing-craft / ask-one quantities that
 // drive quality must STILL ship (they describe the advice/text, or ask the user for ONE thing).
 
