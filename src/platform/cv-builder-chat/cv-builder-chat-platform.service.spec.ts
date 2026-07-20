@@ -59,6 +59,7 @@ function makeConversationsRepo(seed: FakeConversationRow[] = []) {
 function makeService(overrides?: {
   conversations?: ReturnType<typeof makeConversationsRepo>;
   getOwnedCvForChat?: jest.Mock;
+  getLatestReview?: jest.Mock;
   turn?: jest.Mock;
   countRequestsSince?: jest.Mock;
   messagesFind?: jest.Mock;
@@ -96,6 +97,7 @@ function makeService(overrides?: {
         targetRole: 'Backend Developer',
         language: 'vi',
       }),
+    getLatestReview: overrides?.getLatestReview ?? jest.fn().mockResolvedValue(null),
   };
 
   const tracing = {
@@ -368,5 +370,63 @@ describe('CvBuilderChatPlatformService.turn — failure path', () => {
     expect(tracing.markFailed).toHaveBeenCalledWith('ai-req-1', expect.any(Number), boom);
     // The user row was persisted before the failure; no assistant row followed.
     expect(saved.filter((m) => m.role === 'assistant')).toHaveLength(0);
+  });
+});
+
+describe('CvBuilderChatPlatformService.turn — diagnosis findings load (source-cv fallback)', () => {
+  const reviewWithFindings = {
+    rationale: {
+      action_verbs: 'Nhiều bullet mở đầu yếu',
+      skills_relevance: '',
+      experience: '',
+      education: '',
+    },
+    top_summary: { headline: 'x', prioritized_actions: ['Thêm kết quả đo được vào bullet'] },
+    bullet_feedback: [],
+  };
+  const SOURCE_CV_ID = '22222222-2222-2222-2222-222222222222';
+
+  it('(a) latest review present → facts.diagnosis is a non-null block built from it', async () => {
+    const getLatestReview = jest.fn().mockResolvedValue(reviewWithFindings);
+    const { service, chat } = makeService({ getLatestReview });
+
+    await service.turn(USER_ID, CV_ID, DTO);
+
+    expect(getLatestReview).toHaveBeenCalledWith(USER_ID, CV_ID);
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg.diagnosis).not.toBeNull();
+    expect(factsArg.diagnosis.prioritized_actions).toContain('Thêm kết quả đo được vào bullet');
+  });
+
+  it('(b) no review for this draft but source_cv_id set → reads the PARENT CV review (2nd call, source id)', async () => {
+    const getLatestReview = jest
+      .fn()
+      .mockResolvedValueOnce(null) // this fresh draft: never re-scanned
+      .mockResolvedValueOnce(reviewWithFindings); // the diagnosed parent CV
+    const { service, chat } = makeService({ getLatestReview });
+
+    await service.turn(USER_ID, CV_ID, { ...DTO, source_cv_id: SOURCE_CV_ID });
+
+    expect(getLatestReview).toHaveBeenNthCalledWith(1, USER_ID, CV_ID);
+    expect(getLatestReview).toHaveBeenNthCalledWith(2, USER_ID, SOURCE_CV_ID);
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg.diagnosis).not.toBeNull();
+  });
+
+  it('(c) both null → facts.diagnosis is null, no 2nd lookup, response shape unchanged', async () => {
+    const { service, chat, cvs } = makeService(); // default getLatestReview → null, DTO has no source_cv_id
+
+    const response = await service.turn(USER_ID, CV_ID, DTO);
+
+    expect(cvs.getLatestReview).toHaveBeenCalledTimes(1); // no source_cv_id → no fallback call
+    const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(factsArg.diagnosis).toBeNull();
+    expect(response).toMatchObject({
+      answer: expect.any(String),
+      answer_kind: expect.any(String),
+      proposed_edit: null,
+      grounded_facts: [],
+    });
+    expect(response.known_state).toBeDefined();
   });
 });

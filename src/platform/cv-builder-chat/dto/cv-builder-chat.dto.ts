@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 
 /** The single CV-builder field the FE is currently editing — an opaque FE-owned field_path echoed
  *  back verbatim (never parsed/minted against CanonicalCvDocument), plus its current text. Facts
@@ -35,4 +42,10 @@ export class CvBuilderChatRequestDto {
   @IsString()
   @MaxLength(8)
   language?: string;
+
+  /** The diagnosed CV this draft was cloned from. A POINTER only: when this fresh draft has no scan
+   *  of its own, the platform reads the PARENT CV's review (ownership-scoped). Never a fact channel. */
+  @IsOptional()
+  @IsUUID()
+  source_cv_id?: string;
 }

@@ -9,6 +9,7 @@ import {
   buildCvBuilderFacts,
   CvBuilderChatFacts,
 } from '../../modules/cv-builder-chat/cv-builder-chat.facts';
+import { buildDiagnosisChatBlock } from '../../modules/cv-builder-chat/cv-builder-diagnosis';
 import {
   CvBuilderChatResult,
   CvBuilderKnownState,
@@ -81,7 +82,19 @@ export class CvBuilderChatPlatformService {
       targetRole,
       language: cvLanguage,
     } = await this.cvs.getOwnedCvForChat(userId, cvId);
-    const facts = buildCvBuilderFacts(document, dto.focused_field ?? null, targetRole);
+    // Latest CV scan for THIS draft; if this is a fresh clone that was never re-scanned, read the
+    // parent (diagnosed) CV's review. source_cv_id is only a POINTER — getLatestReview is ownership-
+    // scoped (JOIN cvs.user_id), so it can never become a cross-user fact-injection channel.
+    let review = await this.cvs.getLatestReview(userId, cvId);
+    if (!review && dto.source_cv_id) {
+      review = await this.cvs.getLatestReview(userId, dto.source_cv_id);
+    }
+    const facts = buildCvBuilderFacts(
+      document,
+      dto.focused_field ?? null,
+      targetRole,
+      buildDiagnosisChatBlock(review),
+    );
     const conversation = await this.resolveCvBuilderConversation(userId, cvId);
     return this.runTurn(userId, cvId, conversation, facts, dto, cvLanguage);
   }
