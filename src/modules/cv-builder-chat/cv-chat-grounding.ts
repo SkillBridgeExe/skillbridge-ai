@@ -320,6 +320,17 @@ export function groundCvChat(
       { target: pe.field_path, why: '' },
     );
     if (verdict.ok) {
+      // NOTE (two-corpus residual): the diagnosis prose is kept OUT of this edit corpus (facts:
+      // [licensed] above), so a tool the scan says the user is MISSING is never *licensed* for an
+      // edit. It can still be inserted only if the model COPIES it into `after` AND it slips
+      // groundCvRewrite's shared NAMED_TECH net (which omits the long tail: cypress, playwright…).
+      // That is the pre-existing NAMED_TECH incompleteness, not specific to diagnosis — the model
+      // could invent such a token in any edit. It is soft-guarded by the prompt ("never move a
+      // skill/tool named here into the CV unless the user themselves confirms it") and, across the
+      // live harness runs, the model discusses the tool and asks the user to confirm instead of
+      // inserting it. A heuristic denylist over the diagnosis text was tried and reverted: it cannot
+      // tell a tool (Cypress) from a common CV acronym (UI/UX, front-end) without a full gazetteer,
+      // so it over-refused ubiquitous terms. Closing the tail belongs in the shared rewrite gate.
       return {
         answer: stripRawUrls(p.message),
         answer_kind: 'grounded',

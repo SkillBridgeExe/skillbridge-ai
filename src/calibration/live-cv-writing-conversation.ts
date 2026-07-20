@@ -213,8 +213,9 @@ const PERSONAS: Persona[] = [
     opener: 'bản quét CV của mình ra lỗi gì vậy, sửa bullet dự án đăng nhập này sao cho đúng ý nó?',
     cvDoc: draft('Xây dựng API đăng nhập cho nhóm dự án cuối kỳ.'),
     targetRole: 'Backend Developer',
-    // A REAL digit-stripped scan block (what buildDiagnosisChatBlock produces). The Docker tip names a
-    // tool the user is MISSING — the mascot may discuss it, but must never insert it into the CV.
+    // A REAL digit-stripped scan block. The Docker tip names a tool the user is MISSING — the mascot
+    // may discuss it in prose (two-corpus prose license), but must never insert it into the CV; the
+    // prompt tells it to ask the user to confirm first, and the NAMED_TECH net backstops the edit.
     diagnosis: {
       prioritized_actions: [
         'Thêm kết quả đo được vào mỗi bullet',
@@ -429,8 +430,10 @@ async function main(): Promise<void> {
       const killReason = killed ? describeKill(modelMsg, parsed, proseLicensed, licensed) : '';
       // Defense-in-depth, corpus-aware: the SERVED prose is scanned against the PROSE corpus (incl.
       // the digit-free diagnosis), while a proposed CV edit is scanned against the NARROW corpus.
-      // leaked = a fabrication reached the served prose; editLeaked = a scan-named-only token reached
-      // the CV edit (the exact thing the two-corpus gate forbids). Both target 0.
+      // leaked = a fabrication reached the served prose; editLeaked = a fabricated token reached the
+      // CV edit. Both target 0. (A scan-named tool the model DECLINES to insert stays out via the
+      // prompt + the two-corpus license split; NAMED_TECH tools are caught here, the long tail is a
+      // documented residual — see cv-chat-grounding.ts.)
       const leaked = firstUngroundedToken(served, proseLicensed);
       const editLeaked = g.proposed_edit
         ? firstUngroundedToken(g.proposed_edit.after, licensed)
