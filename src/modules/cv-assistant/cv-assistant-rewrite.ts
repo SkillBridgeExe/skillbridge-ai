@@ -307,10 +307,15 @@ export function properNounPhrases(text: string): string[] {
   const isTitle = (w: string) => /^[\p{Lu}]\p{Ll}/u.test(w);
   // a run never CONTINUES across trailing punctuation — "React, Firebase" is a list of two single
   // tokens and "Node.js. Đã" spans a sentence boundary; joining them minted phrases nobody wrote,
-  // which the corpus lookup then "caught" (measured false kills). Each side of the break is a lone
-  // capitalized token, which this net never matched anyway — so no new phrase can slip through.
+  // which the corpus lookup then "caught" (measured false kills).
+  // DOCUMENTED RESIDUAL (adversarial review 2026-07-20): a two-word org SPELLED with punctuation
+  // between its halves ("Nova, Dynamics") now degrades into two lone capitalized tokens, which this
+  // net skips — the same class as the pre-existing single-word-org residual above ("Google" slips
+  // too). The old accidental catch was inseparable from the measured false kills, and a
+  // constituent-aware re-join needs exactly the org gazetteer this net deliberately avoids.
   // NOTE: this set stays OFF the run-START guard below — a capitalized word after a comma is not
-  // sentence-initial, and skipping it would let a fabricated org hide behind a comma.
+  // sentence-initial, and skipping it would hide an ADJACENT unpunctuated pair ("với React, Nova
+  // Dynamics xử lý…" must still form the "Nova Dynamics" phrase).
   const breaksRun = (raw: string) => /[.!?:;,]$/.test(raw);
   const phrases: string[] = [];
   let i = 1; // token 0 is sentence-initial by definition
