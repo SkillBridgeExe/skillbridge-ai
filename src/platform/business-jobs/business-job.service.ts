@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
-import { DataSource, In, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { BusinessProfileEntity } from '../../database/entities/business-profile.entity';
 import {
@@ -18,11 +18,7 @@ import {
 import { JobEntity } from '../../database/entities/job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { JdIngestService } from '../../modules/jobs/ingest/jd-ingest.service';
-import {
-  assertExpectedRevision,
-  assertPublishableDraft,
-  assertPublishDeadline,
-} from './job-domain';
+import { assertExpectedRevision, evaluateJobPublishReadiness } from './job-domain';
 
 export interface JobDraftInput {
   expectedRevision?: number;
@@ -119,19 +115,37 @@ export class BusinessJobService {
     });
   }
 
-  async listMine(userId: string, page = 1, limit = 20, status?: JobEntity['status']) {
+  async listMine(
+    userId: string,
+    query: { page?: number; limit?: number; status?: JobEntity['status']; q?: string } = {},
+  ) {
     const profile = await this.requireProfile(userId);
-    const take = Math.min(Math.max(limit, 1), 100);
-    const [items, total] = await this.jobs.findAndCount({
-      where: { companyId: profile.companyId, ...(status ? { status } : {}) },
-      order: { createdAt: 'DESC' },
-      skip: (Math.max(page, 1) - 1) * take,
-      take,
-    });
-    return { items, total, page: Math.max(page, 1), limit: take };
+    const page = Math.max(query.page ?? 1, 1);
+    const take = Math.min(Math.max(query.limit ?? 20, 1), 100);
+    const qb = this.jobs
+      .createQueryBuilder('job')
+      .where('job.company_id = :companyId', { companyId: profile.companyId })
+      .orderBy('job.created_at', 'DESC')
+      .skip((page - 1) * take)
+      .take(take);
+    if (query.status) qb.andWhere('job.status = :status', { status: query.status });
+    const search = query.q?.trim();
+    if (search) {
+      qb.andWhere(
+        new Brackets((where) => {
+          where
+            .where('job.title ILIKE :search', { search: `%${search}%` })
+            .orWhere('job.role_code ILIKE :search', { search: `%${search}%` })
+            .orWhere('job.location ILIKE :search', { search: `%${search}%` });
+        }),
+      );
+    }
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total, page, limit: take };
   }
 
   async getMine(userId: string, jobId: string) {
+    const profile = await this.requireProfile(userId);
     const job = await this.requireOwnedJob(userId, jobId);
     const [draft, published] = await Promise.all([
       this.versions.findOne({ where: { jobId, status: 'DRAFT' } }),
@@ -139,7 +153,15 @@ export class BusinessJobService {
         ? this.versions.findOne({ where: { id: job.currentPublishedVersionId } })
         : Promise.resolve(null),
     ]);
-    return { job, draft, published };
+    return {
+      job,
+      draft,
+      published,
+      publishReadiness: evaluateJobPublishReadiness({
+        ...(draft ?? {}),
+        companyStatus: profile.status,
+      }),
+    };
   }
 
   async updateDraft(userId: string, jobId: string, input: JobDraftInput) {
@@ -297,10 +319,13 @@ export class BusinessJobService {
 
   async publish(userId: string, jobId: string, expectedRevision: number) {
     const profile = await this.requireProfile(userId);
-    if (profile.status !== 'VERIFIED') {
+    const companyBlocker = evaluateJobPublishReadiness({
+      companyStatus: profile.status,
+    }).blockers.find((blocker) => blocker.code === 'BUSINESS_NOT_VERIFIED');
+    if (companyBlocker) {
       throw new ForbiddenException({
-        errorCode: 'BUSINESS_NOT_VERIFIED',
-        message: 'Verified company is required to publish jobs',
+        errorCode: companyBlocker.code,
+        message: companyBlocker.message,
       });
     }
     await this.requireOwnedJob(userId, jobId);
@@ -312,10 +337,14 @@ export class BusinessJobService {
         where: { id: profile.id },
         lock: { mode: 'pessimistic_read' },
       });
-      if (!lockedProfile || lockedProfile.status !== 'VERIFIED') {
+      const lockedCompanyStatus = lockedProfile?.status ?? null;
+      const lockedCompanyBlocker = evaluateJobPublishReadiness({
+        companyStatus: lockedCompanyStatus,
+      }).blockers.find((blocker) => blocker.code === 'BUSINESS_NOT_VERIFIED');
+      if (lockedCompanyBlocker) {
         throw new ForbiddenException({
-          errorCode: 'BUSINESS_NOT_VERIFIED',
-          message: 'Verified company is required to publish jobs',
+          errorCode: lockedCompanyBlocker.code,
+          message: lockedCompanyBlocker.message,
         });
       }
       const job = await jobs.findOne({ where: { id: jobId }, lock: { mode: 'pessimistic_write' } });
@@ -338,18 +367,19 @@ export class BusinessJobService {
         });
       }
       assertExpectedRevision(expectedRevision, draft.revision);
-      assertPublishableDraft(draft);
-      if (!draft.applicationDeadline) {
+      const readiness = evaluateJobPublishReadiness({
+        ...draft,
+        companyStatus: lockedCompanyStatus,
+      });
+      if (!readiness.ready) {
+        const blocker = readiness.blockers[0];
+        if (blocker.code === 'BUSINESS_NOT_VERIFIED') {
+          throw new ForbiddenException({ errorCode: blocker.code, message: blocker.message });
+        }
         throw new BadRequestException({
-          errorCode: 'VALIDATION_ERROR',
-          message: 'applicationDeadline is required',
-        });
-      }
-      assertPublishDeadline(draft.applicationDeadline);
-      if (draft.salaryMin && draft.salaryMax && Number(draft.salaryMin) > Number(draft.salaryMax)) {
-        throw new BadRequestException({
-          errorCode: 'VALIDATION_ERROR',
-          message: 'salaryMin must not exceed salaryMax',
+          errorCode: blocker.code,
+          message: blocker.message,
+          blockers: readiness.blockers,
         });
       }
       if (job.currentPublishedVersionId) {

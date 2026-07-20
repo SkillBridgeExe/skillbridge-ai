@@ -28,6 +28,7 @@ import {
   JobLocationSnapshot,
   JobSkillSnapshot,
 } from '../../../database/entities/job-post-version.entity';
+import type { JobPoolStatus } from '../../../database/entities/job.entity';
 import { BUSINESS_JOB_ROLE_CODES, JobApplicationStatus } from '../job-domain';
 
 const COMPANY_TYPES: CompanyType[] = ['PRODUCT', 'OUTSOURCING', 'CONSULTING', 'STARTUP', 'OTHER'];
@@ -94,7 +95,7 @@ export class AdminBusinessStatusDto {
 export class JobLocationDto implements JobLocationSnapshot {
   @IsString() @MaxLength(64) cityCode!: string;
   @IsString() @Length(2, 2) countryCode!: string;
-  @IsString() @MaxLength(1000) addressLine!: string;
+  @IsOptional() @IsString() @MaxLength(1000) addressLine!: string;
   @IsBoolean() isPrimary!: boolean;
 }
 
@@ -165,6 +166,13 @@ export class PaginationDto {
   @IsOptional() @Transform(({ value }) => optionalNumber(value)) @IsInt() @Min(1) page = 1;
   @IsOptional() @Transform(({ value }) => optionalNumber(value)) @IsInt() @Min(1) @Max(100) limit =
     20;
+}
+
+export class BusinessJobsQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsIn(['draft', 'active', 'closed', 'expired', 'removed'])
+  status?: JobPoolStatus;
+  @IsOptional() @IsString() @MaxLength(255) q?: string;
 }
 
 export class PublicJobsQueryDto extends PaginationDto {

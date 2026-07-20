@@ -1,7 +1,12 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ApplyToJobDto, UpdateApplicationStatusDto } from './business-jobs.dto';
+import {
+  ApplyToJobDto,
+  BusinessJobsQueryDto,
+  JobLocationDto,
+  UpdateApplicationStatusDto,
+} from './business-jobs.dto';
 
 describe('business jobs DTO validation', () => {
   it('rejects an application without explicit consent', async () => {
@@ -24,5 +29,37 @@ describe('business jobs DTO validation', () => {
     });
     const errors = await validate(dto);
     expect(errors.some((error) => error.property === 'status')).toBe(true);
+  });
+
+  it('allows an address-free job location', async () => {
+    const dto = plainToInstance(JobLocationDto, {
+      cityCode: 'HCM',
+      countryCode: 'VN',
+      isPrimary: true,
+    });
+    expect(await validate(dto)).toEqual([]);
+  });
+
+  it('validates the business job list status, query text, and pagination', async () => {
+    const valid = plainToInstance(BusinessJobsQueryDto, {
+      status: 'active',
+      q: 'backend',
+      page: '2',
+      limit: '50',
+    });
+    expect(await validate(valid)).toEqual([]);
+    expect(valid.page).toBe(2);
+    expect(valid.limit).toBe(50);
+
+    const invalid = plainToInstance(BusinessJobsQueryDto, {
+      status: 'published',
+      q: 'x'.repeat(256),
+      page: '0',
+      limit: '101',
+    });
+    const errors = await validate(invalid);
+    expect(errors.map((error) => error.property)).toEqual(
+      expect.arrayContaining(['status', 'q', 'page', 'limit']),
+    );
   });
 });

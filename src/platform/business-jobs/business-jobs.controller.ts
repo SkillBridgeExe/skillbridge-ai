@@ -35,6 +35,7 @@ import {
   AdminBusinessStatusDto,
   AdminJobStatusDto,
   ApplyToJobDto,
+  BusinessJobsQueryDto,
   CreateJobDraftDto,
   ListApplicationsQueryDto,
   PaginationDto,
@@ -234,12 +235,8 @@ export class BusinessWorkEmailVerificationController {
 @Controller('api/business/jobs')
 export class BusinessJobsController {
   constructor(private readonly jobs: BusinessJobService) {}
-  @Get() list(
-    @CurrentUser() user: JwtUser,
-    @Query() query: PaginationDto,
-    @Query('status') status?: string,
-  ) {
-    return this.jobs.listMine(user.userId, query.page, query.limit, status as never);
+  @Get() list(@CurrentUser() user: JwtUser, @Query() query: BusinessJobsQueryDto) {
+    return this.jobs.listMine(user.userId, query);
   }
   @Post() create(@CurrentUser() user: JwtUser, @Body() body: CreateJobDraftDto) {
     return this.jobs.createDraft(user.userId, body);
