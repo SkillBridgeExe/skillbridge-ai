@@ -2,6 +2,7 @@ import {
   assertApplicationTransition,
   assertApplyableJob,
   assertExpectedRevision,
+  evaluateJobPublishReadiness,
   assertPublishableDraft,
   assertPublishDeadline,
   publicSalary,
@@ -46,19 +47,64 @@ describe('business jobs domain policies', () => {
     expect(() => assertPublishDeadline(new Date('2026-08-21T00:00:00.001Z'), now)).toThrow();
   });
 
-  it('requires complete content, a location, and confirmed skills before publish', () => {
+  it('reports every publish blocker with stable field-level codes', () => {
+    const readiness = evaluateJobPublishReadiness({
+      companyStatus: 'DRAFT',
+      title: ' ',
+      roleCode: 'sales_manager',
+      summary: ' ',
+      responsibilities: [],
+      requirements: [],
+      locations: [{ cityCode: ' ', countryCode: 'VNM', isPrimary: true }],
+      skills: [],
+      skillsConfirmedAt: null,
+      applicationDeadline: null,
+      salaryMin: 30,
+      salaryMax: 20,
+      minYearsExperience: 5,
+      maxYearsExperience: 3,
+    });
+
+    expect(readiness.ready).toBe(false);
+    expect(readiness.blockers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'BUSINESS_NOT_VERIFIED', field: 'companyStatus' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'title' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'roleCode' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'summary' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'responsibilities' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'requirements' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'locations' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'applicationDeadline' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'skills' }),
+        expect.objectContaining({ code: 'JOB_SKILLS_NOT_CONFIRMED', field: 'skillsConfirmedAt' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'salaryMin' }),
+        expect.objectContaining({ code: 'VALIDATION_ERROR', field: 'minYearsExperience' }),
+      ]),
+    );
+  });
+
+  it('accepts an address-free valid location and valid numeric ranges', () => {
     const complete = {
+      companyStatus: 'VERIFIED',
       title: 'Backend Developer',
       roleCode: 'backend_developer',
       summary: 'Build APIs',
       responsibilities: ['Build and operate APIs'],
       requirements: ['Node.js'],
-      locations: [
-        { cityCode: 'HCM', countryCode: 'VN', addressLine: 'District 1', isPrimary: true },
-      ],
+      locations: [{ cityCode: ' HCM ', countryCode: 'vn', isPrimary: true }],
       skills: [{ skillId: 'skill-1' }],
       skillsConfirmedAt: new Date(),
+      applicationDeadline: new Date('2026-07-01T00:00:00.000Z'),
+      salaryMin: 20,
+      salaryMax: 30,
+      minYearsExperience: 1,
+      maxYearsExperience: 3,
     };
+    expect(evaluateJobPublishReadiness(complete, new Date('2026-06-21T00:00:00.000Z'))).toEqual({
+      ready: true,
+      blockers: [],
+    });
     expect(() => assertPublishableDraft(complete)).not.toThrow();
     expect(() => assertPublishableDraft({ ...complete, locations: [] })).toThrow();
     expect(() => assertPublishableDraft({ ...complete, skillsConfirmedAt: null })).toThrow();

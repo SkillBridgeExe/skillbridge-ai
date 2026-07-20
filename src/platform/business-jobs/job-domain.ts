@@ -59,6 +59,93 @@ export function assertExpectedRevision(expected: number, actual: number): void {
   }
 }
 
+export interface PublishReadinessBlocker {
+  code: 'BUSINESS_NOT_VERIFIED' | 'JOB_SKILLS_NOT_CONFIRMED' | 'VALIDATION_ERROR';
+  field: string;
+  message: string;
+}
+
+export interface PublishReadiness {
+  ready: boolean;
+  blockers: PublishReadinessBlocker[];
+}
+
+export interface PublishReadinessInput {
+  companyStatus?: string | null;
+  title?: string | null;
+  roleCode?: string | null;
+  summary?: string | null;
+  responsibilities?: unknown[] | null;
+  requirements?: unknown[] | null;
+  locations?: unknown[] | null;
+  skills?: unknown[] | null;
+  skillsConfirmedAt?: Date | string | null;
+  applicationDeadline?: Date | string | null;
+  salaryMin?: string | number | null;
+  salaryMax?: string | number | null;
+  minYearsExperience?: string | number | null;
+  maxYearsExperience?: string | number | null;
+}
+
+export function evaluateJobPublishReadiness(
+  input: PublishReadinessInput,
+  now = new Date(),
+): PublishReadiness {
+  const blockers: PublishReadinessBlocker[] = [];
+  const invalid = (field: string, message: string) =>
+    blockers.push({ code: 'VALIDATION_ERROR', field, message });
+
+  if (input.companyStatus !== undefined && input.companyStatus !== 'VERIFIED') {
+    blockers.push({
+      code: 'BUSINESS_NOT_VERIFIED',
+      field: 'companyStatus',
+      message: 'Verified company is required to publish jobs',
+    });
+  }
+  if (!input.title?.trim()) invalid('title', 'title is required');
+  if (!input.roleCode || !(BUSINESS_JOB_ROLE_CODES as readonly string[]).includes(input.roleCode)) {
+    invalid('roleCode', 'A valid roleCode is required');
+  }
+  if (!input.summary?.trim()) invalid('summary', 'summary is required');
+  if (!hasNonEmptyText(input.responsibilities)) {
+    invalid('responsibilities', 'At least one responsibility is required');
+  }
+  if (!hasNonEmptyText(input.requirements)) {
+    invalid('requirements', 'At least one requirement is required');
+  }
+  if (!hasValidLocations(input.locations)) {
+    invalid(
+      'locations',
+      'At least one location with a city and two-character country code is required',
+    );
+  }
+
+  const deadline = asDate(input.applicationDeadline);
+  const maxDeadline = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  if (!deadline || deadline <= now || deadline > maxDeadline) {
+    invalid(
+      'applicationDeadline',
+      'Application deadline must be in the future and no more than 60 days away',
+    );
+  }
+  if (!input.skills?.length) invalid('skills', 'At least one skill is required');
+  if (!asDate(input.skillsConfirmedAt)) {
+    blockers.push({
+      code: 'JOB_SKILLS_NOT_CONFIRMED',
+      field: 'skillsConfirmedAt',
+      message: 'Job skills must be confirmed before publishing',
+    });
+  }
+  if (isInvalidRange(input.salaryMin, input.salaryMax)) {
+    invalid('salaryMin', 'salaryMin must not exceed salaryMax');
+  }
+  if (isInvalidRange(input.minYearsExperience, input.maxYearsExperience)) {
+    invalid('minYearsExperience', 'minYearsExperience must not exceed maxYearsExperience');
+  }
+
+  return { ready: blockers.length === 0, blockers };
+}
+
 export function assertPublishableDraft(input: {
   title?: string | null;
   roleCode?: string | null;
@@ -69,25 +156,61 @@ export function assertPublishableDraft(input: {
   skills?: unknown[];
   skillsConfirmedAt?: Date | null;
 }): void {
-  if (
-    !input.title?.trim() ||
-    !input.roleCode ||
-    !(BUSINESS_JOB_ROLE_CODES as readonly string[]).includes(input.roleCode) ||
-    !input.summary?.trim() ||
-    !input.responsibilities?.length ||
-    !input.requirements?.length ||
-    !input.locations?.length ||
-    !input.skills?.length ||
-    !input.skillsConfirmedAt
-  ) {
+  const relevantFields = new Set([
+    'title',
+    'roleCode',
+    'summary',
+    'responsibilities',
+    'requirements',
+    'locations',
+    'skills',
+    'skillsConfirmedAt',
+  ]);
+  const blocker = evaluateJobPublishReadiness(input).blockers.find((item) =>
+    relevantFields.has(item.field),
+  );
+  if (blocker) {
     throw new BadRequestException({
-      errorCode:
-        input.skills?.length && !input.skillsConfirmedAt
-          ? 'JOB_SKILLS_NOT_CONFIRMED'
-          : 'VALIDATION_ERROR',
-      message: 'Job draft is incomplete or its skills have not been confirmed',
+      errorCode: blocker.code,
+      message: blocker.message,
     });
   }
+}
+
+function hasNonEmptyText(items: unknown[] | null | undefined): boolean {
+  return !!items?.some((item) => typeof item === 'string' && item.trim());
+}
+
+function hasValidLocations(locations: unknown[] | null | undefined): boolean {
+  return (
+    !!locations?.length &&
+    locations.every((location) => {
+      if (!location || typeof location !== 'object') return false;
+      const value = location as { cityCode?: unknown; countryCode?: unknown };
+      return (
+        typeof value.cityCode === 'string' &&
+        !!value.cityCode.trim() &&
+        typeof value.countryCode === 'string' &&
+        value.countryCode.trim().length === 2
+      );
+    })
+  );
+}
+
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isInvalidRange(
+  min: string | number | null | undefined,
+  max: string | number | null | undefined,
+): boolean {
+  if (min === null || min === undefined || max === null || max === undefined) return false;
+  const numericMin = Number(min);
+  const numericMax = Number(max);
+  return !Number.isFinite(numericMin) || !Number.isFinite(numericMax) || numericMin > numericMax;
 }
 
 export function assertApplyableJob(
