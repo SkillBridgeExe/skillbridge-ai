@@ -13,6 +13,7 @@
 import {
   groundCvRewrite,
   numberTokens,
+  normalizeNumberToken,
   NUMBER_TOKEN_RE,
   hasWord,
   urlTokens,
@@ -149,10 +150,20 @@ function firstNonAsciiDigitRun(nfkcText: string): string | null {
  * not a "part"). Allow-list shape fails OPEN, so an unlisted noun just falls back to the gate (safe).
  * Anchored `^\s*` → the noun must sit IMMEDIATELY on the number.
  */
+// Measured buy-backs (probe + live runs 2026-07-20), NARROWED after adversarial review caught the
+// classifier hole ("3 mảnh kinh nghiệm", "2 thứ hạng cao" — a bare classifier joins a RECORD noun
+// into a fabricated claim about the user):
+//   - `mảnh` counts ONLY as the full measured phrase `mảnh thông tin`;
+//   - `phần` (trăm/nghìn lookahead intact) counts ONLY phrase-final — "cần 2 phần:" — a following
+//     letter-word ("3 phần kinh nghiệm") falls back to the wall;
+//   - bare `thứ` is NOT listed at all ("2 thứ tiếng"/"thứ hạng" have no safe discriminator) — that
+//     measured FP stays refused as an accepted residual;
+//   - `điểm` counts ONLY inside `điểm mạnh`/`điểm chính` (a score is never a "điểm chính"), so the
+//     bare-`điểm` score wall is intact.
 const WRITING_NOUN =
-  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|mảnh thông tin|điểm mạnh|điểm chính|phần(?!\s*(?:trăm|nghìn))(?=\s*(?:[^\p{L}\p{N}\s]|$))|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
 const ASK_NOUN =
-  /^\s*(?:công nghệ|công cụ|kết quả|chi tiết|thông tin|số liệu|việc|mục|phần(?!\s*(?:trăm|nghìn))|technolog(?:y|ies)|tools?|results?|details?|things?|parts?)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:công nghệ|công cụ|kết quả|chi tiết|thông tin|số liệu|con số|việc|mục|phần(?!\s*(?:trăm|nghìn))|technolog(?:y|ies)|tools?|results?|details?|things?|parts?)(?![\p{L}\p{N}])/iu;
 
 /**
  * Is this ungrounded number a BENIGN writing-craft quantity the prose gate must NOT read as
@@ -175,6 +186,13 @@ function isBenignCvQuantity(before: string, after: string, token: string): boole
   if (values.some((n) => n < 1)) return false;
   if (/[\d/]$/.test(before)) return false; // the other half of a scale — "3/5", or a split larger number
   if (/^\s*[/%]/.test(after)) return false; // a rate/scale continues after the number — "5/10", "5 %"
+  // enumeration marker "1)" / "1." opening a line of the advice list (measured live kills: two
+  // shortened versions served as "1) … 2) …" and "1. … 2. …"). The ordinal asserts nothing about
+  // the user; any number INSIDE the item is still its own gated token. Line-start only — an "(x2)"
+  // multiplier or a sentence-final "đạt 2." has text before the digit on its line and stays
+  // behind the wall. (A decimal "1.5" tokenizes with its fraction, so it never reaches here.)
+  if (!range && values[0] <= 9 && /^(?:\)|\.(?:\s|$))/.test(after) && /(?:^|\n)\s*$/.test(before))
+    return true;
   // TIER 1 — a count of the WRITING OUTPUT (describes the advice/text, not the user): max ≤ 3.
   if (Math.max(...values) <= 3 && WRITING_NOUN.test(after)) return true;
   // TIER 2 — the model asking the user to PROVIDE one thing: exactly 1, never a range.
@@ -198,7 +216,7 @@ export function firstUngroundedToken(text: string, licensed: string): string | n
   //     NUMBER_TOKEN_RE positionally so an ungrounded token can be checked for the benign-advice shape.
   const allowedNumbers = new Set(numberTokens(src));
   for (const m of t.matchAll(NUMBER_TOKEN_RE)) {
-    const norm = m[0].replace(/\s+/g, '').toLowerCase();
+    const norm = normalizeNumberToken(m[0]);
     if (!/\d/.test(norm) || allowedNumbers.has(norm)) continue;
     const at = m.index ?? 0;
     if (isBenignCvQuantity(t.slice(0, at), t.slice(at + m[0].length), norm)) continue;
