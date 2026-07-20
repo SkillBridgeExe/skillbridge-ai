@@ -191,7 +191,7 @@ export class RoadmapComposerService {
       steps.push({
         skill_canonical: item.skill_canonical,
         display_name: item.display_name,
-        strategy: 'deep_build',
+        strategy: item.strategy,
         estimated_hours: item.estimated_hours,
         priority: item.priority,
         resources,
@@ -266,13 +266,12 @@ function preferDisplayLanguageResources(
 
 function isSafeDisplayResource(resource: ScoredResource): boolean {
   if (resource.source_type !== 'course') return true;
-  const title = resource.title.toLowerCase();
   const url = resource.url?.toLowerCase() ?? '';
+  const language = resource.language?.toLowerCase();
   if (/[\u0400-\u04ff\u0600-\u06ff]/u.test(resource.title)) return false;
+  if (language === 'fr' || language === 'french') return false;
   if (/-fr(?:$|[/?#])|[/?&]lang=fr\b/.test(url)) return false;
-  return !/\b(cr\u00e9er|creer|comp\u00e9tences|competences|utilisateur|dynamiques|notions|cl\u00e9s|cles|entreprise)\b/i.test(
-    title,
-  );
+  return true;
 }
 
 function canonicalOf(item: UnifiedDevelopmentPlanItem): string {

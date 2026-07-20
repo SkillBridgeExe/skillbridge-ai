@@ -432,7 +432,7 @@ describe('RoadmapComposerService.compose', () => {
     expect(out.not_feasible_items).toEqual([]);
   });
 
-  it('keeps selected items on the deep-build strategy even on a short timeline', async () => {
+  it('keeps the planner strategy on a short timeline', async () => {
     const svc = new RoadmapComposerService(matcher as never);
     const out = await svc.compose({
       learnItems: [learn('react', 0.9)],
@@ -441,7 +441,7 @@ describe('RoadmapComposerService.compose', () => {
     });
 
     expect(out.steps.map((s) => s.skill_canonical)).toEqual(['react']);
-    expect(out.steps[0].strategy).toBe('deep_build');
+    expect(out.steps[0].strategy).toBe('crash_prep');
     expect(out.not_feasible_items).toEqual([]);
   });
 

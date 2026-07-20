@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import { DisplayTranslationService } from '../../modules/roadmap/display-translation.service';
@@ -21,15 +21,27 @@ export class LearningRoadmapPlatformService {
   }
 
   async clearActive(userId: string): Promise<{ deletedRoadmaps: number; deletedProgress: number }> {
-    const [roadmapResult, progressResult] = await Promise.all([
-      this.roadmaps.delete({ userId }),
-      this.progress.delete({ userId }),
-    ]);
+    return this.roadmaps.manager.transaction(async (manager) => {
+      const roadmapRepo = manager.getRepository(LearningRoadmapEntity);
+      const progressRepo = manager.getRepository(LearningSessionProgressEntity);
+      const activeRoadmap = await roadmapRepo.findOne({ where: { userId, active: true } });
 
-    return {
-      deletedRoadmaps: roadmapResult.affected ?? 0,
-      deletedProgress: progressResult.affected ?? 0,
-    };
+      if (!activeRoadmap) {
+        return { deletedRoadmaps: 0, deletedProgress: 0 };
+      }
+
+      const sessionIds = extractRoadmapSessionIds(activeRoadmap);
+      const progressResult =
+        sessionIds.length > 0
+          ? await progressRepo.delete({ userId, sessionId: In(sessionIds) })
+          : { affected: 0 };
+      const roadmapResult = await roadmapRepo.delete({ id: activeRoadmap.id, userId, active: true });
+
+      return {
+        deletedRoadmaps: roadmapResult.affected ?? 0,
+        deletedProgress: progressResult.affected ?? 0,
+      };
+    });
   }
 
   async patchSchedule(
@@ -77,5 +89,22 @@ export class LearningRoadmapPlatformService {
     );
 
     return { items };
+  }
+}
+
+function extractRoadmapSessionIds(roadmap: LearningRoadmapEntity): string[] {
+  const ids = new Set<string>();
+  collectSessionIds(roadmap.schedule, ids);
+  const composed = roadmap.composedRoadmap as { sessions?: unknown } | null;
+  collectSessionIds(composed?.sessions, ids);
+  return [...ids];
+}
+
+function collectSessionIds(value: unknown, ids: Set<string>): void {
+  if (!Array.isArray(value)) return;
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const id = (item as { id?: unknown }).id;
+    if (typeof id === 'string' && id.trim()) ids.add(id);
   }
 }

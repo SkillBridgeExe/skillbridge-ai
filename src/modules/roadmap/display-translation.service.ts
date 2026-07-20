@@ -11,9 +11,16 @@ export interface DisplayTranslationInput {
 }
 
 export type DisplayTranslationOutput = DisplayTranslationInput;
+type DisplayTranslationField = 'title' | 'description' | 'reason' | 'summary';
+
+type DisplayTranslationValue = {
+  field: DisplayTranslationField;
+  value: string;
+};
 
 @Injectable()
 export class DisplayTranslationService {
+  private static readonly MAX_CACHE_ENTRIES = 1000;
   private readonly cache = new Map<string, DisplayTranslationOutput>();
   private readonly auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-translation'],
@@ -26,8 +33,14 @@ export class DisplayTranslationService {
 
     const localOutput = translateLocalDisplay(input);
     if (hasLocalTranslation(input, localOutput)) {
-      this.cache.set(key, localOutput);
+      this.setCache(key, localOutput);
       return localOutput;
+    }
+
+    const libreTranslateOutput = await this.translateWithLibreTranslate(input);
+    if (hasLocalTranslation(input, libreTranslateOutput)) {
+      this.setCache(key, libreTranslateOutput);
+      return libreTranslateOutput;
     }
 
     if (process.env.GOOGLE_TRANSLATE_ENABLED !== 'true') return input;
@@ -35,12 +48,7 @@ export class DisplayTranslationService {
     if (!projectId) return input;
 
     try {
-      const fields = ['title', 'description', 'reason', 'summary'] as const;
-      const values = fields
-        .map((field) => ({ field, value: input[field] }))
-        .filter((item): item is { field: (typeof fields)[number]; value: string } =>
-          Boolean(item.value),
-        );
+      const values = getTranslatableValues(input);
       if (values.length === 0) return input;
 
       const client = await this.auth.getClient();
@@ -61,12 +69,91 @@ export class DisplayTranslationService {
         output[item.field] =
           response.data.translations?.[index]?.translatedText?.trim() || item.value;
       });
-      this.cache.set(key, output);
+      this.setCache(key, output);
       return output;
     } catch {
       return input;
     }
   }
+
+  private async translateWithLibreTranslate(
+    input: DisplayTranslationInput,
+  ): Promise<DisplayTranslationOutput> {
+    const baseUrl = process.env.LIBRETRANSLATE_URL?.trim();
+    if (!baseUrl || input.locale === 'en') return input;
+
+    const values = getTranslatableValues(input);
+    if (values.length === 0) return input;
+
+    try {
+      const output: DisplayTranslationOutput = { locale: input.locale };
+      await Promise.all(
+        values.map(async (item) => {
+          output[item.field] = await translateLibreText(baseUrl, item.value, input.locale);
+        }),
+      );
+      return output;
+    } catch {
+      return input;
+    }
+  }
+
+  private setCache(key: string, value: DisplayTranslationOutput): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    } else if (this.cache.size >= DisplayTranslationService.MAX_CACHE_ENTRIES) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
+    this.cache.set(key, value);
+  }
+}
+
+function getTranslatableValues(input: DisplayTranslationInput): DisplayTranslationValue[] {
+  const fields: DisplayTranslationField[] = ['title', 'description', 'reason', 'summary'];
+  return fields
+    .map((field) => ({ field, value: input[field] }))
+    .filter((item): item is DisplayTranslationValue => Boolean(item.value?.trim()));
+}
+
+async function translateLibreText(
+  baseUrl: string,
+  text: string,
+  targetLocale: 'vi' | 'en',
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.LIBRETRANSLATE_TIMEOUT_MS ?? 5000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    Number.isFinite(timeoutMs) ? timeoutMs : 5000,
+  );
+
+  try {
+    const response = await fetch(new URL('/translate', normalizeBaseUrl(baseUrl)), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        q: text,
+        source: 'en',
+        target: targetLocale,
+        format: 'text',
+        api_key: process.env.LIBRETRANSLATE_API_KEY || undefined,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return text;
+
+    const data = (await response.json()) as { translatedText?: unknown };
+    return typeof data.translatedText === 'string' && data.translatedText.trim()
+      ? data.translatedText.trim()
+      : text;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.endsWith('/') ? value : `${value}/`;
 }
 
 function cacheKey(input: DisplayTranslationInput): string {

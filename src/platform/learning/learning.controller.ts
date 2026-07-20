@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { LearningChatRequestDto } from './dto/learning-chat.dto';
@@ -142,6 +143,7 @@ export class LearningDisplayTranslationController {
   constructor(private readonly roadmaps: LearningRoadmapPlatformService) {}
 
   @Post('translate-display')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Translate short learning display text on demand' })
   translateDisplay(@Body() dto: TranslateDisplayRequestDto) {
     return this.roadmaps.translateDisplayItems(dto);
