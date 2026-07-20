@@ -23,6 +23,7 @@ import {
 } from '../cv-assistant/cv-assistant-rewrite';
 import type { CvBuilderChatFacts } from './cv-builder-chat.facts';
 import type { CvBuilderChatModelOutput } from './cv-builder-chat.schema';
+import { diagnosisProseLicense } from './cv-builder-diagnosis';
 
 export type CvChatAnswerKind = 'grounded' | 'refusal' | 'canned';
 
@@ -275,8 +276,17 @@ export function groundCvChat(
     (facts.target_role ?? '')
   ).normalize('NFKC');
 
+  // TWO-CORPUS: the diagnosis findings license PROSE (the message) ONLY. They are digit-stripped at
+  // the source (cv-builder-diagnosis.ts), so this can never widen the number-wall. The edit corpus
+  // (groundCvRewrite below) and the suggestion chip KEEP `licensed`, so a tech/credential the scan
+  // says the user is MISSING can be DISCUSSED here but never inserted into the CV or a clickable chip.
+  const diagnosisProse = facts.diagnosis
+    ? diagnosisProseLicense(facts.diagnosis).normalize('NFKC')
+    : '';
+  const proseLicensed = diagnosisProse ? licensed + ' ' + diagnosisProse : licensed;
+
   // 2) prose gate — any ungrounded fact token → refuse, and NEVER echo the fabricating message.
-  if (firstUngroundedToken(p.message, licensed) !== null) {
+  if (firstUngroundedToken(p.message, proseLicensed) !== null) {
     return {
       answer: proseRefusal(l),
       answer_kind: 'refusal',
