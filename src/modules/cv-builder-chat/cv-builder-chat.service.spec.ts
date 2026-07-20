@@ -11,6 +11,7 @@ const FACTS: CvBuilderChatFacts = {
     current_text: 'Xây dựng trang web bán hàng bằng React',
     gaps: ['result'],
   },
+  diagnosis: null,
 };
 
 function makePrompts() {

@@ -8,6 +8,7 @@
  */
 import { analyzeBulletGaps, analyzeSummaryGaps } from '../cv-assistant/cv-assistant';
 import type { CanonicalCvDocument } from '../../common/types/canonical-cv';
+import type { CvBuilderDiagnosisBlock } from './cv-builder-diagnosis';
 
 export interface CvBuilderChatFacts {
   target_role: string | null;
@@ -19,6 +20,9 @@ export interface CvBuilderChatFacts {
     current_text: string;
     gaps: string[];
   } | null;
+  /** Latest CV-scan findings, ALREADY digit-stripped — discussed in words only, PROSE-license only
+   *  (the two-corpus gate keeps it out of the edit corpus). Null when this CV has no scan review. */
+  diagnosis: CvBuilderDiagnosisBlock | null;
 }
 
 const SECTION_ORDER = [
@@ -66,6 +70,7 @@ export function buildCvBuilderFacts(
   doc: CanonicalCvDocument,
   focusedField: { field_path: string; current_value: string } | null,
   targetRole: string | null,
+  diagnosis: CvBuilderDiagnosisBlock | null = null,
 ): CvBuilderChatFacts {
   const cv_language: 'vi' | 'en' = doc.language?.toLowerCase().startsWith('vi') ? 'vi' : 'en';
   const sections = buildSections(doc);
@@ -89,5 +94,5 @@ export function buildCvBuilderFacts(
     }
   }
 
-  return { target_role: targetRole, cv_language, sections, focus };
+  return { target_role: targetRole, cv_language, sections, focus, diagnosis };
 }
