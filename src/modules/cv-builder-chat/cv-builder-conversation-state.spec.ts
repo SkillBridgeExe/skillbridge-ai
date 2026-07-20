@@ -20,6 +20,7 @@ const FACTS: CvBuilderChatFacts = {
     current_text: 'Xây dựng hệ thống backend cho ứng dụng thương mại điện tử',
     gaps: ['result', 'tech'],
   },
+  diagnosis: null,
 };
 
 const FACTS_NO_FOCUS: CvBuilderChatFacts = { ...FACTS, focus: null };

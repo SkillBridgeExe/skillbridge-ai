@@ -1,4 +1,5 @@
 import { groundCvChat } from './cv-chat-grounding';
+import { buildDiagnosisChatBlock } from './cv-builder-diagnosis';
 
 const facts: any = {
   cv_language: 'vi',
@@ -362,4 +363,121 @@ it('keeps "1 chi tiết" — ASK noun at exactly 1', () => {
   );
   expect(r.answer_kind).toBe('grounded');
   expect(r.answer).toContain('chi tiết');
+});
+
+// ---- Task B3: TWO-CORPUS gate — the diagnosis block licenses PROSE (the message) only. It must
+// NEVER widen the edit corpus (a tool the scan says the user is MISSING can't be inserted into the CV)
+// nor the suggestion chip, and its number-wall (digit-strip in the block) must stay intact. -----------
+
+describe('groundCvChat — diagnosis prose license (two-corpus)', () => {
+  const withDiagnosis = (diagnosis: unknown) => ({ ...facts, diagnosis });
+
+  // A scan tip that names a tech the user is MISSING. Digit-free by construction.
+  const dockerBlock = {
+    prioritized_actions: [],
+    dimension_notes: [],
+    bullet_notes: [
+      { excerpt: 'Làm web bán hàng', tips: ['Thêm bằng chứng Docker vào phần kỹ năng'] },
+    ],
+  };
+
+  it('1) the message may DISCUSS a tech the scan flagged (Docker in the block) → grounded', () => {
+    const r = groundCvChat(
+      {
+        message: 'Bạn nên bổ sung bằng chứng Docker để phần kỹ năng mạnh hơn nhé.',
+        used_facts: [],
+        proposed_edit: null,
+        cited_field_path: null,
+        suggested_next_step: null,
+      },
+      withDiagnosis(dockerBlock),
+      'vi',
+      'giúp mình phần kỹ năng', // user NEVER typed Docker
+    );
+    expect(r.answer_kind).toBe('grounded');
+    expect(r.answer).toContain('Docker');
+  });
+
+  it('2) the SAME Docker can NEVER enter a proposed edit (edit corpus excludes diagnosis) → refusal', () => {
+    const r = groundCvChat(
+      {
+        message: 'Đây nhé.',
+        used_facts: [],
+        proposed_edit: {
+          field_path: 'projects[0].description',
+          after: 'Xây dựng web bán hàng với Docker',
+        },
+        cited_field_path: null,
+        suggested_next_step: null,
+      },
+      withDiagnosis(dockerBlock),
+      'vi',
+      'giúp mình phần kỹ năng', // user NEVER typed Docker
+    );
+    expect(r.answer_kind).toBe('refusal');
+    expect(r.proposed_edit).toBeNull();
+  });
+
+  it('3) a scan number is digit-stripped from the block → the message cannot re-launder it → refusal', () => {
+    const block = buildDiagnosisChatBlock({
+      rationale: {
+        action_verbs: '',
+        skills_relevance: '',
+        experience: 'thiếu kết quả đo được như giảm 40% thời gian',
+        education: '',
+      },
+      top_summary: { headline: 'x', prioritized_actions: [] },
+      bullet_feedback: [],
+    } as never);
+    expect(JSON.stringify(block)).not.toMatch(/40|\d/); // number-wall: the block is digit-free
+
+    const r = groundCvChat(
+      {
+        message: 'Như chẩn đoán nói, bạn đã giảm 40% thời gian xử lý.',
+        used_facts: [],
+        proposed_edit: null,
+        cited_field_path: null,
+        suggested_next_step: null,
+      },
+      withDiagnosis(block),
+      'vi',
+      'ok tiếp đi', // user never said 40%
+    );
+    expect(r.answer_kind).toBe('refusal');
+    expect(r.answer).not.toContain('40%');
+  });
+
+  it('4) the suggestion chip stays gated by licensed-only (Docker chip nulled) though prose is grounded', () => {
+    const r = groundCvChat(
+      {
+        message: 'Bạn xem lại phần kỹ năng nhé.',
+        used_facts: [],
+        proposed_edit: null,
+        cited_field_path: null,
+        suggested_next_step: 'Thêm Docker vào CV nhé',
+      },
+      withDiagnosis(dockerBlock),
+      'vi',
+      'giúp mình phần kỹ năng',
+    );
+    expect(r.answer_kind).toBe('grounded');
+    expect(r.suggested_next_step).toBeNull();
+  });
+
+  it('5) with NO diagnosis block the very same Docker message refuses — proves the license is what flips it', () => {
+    const r = groundCvChat(
+      {
+        message: 'Bạn nên bổ sung bằng chứng Docker để phần kỹ năng mạnh hơn nhé.',
+        used_facts: [],
+        proposed_edit: null,
+        cited_field_path: null,
+        suggested_next_step: null,
+      },
+      { ...facts, diagnosis: null },
+      'vi',
+      'giúp mình phần kỹ năng',
+    );
+    expect(r.answer_kind).toBe('refusal');
+    expect(r.answer).not.toContain('Docker');
+  });
 });

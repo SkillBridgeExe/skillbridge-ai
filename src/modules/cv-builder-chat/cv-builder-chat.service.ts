@@ -104,6 +104,9 @@ export class CvBuilderChatService {
       language,
       facts: JSON.stringify(input.facts, null, 2),
       focus: input.facts.focus ? JSON.stringify(input.facts.focus, null, 2) : '(none)',
+      // Digit-free scan findings the mascot may discuss in WORDS — "(none)" keeps the template token
+      // filled so an empty section never leaks the literal "null" as advice.
+      diagnosis: input.facts.diagnosis ? JSON.stringify(input.facts.diagnosis, null, 2) : '(none)',
       history: history || '(no prior messages)',
       context: ctx.contextBlock,
       question: input.question,
