@@ -27,6 +27,20 @@ describe('stripDigitRuns', () => {
   it('leaves digit-free prose untouched', () => {
     expect(stripDigitRuns('Mở đầu bằng động từ hành động')).toBe('Mở đầu bằng động từ hành động');
   });
+
+  it('strips \\p{No} fractions / enclosed / superscript numerals (½ ⅓ ① ⑩ x²)', () => {
+    expect(stripDigitRuns('½')).toBe('');
+    expect(stripDigitRuns('⅓')).toBe('');
+    expect(stripDigitRuns('①')).toBe('');
+    expect(stripDigitRuns('⑩')).toBe('');
+    expect(stripDigitRuns('diện tích x² mét')).toBe('diện tích x mét');
+    // enclosed digits that NFKC-fold to ASCII are still fully gone, not laundered into "3/5"
+    expect(stripDigitRuns('③/⑤ tiêu chí đạt')).not.toMatch(/\d/);
+  });
+
+  it('strips a \\p{Nl} Roman numeral glyph (Ⅻ)', () => {
+    expect(stripDigitRuns('cấp Ⅻ')).toBe('cấp');
+  });
 });
 
 const makeReview = (over: Partial<CvReviewParsedResponse> = {}): CvReviewParsedResponse =>

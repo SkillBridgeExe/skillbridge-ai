@@ -29,13 +29,22 @@ const MAX_BULLETS = 5;
 const EXCERPT_MAX = 120;
 
 /**
- * Remove every digit run so no scan number survives into the prompt / prose-license:
+ * Remove every number so no scan number survives into the prompt / prose-license:
+ *   - Unicode "Other Number" / "Letter Number" (fractions ½⅓, enclosed ①⑩, superscripts x², Roman Ⅻ)
+ *     are NOT \p{Nd}, so strip them FIRST — before NFKC folds some to ASCII+combining and others
+ *     (Ⅻ→XII) to letters the digit arms could no longer see.
+ *   - NFKC-fold so any compatibility / fullwidth digit becomes an ASCII digit the arms below catch.
  *   - ASCII digit runs incl. their decimal/percent/scale tail (`40%`, `3.5/5`, `100`) → removed.
  *   - any remaining Unicode decimal digit (Arabic-Indic ٤, Devanagari ४ …) → removed (fail-closed).
- * Then collapse the whitespace the removals leave behind.
+ * Then collapse the whitespace the removals leave behind. NOTE: worded numbers ("forty percent",
+ * "một phần ba") are open-vocabulary and NOT stripped here — the prompt's "words only" instruction and
+ * the two-corpus wall (cv-chat-grounding.ts) keep them out of edits/chips; a worded quantity in a
+ * prose message is a meta-comment about the CV, never a fabricated user achievement.
  */
 export function stripDigitRuns(s: string): string {
   return s
+    .replace(/[\p{No}\p{Nl}]+/gu, '')
+    .normalize('NFKC')
     .replace(/[0-9][0-9.,/%]*/g, '')
     .replace(/\p{Nd}+/gu, '')
     .replace(/\s+/g, ' ')
