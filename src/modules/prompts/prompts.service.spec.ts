@@ -43,7 +43,7 @@ describe('PromptsService mascot_character_cvbuilder_v1', () => {
 });
 
 describe('PromptsService cv_builder_chat_v1', () => {
-  it('loads and renders with all six injection points filled', async () => {
+  it('loads and renders with all seven injection points filled', async () => {
     const service = new PromptsService(new TemplateRenderer());
     await service.onModuleInit();
 
@@ -56,6 +56,7 @@ describe('PromptsService cv_builder_chat_v1', () => {
       history: 'user: xin chào',
       context: 'Directive: ask for a number.',
       question: 'Viết lại bullet này giúp mình.',
+      diagnosis: '{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}',
     });
 
     expect(rendered).toContain('vi');
@@ -64,6 +65,7 @@ describe('PromptsService cv_builder_chat_v1', () => {
     expect(rendered).toContain('user: xin chào');
     expect(rendered).toContain('Directive: ask for a number.');
     expect(rendered).toContain('Viết lại bullet này giúp mình.');
+    expect(rendered).toContain('{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}');
     expect(rendered).not.toMatch(/\{\{\s*\w+\s*\}\}/);
   });
 });
