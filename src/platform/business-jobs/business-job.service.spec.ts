@@ -17,6 +17,102 @@ function repo<T extends ObjectLiteral>() {
 }
 
 describe('BusinessJobService', () => {
+  it('searches and paginates only the current company jobs on the server', async () => {
+    const jobs = repo<JobEntity>();
+    const versions = repo<JobPostVersionEntity>();
+    const profiles = repo<BusinessProfileEntity>();
+    const qb = {
+      where: jest.fn(),
+      andWhere: jest.fn(),
+      orderBy: jest.fn(),
+      skip: jest.fn(),
+      take: jest.fn(),
+      getManyAndCount: jest.fn().mockResolvedValue([[], 0]),
+    };
+    for (const method of ['where', 'andWhere', 'orderBy', 'skip', 'take'] as const) {
+      qb[method].mockReturnValue(qb);
+    }
+    (jobs.createQueryBuilder as jest.Mock) = jest.fn(() => qb);
+    profiles.findOne.mockResolvedValue({
+      userId: 'business-1',
+      companyId: 'company-1',
+    } as BusinessProfileEntity);
+    const service = new BusinessJobService(
+      jobs,
+      versions,
+      profiles,
+      {} as never,
+      { scan: jest.fn(() => []) } as never,
+      { refreshEmployerJobEmbedding: jest.fn() } as never,
+    );
+
+    await expect(
+      service.listMine('business-1', { page: 2, limit: 10, status: 'active', q: ' backend ' }),
+    ).resolves.toEqual({ items: [], total: 0, page: 2, limit: 10 });
+
+    expect(qb.where).toHaveBeenCalledWith('job.company_id = :companyId', {
+      companyId: 'company-1',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('job.status = :status', { status: 'active' });
+    expect(qb.andWhere).toHaveBeenCalledWith(expect.anything());
+    expect(qb.skip).toHaveBeenCalledWith(10);
+    expect(qb.take).toHaveBeenCalledWith(10);
+  });
+
+  it('includes company-aware publish readiness in business job detail', async () => {
+    const jobs = repo<JobEntity>();
+    const versions = repo<JobPostVersionEntity>();
+    const profiles = repo<BusinessProfileEntity>();
+    profiles.findOne.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'business-1',
+      companyId: 'company-1',
+      status: 'DRAFT',
+    } as BusinessProfileEntity);
+    jobs.findOne.mockResolvedValue({
+      id: 'job-1',
+      companyId: 'company-1',
+      sourceType: 'employer',
+      currentPublishedVersionId: null,
+    } as JobEntity);
+    versions.findOne.mockResolvedValue({
+      id: 'draft-1',
+      title: 'Backend Developer',
+      roleCode: 'backend_developer',
+      summary: 'Build APIs',
+      responsibilities: ['Build APIs'],
+      requirements: ['Node.js'],
+      locations: [{ cityCode: 'HCM', countryCode: 'VN', isPrimary: true }],
+      skills: [{ skillId: 'skill-1' }],
+      skillsConfirmedAt: new Date(),
+      applicationDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      salaryMin: '30',
+      salaryMax: '20',
+      minYearsExperience: '1',
+      maxYearsExperience: '2',
+    } as unknown as JobPostVersionEntity);
+    const service = new BusinessJobService(
+      jobs,
+      versions,
+      profiles,
+      {} as never,
+      { scan: jest.fn(() => []) } as never,
+      { refreshEmployerJobEmbedding: jest.fn() } as never,
+    );
+
+    const result = await service.getMine('business-1', 'job-1');
+
+    expect(result.publishReadiness).toEqual(
+      expect.objectContaining({
+        ready: false,
+        blockers: expect.arrayContaining([
+          expect.objectContaining({ code: 'BUSINESS_NOT_VERIFIED', field: 'companyStatus' }),
+          expect.objectContaining({ field: 'salaryMin' }),
+        ]),
+      }),
+    );
+  });
+
   it('creates an employer-native job with its first draft version atomically', async () => {
     const jobs = repo<JobEntity>();
     const versions = repo<JobPostVersionEntity>();
