@@ -35,7 +35,11 @@ export class LearningRoadmapPlatformService {
         sessionIds.length > 0
           ? await progressRepo.delete({ userId, sessionId: In(sessionIds) })
           : { affected: 0 };
-      const roadmapResult = await roadmapRepo.delete({ id: activeRoadmap.id, userId, active: true });
+      const roadmapResult = await roadmapRepo.delete({
+        id: activeRoadmap.id,
+        userId,
+        active: true,
+      });
 
       return {
         deletedRoadmaps: roadmapResult.affected ?? 0,

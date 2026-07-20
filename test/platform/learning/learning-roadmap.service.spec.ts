@@ -2,7 +2,6 @@ import { NotFoundException } from '@nestjs/common';
 import { LearningRoadmapPlatformService } from '../../../src/platform/learning/learning-roadmap.service';
 import { DisplayTranslationService } from '../../../src/modules/roadmap/display-translation.service';
 import { LearningRoadmapEntity } from '../../../src/database/entities/learning-roadmap.entity';
-import { LearningSessionProgressEntity } from '../../../src/database/entities/learning-session-progress.entity';
 
 describe('LearningRoadmapPlatformService', () => {
   const repo = () => ({
