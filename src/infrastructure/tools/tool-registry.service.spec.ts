@@ -18,6 +18,8 @@ function makeRegistry(
   overrides: {
     resourceValidate?: TestToolAdapter;
     githubEnrich?: TestToolAdapter;
+    roadmapProgress?: TestToolAdapter;
+    interviewHistory?: TestToolAdapter;
     tracing?: TestTracing;
   } = {},
 ) {
@@ -31,6 +33,16 @@ function makeRegistry(
     argsSchema: jest.fn((a) => a),
     invoke: jest.fn().mockResolvedValue({ exists: true }),
   };
+  const roadmapProgress: TestToolAdapter = overrides.roadmapProgress ?? {
+    name: 'roadmap.progress',
+    argsSchema: jest.fn(() => ({})),
+    invoke: jest.fn().mockResolvedValue({ tracked: false, skills: [], mastered_count: 0 }),
+  };
+  const interviewHistory: TestToolAdapter = overrides.interviewHistory ?? {
+    name: 'interview.history',
+    argsSchema: jest.fn(() => ({})),
+    invoke: jest.fn().mockResolvedValue({ has_history: false, sessions: [] }),
+  };
   const tracing: TestTracing = overrides.tracing ?? {
     logToolCall: jest.fn().mockResolvedValue('log-1'),
     countToolCallsSince: jest.fn().mockResolvedValue(0),
@@ -39,8 +51,10 @@ function makeRegistry(
     tracing as never,
     resourceValidate as never,
     githubEnrich as never,
+    roadmapProgress as never,
+    interviewHistory as never,
   );
-  return { registry, resourceValidate, githubEnrich, tracing };
+  return { registry, resourceValidate, githubEnrich, roadmapProgress, interviewHistory, tracing };
 }
 
 describe('ToolRegistry.invoke', () => {
@@ -217,5 +231,20 @@ describe('ToolRegistry.invoke', () => {
       registry.invoke('diagnosis_chat', 'github.enrich', { username: 'x' }, {}),
     ).rejects.toBeInstanceOf(ToolCircuitOpenError);
     expect(githubEnrich.invoke).toHaveBeenCalledTimes(5); // 6th call short-circuited, not a 6th real invoke
+  });
+
+  it('wave 3 read-tools are registered and allow-listed for diagnosis_chat (and ONLY there)', async () => {
+    const { registry, roadmapProgress, interviewHistory } = makeRegistry();
+    const ctx = { userId: 'u1' };
+    await registry.invoke('diagnosis_chat', 'roadmap.progress', {}, ctx);
+    await registry.invoke('diagnosis_chat', 'interview.history', {}, ctx);
+    expect(roadmapProgress.invoke).toHaveBeenCalledTimes(1);
+    expect(interviewHistory.invoke).toHaveBeenCalledTimes(1);
+    await expect(
+      registry.invoke('learning_chat', 'roadmap.progress', {}, ctx),
+    ).rejects.toBeInstanceOf(ToolNotAllowedError);
+    await expect(
+      registry.invoke('learning_chat', 'interview.history', {}, ctx),
+    ).rejects.toBeInstanceOf(ToolNotAllowedError);
   });
 });

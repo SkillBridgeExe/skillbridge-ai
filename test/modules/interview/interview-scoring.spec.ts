@@ -5,6 +5,8 @@ import {
   band,
   aggregateInterviewScore,
   explainInterviewScore,
+  reconcileAnswerScore,
+  reconcileDepthSignal,
   AnswerEvidence,
   Dimension,
   RoleFamily,
@@ -269,5 +271,77 @@ describe('explainInterviewScore (Wave I-SCORE)', () => {
     expect(tech?.rubric_anchor).toContain('outstanding');
     expect(tech?.uncertainty).toBe('low');
     expect(tech?.improvement_hint).toBeNull();
+  });
+});
+
+describe('reconcileAnswerScore (consistency guard)', () => {
+  it('caps an off-topic answer at the poor-band ceiling (40)', () => {
+    const r = reconcileAnswerScore({ score: 78, depth_signal: 'adequate', off_topic: true });
+    expect(r.score).toBe(40);
+    expect(r.raw_score).toBe(78);
+    expect(r.capped).toBe(true);
+    expect(r.reasons).toEqual(['score_capped_off_topic']);
+  });
+
+  it('caps an evasive answer at the borderline ceiling (60)', () => {
+    const r = reconcileAnswerScore({ score: 90, depth_signal: 'evasive', off_topic: false });
+    expect(r.score).toBe(60);
+    expect(r.reasons).toEqual(['score_capped_evasive']);
+  });
+
+  it('caps a shallow answer at the solid ceiling (80) — shallow can never be outstanding', () => {
+    const r = reconcileAnswerScore({ score: 95, depth_signal: 'shallow', off_topic: false });
+    expect(r.score).toBe(80);
+    expect(r.reasons).toEqual(['score_capped_shallow']);
+  });
+
+  it('applies the tightest cap when several contradictions fire at once', () => {
+    const r = reconcileAnswerScore({ score: 92, depth_signal: 'evasive', off_topic: true });
+    expect(r.score).toBe(40);
+    expect(r.reasons).toEqual(['score_capped_off_topic', 'score_capped_evasive']);
+  });
+
+  it('never touches a score consistent with its depth signal', () => {
+    for (const [signal, score] of [
+      ['deep', 95],
+      ['adequate', 70],
+      ['shallow', 60],
+      ['evasive', 35],
+    ] as const) {
+      const r = reconcileAnswerScore({ score, depth_signal: signal, off_topic: false });
+      expect(r.score).toBe(score);
+      expect(r.capped).toBe(false);
+      expect(r.reasons).toEqual([]);
+    }
+  });
+
+  it('never raises a score (guard is cap-only)', () => {
+    const r = reconcileAnswerScore({ score: 10, depth_signal: 'evasive', off_topic: true });
+    expect(r.score).toBe(10);
+    expect(r.capped).toBe(false);
+  });
+});
+
+describe('reconcileDepthSignal (I-CONSIST-2 depth guard)', () => {
+  it('downgrades a "deep" label on a too-short answer to adequate', () => {
+    const r = reconcileDepthSignal({ depth_signal: 'deep', is_too_short: true });
+    expect(r.depth_signal).toBe('adequate');
+    expect(r.downgraded).toBe(true);
+    expect(r.reasons).toEqual(['depth_downgraded_thin_answer']);
+  });
+
+  it('keeps "deep" when the answer has real length', () => {
+    const r = reconcileDepthSignal({ depth_signal: 'deep', is_too_short: false });
+    expect(r.depth_signal).toBe('deep');
+    expect(r.downgraded).toBe(false);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it('never touches non-deep signals — a short evasive answer stays evasive', () => {
+    for (const signal of ['shallow', 'adequate', 'evasive'] as const) {
+      const r = reconcileDepthSignal({ depth_signal: signal, is_too_short: true });
+      expect(r.depth_signal).toBe(signal);
+      expect(r.downgraded).toBe(false);
+    }
   });
 });

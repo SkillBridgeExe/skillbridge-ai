@@ -9,19 +9,28 @@ import {
   buildDiagnosisFacts,
   DiagnosisChatResult,
   DiagnosisFacts,
+  DiagnosisKnownState,
+  GroundedFact,
 } from '../../modules/diagnosis-chat/diagnosis-grounding';
+import { extractConversationState } from '../../modules/diagnosis-chat/conversation-state';
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.service';
 import { CvsService } from '../cvs/cvs.service';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
-const MAX_HISTORY = 10;
+/** The domain service still shows only its last-10 window to the LLM; it receives this WIDER slice
+ *  so conversation-state extraction (target role, deadline, what was already asked) remembers past
+ *  the prompt transcript. Matches getThread's 40-message ceiling. */
+const STATE_WINDOW = 40;
 const DIAGNOSIS_CHAT_REQUEST_TYPE = 'diagnosis_chat';
 const DAILY_CHAT_LIMIT = 50;
 
 export interface DiagnosisChatTurnResponse {
   answer: string;
+  /** Gate verdict forwarded for the FE mascot pose (Wave 1) — optional on the wire so older
+   *  clients simply ignore it. */
+  answer_kind?: 'grounded' | 'refusal' | 'canned';
   cited_dimension?: string;
   cited_gap_id?: string;
   suggested_next_step?: string | null;
@@ -30,10 +39,19 @@ export interface DiagnosisChatTurnResponse {
   cited_match?: { match_id: string; cv_id: string; jd_title: string | null };
   /** Tool-call citation forwarded verbatim from grounding (M1 fix — was previously dropped here). */
   cited_tool?: string;
+  /** Provenance behind the answer (Wave 2 "visible trust") — optional on the wire so older
+   *  clients ignore it; absent when the turn advertised nothing. other_match ids are the REAL
+   *  match_id (swapped from grounding's 1-based index here, same as cited_match). */
+  grounded_facts?: GroundedFact[];
+  /** Deterministic memory mirror — what the dolphin currently knows, verbatim. */
+  known_state?: DiagnosisKnownState;
 }
 
 export interface DiagnosisChatThreadResponse {
   turns: Array<{ role: 'user' | 'assistant'; text: string; ts: string }>;
+  /** Rebuilt from the SAME persisted rows the turns come from — deterministic, so the FE memory
+   *  card is correct on restore. covered_gaps stays [] here: no facts are loaded on this path. */
+  known_state?: DiagnosisKnownState;
 }
 
 /**
@@ -82,12 +100,29 @@ export class DiagnosisChatPlatformService {
       order: { createdAt: 'ASC' },
     });
 
+    const windowRows = rows.slice(-40);
+    // Deterministic mirror on restore: the SAME extractor the live turn uses, over the SAME
+    // window — question is '' because there is no current turn. covered_gaps needs facts,
+    // which this path never loads → honestly empty rather than a stale guess.
+    const state = extractConversationState(
+      windowRows.map((message) => ({
+        role: message.role,
+        content: message.content,
+        at: message.createdAt.toISOString(),
+      })),
+      '',
+    );
     return {
-      turns: rows.slice(-40).map((message) => ({
+      turns: windowRows.map((message) => ({
         role: message.role,
         text: message.content,
         ts: message.createdAt.toISOString(),
       })),
+      known_state: {
+        target_role: state.target_role,
+        deadline: state.deadline,
+        covered_gaps: [],
+      },
     };
   }
 
@@ -171,7 +206,7 @@ export class DiagnosisChatPlatformService {
         facts,
         focus: dto.focus,
         language: dto.language ?? 'vi',
-        history: history.map((m) => ({ role: m.role, content: maskPii(m.content) })),
+        history: history.map((m) => ({ role: m.role, content: maskPii(m.content), at: m.at })),
         userId,
         aiRequestId,
       });
@@ -269,21 +304,23 @@ export class DiagnosisChatPlatformService {
   }
 
   /**
-   * One conversation per (user, cv) for the CV-only path. Scoped by {userId, cvId, matchId: IS NULL} so
-   * it can never read another user's thread AND never collides with a JD chat for the same CV (which is
-   * keyed by matchId, with cvId left null). Ownership of the cv is already enforced upstream by
-   * getLatestReview(userId, cvId) being userId-scoped.
+   * One conversation per (user, cv, purpose='diagnosis') for the CV-only path. Scoped by
+   * {userId, cvId, matchId: IS NULL, purpose: 'diagnosis'} so it can never read another user's thread
+   * AND never collides with a JD chat for the same CV (keyed by matchId, cvId left null) NOR with the
+   * CV-builder-chat thread (which shares the exact same (userId, cvId, matchId: NULL) key but tags its
+   * rows purpose='cv_builder' — without this filter the two threads would corrupt each other). Ownership
+   * of the cv is already enforced upstream by getLatestReview(userId, cvId) being userId-scoped.
    */
   private async resolveCvConversation(
     userId: string,
     cvId: string,
   ): Promise<ChatConversationEntity> {
     const existing = await this.conversations.findOne({
-      where: { userId, cvId, matchId: IsNull() },
+      where: { userId, cvId, matchId: IsNull(), purpose: 'diagnosis' },
     });
     if (existing) return existing;
     return this.conversations.save(
-      this.conversations.create({ userId, cvId, matchId: null, title: null }),
+      this.conversations.create({ userId, cvId, matchId: null, purpose: 'diagnosis', title: null }),
     );
   }
 
@@ -291,16 +328,25 @@ export class DiagnosisChatPlatformService {
     const rows = await this.messages.find({
       where: { conversationId },
       order: { createdAt: 'DESC' },
-      take: MAX_HISTORY,
+      take: STATE_WINDOW,
     });
-    return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
+    // `at` feeds ONLY the deterministic deadline-expiry rule (Wave 3) — the transcript the model
+    // sees stays timestamp-free.
+    return rows.reverse().map((message) => ({
+      role: message.role,
+      content: message.content,
+      at: message.createdAt.toISOString(),
+    }));
   }
 
   private toResponse(
     answer: DiagnosisChatResult,
     otherMatches: OtherMatchSummary[],
   ): DiagnosisChatTurnResponse {
-    const out: DiagnosisChatTurnResponse = { answer: answer.answer };
+    const out: DiagnosisChatTurnResponse = {
+      answer: answer.answer,
+      answer_kind: answer.answer_kind,
+    };
     if (answer.cited_dimension) out.cited_dimension = answer.cited_dimension;
     if (answer.cited_gap_id) out.cited_gap_id = answer.cited_gap_id;
     if (answer.suggested_next_step !== undefined) {
@@ -319,6 +365,20 @@ export class DiagnosisChatPlatformService {
       }
     }
     if (answer.cited_tool) out.cited_tool = answer.cited_tool;
+    // Optional-chained: older DiagnosisChatResult mocks (and any defensive path) may omit the
+    // field — the wire must degrade to "no provenance", never throw.
+    if (answer.grounded_facts?.length) {
+      const facts = answer.grounded_facts.flatMap((f): GroundedFact[] => {
+        if (f.kind !== 'other_match') return [f];
+        // Same swap cited_match does: grounding only knows the 1-based index; the real
+        // deep-linkable id lives in the summaries kept in scope here. No summary → DROP the
+        // fact — a raw index must never ship as an id.
+        const match = otherMatches[Number(f.id) - 1];
+        return match ? [{ ...f, id: match.match_id, label: match.jd_title ?? f.label }] : [];
+      });
+      if (facts.length) out.grounded_facts = facts;
+    }
+    if (answer.known_state) out.known_state = answer.known_state;
     return out;
   }
 }

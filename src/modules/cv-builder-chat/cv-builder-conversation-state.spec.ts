@@ -1,0 +1,458 @@
+import {
+  askDirective,
+  buildTurnContext,
+  ensureAskBack,
+  extractConversationState,
+  routeIntent,
+} from './cv-builder-conversation-state';
+import { CvBuilderChatFacts } from './cv-builder-chat.facts';
+
+const user = (content: string) => ({ role: 'user' as const, content });
+const bot = (content: string) => ({ role: 'assistant' as const, content });
+
+const FACTS: CvBuilderChatFacts = {
+  target_role: 'Backend Developer',
+  cv_language: 'vi',
+  sections: [{ section: 'projects', present: true, item_count: 1 }],
+  focus: {
+    section: 'projects',
+    field_path: 'cvbuilder:projects[0].bullets[0]',
+    current_text: 'Xây dựng hệ thống backend cho ứng dụng thương mại điện tử',
+    gaps: ['result', 'tech'],
+  },
+};
+
+const FACTS_NO_FOCUS: CvBuilderChatFacts = { ...FACTS, focus: null };
+
+// a focus with ONLY a result gap open (tech/action already fine) — isolates the result branch.
+const FACTS_RESULT_GAP: CvBuilderChatFacts = {
+  ...FACTS,
+  focus: { ...FACTS.focus!, gaps: ['result'] },
+};
+
+// a focus missing BOTH result and action — exercises the result > action priority order.
+const FACTS_RESULT_AND_ACTION_GAP: CvBuilderChatFacts = {
+  ...FACTS,
+  focus: { ...FACTS.focus!, gaps: ['result', 'action'] },
+};
+
+// an assistant turn phrased to fire ASKED_GAP_RE's `result` branch — Task 2.2's real ASK_COPY table
+// must phrase its asks the same way or the capture-consumes-ask mechanism silently breaks.
+const ASKED_RESULT = bot('Dự án đó bạn đo được kết quả gì chưa?');
+
+describe('extractConversationState — capture discipline (WRONG capture is the only forbidden failure)', () => {
+  it('captures the gap the user just answered (consumes the ask, one-shot)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'giảm load 40%');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toEqual([]);
+  });
+
+  it('WRONG-capture guard: a dodge that does not answer the asked gap leaves it outstanding', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'ok cảm ơn nha');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+  });
+
+  it('one-shot: only the turn IMMEDIATELY after the ask gets a capture attempt', () => {
+    const history = [
+      user('mình nên viết gì cho project?'),
+      ASKED_RESULT,
+      user('để mình nghĩ đã'), // dodge — does not consume
+      bot('ok, từ từ cũng được'), // not another ask
+    ];
+    // a later turn stating a metric should NOT retroactively consume the stale ask
+    const s = extractConversationState(history, 'giảm load 40%');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+  });
+
+  it('an outstanding ask is sticky across a non-asking assistant turn', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, bot('ok')];
+    const s = extractConversationState(history, 'chưa biết nữa');
+    expect(s.asked_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+  });
+
+  it('captures a tech-gap answer ("dùng React với Node") after a tech-ask', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'dùng React với Node');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
+    expect(s.asked_gaps).toEqual([]);
+  });
+
+  it('captures an action-gap answer after an action-ask', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình xây dựng API backend');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('does NOT capture result when the user dodges with a duration/deferral (bare time units are not metrics)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'chưa có số, tầm 2 tuần nữa mình bổ sung');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+  });
+
+  it('does NOT capture tech when the user dodges by naming a person', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'chưa, để hỏi Nam đã');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
+  it('does NOT capture action when the user dodges', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'thôi mình tạo cái khác sau');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('a "chưa" hedge inside a genuine answer is NOT swallowed as a dodge (result IS captured)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'trước đây chưa đo nhưng giờ giảm 40%');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toEqual([]);
+  });
+
+  it('a compound word containing "thôi" ("thôi thúc") is not misread as the dodge particle', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'điều đó thôi thúc mình học React');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
+  });
+
+  it("a person's name is NOT captured as a tech answer (tech capture requires a known-tech gazetteer hit)", () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'thật ra Nam là người làm phần đó');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
+  // ── sentence-final limiting-particle "thôi" (= "only/just") is part of a REAL answer, not a dodge.
+  // The prior rounds' blanket DODGE_RE discarded these; the restructure keys off precise per-gap
+  // signals so the particle no longer suppresses a genuine answer.
+  it('captures result when the answer ends in the particle "thôi" ("giảm 40% thôi")', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'giảm 40% thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'result' });
+    expect(s.asked_gaps).toEqual([]);
+  });
+
+  it('captures tech when the answer ends in the particle "thôi" ("mình dùng React thôi")', () => {
+    const history = [bot('Bạn dùng công nghệ gì cho phần này vậy?')];
+    const s = extractConversationState(history, 'mình dùng React thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'tech' });
+  });
+
+  it('captures action when the answer ends in the particle "thôi" ("mình tạo dashboard thôi")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard thôi');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('does NOT capture action for a leading-"để mai" deferral ("để mai mình làm")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để mai mình làm');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  // ── Round-4 tightening: ACTION_DEFERRAL_RE's prior alternatives (bare `khỏi`, bare `không cần`,
+  // bare `cái khác`, `để … đó`) were over-broad and false-suppressed these genuine answers.
+  it('captures action for a real answer carrying a "khỏi lo" reassurance tag ("… xong rồi, khỏi lo")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard xong rồi, khỏi lo');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "không cần" ("…, không cần thư viện ngoài")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình đã tạo dashboard, không cần thư viện ngoài');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "cái khác" ("… với vài cái khác nữa")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo dashboard với vài cái khác nữa');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  it('captures action for a real answer containing "để đó" ("… để đó cho anh xem")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'mình tạo xong rồi, để đó cho anh xem');
+    expect(s.answered_gaps).toContainEqual({ field_path: expect.any(String), gap: 'action' });
+  });
+
+  // ── restored "ask/think first" deferral idioms — clear deferrals, must keep being rejected.
+  it('does NOT capture action for a "hỏi ai đó đã" deferral ("để hỏi sếp đã, …")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để hỏi sếp đã, chắc là mình sẽ tạo báo cáo');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('does NOT capture action for a "coi/nghĩ lại đã" deferral ("để mình coi đã, …")', () => {
+    const history = [bot('Bạn đã làm gì trong dự án đó vậy?')];
+    const s = extractConversationState(history, 'để mình coi đã, chắc tạo thêm phần login');
+    expect(s.answered_gaps).not.toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('a restated target role is captured (informational)', () => {
+    const s = extractConversationState([], 'mình đang nhắm vị trí Backend Developer');
+    expect(s.target_role).toBe('Backend Developer');
+  });
+
+  it('active_field_path is left null by extraction alone (no honest text source for an opaque id)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT];
+    const s = extractConversationState(history, 'giảm load 40%');
+    expect(s.active_field_path).toBeNull();
+  });
+});
+
+describe('routeIntent — deterministic pre-LLM router', () => {
+  it('routes "viết bullet này ngắn lại" → shorten', () => {
+    expect(routeIntent('viết bullet này ngắn lại giúp mình', FACTS)).toBe('shorten');
+  });
+
+  it.each(['chào bạn', 'hello!', 'Xin chào', 'alo'])('greeting: %s', (q) => {
+    expect(routeIntent(q, FACTS)).toBe('greeting');
+  });
+
+  it.each(['cảm ơn nhé!', 'thanks bạn nhiều', 'tạm biệt'])('thanks: %s', (q) => {
+    expect(routeIntent(q, FACTS)).toBe('thanks');
+  });
+
+  it.each(['bạn là ai', 'bạn làm được gì', 'who are you?'])('meta: %s', (q) => {
+    expect(routeIntent(q, FACTS)).toBe('meta');
+  });
+
+  it('a meta opener carrying a real question is NOT canned (length cap + DOMAIN_HINT)', () => {
+    expect(
+      routeIntent('bạn là ai mà sửa được bullet dự án của mình vậy, giải thích coi', FACTS),
+    ).toBe('explain');
+  });
+
+  it('DOMAIN_HINT test: a greeting that also asks a real CV question reaches the LLM, not canned', () => {
+    expect(routeIntent('hi, can you fix my project bullet?', FACTS)).not.toBe('greeting');
+  });
+
+  it('routes "thêm số liệu vào bullet này" → add_metric', () => {
+    expect(routeIntent('thêm số liệu vào bullet này giúp mình', FACTS)).toBe('add_metric');
+  });
+
+  it('routes "tại sao bullet này yếu" → explain', () => {
+    expect(routeIntent('tại sao bullet này bị đánh giá yếu vậy', FACTS)).toBe('explain');
+  });
+
+  it('routes "mình nên viết gì cho phần này" → ask_what_to_write when a field is focused', () => {
+    expect(routeIntent('mình nên viết gì cho phần này', FACTS)).toBe('ask_what_to_write');
+  });
+
+  it('the same question falls back to write when nothing is focused', () => {
+    expect(routeIntent('mình nên viết gì cho phần này', FACTS_NO_FOCUS)).toBe('write');
+  });
+
+  it('routes "bạn có nhớ lúc nãy nói gì không" → recall', () => {
+    expect(routeIntent('bạn có nhớ lúc nãy nói gì không', FACTS)).toBe('recall');
+  });
+
+  it('an unmatched CV request falls through to write (the catch-all)', () => {
+    expect(routeIntent('giúp mình cải thiện đoạn này với', FACTS)).toBe('write');
+  });
+});
+
+describe('buildTurnContext — the shared entry point', () => {
+  it('a greeting is code-answered (canned non-null), never reaches the LLM', () => {
+    const ctx = buildTurnContext(FACTS, [], 'hello');
+    expect(ctx.canned).not.toBeNull();
+    expect(ctx.intent).toBe('greeting');
+  });
+
+  it('a real CV question is never canned; ask is populated when the focused bullet has an open gap', () => {
+    const ctx = buildTurnContext(FACTS, [], 'viết lại bullet này giúp mình');
+    expect(ctx.canned).toBeNull();
+    expect(ctx.ask).toEqual({ field_path: FACTS.focus!.field_path, gap: 'result' });
+  });
+
+  it('a canned turn (greeting/thanks/meta) never carries an ask', () => {
+    const ctx = buildTurnContext(FACTS, [], 'chào bạn');
+    expect(ctx.canned).not.toBeNull();
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('defaults active_field_path from facts.focus when history carries no mention', () => {
+    const ctx = buildTurnContext(FACTS, [], 'viết lại bullet này giúp mình');
+    expect(ctx.state.active_field_path).toBe('cvbuilder:projects[0].bullets[0]');
+  });
+
+  it('contextBlock carries the known state for the prompt', () => {
+    const ctx = buildTurnContext(FACTS, [], 'viết lại bullet này giúp mình');
+    expect(ctx.contextBlock).toContain('cvbuilder:projects[0].bullets[0]');
+  });
+});
+
+describe('askDirective — the proactive ask-ONE-gap decision (code decides WHEN)', () => {
+  it('an advice-seeking turn over a bullet missing a result asks ONCE for the result', () => {
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, [], 'giúp mình viết project này mạnh hơn');
+    expect(ctx.ask).toEqual({ field_path: FACTS_RESULT_GAP.focus!.field_path, gap: 'result' });
+  });
+
+  it('a bullet missing BOTH result and action asks for result FIRST (priority order)', () => {
+    const ctx = buildTurnContext(
+      FACTS_RESULT_AND_ACTION_GAP,
+      [],
+      'giúp mình viết project này mạnh hơn',
+    );
+    expect(ctx.ask).toEqual({
+      field_path: FACTS_RESULT_AND_ACTION_GAP.focus!.field_path,
+      gap: 'result',
+    });
+  });
+
+  it('does not re-ask a gap already answered (one-shot, no nag)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, user('giảm load 40%')];
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, history, 'ok giờ sao nữa');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('does not ask again while the same gap is still outstanding (no double-fire mid-dodge)', () => {
+    const history = [user('mình nên viết gì cho project?'), ASKED_RESULT, user('ok cảm ơn nha')];
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, history, 'giờ sao nữa ha');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('a non-advice intent (e.g. shorten) never asks, even with an open gap', () => {
+    const ctx = buildTurnContext(FACTS_RESULT_GAP, [], 'viết bullet này ngắn lại giúp mình');
+    expect(ctx.ask).toBeNull();
+  });
+
+  it('no ask when nothing is focused', () => {
+    expect(
+      askDirective(
+        { target_role: null, active_field_path: null, answered_gaps: [], asked_gaps: [] },
+        'write',
+        FACTS_NO_FOCUS,
+      ),
+    ).toBeNull();
+  });
+
+  // ── the nag this state shape exists to kill: two open gaps, each dodged in turn. A single-slot
+  // `asked_gap` forgot the older dodged gap once the newer one was asked and re-asked it forever
+  // (result→tech→result…). The cumulative `asked_gaps` set keeps BOTH outstanding → no re-ask.
+  it('HEADLINE: two gaps each asked-and-dodged both stay outstanding → askDirective is null (no nag)', () => {
+    const history = [
+      bot('Dự án đó bạn đo được kết quả gì chưa?'), // asks result
+      user('để sau đi'), // dodge (not captured)
+      bot('Bạn dùng công nghệ gì cho phần này vậy?'), // asks tech
+      user('chưa biết đâu'), // dodge (not captured)
+    ];
+    const s = extractConversationState(history, 'ok giờ viết lại giúp mình');
+    expect(s.answered_gaps).toEqual([]); // neither dodge was captured
+    expect(s.asked_gaps.map((g) => g.gap).sort()).toEqual(['result', 'tech']); // both outstanding
+    // FACTS.focus.gaps === ['result','tech'] → both already asked → nothing left to ask
+    expect(askDirective(s, 'write', FACTS)).toBeNull();
+  });
+
+  it('2-gap one-shot: dodging result asks TECH next (not result again); dodging tech too → null', () => {
+    const afterResultDodge = extractConversationState(
+      [bot('Dự án đó bạn đo được kết quả gì chưa?')],
+      'chưa biết nữa', // dodge — result stays outstanding
+    );
+    expect(afterResultDodge.asked_gaps.map((g) => g.gap)).toEqual(['result']);
+    // the OTHER open gap (tech) is asked next, NOT result again
+    expect(askDirective(afterResultDodge, 'write', FACTS)).toEqual({
+      field_path: FACTS.focus!.field_path,
+      gap: 'tech',
+    });
+    // once tech is also asked-and-dodged, both are outstanding → nothing left to ask
+    const afterTechDodge = extractConversationState(
+      [
+        bot('Dự án đó bạn đo được kết quả gì chưa?'),
+        user('chưa biết nữa'),
+        bot('Bạn dùng công nghệ gì cho phần này vậy?'),
+        user('hmm chưa rõ'),
+      ],
+      'giờ sao nữa',
+    );
+    expect(askDirective(afterTechDodge, 'write', FACTS)).toBeNull();
+  });
+
+  it('answering a gap removes it from asked_gaps and lets the OTHER open gap be asked next', () => {
+    const s = extractConversationState([bot('Dự án đó bạn đo được kết quả gì chưa?')], 'giảm 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
+    expect(s.asked_gaps).not.toContainEqual(expect.objectContaining({ gap: 'result' }));
+    // tech is still an open, unasked gap on FACTS.focus → next advice turn asks tech
+    expect(askDirective(s, 'write', FACTS)).toEqual({
+      field_path: FACTS.focus!.field_path,
+      gap: 'tech',
+    });
+  });
+});
+
+describe('ensureAskBack — the backstop that appends the standard ask if the model dropped it', () => {
+  it('returns the answer unchanged when ask is null', () => {
+    expect(ensureAskBack('Ổn rồi đó.', null, 'vi')).toBe('Ổn rồi đó.');
+  });
+
+  it('appends ONE question when the model dropped it (vi, result gap)', () => {
+    const out = ensureAskBack(
+      'Mình gợi ý dùng động từ mạnh hơn.',
+      { field_path: 'x', gap: 'result' },
+      'vi',
+    );
+    expect(out).toContain('?');
+  });
+
+  it('does not double-ask when the model already asked its own question', () => {
+    const out = ensureAskBack(
+      'Bạn đo được kết quả gì không?',
+      { field_path: 'x', gap: 'result' },
+      'vi',
+    );
+    expect((out.match(/\?/g) ?? []).length).toBe(1);
+  });
+
+  it('appends the tech-gap question (vi)', () => {
+    const out = ensureAskBack('Gợi ý vậy đã nhé.', { field_path: 'x', gap: 'tech' }, 'vi');
+    expect(out).toContain('?');
+  });
+
+  it('appends the action-gap question (vi)', () => {
+    const out = ensureAskBack('Gợi ý vậy đã nhé.', { field_path: 'x', gap: 'action' }, 'vi');
+    expect(out).toContain('?');
+  });
+
+  it('appends the EN copy for all three gaps when language is en', () => {
+    for (const gap of ['result', 'tech', 'action'] as const) {
+      const out = ensureAskBack('Suggestion text.', { field_path: 'x', gap }, 'en');
+      expect(out).toContain('?');
+    }
+  });
+
+  it('unknown gap kind is a no-op (v1 covers bullet gaps only)', () => {
+    const out = ensureAskBack('Ổn rồi.', { field_path: 'x', gap: 'role' }, 'vi');
+    expect(out).toBe('Ổn rồi.');
+  });
+
+  it('ROUND-TRIP: an ensureAskBack question is recognized by ASKED_GAP_RE so the next answer is captured (result, vi)', () => {
+    const asked = ensureAskBack(
+      'Ok.',
+      { field_path: 'projects[0].bullets[0]', gap: 'result' },
+      'vi',
+    );
+    const s = extractConversationState([user('viết giúp'), bot(asked)], 'giảm 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
+  });
+
+  it('ROUND-TRIP: tech-gap ask-back is recognized by ASKED_GAP_RE (vi)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'tech' }, 'vi');
+    const s = extractConversationState([bot(asked)], 'dùng React với Node');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'tech' }));
+  });
+
+  it('ROUND-TRIP: action-gap ask-back is recognized by ASKED_GAP_RE (vi)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'action' }, 'vi');
+    const s = extractConversationState([bot(asked)], 'mình xây dựng API backend');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'action' }));
+  });
+
+  it('ROUND-TRIP: the EN result ask-back is ALSO recognized by ASKED_GAP_RE (language-agnostic capture)', () => {
+    const asked = ensureAskBack('Ok.', { field_path: 'x', gap: 'result' }, 'en');
+    const s = extractConversationState([bot(asked)], 'we reduced load by 40%');
+    expect(s.answered_gaps).toContainEqual(expect.objectContaining({ gap: 'result' }));
+  });
+});

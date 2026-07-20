@@ -21,6 +21,12 @@ Write the interviewer's next turn.
 - Running notes (earlier claims/contradictions, for callbacks): {{running_notes}}
 - Drill focus for this rung (empty = none): {{drill_focus}}
 
+{{drill_anchor_instruction}}
+
+{{example_demand_instruction}}
+
+{{metric_demand_instruction}}
+
 {{scenario_instruction}}
 
 ## Recent Q&A

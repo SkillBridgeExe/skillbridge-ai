@@ -7,6 +7,11 @@ import {
   DIAGNOSIS_DIMENSION_KEYS,
   DiagnosisFacts,
   groundDiagnosis,
+  allowedNumberTokens,
+  statProvenance,
+  ungroundedNumbers,
+  unverifiableClaim,
+  REFUSAL_COPY,
 } from './diagnosis-grounding';
 
 /** Minimal CV review fixture — only the fields buildDiagnosisFacts reads matter; the rest is cast away. */
@@ -342,7 +347,7 @@ describe('buildDiagnosisFacts — learning completed pending verification (V2, W
 describe('groundDiagnosis (anti-fabrication boundary)', () => {
   const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
 
-  it('keeps valid citations but renders the visible answer from facts, not raw LLM prose', () => {
+  it('keeps valid citations but replaces fabricated prose with the warm refusal + verified hook', () => {
     const result = groundDiagnosis(
       {
         message: 'Your ATS is 98 and you should learn Kubernetes immediately.',
@@ -352,8 +357,8 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       },
       facts,
     );
-    expect(result.answer).toContain('skills_relevance');
-    expect(result.answer).toContain('12/20');
+    // Phase A: the kill serves the refusal, hooked on the cited gap (gap outranks dimension).
+    expect(result.answer).toContain('dữ liệu đã xác minh');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
@@ -362,27 +367,31 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này');
   });
 
-  it('falls back when the model does not provide any valid citation', () => {
-    const result = groundDiagnosis({ message: 'ok' }, facts);
-    expect(result.answer).toContain('Add Docker evidence');
-    expect(result.answer).not.toBe('ok');
+  // Advisor v3: an uncited answer is SERVED, not discarded. A citation is a scroll target; requiring
+  // one silently killed every turn with nothing to point at — memory ("what did I just say?"),
+  // clarifying questions, greetings — and bought no protection, since the gate reads a metadata field
+  // and never the prose. The number + unverifiable-claim gates are what guard the words.
+  it('SERVES an uncited answer (a citation is a scroll target, not a licence to speak)', () => {
+    const result = groundDiagnosis({ message: 'Bạn vừa nói bạn nhắm vị trí AI Engineer.' }, facts);
+    expect(result.answer).toBe('Bạn vừa nói bạn nhắm vị trí AI Engineer.');
     expect(result.cited_dimension).toBeUndefined();
     expect(result.cited_gap_id).toBeUndefined();
   });
 
-  it('DROPS cited_dimension that is not a real dimension key', () => {
+  it('DROPS cited_dimension that is not a real dimension key (prose still served)', () => {
     const result = groundDiagnosis({ message: 'ok', cited_dimension: 'charisma' }, facts);
-    expect(result.answer).toContain('Add Docker evidence');
+    // The fabricated citation never reaches the wire — that is the guarantee that matters.
     expect(result.cited_dimension).toBeUndefined();
+    expect(result.answer).toBe('ok');
   });
 
-  it('DROPS cited_gap_id that is not in facts.gap_items requirement_ids', () => {
+  it('DROPS cited_gap_id that is not in facts.gap_items requirement_ids (prose still served)', () => {
     const result = groundDiagnosis(
       { message: 'ok', cited_gap_id: 'jd:hard_skill:kubernetes' },
       facts,
     );
-    expect(result.answer).toContain('Add Docker evidence');
     expect(result.cited_gap_id).toBeUndefined();
+    expect(result.answer).toBe('ok');
   });
 
   it('strips a planted raw URL from the message and the suggested_next_step', () => {
@@ -399,7 +408,7 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
     expect(result.suggested_next_step).not.toContain('spam.io');
   });
 
-  it('renders a grounded other-match comparison when the model cites a listed match index', () => {
+  it('a killed comparison turn keeps the VERIFIED comparison in the refusal (the user still gets their answer)', () => {
     const factsWithOtherMatches = buildDiagnosisFacts(
       makeReview(),
       makeGapReport([makeGapItem()]),
@@ -419,12 +428,17 @@ describe('groundDiagnosis (anti-fabrication boundary)', () => {
       'en',
     );
 
+    // Phase A: the salary invention is refused BY NAME, warmly — not answered with a fact template.
+    expect(result.answer).toContain('blind spot');
     expect(result.answer).toContain('Frontend Developer');
     expect(result.answer).toContain('72');
     expect(result.answer).toContain('React');
     expect(result.answer).toContain('TypeScript');
     expect(result.answer).not.toContain('2000');
-    expect(result.suggested_next_step).toBeNull();
+    // The citation survives so the FE still scrolls to the compared match.
+    expect(result.cited_other_match_index).toBe(1);
+    // The refusal always leaves a verified forward step on the table.
+    expect(result.suggested_next_step).toBe('Add Docker evidence');
   });
 
   it('drops fabricated other-match indexes and falls back to normal grounded advice', () => {
@@ -653,14 +667,502 @@ describe('groundDiagnosis — Advisor v2 (serve verified model prose)', () => {
     expect(result.answer).not.toContain('sketchy.example.com');
   });
 
-  it('honest fallback ADMITS it cannot answer instead of answering a different question', () => {
-    const vi = groundDiagnosis({ message: 'ok' }, facts);
+  // The admission copy still matters — but only where the advisor GENUINELY has no answer: an
+  // unparseable / empty model output. Under v3 an uncited-but-sound answer is no longer routed here
+  // (that misread "the model didn't cite" as "the model can't answer" and produced this apology for
+  // perfectly good replies).
+  it('honest fallback ADMITS it cannot answer when the model output is unusable', () => {
+    const vi = groundDiagnosis(null, facts);
     expect(vi.answer).toContain('chưa đủ dữ kiện đã xác minh');
     expect(vi.answer).toContain('Add Docker evidence'); // still serves the verified priorities
 
-    const en = groundDiagnosis({ message: 'ok' }, facts, 'en');
+    const en = groundDiagnosis(null, facts, 'en');
     expect(en.answer).toContain("can't answer that confidently");
     expect(en.answer).toContain('Add Docker evidence');
+  });
+});
+
+/**
+ * Advisor v3 gates. Measured over 25 adversarial multi-turn exchanges against the real model:
+ *  - the citation requirement made memory/meta questions structurally unanswerable (20% of turns),
+ *  - ordinal markers "(1) (2)" were read as fabricated numbers, so enumerated advice — which the
+ *    prompt explicitly asks for — was replaced by a template. The fallback writes "(1) …" itself,
+ *    so the gate rejected its own code's output,
+ *  - and the model, pushed for a percentile, graded the candidate against other people ("mức trung
+ *    bình khá", "chưa ở nhóm nổi bật") with no peer data anywhere in FACTS. No digits → invisible.
+ */
+describe('groundDiagnosis — Advisor v3 gates', () => {
+  // TWO gaps, and no digit inside any name. Both halves are load-bearing against a VACUOUS suite:
+  // with ONE gap, gap_items.length seeds "1" into the allowed set, so every "chọn 1 việc" case below
+  // passed whether or not the advice-noun exemption existed at all — the test could not fail. And a
+  // name like "K8s" leaks "8" in through the numerals-inside-fact-strings rule, which silently
+  // legalises a fabricated dimension score of 8. Keep this fixture free of both.
+  const facts = buildDiagnosisFacts(
+    makeReview(),
+    makeGapReport([
+      makeGapItem(),
+      makeGapItem({
+        requirement_id: 'jd:hard_skill:kubernetes',
+        canonical_name: 'kubernetes',
+        display_name: 'Kubernetes',
+      }),
+    ]),
+  );
+
+  it('the fixture cannot make these tests pass by luck', () => {
+    const allowed = allowedNumberTokens(facts);
+    for (const digit of ['1', '5', '6', '7', '8']) expect(allowed.has(digit)).toBe(false);
+  });
+
+  describe('ordinal list markers are formatting, not claims', () => {
+    it('serves an enumerated answer — "(1) … (2) …" is not a fabricated number', () => {
+      const message = 'Ưu tiên: (1) thêm số liệu; (2) bổ sung kỹ năng; (3) sửa động từ.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('serves a line-start numbered list', () => {
+      const message = 'Làm theo thứ tự:\n1. Sửa bullet.\n2. Học Docker.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it("the code's own fallback copy passes the number gate it is judged by", () => {
+      // The deterministic fallback enumerates "(1) …; (2) …" — it must not be self-rejecting.
+      const fb = groundDiagnosis(null, facts).answer;
+      const result = groundDiagnosis({ message: fb, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).toBe(fb);
+    });
+
+    // An earlier cut treated "(N)" as a marker ANYWHERE, so bracketing any quantity erased it from
+    // the number gate while the ORIGINAL text still shipped — "(91)/100" was served, bare "91/100"
+    // was blocked. That is the product's whole numeric surface, opened by a formatting choice the
+    // prompt itself encourages. Nothing is stripped any more: the gate reads the text that ships.
+    it.each([
+      ['a bracketed score', 'CV của bạn đạt (91)/100.'],
+      ['a bracketed salary', 'Bạn nhắm (35) triệu/tháng nhé.'],
+      ['a bracketed duration', 'Cần thêm (37) tháng kinh nghiệm.'],
+      ['a bracketed count', 'Bạn cần (37) dự án nữa.'],
+      // Single-digit marker SHAPE aimed at a scale — the same laundering with a smaller number.
+      ['a bracketed single-digit score', 'CV của bạn đạt (9)/100.'],
+    ])('refuses %s — brackets are not a licence to invent numbers', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    });
+
+    // The SAME laundering survived the bracket fix on the "[;:,]" branch: a marker was anything at a
+    // clause boundary, so "Tổng điểm CV của bạn: 91." — the most natural way a model states a score —
+    // was read as the marker "91." and erased from the check while shipping verbatim. No strip now.
+    it.each([
+      ['after a colon', 'Tổng điểm CV của bạn: 91. Bạn nên sửa phần skills.'],
+      ['after a semicolon', 'Docker là gap chính; 85. là điểm ATS hiện tại của bạn.'],
+      ['a single digit after a colon', 'Điểm skills_relevance của bạn: 9. Khá thấp.'],
+    ])('refuses a score dressed as a list marker (%s)', (_label, message) => {
+      expect(
+        groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+      ).not.toBe(message);
+    });
+
+    // Reading "(N)" as a marker ANYWHERE was the bracket laundering again, one digit down: a
+    // bracketed single digit next to a metric name reads as a score to the user and as formatting to
+    // the gate, and the ORIGINAL text ships either way. An enumeration ascends from 1; a score does
+    // not — so "(N)" is only formatting when "(N-1)" is already above it.
+    it.each([
+      ['a dimension score', 'Mục skills_relevance của bạn (8) nên được cải thiện.'],
+      ['an ATS score', 'Điểm ATS của bạn (7) là hơi thấp.'],
+      ['an English score', 'Your ATS score (8) is holding you back.'],
+      // A real marker earlier must not legalise a fabricated score later in the same message.
+      ['a score trailing a real run', 'Ưu tiên: (1) sửa bullet. Điểm ATS của bạn (8) là thấp.'],
+      // Same shape at line start: a bare digit answering "mấy điểm?" is not a list of one.
+      ['a line-start score', '8. Bạn cần bổ sung động từ mạnh.'],
+    ])(
+      'refuses %s dressed as an ordinal marker — a marker ascends, a score does not',
+      (_l, message) => {
+        expect(
+          groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+        ).not.toBe(message);
+      },
+    );
+
+    it('still rejects a fabricated number that merely sits near a marker', () => {
+      const message = '(1) Bạn cần 7 năm kinh nghiệm nữa.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).not.toBe(message);
+      expect(result.answer).toContain('/20'); // fell through to the verified template
+    });
+
+    it('still rejects a bare mid-sentence number that is not a marker', () => {
+      const message = 'Điểm của bạn tăng 7. Rất tốt.';
+      const result = groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts);
+      expect(result.answer).not.toBe(message);
+    });
+  });
+
+  /**
+   * Everyday quantities in advice. Measured live: "mình có thể giúp bạn chọn đúng 1 việc để làm ngay
+   * hôm nay" was replaced by the fact template because "1" is in no FACTS array's length. Which small
+   * digits were speakable was luck per user — "2" legal with 2 gaps, fabricated with 5 — so the
+   * advisor's ability to give plain advice depended on the shape of someone's gap report.
+   */
+  describe('the quantity ONE over an advice noun is not a claim about the record', () => {
+    it.each([
+      ['the measured failure', 'Mình có thể giúp bạn chọn đúng 1 việc để làm ngay hôm nay.'],
+      ['a quantity mid-advice', 'Mỗi bullet chỉ nên có 1 động từ mạnh ở đầu câu.'],
+      ['an English advice noun', 'Pick 1 thing to fix today.'],
+    ])('serves %s', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    });
+
+    // The exemption is an ALLOW-list of advice nouns precisely so these keep failing CLOSED: a count
+    // of the user's OWN record is a claim, and no digit-level gate can verify it.
+    it.each([
+      ['a fabricated project count', 'Bạn cần thêm 7 dự án nữa.'],
+      ['a fabricated skill count', 'Bạn còn thiếu 6 kỹ năng cho JD này.'],
+      ['a fabricated experience claim', 'Bạn cần 7 năm kinh nghiệm nữa.'],
+      ['a small fabricated metric', 'Chỉ 9% bullet của bạn có số liệu.'],
+      ['a fabricated score on a scale', 'skills_relevance của bạn đang ở 9/20.'],
+    ])('refuses %s — an unlisted noun falls back to the gate', (_label, message) => {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    });
+
+    // The LISTED nouns are the dangerous ones, not the safe ones: "việc/chỗ/điều" are plain synonyms
+    // for a gap item and "bullet/câu/động từ" are the CV's own contents, so exempting 1-9 over them
+    // re-opened the threat model's headline case ("bạn có 5 gap", real answer 2) through the very
+    // list that was meant to buy naturalness. Only "1" was ever measured lost, so only "1" is bought
+    // back — and "1 <noun>" cannot be a score, a percentage or a salary.
+    it.each([
+      ['a fabricated task count', 'Bạn còn 5 việc phải sửa trong CV trước khi nộp.'],
+      ['a fabricated bullet count', 'CV của bạn có 6 bullet chưa có số liệu.'],
+      ['a fabricated verb count', 'Bạn thiếu 8 động từ mạnh trong phần kinh nghiệm.'],
+      ['a fabricated gap synonym count', 'Còn 5 chỗ cần sửa gấp trong CV.'],
+      ['a fabricated sentence count', 'Mình đếm được 5 câu đang viết ở dạng bị động.'],
+      ['a fabricated issue count', 'Có 6 điều trong CV đang kéo điểm bạn xuống.'],
+    ])('refuses %s — a listed noun buys "1", never a count', (_label, message) => {
+      expect(
+        groundDiagnosis({ message, cited_dimension: 'skills_relevance' }, facts).answer,
+      ).not.toBe(message);
+    });
+  });
+
+  describe('unverifiable claims about OTHER people are refused (the gate has no digits to see)', () => {
+    const cited = { cited_dimension: 'skills_relevance' as const };
+
+    it.each([
+      ['peer grade', 'CV của bạn đang ở mức trung bình khá cho vị trí này.'],
+      ['peer comparison', 'So với các ứng viên khác thì hồ sơ này ổn.'],
+      ['market baseline', 'Hồ sơ của bạn thấp hơn mặt bằng chung của ngành.'],
+      ['ranking', 'Bạn đang ở top 30% ứng viên.'],
+      ['vibes ranking', 'Hồ sơ này chưa ở nhóm nổi bật, nhưng cũng không phải yếu.'],
+      ['hire odds', 'Khả năng đậu của bạn là khá cao.'],
+      ['salary', 'Mức lương cho vị trí này thường khá tốt.'],
+    ])('refuses to serve a %s claim', (_label, message) => {
+      const result = groundDiagnosis({ message, ...cited }, facts);
+      expect(result.answer).not.toBe(message);
+    });
+
+    // `language` is a client-supplied wire field and 'en' is a first-class path — a Vietnamese-only
+    // deny-list is a no-op there, i.e. exactly the axis this gate exists for, wide open.
+    it.each([
+      ['peer grade', 'Your CV is fairly average for this role compared to other candidates.'],
+      ['hire odds', 'Your chances of getting hired here are quite high.'],
+      ['salary', 'The salary for this role is usually competitive.'],
+    ])('refuses a %s claim in English too', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, facts, 'en').answer).not.toBe(message);
+    });
+
+    it.each([
+      ['one word inserted', 'CV của bạn đang ở mức độ trung bình cho vị trí này.'],
+      ['an unlisted quantifier', 'Hầu hết ứng viên cho vị trí này đã có Docker.'],
+      ['a real number re-aimed at people', '60% ứng viên cho vị trí này đã có Docker.'],
+    ])('refuses a peer claim that dodges the obvious phrasing (%s)', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, facts).answer).not.toBe(message);
+    });
+
+    it('does NOT eat "mức khác" — a word boundary, not a grade', () => {
+      const message = 'Các gap của bạn đang ở mức khác nhau: Docker mới là missing.';
+      expect(groundDiagnosis({ message, cited_gap_id: 'jd:hard_skill:docker' }, facts).answer).toBe(
+        message,
+      );
+    });
+
+    it('holds suggested_next_step to the SAME claim gate as the message', () => {
+      const result = groundDiagnosis(
+        {
+          message: 'Docker đang là gap ưu tiên cao nhất của bạn.',
+          cited_gap_id: 'jd:hard_skill:docker',
+          suggested_next_step: 'Bổ sung Docker để hơn mặt bằng chung của các ứng viên khác.',
+        },
+        facts,
+      );
+      // The chip the user taps must not carry a claim the message itself would be refused for.
+      expect(result.suggested_next_step).not.toContain('mặt bằng chung');
+      expect(result.suggested_next_step).toBe('Học & bổ sung kỹ năng này'); // verified default
+    });
+
+    it('ALLOWS comparing two entries that both live in FACTS (that is grounded, not guessing)', () => {
+      const message =
+        'Trong các gap của bạn, Docker có nhu cầu thị trường cao hơn các mục còn lại, nên ưu tiên nó trước.';
+      const result = groundDiagnosis({ message, cited_gap_id: 'jd:hard_skill:docker' }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('ALLOWS ordinary advice that merely contains the word "khá"', () => {
+      const message = 'Phần Education của bạn khá tốt, nên giữ nguyên và tập trung chỗ khác.';
+      const result = groundDiagnosis({ message, cited_dimension: 'education' }, facts);
+      expect(result.answer).toBe(message);
+    });
+  });
+
+  describe('a percentage may only be ATTACHED to what FACTS attach it to (phrase provenance)', () => {
+    // market_demand is the ONE percentage in FACTS, so it is the one the model can lie with: the
+    // number is real, the subject and predicate are invented, and the number gate — which only asks
+    // where a number CAME FROM — waves it through. The first fix listed population nouns to block;
+    // an adversarial pass shipped every synonym one word off the list (HR, JD, thị trường,
+    // headhunter, mô tả công việc — all verbatim, all verified). So there is no noun list: a
+    // "%/ratio + word" phrase serves only when FACTS phrase it that way themselves. The noun nobody
+    // thought of now costs a templated turn instead of shipping a fabricated statistic.
+    const statFacts = buildDiagnosisFacts(
+      makeReview({
+        top_summary: {
+          headline: 'x',
+          // TWO actions on purpose: with one, prioritized_actions.length would seed the token "1"
+          // into the number gate's allow-list and the "1 tuần / 1 dự án" cases below would pass
+          // with or without the ADVICE_NOUN exemption — fixture luck, asserted against below.
+          prioritized_actions: [
+            'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số) — vd "giảm 40% thời gian tải".',
+            'Bổ sung kỹ năng còn thiếu: Docker.',
+          ],
+        },
+      } as Partial<CvReviewParsedResponse>),
+      makeGapReport([
+        makeGapItem({ market_demand: 71 }),
+        makeGapItem({
+          requirement_id: 'jd:hard_skill:redis',
+          display_name: 'Redis',
+          market_demand: 30,
+          severity: 0.4,
+        }),
+      ]),
+    );
+    const cited = { cited_gap_id: 'jd:hard_skill:docker' as const };
+
+    it.each([
+      ['the original leak', '71% nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['postings + invented predicate', 'Có tới 71% tin tuyển dụng dùng ATS để lọc.'],
+      ['a synonym off any list — HR', '71% HR sẽ loại CV của bạn vì thiếu Docker.'],
+      ['a synonym off any list — JD', '71% JD yêu cầu Docker và chấm điểm tự động.'],
+      ['a synonym off any list — market', '71% thị trường đang yêu cầu Docker.'],
+      ['a synonym off any list — headhunter', '71% headhunter sẽ bỏ qua CV của bạn.'],
+      [
+        'reordered into a relative clause',
+        'Docker xuất hiện trong 71% mô tả công việc, và họ dùng ATS để lọc.',
+      ],
+      ['an English population', '71% job descriptions require Docker and screen with ATS.'],
+      ['a connector between % and noun', '71% trong số các nhà tuyển dụng dùng ATS để lọc CV.'],
+      [
+        'the population moved to the next clause',
+        'Trong 71% trường hợp, nhà tuyển dụng sẽ loại CV thiếu Docker.',
+      ],
+      ['a spelled-out number', 'Bảy mươi mốt phần trăm nhà tuyển dụng yêu cầu Docker.'],
+      ['an invented time statistic', '71% thời gian bạn sẽ dùng kỹ năng này.'],
+      [
+        'an ELIDED population — "sẽ" is not a safe follower',
+        '71% sẽ loại CV của bạn ngay vòng đầu.',
+      ],
+    ])('refuses %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // Ratio and scaffold forms carry the same statistic with no "%" token to anchor on. The two that
+    // failed before did so only because the fixture happened not to contain 7, 10 or 0.71 — number-
+    // gate luck, not protection. These are caught by their FRAME now, whatever digits they carry.
+    it.each([
+      ['a fraction', '7/10 nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['a fraction over 100', '71/100 nhà tuyển dụng sẽ loại CV của bạn.'],
+      ['the "cứ N … có M" frame', 'Cứ 100 tin tuyển dụng thì có 71 tin dùng ATS để lọc.'],
+      ['the "tỉ lệ … là N" frame', 'Tỉ lệ nhà tuyển dụng yêu cầu Docker là 0,71.'],
+    ])('refuses a rate rephrased as %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // Told "never pin 71% to a group", a model complies by DROPPING THE NUMBER and keeping the
+    // claim — measured shipping. This arm is still a noun list (unbounded synonyms exist), accepted
+    // for the digit-less class only: no fabricated number rides along, and the prompt now forbids
+    // the whole subject.
+    it.each([
+      ['recruiters', 'Phần lớn nhà tuyển dụng yêu cầu kỹ năng này.'],
+      ['companies', 'Hầu hết các công ty đều dùng ATS để lọc CV.'],
+      ['postings', 'Đa số tin tuyển dụng hiện nay đều yêu cầu Docker.'],
+    ])('refuses the digit-less retreat onto %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // The attach-to-the-next-word cut fell to a second adversarial pass — every case here SHIPPED
+    // VERBATIM against it. The common trick: keep the crowd OUT of the one position the rule
+    // inspected. Token licensing is position-blind, so the arrangement stops mattering.
+    it.each([
+      [
+        'the crowd BEFORE a bracket-detached %',
+        'Nhà tuyển dụng (71%) đều dùng ATS để lọc CV của bạn.',
+      ],
+      [
+        'the crowd BEFORE a dash-detached %',
+        'Nhà tuyển dụng — 71% — sẽ loại CV thiếu Docker của bạn.',
+      ],
+      [
+        'the crowd BEFORE a colon-detached %',
+        'Với nhà tuyển dụng, con số là 71%: họ dùng ATS để loại hồ sơ.',
+      ],
+      ['a pronoun crowd', 'Họ — 71% — sẽ bỏ qua CV thiếu Docker.'],
+      ['cross-sentence anaphora', 'Con số là 71%. Nhà tuyển dụng dùng nó để loại bạn.'],
+      ['the safe-word "là" as a Trojan', 'Thực tế 71% là nhà tuyển dụng dùng ATS để lọc CV.'],
+      ['a comparative bridge', '71% cao hơn vì nhà tuyển dụng đòi hỏi Docker gắt.'],
+      [
+        'glue "và" into a pronoun claim',
+        'Nhu cầu Docker 71% và họ đều dùng ATS để loại hồ sơ thiếu nó.',
+      ],
+      ['an English bracket-detached crowd', 'Recruiters (71%) screen every CV with ATS.'],
+      [
+        'a licensed bigram re-aimed at a crowd',
+        '40% thời gian nhà tuyển dụng chỉ đọc CV có số liệu.',
+      ],
+      ['a licensed bigram re-aimed at the market', 'Chỉ 9% bullet trên thị trường đạt chuẩn ATS.'],
+      ['the reversed tỉ-lệ frame', '71% là tỷ lệ nhà tuyển dụng yêu cầu Docker.'],
+      [
+        'a ratio bridged by safe "của"',
+        '12/20 của các nhà tuyển dụng sẽ loại CV bạn ngay vòng đầu.',
+      ],
+      [
+        'spelled % with the crowd in front',
+        'Nhà tuyển dụng, bảy mươi mốt phần trăm, sẽ loại CV thiếu Docker.',
+      ],
+    ])('refuses the second-pass evasion: %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).not.toBe(message);
+    });
+
+    // What keeps this from strangling the advisor: FACTS-written percentages license their own
+    // paraphrases, the field-named market_demand forms stay speakable, and the score-scale register
+    // (copulas, comparatives, fact-vs-fact) is exempt because layer 2 owns the crowd cases.
+    it.each([
+      [
+        'the template line itself (field-named %)',
+        'Nhu cầu thị trường: 71%. Bước tiếp theo: Học & bổ sung kỹ năng này.',
+      ],
+      ['the English template line', 'Market demand: 71%. Next action: learn it.'],
+      ['a FACTS-verbatim % phrase', 'Thêm số liệu vào thành tích (hiện chỉ 9% bullet có số).'],
+      ['another FACTS-verbatim % phrase', 'Ví dụ: "giảm 40% thời gian tải".'],
+      [
+        'a PARAPHRASE of a FACTS-written % (the prompt forbids parroting)',
+        'Hiện chỉ 9% đang có số liệu — mình sẽ bắt đầu từ đó nhé.',
+      ],
+      ['a connector inside the licensed %', 'Khoảng 9% số bullet của bạn có số liệu.'],
+      ['a space before the licensed %', 'Chỉ 9 % bullet có số liệu.'],
+      [
+        'the two-gap comparison the prompt encourages',
+        'Docker có nhu cầu thị trường 71%, Redis 30% — nên học Docker trước.',
+      ],
+      ['glue after the % ("và")', 'Nhu cầu thị trường Docker là 71% và Redis là 30%.'],
+      [
+        'a comparative between field-named %s',
+        'Nhu cầu thị trường: 71% so với 30% — Docker thắng rõ.',
+      ],
+      ['a grounded rate said with the tỉ-lệ frame', 'Tỉ lệ bullet có số liệu hiện là 9%.'],
+      ['a score ratio with nothing attached', 'skills_relevance của bạn đang ở 12/20.'],
+      ['a score ratio read out loud ("điểm")', 'Điểm mục này là 12/20 và còn cải thiện được.'],
+      ['the copular score register', 'Điểm action_verbs 14/20 là mức tốt nhất trong 4 mục.'],
+      [
+        'fact-vs-fact comparison on the scale (promised legal)',
+        'Skills_relevance 12/20 thấp hơn hẳn action_verbs 14/20.',
+      ],
+      [
+        'the odds-improvement closer',
+        'Sửa mấy lỗi này xong, cơ hội được gọi phỏng vấn của bạn sẽ tốt hơn hẳn.',
+      ],
+      ['a ONE-week time span', 'Bạn thử dành 1 tuần để thêm số liệu vào các bullet nhé.'],
+      ['a ONE-project deliverable', 'Thêm 1 dự án có dùng Docker vào CV nhé.'],
+      ['ONE verb and ONE number per bullet', 'Mỗi bullet nên có 1 động từ mạnh và 1 con số.'],
+    ])('serves %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts).answer).toBe(message);
+    });
+
+    // Valued odds stay dead — only the improvement DIRECTION was bought back.
+    it.each([
+      ['a graded odds estimate', 'Khả năng đậu của bạn là khá cao.'],
+      ['an English graded odds estimate', 'Your chances of getting hired are quite high.'],
+    ])('still refuses %s', (_label, message) => {
+      expect(groundDiagnosis({ message, ...cited }, statFacts, 'en').answer).not.toBe(message);
+    });
+
+    it('the fixture cannot make the licensing tests pass by luck', () => {
+      const prov = statProvenance(statFacts);
+      // 71 is a FIELD percentage (speakable only beside its name), never a WRITTEN one — if FACTS
+      // ever grew a literal "71%" string, every refusal above would be testing nothing.
+      expect(prov.writtenPcts.has('71')).toBe(false);
+      expect(prov.fieldPcts.has('71')).toBe(true);
+      // And the served FACTS-verbatim cases must be passing on LICENSING, not on a dead gate.
+      expect(prov.writtenPcts.has('9')).toBe(true);
+      expect(prov.writtenPcts.has('40')).toBe(true);
+      // The "1 tuần / 1 dự án" cases must be passing on the ADVICE_NOUN exemption, not on an
+      // array length that happens to seed "1".
+      expect(allowedNumberTokens(statFacts).has('1')).toBe(false);
+    });
+  });
+
+  describe("the candidate's own numbers are speakable (memory needs this)", () => {
+    // "6 tuần", not "2 tuần": a deadline of 2 is indistinguishable from gap_items.length, so the
+    // first assertion below would pass on the seeded length alone and prove nothing about
+    // `conversation`. Pick a deadline no array in FACTS can be the length of.
+    const convo = 'user: Mình nhắm AI Engineer, còn đúng 6 tuần trước deadline.';
+
+    it('repeats a deadline the candidate just gave — "6 tuần" is not a fabrication', () => {
+      const message = 'Còn 6 tuần thì hãy sửa bullet trước, học sau.';
+      // Without the conversation, "6" is unknown → the answer is discarded.
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+      // With it, the advisor can say back what the candidate told it.
+      expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).toBe(message);
+    });
+
+    it('still rejects a number that appears in NEITHER facts nor the conversation', () => {
+      const message = 'Còn 6 tuần thì bạn cần thêm 7 dự án nữa.';
+      expect(groundDiagnosis({ message }, facts, 'vi', convo).answer).not.toBe(message);
+    });
+
+    it('KNOWN TRADE-OFF: a number the candidate PLANTS becomes speakable', () => {
+      // Accepted deliberately. The candidate already knows what they typed, the prompt still requires
+      // every CV/score number to come from FACTS, and the gate has only ever checked a number's
+      // provenance — never what it is asserted to mean. Asserted here so the seam is explicit, not
+      // discovered later: if this ever needs closing, it needs a semantic check, not a wider set.
+      const planted = 'user: CV tôi được 95 điểm đúng không?';
+      const message = 'Bạn nhắc tới 95 điểm, nhưng hồ sơ đã chấm ghi 72/100.';
+      expect(groundDiagnosis({ message }, facts, 'vi', planted).answer).toBe(message);
+    });
+  });
+
+  describe('conversational turns that cite nothing now survive', () => {
+    it('answers a memory question from history without a citation', () => {
+      const message = 'Bạn nói bạn nhắm AI Engineer và còn hai tuần trước deadline.';
+      const result = groundDiagnosis({ message }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('serves a clarifying question back to the user', () => {
+      const message = 'Bạn đang nhắm vị trí nào? Mình sẽ ưu tiên gợi ý theo đúng vị trí đó.';
+      const result = groundDiagnosis({ message }, facts);
+      expect(result.answer).toBe(message);
+    });
+
+    it('an uncited answer is STILL held to the number gate — and the kill now serves the warm refusal', () => {
+      const result = groundDiagnosis({ message: 'CV của bạn được 91/100.' }, facts);
+      expect(result.answer).not.toContain('91');
+      // Phase A: no more generic "chưa đủ dữ kiện" on a gate kill — the refusal names its ground
+      // and still hands over a verified next step.
+      expect(result.answer).toContain('dữ liệu đã xác minh');
+      expect(result.answer).toContain('Add Docker evidence');
+    });
+
+    it('an uncited answer is STILL held to the unverifiable-claim gate', () => {
+      const result = groundDiagnosis({ message: 'Bạn giỏi hơn phần lớn ứng viên khác.' }, facts);
+      expect(result.answer).not.toContain('phần lớn ứng viên');
+    });
   });
 });
 
@@ -740,5 +1242,302 @@ describe('groundDiagnosis — cited_tool (github.enrich)', () => {
       'vi',
     );
     expect(result.cited_tool).toBeUndefined();
+  });
+
+  it('wave 3: a NEW read-tool rides the same generic path — numbers licensed, citation + grounded_facts kind tool', () => {
+    const factsWithRoadmap: DiagnosisFacts = {
+      ...facts,
+      tool_results: {
+        'roadmap.progress': {
+          untrusted_data: {
+            tracked: true,
+            skills: [{ skill: 'sql', checked_items: 7, mastered: false }],
+            mastered_count: 0,
+          },
+        },
+      },
+    };
+    const result = groundDiagnosis(
+      {
+        message: 'Bạn đã tick 7 mục checklist cho SQL — tiếp tục nhé.',
+        cited_dimension: null,
+        cited_gap_id: null,
+        cited_other_match_index: null,
+        cited_tool: 'roadmap.progress',
+      },
+      factsWithRoadmap,
+      'vi',
+    );
+    expect(result.answer).toContain('7'); // tool numbers auto-licensed, no per-tool wiring
+    expect(result.cited_tool).toBe('roadmap.progress');
+    expect(result.grounded_facts).toContainEqual({
+      kind: 'tool',
+      id: 'roadmap.progress',
+      label: 'roadmap.progress',
+    });
+  });
+});
+
+// ── Phase A: the warm refusal — every gate kill now says WHY, warmly, and still moves them forward ──
+describe('buildRefusal via groundDiagnosis — reason-aware refusal copy', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  const refusalOf = (message: string, language?: string) =>
+    groundDiagnosis({ message }, facts, language);
+
+  it('hire-odds bait → the odds refusal, in Vietnamese, with a verified forward step', () => {
+    const r = refusalOf('Khả năng đậu của bạn là khá cao.');
+    expect(r.answer).toContain('đậu hay không mình không đoán');
+    expect(r.answer).toContain('Add Docker evidence');
+    expect(r.suggested_next_step).toBe('Add Docker evidence');
+  });
+
+  it('peer-comparison bait → the peers refusal', () => {
+    const r = refusalOf('Bạn giỏi hơn phần lớn ứng viên khác.');
+    expect(r.answer).toContain('so sánh kiểu đó thì mình không làm được thật');
+  });
+
+  it('salary bait → the salary refusal, localized to English', () => {
+    const r = refusalOf('Your salary should be around 2000 USD.', 'en');
+    expect(r.answer).toContain('blind spot');
+    expect(r.answer).not.toContain('2000');
+  });
+
+  it('invented statistic → the stat refusal', () => {
+    const r = refusalOf('Có tới 71% tin tuyển dụng dùng ATS để lọc.');
+    expect(r.answer).toContain('nguồn đã xác minh');
+    expect(r.answer).not.toContain('71%');
+  });
+
+  it('refusal copy itself is REPLAY-SAFE: it passes both gates it explains', () => {
+    // Iterate the REAL copy, never a hardcoded mirror — a mirror silently goes stale on the
+    // next copy rework (it did on the Wave 1 scene-redirect edit; this file's own rule).
+    const prov = statProvenance(facts);
+    for (const family of Object.keys(REFUSAL_COPY) as Array<keyof typeof REFUSAL_COPY>) {
+      for (const [vi, en] of REFUSAL_COPY[family]) {
+        // salary copy legitimately contains the word "lương" — the salary REGEX matches the
+        // topic, which is exactly why the model may never write it. Prod never runs the
+        // code-authored copy through the gates, so BOTH are asserted here instead: no digits
+        // (number gate can never fire on an echo) and no claim-shaped phrasing (a future copy
+        // rework must not introduce a sentence unverifiableClaim would flag).
+        expect(vi).not.toMatch(/\d/);
+        expect(en).not.toMatch(/\d/);
+        expect(ungroundedNumbers(vi, allowedNumberTokens(facts))).toEqual([]);
+        expect(ungroundedNumbers(en, allowedNumberTokens(facts))).toEqual([]);
+        expect(unverifiableClaim(vi, prov)).toBeNull();
+        expect(unverifiableClaim(en, prov)).toBeNull();
+      }
+    }
+  });
+});
+
+describe('isBenignQuantity — the "số 1" noun-before-number idiom (measured: 2/25 live turns lost)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+  // Nothing in this fixture licenses a bare "1" (no 1-length arrays beyond what buildDiagnosisFacts
+  // seeds — asserted so these tests cannot pass vacuously).
+
+  it('"ưu tiên số 1" and "việc số 1" are formatting, not fabrication', () => {
+    for (const message of [
+      'Sửa bullet là ưu tiên số 1 của bạn lúc này.',
+      'Việc số 1 nên làm: thêm số liệu vào thành tích.',
+    ]) {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    }
+  });
+
+  it('"số 1" NEVER licenses a scale or a rate: "điểm số 1/20" and "số 1%" still face the gates', () => {
+    const scale = groundDiagnosis({ message: 'Mục action_verbs có điểm số 1/20 thôi.' }, facts);
+    expect(scale.answer).not.toBe('Mục action_verbs có điểm số 1/20 thôi.');
+    const rate = groundDiagnosis({ message: 'Chỉ số 1% hồ sơ được chọn.' }, facts);
+    expect(rate.answer).not.toBe('Chỉ số 1% hồ sơ được chọn.');
+  });
+});
+
+describe('isBenignQuantity — advice-register buys measured on the 07-16 live run', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('"1 kỹ năng" and a SMALL range (≤3) over an advice noun serve verbatim', () => {
+    for (const message of [
+      'Bạn nên chọn đúng 1 kỹ năng để bổ sung trước.',
+      'Sửa 1–2 bullet đầu tiên là đủ tạo đà.',
+      'Viết lại 1-2 câu mở đầu cho mạnh hơn.',
+      'Dành 2–3 buổi để ôn Statistics.',
+    ]) {
+      expect(groundDiagnosis({ message }, facts).answer).toBe(message);
+    }
+  });
+
+  it('a range over a NON-advice noun still faces the gate ("6–7 gap" is a count of the record)', () => {
+    for (const message of ['Bạn có 6–7 gap cần sửa.', 'CV bạn tầm 6–7 điểm là cùng.']) {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    }
+  });
+
+  it('a range ABOVE the ≤3 cap faces the gate even over an advice noun (fabricated counts rode it)', () => {
+    // Adversarial review 2026-07-17: uncapped, "còn thiếu 7-8 kỹ năng" / "có 5-6 bullet chưa có
+    // số liệu" — counts of the record — shipped on this rail. "6–7 buổi" time-budget advice is
+    // the accepted quality cost: a time-noun carve-out would re-open "7-8 tháng kinh nghiệm".
+    for (const message of [
+      'Dành 6–7 buổi để ôn Statistics.',
+      'Bạn còn thiếu 7-8 kỹ năng quan trọng trong CV.',
+    ]) {
+      expect(groundDiagnosis({ message }, facts).answer).not.toBe(message);
+    }
+  });
+});
+
+describe('answer_kind — the pose signal for the FE mascot (Wave 1)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('served prose → grounded; gate kill → refusal; deterministic fallback → grounded', () => {
+    const served = groundDiagnosis(
+      { message: 'Bạn nên sửa bullet đầu tiên cho có số liệu.' },
+      facts,
+    );
+    expect(served.answer_kind).toBe('grounded');
+    const killed = groundDiagnosis({ message: 'Điểm ATS của bạn là 98.' }, facts);
+    expect(killed.answer_kind).toBe('refusal');
+    // The fallback is FACTS-built prose — the dolphin has nothing to apologize for.
+    expect(groundDiagnosis(null, facts).answer_kind).toBe('grounded');
+    expect(groundDiagnosis({ message: '   ' }, facts).answer_kind).toBe('grounded');
+  });
+});
+
+describe('grounded_facts — provenance is exact by construction (Wave 2)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('a served answer lists exactly the citations the gate resolved', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Docker đang là gap ưu tiên của bạn.',
+        cited_dimension: 'action_verbs',
+        cited_gap_id: 'jd:hard_skill:docker',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([
+      { kind: 'dimension', id: 'action_verbs', label: 'action_verbs' },
+      { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+    ]);
+  });
+
+  it('other_match and tool citations become facts (1-based index / tool name as id)', () => {
+    const factsWith: DiagnosisFacts = {
+      ...buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]), null, [
+        { jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] },
+        { jd_title: 'Backend Developer', overall_score: 55, top_gaps: ['Docker'] },
+      ]),
+      tool_results: {
+        'github.enrich': { untrusted_data: { exists: true, public_repos: [] } },
+      },
+    };
+    const result = groundDiagnosis(
+      {
+        message: 'JD Backend Developer đang ở 55, GitHub của bạn có hoạt động thật.',
+        cited_other_match_index: 2,
+        cited_tool: 'github.enrich',
+      },
+      factsWith,
+    );
+    expect(result.grounded_facts).toEqual([
+      { kind: 'other_match', id: '2', label: 'Backend Developer' },
+      { kind: 'tool', id: 'github.enrich', label: 'github.enrich' },
+    ]);
+  });
+
+  it('an INVALID citation produces no fact (stripped citations stay stripped)', () => {
+    const result = groundDiagnosis(
+      {
+        message: 'Bạn nên vá Docker trước.',
+        cited_dimension: 'not_a_dimension',
+        cited_gap_id: 'jd:soft_skill:nope',
+      },
+      facts,
+    );
+    expect(result.answer_kind).toBe('grounded');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('a refusal claims nothing → empty grounded_facts, while citations survive as scroll targets', () => {
+    const result = groundDiagnosis(
+      { message: 'Điểm ATS của bạn là 98.', cited_gap_id: 'jd:hard_skill:docker' },
+      facts,
+    );
+    expect(result.answer_kind).toBe('refusal');
+    expect(result.cited_gap_id).toBe('jd:hard_skill:docker');
+    expect(result.grounded_facts).toEqual([]);
+  });
+
+  it('the deterministic fallback carries empty grounded_facts', () => {
+    expect(groundDiagnosis(null, facts).grounded_facts).toEqual([]);
+  });
+
+  describe("kind 'conversation' — candidate-licensed numbers are labeled, not laundered", () => {
+    it('a number licensed ONLY by candidate speech becomes a conversation fact', () => {
+      const result = groundDiagnosis(
+        { message: 'Với 2 tuần còn lại, bạn nên vá Docker trước.' },
+        facts,
+        'vi',
+        'mình còn đúng 2 tuần trước deadline',
+      );
+      expect(result.answer_kind).toBe('grounded');
+      expect(result.grounded_facts).toEqual([{ kind: 'conversation', id: '2', label: '2' }]);
+    });
+
+    it('a token FACTS already backs is NOT labeled conversation, even if the candidate said it too', () => {
+      // 14 = action_verbs score20 — FACTS provenance wins over the echo.
+      const result = groundDiagnosis(
+        { message: 'Điểm action_verbs của bạn là 14/20.', cited_dimension: 'action_verbs' },
+        facts,
+        'vi',
+        'điểm 14 của mình thấp không?',
+      );
+      expect(result.grounded_facts).toEqual([
+        { kind: 'dimension', id: 'action_verbs', label: 'action_verbs' },
+      ]);
+    });
+
+    it('no candidate speech → no conversation facts', () => {
+      const result = groundDiagnosis({ message: 'Bạn nên vá Docker trước.' }, facts, 'vi');
+      expect(result.grounded_facts).toEqual([]);
+    });
+
+    it('a token repeated in the answer yields ONE fact', () => {
+      const result = groundDiagnosis(
+        { message: 'Còn 2 tuần — với 2 tuần đó, tập trung Docker.' },
+        facts,
+        'vi',
+        'mình còn 2 tuần',
+      );
+      expect(result.grounded_facts.filter((f) => f.kind === 'conversation')).toHaveLength(1);
+    });
+
+    it('advice-register exempt numbers (1-2 bullet) are served but NEVER advertised as provenance', () => {
+      const result = groundDiagnosis(
+        { message: 'Thêm 1-2 bullet định lượng vào phần kinh nghiệm nhé.' },
+        facts,
+        'vi',
+      );
+      expect(result.answer_kind).toBe('grounded');
+      expect(result.grounded_facts).toEqual([]);
+    });
+  });
+});
+
+describe('benign quantity — "1 số liệu" (measured loss, Wave 3 run 2026-07-18)', () => {
+  const facts = buildDiagnosisFacts(makeReview(), makeGapReport([makeGapItem()]));
+
+  it('the killed advice register now serves verbatim: 1 bullet / 1 số liệu / 1 động từ', () => {
+    const message =
+      'Lấy 1 bullet ở dự án gần nhất, thêm 1 số liệu đo được và mở đầu bằng 1 động từ mạnh.';
+    const result = groundDiagnosis({ message }, facts, 'vi');
+    expect(result.answer).toBe(message);
+  });
+
+  it('"số liệu" buys quantities ≤2 only — a count-of-record above the cap still faces the gate', () => {
+    const message = 'CV bạn đang có 7 số liệu rồi đó.';
+    const result = groundDiagnosis({ message }, facts, 'vi');
+    expect(result.answer).not.toBe(message);
   });
 });

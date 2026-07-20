@@ -134,6 +134,17 @@ export const configValidationSchema = Joi.object({
   // CV-diagnosis advisor (diagnosis-chat). Optional override; empty/unset → provider default
   // (the service reads `process.env.DIAGNOSIS_CHAT_MODEL || undefined`).
   DIAGNOSIS_CHAT_MODEL: Joi.string().allow('').default(''),
+  // Wave 3 (3D) dormant routing knob: cheaper model for LIGHT intents (compare_jd) only.
+  // Unset → same model as DIAGNOSIS_CHAT_MODEL. Flipping this REQUIRES re-running the full
+  // fabrication corpus + one live run (the gate makes down-tier safe, not free).
+  DIAGNOSIS_CHAT_MODEL_LIGHT: Joi.string().allow('').default(''),
+
+  // CV-writing judge (calibration only, src/calibration/cv-writing-judge.ts) — scores quality
+  // dimensions of the CV-builder-chat advisor's replies (NOT fabrication; that stays a
+  // deterministic gate counter). MUST differ from the advisor model (CV_BUILDER_CHAT_MODEL, or
+  // the provider default if unset) — a judge grading its own model's prose self-inflates scores.
+  // resolveCvJudgeModel() warns (does not throw) if they match. Empty/unset → falls back to 'gpt-4o'.
+  CV_WRITING_JUDGE_MODEL: Joi.string().allow('').default(''),
 
   // Scanned-PDF OCR fallback (input-quality lane). When a PDF's text layer is too thin,
   // rasterize the first N pages with mupdf and OCR them with Tesseract; keep OCR text only

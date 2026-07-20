@@ -13,6 +13,8 @@ import {
 } from './types';
 import { ResourceValidateAdapter } from './adapters/resource-validate.adapter';
 import { GithubEnrichAdapter } from './adapters/github-enrich.adapter';
+import { RoadmapProgressAdapter } from './adapters/roadmap-progress.adapter';
+import { InterviewHistoryAdapter } from './adapters/interview-history.adapter';
 
 const TIMEOUT_MS = 10_000;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1h
@@ -27,8 +29,8 @@ interface CircuitState {
 
 /**
  * Allow-listed / timeout-bounded / rate-limited / circuit-broken / audited entry point for every
- * LLM-callable tool (#22 §5). Only 2 tools exist today — adapters are injected concretely rather
- * than via a generic provider-token array (YAGNI: a 3rd tool adds one constructor param).
+ * LLM-callable tool (#22 §5). Only 4 tools exist today — adapters are injected concretely rather
+ * than via a generic provider-token array (YAGNI: the next tool adds one constructor param).
  */
 @Injectable()
 export class ToolRegistry {
@@ -40,10 +42,14 @@ export class ToolRegistry {
     private readonly tracing: TracingService,
     resourceValidate: ResourceValidateAdapter,
     githubEnrich: GithubEnrichAdapter,
+    roadmapProgress: RoadmapProgressAdapter,
+    interviewHistory: InterviewHistoryAdapter,
   ) {
     this.adapters = new Map<string, ToolAdapter<unknown, unknown>>([
       [resourceValidate.name, resourceValidate as ToolAdapter<unknown, unknown>],
       [githubEnrich.name, githubEnrich as ToolAdapter<unknown, unknown>],
+      [roadmapProgress.name, roadmapProgress as ToolAdapter<unknown, unknown>],
+      [interviewHistory.name, interviewHistory as ToolAdapter<unknown, unknown>],
     ]);
   }
 

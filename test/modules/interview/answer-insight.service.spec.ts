@@ -54,6 +54,39 @@ function build(
   };
 }
 
+describe('AnswerInsightService.judge — speech delivery never reaches the judge', () => {
+  // This judge's `off_topic` feeds `reconcileAnswerScore`, so its grounding can move the score.
+  // Filler counts are ASR-derived and ASR word error is highest for accented and non-native
+  // speakers, so grounding a score-bearing judgement on them taxes our candidates for the
+  // transcriber's failure to understand them. `rambling_risk` already covers drift — the only
+  // thing this prompt actually asks the signals to support.
+  it('grounds the model on no filler count, even for an answer full of fillers', async () => {
+    const { service, prompts } = build();
+    const rambling = analyzeAnswerSignals({
+      answer: 'Um, so basically, uh, I mean, we, um, used a Redis cache, you know.',
+      language: 'en',
+    });
+    // the answer really is full of fillers — this guard is about what we SEND, not what L1 saw.
+    expect(rambling.filler.count).toBeGreaterThan(0);
+
+    await service.judge({
+      answer: 'Um, so basically, uh, I mean, we, um, used a Redis cache, you know.',
+      question: 'Tell me about a performance win.',
+      target_dimension: 'communication',
+      language: 'en',
+      signals: rambling,
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    const summary = JSON.parse(vars.signals_summary as string) as Record<string, unknown>;
+    expect(Object.keys(summary).filter((k) => /filler|wpm|speaking_rate|pause/i.test(k))).toEqual(
+      [],
+    );
+    // the grounding that legitimately supports this prompt's `relevance` rule survives.
+    expect(summary).toHaveProperty('rambling_risk');
+  });
+});
+
 describe('AnswerInsightService.judge — happy path', () => {
   it('returns a grounded insight from a valid LLM output', async () => {
     const { service } = build();

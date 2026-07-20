@@ -1,5 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
-import { DiagnosisChatService } from './diagnosis-chat.service';
+import { DiagnosisChatService, modelForIntent } from './diagnosis-chat.service';
 import { DiagnosisFacts } from './diagnosis-grounding';
 
 const FACTS: DiagnosisFacts = {
@@ -26,7 +26,13 @@ function makeService(
 ): DiagnosisChatService {
   const prompts = {
     render: jest.fn().mockReturnValue('rendered-user-prompt'),
-    get: jest.fn().mockReturnValue({ meta: { system: 'system-prompt' } }),
+    // Code-aware: the service reads the RULES from the chat prompt's frontmatter and the
+    // PERSONA from the character sheet's body (Wave 1) — two separate layers.
+    get: jest.fn((code: string) =>
+      code === 'mascot_character_v1'
+        ? { body: 'Nhân cách cá heo SkillBridge — Thẳng mà ấm.', meta: {} }
+        : { body: '', meta: { system: 'system-prompt' } },
+    ),
   };
   // positional construction (llm, prompts, registry) — all mocked.
   return new DiagnosisChatService(
@@ -53,8 +59,9 @@ describe('DiagnosisChatService.turn', () => {
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'where am I weakest?', facts: FACTS });
-    expect(result.answer).toContain('skills_relevance');
-    expect(result.answer).toContain('12/20');
+    // The fabricated "98" kills the prose → Phase A refusal: warm copy + the cited gap as the
+    // verified hook (gap outranks dimension), never the old fact template.
+    expect(result.answer).toContain('dữ liệu đã xác minh');
     expect(result.answer).toContain('Docker');
     expect(result.answer).not.toContain('98');
     expect(result.answer).not.toContain('Kubernetes');
@@ -97,8 +104,184 @@ describe('DiagnosisChatService.turn', () => {
     });
     const service = makeService(complete);
     const result = await service.turn({ question: 'q', facts: FACTS });
-    expect(result.answer).toContain('Add Docker evidence');
+    // The invented citation is dropped; the prose itself is still served (Advisor v3).
     expect(result.cited_dimension).toBeUndefined();
+    expect(result.answer).toBe('ok');
+  });
+});
+
+describe('DiagnosisChatService.turn — conversation brain (Phase B)', () => {
+  it('a greeting is answered by CODE — the LLM is never called', async () => {
+    const complete = jest.fn();
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn', facts: FACTS });
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.answer).toContain('chẩn đoán CV');
+    expect(result.suggested_next_step).toBeNull();
+  });
+
+  it('a greeting carrying a real question is NOT canned — it reaches the LLM', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn, CV mình sao rồi', facts: FACTS });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result.answer).toBe('ok');
+  });
+
+  it('system prompt = base rules + character sheet persona, in that order (Wave 1)', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    await service.turn({ question: 'nên làm gì trước?', facts: FACTS });
+    const system = (complete.mock.calls[0][0] as Array<{ content: string }>)[0].content;
+    expect(system).toContain('system-prompt');
+    expect(system).toContain('Thẳng mà ấm');
+    expect(system.indexOf('system-prompt')).toBeLessThan(system.indexOf('Thẳng mà ấm'));
+  });
+
+  it('canned greeting carries answer_kind=canned; a grounded turn carries grounded (Wave 1)', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'Bạn nên sửa bullet cho có số liệu trước.' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const service = makeService(complete);
+    const canned = await service.turn({ question: 'chào bạn', facts: FACTS });
+    expect(canned.answer_kind).toBe('canned');
+    expect(complete).not.toHaveBeenCalled();
+    const grounded = await service.turn({ question: 'nên làm gì trước?', facts: FACTS });
+    expect(grounded.answer_kind).toBe('grounded');
+  });
+
+  it('threads the context block into the prompt: a role stated 30 messages ago is still Known, and no ask is issued for it', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const prompts = {
+      render: jest.fn().mockReturnValue('rendered-user-prompt'),
+      get: jest.fn().mockReturnValue({ body: '', meta: { system: 'system-prompt' } }),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    const history = [
+      { role: 'user' as const, content: 'Mình nhắm vị trí AI Engineer nhé' },
+      ...Array.from({ length: 30 }, (_, i) => ({
+        role: 'assistant' as const,
+        content: `trả lời ${i}`,
+      })),
+    ];
+    await service.turn({ question: 'giờ nên sửa gì trước?', facts: FACTS, history });
+    const vars = prompts.render.mock.calls[0][1] as Record<string, string>;
+    expect(vars.context).toContain('Target role: AI Engineer');
+    expect(vars.context).not.toContain('asking which role');
+    // The prompt transcript window stays bounded even though the state window is wider.
+    expect(vars.history.split('\n').length).toBeLessThanOrEqual(10);
+  });
+
+  it('with no role stated anywhere, an advice question carries the ask-role directive', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+    const prompts = {
+      render: jest.fn().mockReturnValue('rendered-user-prompt'),
+      get: jest.fn().mockReturnValue({ body: '', meta: { system: 'system-prompt' } }),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    const result = await service.turn({
+      question: 'mình không biết bắt đầu từ đâu luôn',
+      facts: FACTS,
+    });
+    const vars = prompts.render.mock.calls[0][1] as Record<string, string>;
+    expect(vars.context).toContain('ONE short question asking which role');
+    // The model's answer ('ok') dropped the ordered question → the backstop appends it.
+    expect(result.answer).toContain('nhắm vị trí nào');
+    expect(result.answer.includes('?')).toBe(true);
+  });
+});
+
+describe('DiagnosisChatService.turn — known_state mirror (Wave 2)', () => {
+  const HISTORY = [
+    { role: 'user' as const, content: 'Mình nhắm vị trí Data Analyst nhé' },
+    { role: 'user' as const, content: 'mình còn đúng 2 tuần nữa' },
+    { role: 'assistant' as const, content: 'Docker đang là gap ưu tiên của bạn.' },
+  ];
+  const llmOk = () =>
+    jest.fn().mockResolvedValue({
+      parsedJson: { message: 'ok' },
+      text: '',
+      tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      latencyMs: 1,
+      modelCode: 'test',
+    });
+
+  it('a grounded turn mirrors the deterministic state back — role, deadline, covered gaps', async () => {
+    const service = makeService(llmOk());
+    const result = await service.turn({
+      question: 'giờ nên làm gì?',
+      facts: FACTS,
+      history: HISTORY,
+    });
+    expect(result.known_state).toEqual({
+      target_role: 'Data Analyst',
+      deadline: '2 tuần nữa',
+      covered_gaps: ['Docker'],
+    });
+  });
+
+  it('a canned turn carries the same mirror (and empty grounded_facts)', async () => {
+    const complete = jest.fn();
+    const service = makeService(complete);
+    const result = await service.turn({ question: 'chào bạn', facts: FACTS, history: HISTORY });
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.answer_kind).toBe('canned');
+    expect(result.grounded_facts).toEqual([]);
+    expect(result.known_state?.target_role).toBe('Data Analyst');
+  });
+
+  it('the LLM-failure fallback still mirrors state — the FE card never blanks on a bad turn', async () => {
+    const complete = jest.fn().mockRejectedValue(new Error('LLM down'));
+    const service = makeService(complete);
+    const result = await service.turn({
+      question: 'giờ nên làm gì?',
+      facts: FACTS,
+      history: HISTORY,
+    });
+    expect(result.known_state?.target_role).toBe('Data Analyst');
+    expect(result.known_state?.deadline).toBe('2 tuần nữa');
+  });
+
+  it('nothing known → nulls and empty list, never a missing field', async () => {
+    const service = makeService(llmOk());
+    const result = await service.turn({ question: 'giờ nên làm gì?', facts: FACTS });
+    expect(result.known_state).toEqual({ target_role: null, deadline: null, covered_gaps: [] });
   });
 });
 
@@ -189,5 +372,92 @@ describe('DiagnosisChatService.turn — tool loop', () => {
     await service.turn({ question: 'why is my score low?', facts: FACTS, userId: 'u1' });
     expect(invoke).not.toHaveBeenCalled();
     expect(complete).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Wave 3 (3C): per-intent facts trim — prompt and gate see the SAME context', () => {
+  const FACTS_MATCHES: DiagnosisFacts = {
+    ...FACTS,
+    other_matches: [{ jd_title: 'Frontend Developer', overall_score: 72, top_gaps: ['React'] }],
+  };
+
+  function makeCapturingService(complete: jest.Mock) {
+    const render = jest.fn().mockReturnValue('rendered-user-prompt');
+    const prompts = {
+      render,
+      get: jest.fn((code: string) =>
+        code === 'mascot_character_v1'
+          ? { body: 'Nhân cách cá heo.', meta: {} }
+          : { body: '', meta: { system: 'system-prompt' } },
+      ),
+    };
+    const service = new DiagnosisChatService(
+      { complete } as never,
+      prompts as never,
+      { invoke: jest.fn() } as never,
+    );
+    return { service, render };
+  }
+
+  it('an advice turn renders FACTS without other_matches — and their numbers lose their licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: { message: 'JD Frontend kia bạn được 72 điểm đó.' },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'mình nên sửa gì trước?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toBeUndefined();
+    expect(result.answer).not.toContain('72'); // licensing shrank with the context — fail-closed
+  });
+
+  it('a compare_jd turn keeps other_matches in both the prompt and the licence', async () => {
+    const complete = jest.fn().mockResolvedValue({
+      parsedJson: {
+        message: 'Frontend Developer đang là lựa chọn hợp hơn cho bạn.',
+        cited_other_match_index: 1,
+      },
+      text: '',
+    });
+    const { service, render } = makeCapturingService(complete);
+    const result = await service.turn({
+      question: 'JD nào hợp mình nhất?',
+      facts: FACTS_MATCHES,
+    });
+    const factsArg = JSON.parse((render.mock.calls[0][1] as { facts: string }).facts);
+    expect(factsArg.other_matches).toHaveLength(1);
+    expect(result.answer).toContain('Frontend Developer');
+  });
+});
+
+describe('Wave 3 (3D): modelForIntent — dormant per-intent routing knob', () => {
+  const OLD_ENV = { ...process.env };
+  afterEach(() => {
+    process.env.DIAGNOSIS_CHAT_MODEL = OLD_ENV.DIAGNOSIS_CHAT_MODEL;
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = OLD_ENV.DIAGNOSIS_CHAT_MODEL_LIGHT;
+  });
+
+  it('unset env → undefined for every intent (provider default, exactly as before the knob)', () => {
+    delete process.env.DIAGNOSIS_CHAT_MODEL;
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBeUndefined();
+    expect(modelForIntent('compare_jd')).toBeUndefined();
+  });
+
+  it('DIAGNOSIS_CHAT_MODEL alone routes ALL intents (light falls back to it)', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    delete process.env.DIAGNOSIS_CHAT_MODEL_LIGHT;
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-5.4-mini');
+  });
+
+  it('_LIGHT set → ONLY the light intents down-tier; advice keeps the main model', () => {
+    process.env.DIAGNOSIS_CHAT_MODEL = 'gpt-5.4-mini';
+    process.env.DIAGNOSIS_CHAT_MODEL_LIGHT = 'gpt-4o-mini';
+    expect(modelForIntent('advice')).toBe('gpt-5.4-mini');
+    expect(modelForIntent('compare_jd')).toBe('gpt-4o-mini');
   });
 });

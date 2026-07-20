@@ -1,9 +1,23 @@
 import { analyzeAnswerSignals, AnswerSignals, Language } from './answer-analyzer';
 import { AnswerInsight, groundAnswerInsight } from './answer-insight';
-import { decideTurn, DepthSignal, InterviewPhase, TurnAction } from './interview-agenda';
+import {
+  decideTurn,
+  DepthSignal,
+  drillLadderRung,
+  DrillLadderRung,
+  filterRecognizedConcepts,
+  InterviewPhase,
+  pickDrillAnchor,
+  TurnAction,
+} from './interview-agenda';
 import { InterviewGapItem, InterviewGapWeaknessType } from './interview-gap';
 import { AnswerGapContext, deriveInterviewGaps } from './interview-gap-derive';
-import { aggregateInterviewScore, AnswerScore } from './interview-scoring';
+import {
+  aggregateInterviewScore,
+  AnswerScore,
+  reconcileAnswerScore,
+  reconcileDepthSignal,
+} from './interview-scoring';
 
 /**
  * Interview Production Eval — Wave I-TRUST: `scoreInterviewProductionCase`.
@@ -43,7 +57,10 @@ export interface ProductionTurnCase {
   model_output?: unknown;
   /** optional override pinning grounded insight fields (e.g. evidence_quality). */
   insight?: Partial<AnswerInsight>;
-  /** decision state at this turn (what interviews.service would hold in InterviewState). */
+  /**
+   * Follow-ups already asked on this topic when the answer arrives — `InterviewState.drill_depth`
+   * pre-increment, so the first answer on a topic is 0. Same meaning as TurnDecisionInput's field.
+   */
   drill_depth: number;
   drill_budget: number;
   evasive_streak?: number;
@@ -54,8 +71,30 @@ export interface ProductionTurnCase {
   accept_decisions?: TurnAction[];
   expected_flags?: ProductionFlag[];
   forbidden_flags?: ProductionFlag[];
-  /** inclusive sanity band for the labeled score — catches mislabeled corpus. */
+  /**
+   * inclusive sanity band for the RECONCILED score (post consistency guard — what production
+   * aggregates) — catches mislabeled corpus.
+   */
   expected_score_band?: [number, number];
+  /**
+   * exact consistency-guard reasons this turn must fire (I-CONSIST). STRICT both ways: an
+   * unexpected cap fails the case (the label contradicts itself), a missing expected cap too.
+   * Omit = [] = no cap may fire.
+   */
+  expected_caps?: string[];
+  /** labeled raw Call A recognizedConcepts — grounded for real via filterRecognizedConcepts. */
+  recognized_concepts?: string[];
+  /**
+   * I-INTEL: the anchor pickDrillAnchor must choose on a drill/push turn (null = must choose
+   * none). Omitted = not checked. Probed anchors accumulate across the case's turns.
+   */
+  expected_anchor?: string | null;
+  /**
+   * I-OWN: the drill-ladder rung this turn's follow-up must target (null = no drill this turn).
+   * Omitted = not checked. Mirrors the service: a collective answer overrides to
+   * `decision_ownership` outside SCENARIO, otherwise the rung is the depth rung.
+   */
+  expected_rung?: DrillLadderRung | null;
 }
 
 export interface GapExpectation {
@@ -103,7 +142,8 @@ export type ProductionFlag =
   | 'star_missing_result'
   | 'filler_high'
   | 'hedging_present'
-  | 'jd_coverage_low';
+  | 'jd_coverage_low'
+  | 'collective_answer';
 
 /** mirrors interview-gap-derive's FILLER_THRESHOLD — 4+ fillers is a fired signal. */
 const FILLER_HIGH = 4;
@@ -120,6 +160,7 @@ const FLAG_CHECKS: Record<ProductionFlag, (s: AnswerSignals) => boolean> = {
   filler_high: (s) => s.filler.count >= FILLER_HIGH,
   hedging_present: (s) => s.hedging.count >= 1,
   jd_coverage_low: (s) => s.jd_term_hits.coverage < COVERAGE_LOW,
+  collective_answer: (s) => s.ownership.collective_answer,
 };
 
 // ---------------------------------------------------------------------------
@@ -174,6 +215,7 @@ export function scoreInterviewProductionCase(
   const contexts: AnswerGapContext[] = [];
   const answers: AnswerScore[] = [];
   const notes: Array<{ turn: number; note: string }> = [];
+  const probedAnchors: string[] = [];
 
   c.turns.forEach((t, index) => {
     const turnNo = index + 1;
@@ -188,8 +230,15 @@ export function scoreInterviewProductionCase(
       ...t.insight,
     };
 
+    // I-CONSIST-2 depth guard runs FOR REAL: a labeled "deep" on a too-short answer downgrades
+    // before it can steer the decision or out-weigh real answers in aggregation.
+    const depthRecon = reconcileDepthSignal({
+      depth_signal: t.depth_signal,
+      is_too_short: signals.flags.is_too_short,
+    });
+
     const decision = decideTurn({
-      signal: t.depth_signal,
+      signal: depthRecon.depth_signal,
       drill_depth: t.drill_depth,
       drill_budget: t.drill_budget,
       turns_used: t.turns_used ?? index,
@@ -200,6 +249,39 @@ export function scoreInterviewProductionCase(
     const accepted = [t.expected_decision, ...(t.accept_decisions ?? [])];
     if (!accepted.includes(decision)) {
       mismatches.push(`turn ${turnNo} decision ${decision} != expected ${accepted.join('/')}`);
+    }
+
+    // I-INTEL anchor selection runs FOR REAL (code-owned), mirroring the service: raw labeled
+    // recognizedConcepts grounded via filterRecognizedConcepts, probed anchors accumulated
+    // across the case, SCENARIO exempt (incident chain owns the follow-up shape).
+    const drilling = decision === 'drill' || decision === 'push_harder';
+
+    // I-OWN: the ladder rung runs FOR REAL too — the depth rung, overridden to decision_ownership
+    // when the answer was collective ("we…", never "I"). SCENARIO is exempt like the anchor.
+    const collectiveAnswer = signals.ownership.collective_answer && t.topic_phase !== 'SCENARIO';
+    const rung: DrillLadderRung | null = drilling
+      ? drillLadderRung(t.drill_depth, c.seniority, { collectiveAnswer })
+      : null;
+    if (t.expected_rung !== undefined && rung !== t.expected_rung) {
+      mismatches.push(
+        `turn ${turnNo} rung ${rung ?? 'null'} != expected ${t.expected_rung ?? 'null'}`,
+      );
+    }
+
+    let anchor: string | null = null;
+    if (drilling && t.topic_phase !== 'SCENARIO') {
+      anchor = pickDrillAnchor({
+        answer: t.answer,
+        recognized_concepts: filterRecognizedConcepts(t.recognized_concepts ?? [], t.answer),
+        jd_terms: t.jd_terms ?? [],
+        probed_anchors: probedAnchors,
+      }).anchor;
+      if (anchor) probedAnchors.push(anchor);
+    }
+    if (t.expected_anchor !== undefined && anchor !== t.expected_anchor) {
+      mismatches.push(
+        `turn ${turnNo} anchor ${anchor ?? 'null'} != expected ${t.expected_anchor ?? 'null'}`,
+      );
     }
 
     for (const flag of t.expected_flags ?? []) {
@@ -213,9 +295,27 @@ export function scoreInterviewProductionCase(
       }
     }
 
-    if (t.expected_score_band && !inBand(t.score, t.expected_score_band)) {
+    // I-CONSIST guard runs FOR REAL (code-owned) over the labeled score + insight — production
+    // aggregates the reconciled value, so the eval must too.
+    const recon = reconcileAnswerScore({
+      score: t.score,
+      depth_signal: depthRecon.depth_signal,
+      off_topic: insight.off_topic,
+    });
+    const firedReasons = [...depthRecon.reasons, ...recon.reasons];
+    const expectedCaps = t.expected_caps ?? [];
+    if (
+      firedReasons.length !== expectedCaps.length ||
+      firedReasons.some((r, i) => r !== expectedCaps[i])
+    ) {
       mismatches.push(
-        `turn ${turnNo} score ${t.score} outside band [${t.expected_score_band.join(',')}]`,
+        `turn ${turnNo} caps [${firedReasons.join(',')}] != expected [${expectedCaps.join(',')}]`,
+      );
+    }
+
+    if (t.expected_score_band && !inBand(recon.score, t.expected_score_band)) {
+      mismatches.push(
+        `turn ${turnNo} score ${recon.score} outside band [${t.expected_score_band.join(',')}]`,
       );
     }
 
@@ -228,7 +328,11 @@ export function scoreInterviewProductionCase(
       signals,
       insight,
     });
-    answers.push({ topic_phase: t.topic_phase, score: t.score, depth_signal: t.depth_signal });
+    answers.push({
+      topic_phase: t.topic_phase,
+      score: recon.score,
+      depth_signal: depthRecon.depth_signal,
+    });
     if (insight.note) notes.push({ turn: turnNo, note: insight.note });
   });
 

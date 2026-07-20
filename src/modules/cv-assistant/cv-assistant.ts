@@ -144,8 +144,11 @@ function hasAny(lower: string, words: string[]): boolean {
   return words.some((w) => lower.includes(w));
 }
 
-/** a capitalized proper-noun-looking token NOT at sentence start (React, Node, Redis, PostgreSQL, API). */
-function hasTechToken(bullet: string): boolean {
+/** a capitalized proper-noun-looking token NOT at sentence start (React, Node, Redis, PostgreSQL, API).
+ *  Exported so other modules (e.g. `cv-builder-chat`'s conversation state) reuse this exact check
+ *  instead of re-implementing a shape that silently drifts (see `COMMON_CAPS` above — dropping it
+ *  turns any capitalized name/honorific into a false tech-answer capture). */
+export function hasTechToken(bullet: string): boolean {
   const toks = bullet.split(/\s+/);
   for (let i = 1; i < toks.length; i++) {
     const raw = toks[i].replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');

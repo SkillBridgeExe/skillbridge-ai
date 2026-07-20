@@ -7,12 +7,17 @@
  * eval:interview-production gate).
  *
  *   pnpm smoke:interview
+ *   SMOKE_INTERVIEW_VOICE=1 pnpm smoke:interview   # adds a VOICE-mode leg (2nd session/quota)
+ *
+ * The VOICE leg (I-CONSIST-2) starts a VOICE session and asserts the engine still owns the
+ * question sequence there: realtime client secret issued, engine opener non-empty, an AUDIO
+ * answer routed through the SAME answer() path (turnTrace + guard slugs), trace persisted.
  *
  * SAFETY: defaults to LOCAL — refuses a non-local DATABASE_URL unless SMOKE_ALLOW_PROD=1 is set
  * explicitly (on top of the repo's own local→prod DB guard chokepoints).
  * COST/QUOTA WARNING: makes real LLM calls (assess + insight per answered turn, ask per next
- * question, coaching at end) and consumes ONE interview-session entitlement for the chosen user.
- * Run deliberately — never in CI or a loop.
+ * question, coaching at end) and consumes ONE interview-session entitlement PER LEG for the
+ * chosen user. Run deliberately — never in CI or a loop.
  */
 import * as dotenv from 'dotenv';
 const dotenvParsed = dotenv.config().parsed ?? {};
@@ -155,6 +160,53 @@ async function main(): Promise<void> {
     }
     if (failures.every((f) => !f.startsWith('forbidden claim'))) {
       ok('no forbidden claims in engine narration');
+    }
+
+    // persisted per-turn trace (I-CONSIST-2) — every answered turn must carry its trace.
+    const answeredTurns = detail.turns.filter((turn) => turn.userAnswerText);
+    if (answeredTurns.length > 0 && answeredTurns.every((turn) => turn.turnTrace)) {
+      ok(`turnTrace persisted on all ${answeredTurns.length} answered turn(s)`);
+    } else {
+      fail(failures, 'turnTrace missing on at least one answered turn');
+    }
+
+    // ── optional VOICE leg — engine must own the question sequence in voice mode too ───────────
+    if (process.env.SMOKE_INTERVIEW_VOICE === '1') {
+      console.log('\nStarting VOICE leg (ROLE_ONLY / VOICE / backend_developer)...');
+      const voice = await interviews.start(userId, {
+        targetRole: 'backend_developer',
+        language: 'en',
+        mode: 'VOICE',
+        interviewType: 'TECHNICAL',
+      });
+      if (voice.realtime?.clientSecret?.trim()) ok('realtime client secret issued');
+      else fail(failures, 'VOICE start returned no realtime client secret');
+      if (voice.firstQuestion.trim())
+        ok(`voice opener from ENGINE: "${voice.firstQuestion.slice(0, 80)}"`);
+      else fail(failures, 'VOICE firstQuestion is empty');
+
+      const voiceTurn = await interviews.answer(userId, {
+        sessionId: voice.id,
+        userAnswer: ANSWERS[0],
+        userTranscript: ANSWERS[0],
+        modality: 'AUDIO',
+        durationSeconds: 52,
+      });
+      if (voiceTurn.turnTrace && Array.isArray(voiceTurn.turnTrace.reasons)) {
+        ok(
+          `voice turn routed through engine: action=${voiceTurn.turnTrace.action} ` +
+            `reasons=[${voiceTurn.turnTrace.reasons.join(',')}]`,
+        );
+      } else {
+        fail(failures, 'VOICE answer produced no turnTrace (not routed through engine?)');
+      }
+      const voiceDetail = await interviews.end(userId, { sessionId: voice.id });
+      const voiceAnswered = voiceDetail.turns.filter((turn) => turn.userAnswerText);
+      if (voiceAnswered.length > 0 && voiceAnswered.every((turn) => turn.turnTrace)) {
+        ok('voice turnTrace persisted');
+      } else {
+        fail(failures, 'VOICE turnTrace not persisted');
+      }
     }
 
     console.log('\n=== Summary ===');

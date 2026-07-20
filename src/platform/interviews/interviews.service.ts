@@ -36,6 +36,7 @@ import {
   decideTurnWithTrace,
   DepthSignal,
   drillLadderRung,
+  DrillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
   InterviewAgenda,
@@ -43,6 +44,7 @@ import {
   InterviewState,
   InterviewTurnTrace,
   isGroundedFollowUp,
+  pickDrillAnchor,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -58,9 +60,10 @@ import {
 } from '../../modules/interview/answer-analyzer';
 import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
-import { buildCommunicationSignals } from '../../modules/interview/communication-metrics';
 import {
   explainInterviewScore,
+  reconcileAnswerScore,
+  reconcileDepthSignal,
   Dimension,
   InterviewScore,
   topicDimensions,
@@ -104,6 +107,47 @@ const STANDARD_INTERVIEW_HARD_TURN_CAP = 20;
 const PREMIUM_INTERVIEW_HARD_TURN_CAP = 30;
 const MAX_ANSWER_HISTORY_TURNS = 6;
 const CJK_SCRIPT_PATTERN = /[\u3400-\u9FFF\uF900-\uFAFF]/u;
+
+/**
+ * I-PACE: seconds a real interviewer gives for one answer. A fresh question earns the full
+ * budget; a follow-up drills a point already made, so it earns less.
+ *
+ * This lives HERE and not in `interview-agenda.ts` on purpose: the agenda is deliberately
+ * time-blind (`decide()` reads turn counts only) and every time rule in this product already
+ * lives in this service. Keep that split.
+ *
+ * These are COACHING budgets, not cutoffs. The engine never shortens, skips or penalises an
+ * answer for exceeding one \u2014 the client nudges at the budget and only force-submits at a
+ * generous ceiling, so a candidate who needs longer is never cut off mid-thought. See the
+ * benchmark spec \u00A73: we adopt the screener's question intelligence, not its harshness.
+ */
+const MAIN_ANSWER_BUDGET_SECONDS = 90;
+const FOLLOW_UP_ANSWER_BUDGET_SECONDS = 60;
+
+export const answerTimeBudgetSeconds = (kind: InterviewNextQuestionKind): number | null =>
+  kind === null
+    ? null
+    : kind === 'opening' || kind === 'transition'
+      ? MAIN_ANSWER_BUDGET_SECONDS
+      : FOLLOW_UP_ANSWER_BUDGET_SECONDS;
+
+/** compact trace slug for an anchored drill (I-INTEL), e.g. `anchor_redis_cache`. */
+const anchorTraceSlug = (anchor: string): string =>
+  `anchor_${anchor
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32)}`;
+
+/**
+ * I-OWN: rungs where an unmeasured answer earns the metric demand. `application`/`tradeoff` are
+ * the "what you did / why you chose it" rungs — the two where a real outcome number is fair to
+ * ask for. Other rungs already carry their own ask (ownership, hindsight, failure modes).
+ */
+const METRIC_DEMAND_RUNGS: ReadonlySet<DrillLadderRung> = new Set<DrillLadderRung>([
+  'application',
+  'tradeoff',
+]);
 const LEGACY_TRANSCRIPTION_PROMPT_PATTERNS = [
   /Cuộc phỏng vấn bằng tiếng Việt/i,
   /Giữ nguyên dấu tiếng Việt/i,
@@ -348,6 +392,8 @@ export class InterviewsService {
         skillCanonical: firstTopic.skill_canonical,
         questionBankItemId: firstTopic.question_bank_item_id ?? null,
         questionBankKey: firstTopic.question_bank_key ?? null,
+        // the first question is always a fresh one — the opening budget, by definition.
+        timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
       }),
     );
 
@@ -370,6 +416,7 @@ export class InterviewsService {
       firstQuestion,
       phase,
       realtime,
+      answerBudgetSeconds: answerTimeBudgetSeconds('opening'),
     };
   }
 
@@ -426,11 +473,6 @@ export class InterviewsService {
       currentThread: state.current_thread || topic.what_to_probe,
       drillDepth: state.drill_depth,
       recentQa,
-      // code-counted facts the model must not recount (Wave I-VOICE). Not persisted: a pure
-      // projection of the stored signals + durationSeconds, recomputable at any time.
-      communicationFacts: buildCommunicationSignals(signals, {
-        duration_seconds: dto.durationSeconds ?? null,
-      }),
     });
     const insightPromise = this.answerInsight!.judge(
       {
@@ -444,6 +486,20 @@ export class InterviewsService {
     );
     const [assessment, insight] = await Promise.all([assessmentPromise, insightPromise]);
     const recognized = filterRecognizedConcepts(assessment.recognizedConcepts, userAnswer);
+    // I-CONSIST: reconcile LLM self-contradictions BEFORE anything consumes them — the depth
+    // guard first (a "deep" too-short answer downgrades to adequate, so it neither out-weighs
+    // real answers nor triggers push_harder), then the score caps. Decision, persistence, and
+    // aggregation only ever see the reconciled values.
+    const depthGuard = reconcileDepthSignal({
+      depth_signal: assessment.depthSignal,
+      is_too_short: signals.flags.is_too_short,
+    });
+    const scoreGuard = reconcileAnswerScore({
+      score: assessment.score,
+      depth_signal: depthGuard.depth_signal,
+      off_topic: insight.off_topic,
+    });
+    const guardReasons = [...depthGuard.reasons, ...scoreGuard.reasons];
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
@@ -457,12 +513,16 @@ export class InterviewsService {
     let nextQuestionKind: InterviewNextQuestionKind;
     let nextTurnOrder: number | null = null;
     let turnTrace: InterviewTurnTrace;
+    let drillAnchor: string | null = null;
+    let demandExample = false;
+    let demandMetric = false;
     const wrapTrace = (reason: string): InterviewTurnTrace => ({
       action: 'wrap',
       phase: topic.phase,
       topic_id: topic.id,
       reasons: [reason],
-      depth: nextState.drill_depth,
+      // follow-ups asked on this topic — same meaning as decideTurnWithTrace's `depth`.
+      depth: state.drill_depth,
       remaining_turn_budget: Math.max(0, hardCap - nextState.turns_used),
       confidence: 'high',
     });
@@ -484,8 +544,11 @@ export class InterviewsService {
       turnTrace = wrapTrace('time_limit');
     } else {
       const decided = decideTurnWithTrace({
-        signal: assessment.depthSignal,
-        drill_depth: nextState.drill_depth,
+        signal: depthGuard.depth_signal,
+        // follow-ups already asked on this topic — the PRE-increment count, which is what every
+        // rule in decide() is written against (advanceStateBeforeDecision has already counted the
+        // answer we are deciding on, and that count is not a follow-up).
+        drill_depth: state.drill_depth,
         drill_budget: topic.drill_budget,
         turns_used: nextState.turns_used,
         turn_budget: hardCap + 2,
@@ -536,13 +599,75 @@ export class InterviewsService {
 
       // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
       // derived from the follow-up count on this topic (first follow-up = application, then
-      // tradeoff → edge_failure → design; early-career caps at tradeoff).
+      // tradeoff; early-career gets reflection in between).
+      // I-OWN: a collective answer ("we…" with never an "I") overrides the depth rung — a real
+      // interviewer stops climbing and asks whose call it actually was. Asked at most ONCE per
+      // session (see InterviewState.ownership_probed): repeating it every turn would badger the
+      // plural-speaking candidate and stall the ladder. SCENARIO is exempt: the incident chain
+      // owns its own follow-up shape.
+      const collectiveAnswer =
+        signals.ownership.collective_answer &&
+        askTopic.phase !== 'SCENARIO' &&
+        !updatedState.ownership_probed;
       const ladderRung =
         action === 'drill' || action === 'push_harder'
-          ? drillLadderRung(Math.max(0, updatedState.drill_depth - 1), askTopic.seniority_target)
+          ? drillLadderRung(state.drill_depth, askTopic.seniority_target, { collectiveAnswer })
           : null;
       if (ladderRung) {
         turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
+      }
+      if (ladderRung === 'decision_ownership') {
+        updatedState = { ...updatedState, ownership_probed: true };
+        turnTrace = {
+          ...turnTrace,
+          reasons: [...turnTrace.reasons, 'demand_individual_contribution'],
+        };
+      }
+
+      // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
+      // a drill with nothing concrete to anchor on demands one real example instead.
+      // SCENARIO is exempt — the incident chain owns the follow-up shape there.
+      if ((action === 'drill' || action === 'push_harder') && askTopic.phase !== 'SCENARIO') {
+        drillAnchor = pickDrillAnchor({
+          answer: userAnswer,
+          recognized_concepts: recognized,
+          jd_terms: this.topicTerms(askTopic),
+          probed_anchors: updatedState.probed_anchors ?? [],
+        }).anchor;
+        if (drillAnchor) {
+          updatedState = {
+            ...updatedState,
+            probed_anchors: [...(updatedState.probed_anchors ?? []), drillAnchor],
+          };
+          turnTrace = {
+            ...turnTrace,
+            reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
+          };
+        } else if (ladderRung !== 'decision_ownership' && signals.flags.no_concrete_example) {
+          demandExample = true;
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'demand_concrete_example'] };
+        }
+        // I-OWN: they described the work on a how/why rung but never measured it — the follow-up
+        // asks for the number. One demand per question: ownership and example-demand both win.
+        // Two things must be true before it is a FAIR ask, and the instruction asserts both:
+        //  - the answer actually described work — a too-short answer owes detail, not a metric
+        //    (the same is_too_short the I-CONSIST depth guard already trusts);
+        //  - the topic is technical — a STAR failure story on BEHAVIORAL has no before/after
+        //    number to give, so demanding one is a category error, not a probe.
+        if (
+          !demandExample &&
+          ladderRung &&
+          METRIC_DEMAND_RUNGS.has(ladderRung) &&
+          askTopic.phase !== 'BEHAVIORAL'
+        ) {
+          demandMetric = !signals.is_quantified && !signals.flags.is_too_short;
+          if (demandMetric) {
+            turnTrace = {
+              ...turnTrace,
+              reasons: [...turnTrace.reasons, 'demand_measurable_outcome'],
+            };
+          }
+        }
       }
 
       nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
@@ -556,9 +681,12 @@ export class InterviewsService {
         currentThread: updatedState.current_thread,
         recentQa,
         runningNotes: updatedState.running_notes,
-        prevTopicOutcome: this.prevTopicOutcome(topic, assessment),
+        prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
         ladderRung,
         topicPhase: askTopic.phase,
+        drillAnchor,
+        demandExample,
+        demandMetric,
       });
       if (!ask.question) {
         // the chain gave no question → the seed question is asked instead (see nextQuestion
@@ -583,11 +711,16 @@ export class InterviewsService {
       }
     }
 
+    if (guardReasons.length > 0) {
+      turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...guardReasons] };
+    }
+
+    current.turnTrace = turnTrace;
     current.userAnswerText = userAnswer;
     current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.aiRequestId = assessment.aiRequestId;
-    current.perQuestionScore = this.score(assessment.score);
+    current.perQuestionScore = this.score(scoreGuard.score);
     current.strengths = recognized;
     // Grounded like `recognized` above: a gap can't be required to appear in the answer
     // (it names what's missing), so anchor it to the topic universe instead — the asked
@@ -599,13 +732,15 @@ export class InterviewsService {
       ...(topic.expected_signals ?? []),
     ]);
     current.topicPhase = topic.phase;
-    current.depthSignal = assessment.depthSignal;
+    current.depthSignal = depthGuard.depth_signal;
     current.signals = signals;
     current.insight = insight;
     current.currentThread = assessment.currentThread || updatedState.current_thread;
     current.skillCanonical = topic.skill_canonical;
     current.answeredAt = new Date();
     current.durationSeconds = dto.durationSeconds ?? null;
+    current.responseDelayMs = dto.responseDelayMs ?? null;
+    current.transcriptSegments = dto.transcriptSegments ?? null;
     await this.turns.save(current);
 
     let nextTurn: InterviewTurnEntity | null = null;
@@ -626,6 +761,9 @@ export class InterviewsService {
           skillCanonical: askTopic.skill_canonical,
           questionBankItemId: tracking.questionBankItemId,
           questionBankKey: tracking.questionBankKey,
+          // `nextQuestionKind` already carries the only distinction the budget needs — a fresh
+          // question (opening/transition) vs a drill into one already asked (follow_up/closing).
+          timeBudgetSeconds: answerTimeBudgetSeconds(nextQuestionKind),
         }),
       );
     }
@@ -1196,10 +1334,14 @@ export class InterviewsService {
     };
   }
 
-  private prevTopicOutcome(topic: AgendaTopic, assessment: InterviewAssessOutput): string {
+  private prevTopicOutcome(
+    topic: AgendaTopic,
+    assessment: InterviewAssessOutput,
+    effectiveDepth?: string,
+  ): string {
     return [
       topic.display_name,
-      assessment.depthSignal,
+      effectiveDepth ?? assessment.depthSignal,
       assessment.claimStatus !== 'ok' ? assessment.claimStatus : '',
       assessment.note,
     ]
@@ -1363,8 +1505,16 @@ export class InterviewsService {
         },
         userId,
       );
-      score = assessment.score;
-      depthSignal = assessment.depthSignal;
+      // same I-CONSIST guards as the live answer path — recomputed turns get reconciled too.
+      depthSignal = reconcileDepthSignal({
+        depth_signal: assessment.depthSignal,
+        is_too_short: signals.flags.is_too_short,
+      }).depth_signal;
+      score = reconcileAnswerScore({
+        score: assessment.score,
+        depth_signal: depthSignal,
+        off_topic: insight.off_topic,
+      }).score;
       turn.aiRequestId = turn.aiRequestId ?? assessment.aiRequestId;
       turn.perQuestionScore = this.score(score);
       turn.depthSignal = depthSignal;
@@ -1933,15 +2083,29 @@ export class InterviewsService {
 
   /**
    * Self-healing sweep: before a user starts (and pays for) a new session, finalize their own
-   * expired IN_PROGRESS sessions through the SAME partial-scoring path as /end — an abandoned
+   * expired sessions through the SAME partial-scoring path as /end — an abandoned
    * session (tab closed, network drop) with >=1 answered turn gets scored and its gap report
    * persisted instead of leaking the paid quota; one with 0 answers is CANCELLED.
    * Never throws: a sweep failure must not block starting the new session.
+   *
+   * Sweeps COMPLETED-without-a-score too, not just IN_PROGRESS. Three paths mark a session
+   * COMPLETED while the score and report are only ever written by `end()`: the engine deciding
+   * to finish (`answer`), the time limit firing (`assertNotExpired`), and the legacy end. All
+   * three tell the client to call /end — so when the client never does (tab closed, crash), the
+   * row is stranded COMPLETED with a null score, hidden from the user's own history by the
+   * `overallScore: Not(IsNull())` filter in `list`, and previously unreachable by this sweep.
+   *
+   * Both arms stay gated on `expiresAt` in the past: while a session can still legitimately be
+   * ended by its own client, healing it here would race that request.
    */
   private async sweepStaleSessions(userId: string): Promise<void> {
     try {
+      const expired = LessThan(new Date());
       const stale = await this.sessions.find({
-        where: { userId, status: 'IN_PROGRESS', expiresAt: LessThan(new Date()) },
+        where: [
+          { userId, status: 'IN_PROGRESS', expiresAt: expired },
+          { userId, status: 'COMPLETED', overallScore: IsNull(), expiresAt: expired },
+        ],
       });
       for (const session of stale) {
         try {
@@ -1950,6 +2114,26 @@ export class InterviewsService {
           this.logger.warn(
             `Failed to finalize stale interview session ${session.id}: ${String(error)}`,
           );
+          // Record the failure instead of leaving the row to be retried forever. Without this,
+          // `FAILED` is legal in the enum and the CHECK constraint but never written, so a broken
+          // session is indistinguishable from one the user walked away from — and, worse, it still
+          // matches the predicate above, so EVERY later start re-runs `end()` on it: a fresh
+          // coaching LLM call each time, for a row that will keep failing.
+          //
+          // The guard is `overallScore IS NULL` — the same condition that put the row in this
+          // sweep — and NOT the status. Status cannot express it: both arms above arrive here
+          // (IN_PROGRESS and COMPLETED-without-a-score), so pinning either one leaves the other
+          // looping. Scoring the row is what "healed" means; if `end` got a score written before
+          // throwing, the row is healed and this no-ops.
+          //
+          // The trade-off: one attempt, then terminal. A transient blip now costs a paid session
+          // its report, where before it would be retried on the user's next start. That is the
+          // right side to err on — a deterministic failure (one answer the model won't parse)
+          // otherwise bills a coaching call on every start forever, and the failure was invisible
+          // either way. Now it lands in the fail-rate query instead, where we can see it.
+          await this.sessions
+            .update({ id: session.id, overallScore: IsNull() }, { status: 'FAILED' })
+            .catch(() => undefined);
         }
       }
     } catch (error) {
@@ -2262,6 +2446,7 @@ export class InterviewsService {
       depthSignal: turn.depthSignal,
       signals: turn.signals,
       insight: turn.insight,
+      turnTrace: turn.turnTrace ?? null,
       currentThread: turn.currentThread,
       skillCanonical: turn.skillCanonical,
       questionBankItemId: turn.questionBankItemId ?? null,
@@ -2271,6 +2456,9 @@ export class InterviewsService {
       askedAt: this.dateIso(turn.askedAt ?? turn.createdAt),
       answeredAt: turn.answeredAt ? turn.answeredAt.toISOString() : null,
       durationSeconds: turn.durationSeconds,
+      responseDelayMs: turn.responseDelayMs ?? null,
+      transcriptSegments: turn.transcriptSegments ?? null,
+      timeBudgetSeconds: turn.timeBudgetSeconds ?? null,
     };
   }
 

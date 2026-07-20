@@ -36,6 +36,43 @@ interface SavedMessage {
   metadata: Record<string, unknown> | null;
 }
 
+interface FakeConversationRow {
+  id: string;
+  userId: string;
+  cvId: string | null;
+  matchId: string | null;
+  purpose: string;
+  title: string | null;
+}
+
+/**
+ * Minimal in-memory conversations "table" (mirrors cv-builder-chat-platform.service.spec.ts) so a
+ * purpose-keyed findOne genuinely filters — a seeded cv_builder row must NOT satisfy a query scoped to
+ * purpose='diagnosis'. FindOperator values (only IsNull() is ever used on this entity) match any row
+ * field that is actually null.
+ */
+function makeConversationsRepo(seed: FakeConversationRow[] = []) {
+  const rows: FakeConversationRow[] = [...seed];
+  const findOne = jest.fn(async ({ where }: { where: Record<string, unknown> }) => {
+    return (
+      rows.find((row) =>
+        Object.entries(where).every(([key, value]) => {
+          if (value && typeof value === 'object') return (row as never)[key] === null;
+          return (row as never)[key] === value;
+        }),
+      ) ?? null
+    );
+  });
+  const create = jest.fn((v: Partial<FakeConversationRow>) => v);
+  const save = jest.fn(async (v: Partial<FakeConversationRow>) => {
+    const row = { id: `conv-${rows.length + 1}`, title: null, ...v } as FakeConversationRow;
+    rows.push(row);
+    return row;
+  });
+  const del = jest.fn(async () => ({ affected: 1 }));
+  return { findOne, create, save, delete: del, rows };
+}
+
 /**
  * Build the platform service with plain-object mocks at the IO boundary (mirrors the module spec's
  * positional-construction style). `saved` collects every persisted chat_messages row so a test can
@@ -48,6 +85,7 @@ function makeService(overrides?: {
   getProgress?: jest.Mock;
   listRecentMatchSummariesForUser?: jest.Mock;
   turn?: jest.Mock;
+  conversations?: ReturnType<typeof makeConversationsRepo>;
   conversationFindOne?: jest.Mock;
   conversationDelete?: jest.Mock;
   messagesFind?: jest.Mock;
@@ -55,7 +93,7 @@ function makeService(overrides?: {
 }) {
   const saved: SavedMessage[] = [];
 
-  const conversations = {
+  const conversations = overrides?.conversations ?? {
     findOne:
       overrides?.conversationFindOne ??
       jest.fn().mockResolvedValue({ id: CONVERSATION_ID, userId: USER_ID, matchId: MATCH_ID }),
@@ -79,6 +117,7 @@ function makeService(overrides?: {
       overrides?.turn ??
       jest.fn().mockResolvedValue({
         answer: 'Focus on skills_relevance.',
+        answer_kind: 'grounded',
         cited_dimension: 'skills_relevance',
         cited_gap_id: 'jd:hard_skill:docker',
         suggested_next_step: null,
@@ -209,6 +248,12 @@ describe('DiagnosisChatPlatformService.turn — ownership/error masking (D2)', (
     warn.mockRestore();
   });
 
+  it('answer_kind rides the wire to the FE (Wave 1 mascot pose)', async () => {
+    const { service } = makeService();
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.answer_kind).toBe('grounded');
+  });
+
   it('adds recent other match summaries to facts for cross-JD comparison', async () => {
     const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
       {
@@ -332,9 +377,10 @@ describe('DiagnosisChatPlatformService.turnCvOnly — CV-only route (no JD match
     const factsArg = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(factsArg.gap_items).toEqual([]);
 
-    // Conversation keyed by (userId, cvId) with matchId null — must NOT collide with a JD chat for the same CV.
+    // Conversation keyed by (userId, cvId, purpose:'diagnosis') with matchId null — must NOT collide
+    // with a JD chat for the same CV, nor with a cv_builder-purpose thread for the same CV.
     expect(conversationFindOne).toHaveBeenCalledWith({
-      where: { userId: USER_ID, cvId: CV_ID, matchId: IsNull() },
+      where: { userId: USER_ID, cvId: CV_ID, matchId: IsNull(), purpose: 'diagnosis' },
     });
     const createdConversation = (conversations.create as jest.Mock).mock.calls[0][0];
     expect(createdConversation).toMatchObject({ userId: USER_ID, cvId: CV_ID, matchId: null });
@@ -369,6 +415,114 @@ describe('DiagnosisChatPlatformService.turnCvOnly — CV-only route (no JD match
     );
     // No assistant answer must have been produced/persisted for a non-owned CV.
     expect(saved.find((m) => m.role === 'assistant')).toBeUndefined();
+  });
+});
+
+describe('DiagnosisChatPlatformService.turnCvOnly — purpose isolation (CRITICAL regression)', () => {
+  it('does NOT reuse a seeded cv_builder-purpose row for the same (userId, cvId) — creates a SEPARATE diagnosis row', async () => {
+    const cvBuilderRow: FakeConversationRow = {
+      id: 'conv-cv-builder-1',
+      userId: USER_ID,
+      cvId: CV_ID,
+      matchId: null,
+      purpose: 'cv_builder',
+      title: null,
+    };
+    const conversations = makeConversationsRepo([cvBuilderRow]);
+    const getLatestReview = jest.fn().mockResolvedValue(REVIEW);
+    const { service } = makeService({ conversations, getLatestReview });
+
+    await service.turnCvOnly(USER_ID, CV_ID, { question: 'where is my CV weakest?' });
+
+    expect(conversations.findOne).toHaveBeenCalledWith({
+      where: { userId: USER_ID, cvId: CV_ID, matchId: IsNull(), purpose: 'diagnosis' },
+    });
+    // The seeded cv_builder row must survive untouched, and a SEPARATE diagnosis row is created —
+    // reusing it would append diagnosis messages into the cv-builder-chat thread (data corruption).
+    expect(conversations.rows).toHaveLength(2);
+    expect(conversations.rows.find((r) => r.id === cvBuilderRow.id)).toEqual(cvBuilderRow);
+    const diagnosisRow = conversations.rows.find((r) => r.purpose === 'diagnosis');
+    expect(diagnosisRow).toBeDefined();
+    expect(diagnosisRow!.id).not.toBe(cvBuilderRow.id);
+  });
+});
+
+describe('DiagnosisChatPlatformService — visible trust wire (Wave 2)', () => {
+  it('grounded_facts ride the wire; an other_match index is swapped for the real match_id', async () => {
+    const listRecentMatchSummariesForUser = jest.fn().mockResolvedValue([
+      {
+        match_id: 'match-other-1',
+        cv_id: 'cv-other-1',
+        jd_title: 'Frontend Developer',
+        overall_score: 72,
+        top_gaps: ['React'],
+        created_at: '2026-07-02T08:00:00.000Z',
+      },
+    ]);
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [
+        { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+        { kind: 'other_match', id: '1', label: 'Frontend Developer' },
+      ],
+    });
+    const { service } = makeService({ listRecentMatchSummariesForUser, turn });
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.grounded_facts).toEqual([
+      { kind: 'gap', id: 'jd:hard_skill:docker', label: 'Docker' },
+      { kind: 'other_match', id: 'match-other-1', label: 'Frontend Developer' },
+    ]);
+  });
+
+  it('an other_match fact with no matching summary is DROPPED — never served with a raw index id', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [{ kind: 'other_match', id: '3', label: 'Gone JD' }],
+    });
+    const { service } = makeService({ turn }); // no summaries (CV-only style)
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.grounded_facts).toBeUndefined();
+  });
+
+  it('known_state rides the wire verbatim', async () => {
+    const turn = jest.fn().mockResolvedValue({
+      answer: 'ok',
+      answer_kind: 'grounded',
+      grounded_facts: [],
+      known_state: { target_role: 'Data Analyst', deadline: '2 tuần', covered_gaps: ['Docker'] },
+    });
+    const { service } = makeService({ turn });
+    const res = await service.turn(USER_ID, MATCH_ID, { question: 'q', cvId: CV_ID });
+    expect(res.known_state).toEqual({
+      target_role: 'Data Analyst',
+      deadline: '2 tuần',
+      covered_gaps: ['Docker'],
+    });
+  });
+
+  it('getThread rebuilds known_state from the persisted rows (covered_gaps empty — no facts at restore)', async () => {
+    const rows = [
+      {
+        role: 'user',
+        content: 'Mình nhắm vị trí AI Engineer nhé',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Ghi nhận nhé.',
+        createdAt: new Date('2026-01-01T00:01:00.000Z'),
+      },
+    ];
+    const messagesFind = jest.fn().mockResolvedValue(rows);
+    const { service } = makeService({ messagesFind });
+    const result = await service.getThread(USER_ID, MATCH_ID);
+    expect(result.known_state).toEqual({
+      target_role: 'AI Engineer',
+      deadline: null,
+      covered_gaps: [],
+    });
   });
 });
 

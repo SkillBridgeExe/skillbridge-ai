@@ -12,8 +12,8 @@ import {
  * gates decisions, flags, gaps, forbidden claims, and score bands. No LLM, no network.
  */
 
-/** guard against accidental corpus truncation — the Wave I-TRUST corpus starts at 12 cases. */
-const MIN_CASES = 12;
+/** guard against accidental corpus truncation — I-OWN grew the corpus to 35 cases. */
+const MIN_CASES = 35;
 
 function main(): void {
   const file = join(process.cwd(), 'data', 'eval', 'interview-production-golden.json');

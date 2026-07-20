@@ -134,7 +134,9 @@ function summarizeSignals(s: AnswerSignals): Record<string, unknown> {
   return {
     word_count: s.word_count,
     conciseness: s.conciseness,
-    filler_count: s.filler.count,
+    // no filler_count: it grounds nothing this prompt asks for (`rambling_risk` covers drift), and
+    // it is ASR-derived — word error is highest for accented and non-native speakers, so feeding it
+    // to a model whose `off_topic` reaches the score would tax our candidates for the transcriber.
     hedging_count: s.hedging.count,
     jd_coverage: s.jd_term_hits.coverage,
     jd_missed: s.jd_term_hits.missed,

@@ -132,6 +132,24 @@ export class AnswerPlatformInterviewDto {
   @IsInt()
   @Min(0)
   durationSeconds?: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    description: 'P3: ms from mic-open to first speech, client-measured (voice mode).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  responseDelayMs?: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description: 'P3: STT transcript segments in this answer (long-pause proxy, voice mode).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  transcriptSegments?: number;
 }
 
 export class LiveInterviewTurnDto {
@@ -241,6 +259,8 @@ export interface InterviewTurnDto {
   depthSignal: string | null;
   signals: unknown;
   insight: unknown;
+  /** persisted per-turn decision trace (I-CONSIST-2) — additive, null on legacy turns. */
+  turnTrace: unknown;
   currentThread: string | null;
   skillCanonical: string | null;
   questionBankItemId: string | null;
@@ -250,6 +270,16 @@ export interface InterviewTurnDto {
   askedAt: string;
   answeredAt: string | null;
   durationSeconds: number | null;
+  /** P3 speech timing (voice mode) — null on text/legacy turns. */
+  responseDelayMs: number | null;
+  transcriptSegments: number | null;
+  /**
+   * I-PACE: seconds the engine budgeted for answering THIS question. Null on legacy and
+   * reviewed-live turns, which were never issued one — a client seeing null shows no pacing UI.
+   * Overtime is `answeredAt - askedAt > timeBudgetSeconds`; both timestamps are already here and
+   * are server-set, so the report never has to trust the client-reported `durationSeconds`.
+   */
+  timeBudgetSeconds: number | null;
 }
 
 export interface InterviewSessionDto {
@@ -289,6 +319,8 @@ export interface StartInterviewResponseDto extends InterviewSessionDto {
   firstQuestion: string;
   phase: InterviewTurnPhase | null;
   realtime: RealtimeClientSecretDto;
+  /** I-PACE: seconds budgeted for answering `firstQuestion` (this response carries no turn DTO). */
+  answerBudgetSeconds: number | null;
 }
 
 export interface AnswerInterviewResponseDto {
