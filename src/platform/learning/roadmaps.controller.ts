@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
@@ -44,6 +44,12 @@ export class LearningRoadmapsController {
   @ApiOperation({ summary: 'List roadmaps owned by the current learner' })
   list(@CurrentUser() user: JwtUser) {
     return this.drafts.list(user.userId);
+  }
+
+  @Delete('active')
+  @ApiOperation({ summary: 'Archive the current learner active roadmap' })
+  archiveActive(@CurrentUser() user: JwtUser) {
+    return this.queries.archiveActive(user.userId);
   }
 
   @Get(':roadmapId')

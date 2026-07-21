@@ -125,6 +125,54 @@ describe('LearningRoadmapGenerationService', () => {
     expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 
+  it('uses only the server-validated resource selection in preview and persisted tasks', async () => {
+    const selectedDraft = draft();
+    (
+      selectedDraft.draftConfig as unknown as { selected_resources: Record<string, string[]> }
+    ).selected_resources = {
+      typescript: ['resource-2'],
+    };
+    const { service, roadmaps, composer, manager } = setup();
+    roadmaps.findOne.mockResolvedValue(selectedDraft);
+    manager.findOne.mockImplementation((entity) =>
+      Promise.resolve(entity === LearningRoadmapEntity ? selectedDraft : null),
+    );
+    composer.compose.mockReturnValue({
+      budget_hours: 100,
+      ai_summary: 'Focus on TypeScript.',
+      not_feasible_items: [],
+      steps: [
+        {
+          skill_canonical: 'typescript',
+          display_name: 'TypeScript',
+          estimated_hours: 2,
+          priority: 0.8,
+          resources: [
+            { id: 'resource-1', title: 'TypeScript handbook' },
+            { id: 'resource-2', title: 'TypeScript practice' },
+          ],
+          lesson_content: { overview: 'Learn TypeScript.' },
+        },
+      ],
+    });
+
+    const preview = await service.preview('user-1', 'roadmap-1', 2);
+    expect(preview.modules[0].resources).toEqual([expect.objectContaining({ id: 'resource-2' })]);
+
+    await service.generate('user-1', 'roadmap-1', 2);
+    expect(manager.save).toHaveBeenCalledWith(
+      LearningSessionEntity,
+      expect.objectContaining({
+        requiredTasks: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'resources',
+            items: [expect.objectContaining({ id: 'resource-2' })],
+          }),
+        ]),
+      }),
+    );
+  });
+
   it('refuses preview when the draft revision is stale or no schedule was saved', async () => {
     const { service, roadmaps } = setup();
     await expect(service.preview('user-1', 'roadmap-1', 1)).rejects.toBeInstanceOf(

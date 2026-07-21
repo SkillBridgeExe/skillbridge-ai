@@ -17,11 +17,16 @@ import {
 import { RoleRubricService, RubricBand } from '../../common/services/role-rubric.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import { loadSkillEdges, MIN_CONFIDENCE } from '../../modules/cv-jd-match/skill-graph';
+import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import {
   CreateLearningRoadmapDraftDto,
   LearningRoadmapDraftResponseDto,
   UpdateLearningRoadmapDraftDto,
 } from './dto/roadmap.dto';
+import {
+  assertValidResourceSelection,
+  composeLearningCandidates,
+} from './learning-roadmap-resources';
 
 const IMPORTANCE_WEIGHT: Record<string, number> = {
   REQUIRED: 1,
@@ -45,6 +50,7 @@ export class LearningRoadmapDraftService {
     private readonly cvMatches: CvMatchesService,
     private readonly roleRubrics: RoleRubricService,
     private readonly skillNormalizer: SkillNormalizerService,
+    private readonly composer: RoadmapComposerService,
   ) {}
 
   async createDraft(
@@ -130,12 +136,21 @@ export class LearningRoadmapDraftService {
       ...existing.draftConfig,
       ...(dto.language_pref ? { language_pref: dto.language_pref } : {}),
       ...(dto.selected_priorities ? { selected_priorities: dto.selected_priorities } : {}),
+      ...(dto.selected_resources ? { selected_resources: dto.selected_resources } : {}),
       ...(dto.schedule ? { schedule: dto.schedule } : {}),
       ...(dto.deadline && existing.draftConfig.schedule
         ? { schedule: { ...existing.draftConfig.schedule, deadline: dto.deadline } }
         : {}),
     };
     this.assertSelectedCandidates(nextConfig);
+    if (dto.selected_resources) {
+      const composed = composeLearningCandidates(
+        this.composer,
+        nextConfig.candidate_skills,
+        nextConfig.language_pref,
+      );
+      assertValidResourceSelection(nextConfig.candidate_skills, composed, dto.selected_resources);
+    }
 
     const updateResult = await this.roadmaps.update(
       { id: roadmapId, userId, status: 'DRAFT', revision: dto.expected_revision },
@@ -287,6 +302,7 @@ export class LearningRoadmapDraftService {
       language_pref: row.draftConfig.language_pref,
       candidate_skills: row.draftConfig.candidate_skills,
       selected_priorities: row.draftConfig.selected_priorities ?? [],
+      selected_resources: row.draftConfig.selected_resources ?? {},
       schedule: row.draftConfig.schedule ?? null,
     };
   }

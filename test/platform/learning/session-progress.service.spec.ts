@@ -359,10 +359,9 @@ describe('LearningSessionProgressService', () => {
       selected_option_index: 0,
     });
 
-    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-      'module.skillCanonical = :skillCanonical',
-      { skillCanonical: 'react' },
-    );
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith('module.skillCanonical = :skillCanonical', {
+      skillCanonical: 'react',
+    });
     expect(repo.create).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: '11111111-1111-4111-8111-111111111111',

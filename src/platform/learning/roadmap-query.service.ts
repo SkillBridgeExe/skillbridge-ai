@@ -51,6 +51,11 @@ export class LearningRoadmapQueryService {
     private readonly sessions: Repository<LearningSessionEntity>,
   ) {}
 
+  async archiveActive(userId: string): Promise<{ archived: number }> {
+    const result = await this.roadmaps.update({ userId, status: 'ACTIVE' }, { status: 'ARCHIVED' });
+    return { archived: result.affected ?? 0 };
+  }
+
   async getActive(userId: string, roadmapId: string): Promise<ActiveLearningRoadmapResponse> {
     const roadmap = await this.roadmaps.findOne({
       where: { id: roadmapId, userId, status: 'ACTIVE' },

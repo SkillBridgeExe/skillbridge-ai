@@ -36,6 +36,7 @@ export interface LearningRoadmapDraftConfig {
   source_cv_id?: string | null;
   candidate_skills: LearningCandidateSkill[];
   selected_priorities?: Array<{ skill_canonical: string; rank: number }>;
+  selected_resources?: Record<string, string[]>;
   schedule?: LearningRoadmapScheduleDraft;
 }
 

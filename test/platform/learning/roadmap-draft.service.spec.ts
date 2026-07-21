@@ -104,14 +104,31 @@ function serviceSetup() {
         : null,
     ),
   };
+  const composer = {
+    compose: jest.fn().mockReturnValue({
+      budget_hours: 2,
+      ai_summary: 'Learn TypeScript.',
+      not_feasible_items: [],
+      steps: [
+        {
+          skill_canonical: 'typescript',
+          display_name: 'TypeScript',
+          estimated_hours: 2,
+          priority: 0.8,
+          resources: [{ id: 'resource-1', title: 'TypeScript handbook' }],
+        },
+      ],
+    }),
+  };
   const service = new LearningRoadmapDraftService(
     roadmaps as unknown as Repository<LearningRoadmapEntity>,
     cvs as unknown as Repository<CvEntity>,
     cvMatches as never,
     roleRubrics as never,
     skillNormalizer as never,
+    composer as never,
   );
-  return { service, roadmaps, cvs, cvMatches, roleRubrics, skillNormalizer };
+  return { service, roadmaps, cvs, cvMatches, roleRubrics, skillNormalizer, composer };
 }
 
 describe('LearningRoadmapDraftService', () => {
@@ -246,6 +263,39 @@ describe('LearningRoadmapDraftService', () => {
         deadline: '2026-09-01',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects resource ids that were not proposed for the selected skill', async () => {
+    const { service, roadmaps } = serviceSetup();
+    roadmaps.findOne.mockResolvedValue({
+      id: 'roadmap-1',
+      userId: 'user-1',
+      intent: 'CAREER_ROLE',
+      status: 'DRAFT',
+      revision: 2,
+      targetRole: 'frontend_developer',
+      targetLevel: 'fresher',
+      draftConfig: {
+        language_pref: 'both',
+        source_cv_id: 'cv-1',
+        candidate_skills: [
+          {
+            skill_canonical: 'typescript',
+            display_name: 'TypeScript',
+            system_priority: 0.8,
+            rationale: 'Required for the role.',
+            prerequisites: [],
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.updateDraft('user-1', 'roadmap-1', {
+        expected_revision: 2,
+        selected_resources: { typescript: ['fabricated-resource'] },
+      } as never),
+    ).rejects.toThrow("Resource 'fabricated-resource' is not available for skill 'typescript'.");
   });
 
   it('lists only roadmaps owned by the current user', async () => {

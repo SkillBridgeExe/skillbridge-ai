@@ -1,7 +1,23 @@
 import { QueryRunner } from 'typeorm';
 import { LearningRoadmapsV21781250000000 } from '../../src/database/migrations/1781250000000-LearningRoadmapsV2';
+import * as fs from 'fs';
+import * as path from 'path';
 
 describe('LearningRoadmapsV2 migration', () => {
+  it('ships a guarded dev-only reset that can drop only the legacy roadmap table', () => {
+    const toolPath = path.join(process.cwd(), 'src', 'tools', 'reset-legacy-learning-roadmap.ts');
+
+    expect(fs.existsSync(toolPath)).toBe(true);
+    const source = fs.readFileSync(toolPath, 'utf8');
+    expect(source).toContain('information_schema.columns');
+    expect(source).toContain('pg_constraint');
+    expect(source).toContain('LearningRoadmaps1781110000000');
+    expect(source).toContain('DROP TABLE public.learning_roadmaps');
+    expect(source).toContain("process.argv.includes('--check')");
+    expect(source).not.toMatch(/DROP\s+(?:DATABASE|SCHEMA)/i);
+    expect(source).not.toMatch(/DROP TABLE[^;]*CASCADE/i);
+  });
+
   it('creates the versioned roadmap domain and progress relations', async () => {
     const queries: string[] = [];
     const queryRunner = {

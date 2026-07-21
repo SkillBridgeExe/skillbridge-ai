@@ -1,5 +1,4 @@
 import { Repository } from 'typeorm';
-import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchScoreEntity } from '../../database/entities/cv-match-score.entity';
@@ -116,7 +115,7 @@ describe('CvMatchesService roadmap quota', () => {
   };
 
   it('does not reserve roadmap quota when the match has no learning gaps', async () => {
-    const { service, entitlements, reservation, gapReport, roadmapComposer } = setup();
+    const { service, entitlements, reservation, roadmapComposer } = setup();
 
     const result = await service.generateRoadmapFromMatch('user-1', 'match-1', {});
 

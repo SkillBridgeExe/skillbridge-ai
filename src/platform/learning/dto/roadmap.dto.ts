@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsObject,
   IsString,
   IsUUID,
   Matches,
@@ -103,6 +104,10 @@ export class UpdateLearningRoadmapDraftDto {
   selected_priorities?: LearningPriorityDto[];
 
   @IsOptional()
+  @IsObject()
+  selected_resources?: Record<string, string[]>;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => LearningScheduleDraftDto)
   schedule?: LearningScheduleDraftDto;
@@ -162,5 +167,6 @@ export interface LearningRoadmapDraftResponseDto {
   language_pref: 'vi' | 'en' | 'both';
   candidate_skills: LearningCandidateSkill[];
   selected_priorities: Array<{ skill_canonical: string; rank: number }>;
+  selected_resources: Record<string, string[]>;
   schedule: LearningRoadmapScheduleDraft | null;
 }

@@ -24,6 +24,8 @@
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
+    "reset:legacy-learning-roadmap": "ts-node -r tsconfig-paths/register src/tools/reset-legacy-learning-roadmap.ts",
+    "check:legacy-learning-roadmap": "ts-node -r tsconfig-paths/register src/tools/reset-legacy-learning-roadmap.ts --check",
     "seed": "ts-node -r tsconfig-paths/register src/database/seed.ts",
     "calibrate": "ts-node -r tsconfig-paths/register src/calibration/calibrate.ts",
     "eval:accuracy": "ts-node -r tsconfig-paths/register src/calibration/eval-accuracy.ts",

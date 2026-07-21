@@ -4,6 +4,39 @@ import { LearningRoadmapEntity } from '../../../src/database/entities/learning-r
 import { LearningRoadmapQueryService } from '../../../src/platform/learning/roadmap-query.service';
 
 describe('LearningRoadmapQueryService', () => {
+  it('exposes an archive operation for the current active roadmap', () => {
+    const service = new LearningRoadmapQueryService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    expect(typeof (service as unknown as { archiveActive?: unknown }).archiveActive).toBe(
+      'function',
+    );
+  });
+
+  it('archives only the current user active roadmap without deleting history', async () => {
+    const roadmaps = {
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+      delete: jest.fn(),
+    };
+    const service = new LearningRoadmapQueryService(
+      roadmaps as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.archiveActive('user-1')).resolves.toEqual({ archived: 1 });
+    expect(roadmaps.update).toHaveBeenCalledWith(
+      { userId: 'user-1', status: 'ACTIVE' },
+      { status: 'ARCHIVED' },
+    );
+    expect(roadmaps.delete).not.toHaveBeenCalled();
+  });
+
   it('returns only the owned active version with ordered modules and sessions', async () => {
     const roadmaps = {
       findOne: jest.fn().mockResolvedValue({

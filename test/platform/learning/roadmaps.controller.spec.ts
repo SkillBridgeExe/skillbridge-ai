@@ -11,7 +11,10 @@ describe('LearningRoadmapsController', () => {
       preview: jest.fn().mockResolvedValue({ roadmap_id: 'roadmap-1' }),
       generate: jest.fn().mockResolvedValue({ roadmap_id: 'roadmap-1', version_id: 'version-1' }),
     };
-    const queries = { getActive: jest.fn().mockResolvedValue({ id: 'roadmap-1' }) };
+    const queries = {
+      getActive: jest.fn().mockResolvedValue({ id: 'roadmap-1' }),
+      archiveActive: jest.fn().mockResolvedValue({ archived: 1 }),
+    };
     const controller = new LearningRoadmapsController(
       drafts as never,
       generation as never,
@@ -33,6 +36,7 @@ describe('LearningRoadmapsController', () => {
     await controller.preview(user, 'roadmap-1', { expected_revision: 1 });
     await controller.generate(user, 'roadmap-1', { expected_revision: 1 });
     await controller.getActive(user, 'roadmap-1');
+    await controller.archiveActive(user);
 
     expect(drafts.createDraft).toHaveBeenCalledWith(
       'user-1',
@@ -47,5 +51,6 @@ describe('LearningRoadmapsController', () => {
     expect(generation.preview).toHaveBeenCalledWith('user-1', 'roadmap-1', 1);
     expect(generation.generate).toHaveBeenCalledWith('user-1', 'roadmap-1', 1);
     expect(queries.getActive).toHaveBeenCalledWith('user-1', 'roadmap-1');
+    expect(queries.archiveActive).toHaveBeenCalledWith('user-1');
   });
 });

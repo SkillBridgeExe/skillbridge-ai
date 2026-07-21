@@ -13,8 +13,6 @@ import { LearningRoadmapVersionEntity } from '../../database/entities/learning-r
 import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
 import { LearningScheduleProfileEntity } from '../../database/entities/learning-schedule-profile.entity';
 import { LearningAvailabilitySlotEntity } from '../../database/entities/learning-availability-slot.entity';
-import type { GapItem } from '../../modules/gap-engine/gap-item';
-import type { UnifiedDevelopmentPlanItem } from '../../modules/gap-report/unified-plan';
 import type { ComposedRoadmap, ComposedRoadmapStep } from '../../modules/roadmap/roadmap-composer';
 import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
@@ -24,6 +22,11 @@ import {
 } from './dto/roadmap.dto';
 import { scheduleLearningModules } from './learning-scheduler';
 import { DerivedLearningCandidates, LearningRoadmapDraftService } from './roadmap-draft.service';
+import {
+  applyResourceSelection,
+  assertValidResourceSelection,
+  composeLearningCandidates,
+} from './learning-roadmap-resources';
 
 const RESOURCE_CATALOG_VERSION = 'learning-resources-v1';
 const CONTENT_VERSION = 'skillbridge-lessons-v1';
@@ -104,8 +107,7 @@ export class LearningRoadmapGenerationService {
 
     const derived = await this.drafts.rederiveCurrentCandidates(userId, roadmap);
     const selected = selectCurrentCandidates(roadmap, derived);
-    const { learnItems, gapItems } = toComposerInputs(selected);
-    const composed =
+    const unfilteredComposed =
       selected.length === 0
         ? {
             budget_hours: 0,
@@ -113,14 +115,12 @@ export class LearningRoadmapGenerationService {
             not_feasible_items: [],
             ai_summary: 'No learning gaps remain.',
           }
-        : this.composer.compose({
-            learnItems,
-            gapItems,
-            // The calendar below is the source of truth for feasibility. Give the deterministic
-            // composer room to enrich every selected skill with resources and lesson content.
-            budget: { available_days: 365, hours_per_week: 168 },
-            languagePref: roadmap.draftConfig.language_pref,
-          });
+        : composeLearningCandidates(this.composer, selected, roadmap.draftConfig.language_pref);
+    const selectedResources = roadmap.draftConfig.selected_resources;
+    if (selectedResources) {
+      assertValidResourceSelection(selected, unfilteredComposed, selectedResources);
+    }
+    const composed = applyResourceSelection(unfilteredComposed, selectedResources);
 
     const stepBySkill = new Map(composed.steps.map((step) => [step.skill_canonical, step]));
     const schedulable = selected.map((candidate) => {
@@ -328,44 +328,6 @@ function selectCurrentCandidates(
     .sort((a, b) => a.rank - b.rank)
     .map((item) => bySkill.get(item.skill_canonical))
     .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
-}
-
-function toComposerInputs(candidates: DerivedLearningCandidates['candidates']): {
-  learnItems: UnifiedDevelopmentPlanItem[];
-  gapItems: GapItem[];
-} {
-  return {
-    learnItems: candidates.map((candidate) => ({
-      source: 'gap',
-      track: 'learn',
-      skill_canonical: candidate.skill_canonical,
-      display_name: candidate.display_name,
-      priority: candidate.system_priority,
-      severity: candidate.system_priority,
-      rationale: candidate.rationale,
-      requirement_id: `learning:${candidate.skill_canonical}`,
-    })),
-    gapItems: candidates.map((candidate) => ({
-      requirement_id: `learning:${candidate.skill_canonical}`,
-      source: 'role_rubric',
-      type: 'hard_skill',
-      canonical_name: candidate.skill_canonical,
-      display_name: candidate.display_name,
-      importance: 'REQUIRED',
-      cv_status: 'missing',
-      cv_level: 0,
-      required_level: 3,
-      gap_levels: 3,
-      satisfied_by: null,
-      evidence_refs: [],
-      evidence_risk: 'none',
-      fixability: 'learn',
-      market_demand: null,
-      severity: candidate.system_priority,
-      confidence: 1,
-      recommended_next_action: candidate.rationale,
-    })),
-  };
 }
 
 function todayInTimezone(timezone: string): string {

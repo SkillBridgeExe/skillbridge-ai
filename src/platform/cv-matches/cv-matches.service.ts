@@ -522,7 +522,6 @@ export class CvMatchesService {
       sourceId: matchId,
     });
     try {
-
       return await this.roadmapComposer.compose({
         learnItems: plan.learn_items,
         gapItems: report.gap_items,
