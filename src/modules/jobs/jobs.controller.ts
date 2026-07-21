@@ -40,20 +40,28 @@ export class JobsController {
     @Query('offset') offset?: string,
     @Query('role') role?: string,
   ): Promise<JobRecommendationResponse> {
-    if (this.entitlements) {
-      await this.entitlements.assertCanUse(user.userId, BillingFeatureKey.JOB_RECOMMENDATION);
-    }
-    const response = await this.reco.recommendForCv(user.userId, cvId, {
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-      roleCode: role,
-    });
-    if (this.entitlements) {
-      await this.entitlements.recordUsage(user.userId, BillingFeatureKey.JOB_RECOMMENDATION, {
-        sourceType: 'cv',
-        sourceId: cvId,
+    // Atomic charge-first reserve (replaces the racy assertCanUse→recordUsage
+    // pair); refunded when no value is delivered — an empty pool or a thrown
+    // error must not consume a slot (bug hunt 2026-07-21).
+    const usage = this.entitlements
+      ? await this.entitlements.reserveUsage(user.userId, BillingFeatureKey.JOB_RECOMMENDATION, {
+          sourceType: 'cv',
+          sourceId: cvId,
+        })
+      : null;
+    try {
+      const response = await this.reco.recommendForCv(user.userId, cvId, {
+        limit: limit ? parseInt(limit, 10) : undefined,
+        offset: offset ? parseInt(offset, 10) : undefined,
+        roleCode: role,
       });
+      if (usage && response.recommendations.length === 0) {
+        await usage.refund();
+      }
+      return response;
+    } catch (error) {
+      await usage?.refund();
+      throw error;
     }
-    return response;
   }
 }
