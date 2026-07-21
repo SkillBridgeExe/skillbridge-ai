@@ -89,18 +89,55 @@ function warmFallback(l: Lang, gaps: string[]): string {
     : `Tell me a bit more about ${hint}.`;
 }
 
-function proseRefusal(l: Lang): string {
-  return l === 'vi'
-    ? 'Mình chưa có đủ thông tin thật để viết chỗ đó — bạn cho mình con số hoặc chi tiết cụ thể bạn đã làm nhé.'
-    : "I don't have real detail to write that yet — tell me the exact number or specifics you actually did.";
+/** deterministic, seedable variant pick — the gate stays PURE (no Math.random; same model output →
+ *  same served copy, so replays/tests are stable). Different turns rotate naturally via the seed. */
+function pickVariant(variants: readonly string[], seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return variants[Math.abs(h) % variants.length];
+}
+
+const refusalHint = (l: Lang, gaps: string[]): string =>
+  gaps.length ? gapHint(l, gaps[0]) : l === 'vi' ? 'phần này' : 'this part';
+
+// Warm refusal copy (was ONE fixed template — measured as the top "robot" complaint on refusal
+// turns). Every variant: DIGIT-FREE, no tech/org/temporal token, names the first detected gap, and
+// ends in a question so `ensureAskBack` never stacks a second ask on top (no double-ask nag).
+function proseRefusal(l: Lang, gaps: string[], seed: string): string {
+  const hint = refusalHint(l, gaps);
+  const variants =
+    l === 'vi'
+      ? [
+          `Chỗ này mình chưa dám viết vì chưa có chi tiết thật từ bạn — bạn kể mình nghe thêm về ${hint} được không?`,
+          `Mình không muốn ghi vào CV điều bạn chưa xác nhận đâu. Bạn cho mình con số hoặc chi tiết thật về ${hint} nhé?`,
+          `Khoan đã — viết vậy là mình đoán mất rồi. Bạn chia sẻ cụ thể về ${hint} giúp mình được không?`,
+          `Phần đó cần dữ kiện thật của bạn thì viết mới đáng tin — ${hint} cụ thể là gì vậy?`,
+        ]
+      : [
+          `I'd rather not guess on that — could you tell me a bit more about ${hint}?`,
+          `I don't want to put anything in your CV you haven't confirmed. What's the real number or detail about ${hint}?`,
+          `Hold on — writing that would be guessing. Can you share the specifics about ${hint}?`,
+        ];
+  return pickVariant(variants, seed);
 }
 
 // `groundCvChat` always calls `groundCvRewrite` with `needs_detail: []`, so its verdict can only fail
 // as UNGROUNDED here — the NEEDS_DETAIL arm was unreachable and has been dropped.
-function editRefusal(l: Lang): string {
-  return l === 'vi'
-    ? 'Mình chưa có con số hay chi tiết thật cho chỗ đó — bạn cho mình biết cụ thể bạn đã làm gì nhé.'
-    : "I don't have the real number or detail for that yet — tell me specifically what you did.";
+function editRefusal(l: Lang, gaps: string[], seed: string): string {
+  const hint = refusalHint(l, gaps);
+  const variants =
+    l === 'vi'
+      ? [
+          `Bản sửa đó có chi tiết mình chưa thấy bạn nói, nên mình chưa đưa vào CV đâu. Bạn xác nhận giúp mình về ${hint} được không?`,
+          `Mình giữ nguyên chỗ đó đã — chưa đủ dữ kiện thật từ bạn để sửa cho đúng. Bạn kể mình nghe về ${hint} rồi mình đề xuất lại nhé?`,
+          `CV chỉ nên chứa điều bạn chắc chắn — bạn cho mình con số hay chi tiết thật về ${hint} rồi mình viết lại ngay nhé?`,
+        ]
+      : [
+          `That edit has details I haven't heard from you, so I left it out of your CV. Could you confirm ${hint} first?`,
+          `I kept that part as it was — I don't have the real facts to change it yet. Could you tell me about ${hint} so I can propose it again?`,
+          `Your CV should only say what you're sure of. What's the real number or detail about ${hint}?`,
+        ];
+  return pickVariant(variants, seed);
 }
 
 // ---------------------------------------------------------------------------
@@ -159,9 +196,11 @@ function firstNonAsciiDigitRun(nfkcText: string): string | null {
 //   - bare `thứ` is NOT listed at all ("2 thứ tiếng"/"thứ hạng" have no safe discriminator) — that
 //     measured FP stays refused as an accepted residual;
 //   - `điểm` counts ONLY inside `điểm mạnh`/`điểm chính` (a score is never a "điểm chính"), so the
-//     bare-`điểm` score wall is intact.
+//     bare-`điểm` score wall is intact;
+//   - `kiểu` counts ONLY phrase-final ("có 3 kiểu:") — a following letter-word ("3 kiểu dự án" =
+//     a record claim) falls back to the wall; `cách` counts ONLY as the full phrase `cách viết`.
 const WRITING_NOUN =
-  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|mảnh thông tin|điểm mạnh|điểm chính|phần(?!\s*(?:trăm|nghìn))(?=\s*(?:[^\p{L}\p{N}\s]|$))|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|mảnh thông tin|điểm mạnh|điểm chính|cách viết|kiểu(?=\s*(?:[^\p{L}\p{N}\s]|$))|phần(?!\s*(?:trăm|nghìn))(?=\s*(?:[^\p{L}\p{N}\s]|$))|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
 const ASK_NOUN =
   /^\s*(?:công nghệ|công cụ|kết quả|chi tiết|thông tin|số liệu|con số|việc|mục|phần(?!\s*(?:trăm|nghìn))|technolog(?:y|ies)|tools?|results?|details?|things?|parts?)(?![\p{L}\p{N}])/iu;
 
@@ -231,9 +270,17 @@ export function firstUngroundedToken(text: string, licensed: string): string | n
   for (const tech of NAMED_TECH) if (hasWord(t, tech) && !hasWord(src, tech)) return tech;
   // (d) fabricated URL / domain.
   for (const url of urlTokens(t)) if (!srcLower.includes(url)) return url;
-  // (f) fabricated multi-word proper-noun (employer / org / product).
-  for (const phrase of properNounPhrases(t))
-    if (!srcLower.includes(phrase.toLowerCase())) return phrase;
+  // (f) fabricated multi-word proper-noun (employer / org / product). ONE narrow relief: a leading
+  // "CV " is the product-domain word, not an org — "CV Business Analyst" (the ALL-CAPS acronym
+  // joining the licensed role into one phrase, a measured live FP) asserts nothing beyond its
+  // licensed remainder. Only the literal "CV " prefix is stripped; a fabricated org after it
+  // ("CV Nova Dynamics") keeps an unlicensed remainder and still refuses.
+  for (const phrase of properNounPhrases(t)) {
+    const pl = phrase.toLowerCase();
+    if (srcLower.includes(pl)) continue;
+    if (pl.startsWith('cv ') && srcLower.includes(pl.slice(3))) continue;
+    return phrase;
+  }
   // (e) fabricated credential.
   for (const w of CREDENTIAL_WORDS) if (hasWord(t, w) && !hasWord(src, w)) return w;
   // (g) fabricated worded date/period.
@@ -306,7 +353,7 @@ export function groundCvChat(
   // 2) prose gate — any ungrounded fact token → refuse, and NEVER echo the fabricating message.
   if (firstUngroundedToken(p.message, proseLicensed) !== null) {
     return {
-      answer: proseRefusal(l),
+      answer: proseRefusal(l, gaps, p.message),
       answer_kind: 'refusal',
       proposed_edit: null,
       grounded_facts: [],
@@ -322,7 +369,7 @@ export function groundCvChat(
     // fail CLOSED on non-ASCII Nd digits groundCvRewrite's ASCII number scan can't read.
     if (firstNonAsciiDigitRun(afterNfkc) !== null) {
       return {
-        answer: editRefusal(l),
+        answer: editRefusal(l, gaps, p.message),
         answer_kind: 'refusal',
         proposed_edit: null,
         grounded_facts: [],
@@ -362,7 +409,7 @@ export function groundCvChat(
       };
     }
     return {
-      answer: editRefusal(l),
+      answer: editRefusal(l, gaps, p.message),
       answer_kind: 'refusal',
       proposed_edit: null,
       grounded_facts: [],

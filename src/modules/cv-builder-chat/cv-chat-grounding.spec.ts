@@ -763,3 +763,135 @@ describe('groundCvChat — diagnosis prose license (two-corpus)', () => {
     expect(r.answer).not.toContain('Docker');
   });
 });
+
+// ---- 2026-07-21 residual buy-backs (kiểu / cách viết / "CV <licensed role>") -----------------
+// Same discipline as every widening: each buy-back locks BOTH the keep and a same-shape
+// stay-refusal, so the noun list cannot silently widen the number/entity wall.
+
+it('keeps "3 kiểu:" — an enumerated advice-kind count, phrase-final only', () => {
+  const r = groundCvChat(
+    proseOnly('Mở đầu bullet có 3 kiểu: nêu kết quả, nêu vai trò, nêu công nghệ.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('3 kiểu');
+});
+
+it('still refuses "3 kiểu dự án" — kiểu followed by a letter-word is a record claim', () => {
+  const r = groundCvChat(proseOnly('Bạn từng làm 3 kiểu dự án khác nhau rồi mà.'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps "2 cách viết" — a count of writing options (full phrase only)', () => {
+  const r = groundCvChat(
+    proseOnly('Mình gợi ý 2 cách viết cho đoạn này để bạn chọn nhé.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('2 cách viết');
+});
+
+it('still refuses "5 cách viết" — the writing-noun cap (≤3) is intact', () => {
+  const r = groundCvChat(proseOnly('Mình có 5 cách viết hay lắm.'), facts, 'vi', ''); // >3 → wall
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('still refuses bare "3 cách" — only the full phrase `cách viết` is listed', () => {
+  const r = groundCvChat(proseOnly('Bạn đã xử lý theo 3 cách sáng tạo.'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps "CV Business Analyst" when the role itself is licensed (leading-CV relief)', () => {
+  const baFacts = { ...facts, target_role: 'Business Analyst' };
+  const r = groundCvChat(
+    proseOnly('Để CV Business Analyst của bạn nổi bật, bullet nên mở đầu bằng động từ.'),
+    baFacts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('CV Business Analyst');
+});
+
+it('still refuses "CV Nova Dynamics" — the remainder after "CV " is an unlicensed org', () => {
+  const r = groundCvChat(
+    proseOnly('Mình tham khảo mẫu CV Nova Dynamics cho bạn nhé.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('Nova');
+});
+
+// ---- 2026-07-21 warm refusal copy (variants, digit-free, gap-contextual) ---------------------
+// The single canned template was the measured top "robot" complaint on refusal turns. The copy now
+// rotates deterministically on the model's blocked message; every variant must stay DIGIT-FREE
+// (a refusal must not itself leak a number) and must name the first detected gap.
+
+it('prose-refusal copy: digit-free, names the gap hint, and actually varies', () => {
+  const seen = new Set<string>();
+  const fabricating = [
+    'Bạn đã tăng 47% hiệu suất rồi đó.',
+    'Web của bạn nhanh hơn 62% luôn.',
+    'Doanh thu tăng 91% nhờ bạn.',
+    'Bạn giảm 33% thời gian xử lý.',
+    'Đội của bạn tiết kiệm 78% chi phí.',
+    'Bạn cải thiện 55% tốc độ tải.',
+  ];
+  for (const message of fabricating) {
+    const r = groundCvChat(proseOnly(message), facts, 'vi', 'ok'); // none of these numbers licensed
+    expect(r.answer_kind).toBe('refusal');
+    expect(r.answer).not.toMatch(/\d/);
+    expect(r.answer).toContain('kết quả'); // gaps=['result'] → hint rides every variant
+    expect(r.answer).toContain('?'); // ends in a question → ensureAskBack never double-asks
+    seen.add(r.answer);
+  }
+  expect(seen.size).toBeGreaterThan(1); // no longer one canned line
+});
+
+it('edit-refusal copy: digit-free, names the gap hint, and actually varies', () => {
+  const seen = new Set<string>();
+  const messages = [
+    'Đây nhé.',
+    'Xong rồi nè.',
+    'Mình sửa lại rồi.',
+    'Bản mới đây.',
+    'Của bạn đây.',
+  ];
+  for (const message of messages) {
+    const r = groundCvChat(
+      {
+        message,
+        used_facts: [],
+        proposed_edit: {
+          field_path: 'projects[0].description',
+          after: 'Built e-commerce web, cut load time 40%', // user never said 40%
+        },
+        cited_field_path: null,
+        suggested_next_step: null,
+      },
+      facts,
+      'vi',
+      'làm web bán hàng',
+    );
+    expect(r.answer_kind).toBe('refusal');
+    expect(r.answer).not.toMatch(/\d/);
+    expect(r.answer).toContain('kết quả');
+    expect(r.answer).toContain('?');
+    seen.add(r.answer);
+  }
+  expect(seen.size).toBeGreaterThan(1);
+});
+
+it('EN refusal copy: digit-free and gap-contextual too', () => {
+  const enFacts = { ...facts, cv_language: 'en' };
+  const r = groundCvChat(proseOnly('You already boosted performance by 47%.'), enFacts, 'en', 'ok');
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toMatch(/\d/);
+  expect(r.answer).toContain('result'); // gaps=['result'] → 'the result you achieved'
+});
