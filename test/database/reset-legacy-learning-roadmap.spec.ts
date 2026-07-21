@@ -1,6 +1,7 @@
 import type { QueryRunner } from 'typeorm';
 import {
   assertSafeResetEnvironment,
+  PRODUCTION_RESET_CONFIRMATION,
   resetLegacyLearningRoadmap,
 } from '../../src/tools/reset-legacy-learning-roadmap';
 
@@ -50,6 +51,21 @@ describe('resetLegacyLearningRoadmap', () => {
     ).not.toThrow();
   });
 
+  it('allows a production reset only with the exact one-time confirmation', () => {
+    expect(() =>
+      assertSafeResetEnvironment({
+        NODE_ENV: 'production',
+        CONFIRM_LEGACY_LEARNING_ROADMAP_RESET: PRODUCTION_RESET_CONFIRMATION,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertSafeResetEnvironment({
+        NODE_ENV: 'production',
+        CONFIRM_LEGACY_LEARNING_ROADMAP_RESET: 'wrong-confirmation',
+      }),
+    ).toThrow('forbidden in production or override mode');
+  });
+
   it('rolls back without deleting when the table has unexpected columns', async () => {
     const queryRunner = runnerWith([
       [...LEGACY_COLUMNS, 'unexpected_column'].map((column_name) => ({ column_name })),
@@ -90,11 +106,46 @@ describe('resetLegacyLearningRoadmap', () => {
     expect(queryRunner.query).not.toHaveBeenCalledWith('DROP TABLE public.learning_roadmaps');
   });
 
+  it('refuses to reset when a Learning V2 target table already exists', async () => {
+    const queryRunner = runnerWith([
+      LEGACY_COLUMNS.map((column_name) => ({ column_name })),
+      undefined,
+      [{ roadmap_count: '1' }],
+      [],
+      [{ table_name: 'learning_sessions' }],
+    ]);
+
+    await expect(resetLegacyLearningRoadmap(queryRunner)).rejects.toThrow(
+      'Learning V2 target tables already exist: learning_sessions',
+    );
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(queryRunner.query).not.toHaveBeenCalledWith('DROP TABLE public.learning_roadmaps');
+  });
+
+  it('refuses to reset when Learning V2 progress columns already exist', async () => {
+    const queryRunner = runnerWith([
+      LEGACY_COLUMNS.map((column_name) => ({ column_name })),
+      undefined,
+      [{ roadmap_count: '1' }],
+      [],
+      [],
+      [{ column_name: 'revision' }],
+    ]);
+
+    await expect(resetLegacyLearningRoadmap(queryRunner)).rejects.toThrow(
+      'Learning V2 progress columns already exist: revision',
+    );
+    expect(queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(queryRunner.query).not.toHaveBeenCalledWith('DROP TABLE public.learning_roadmaps');
+  });
+
   it('drops only the verified legacy table and exact migration history row', async () => {
     const queryRunner = runnerWith([
       LEGACY_COLUMNS.map((column_name) => ({ column_name })),
       undefined,
       [{ roadmap_count: '1' }],
+      [],
+      [],
       [],
       [{ table_exists: true }],
       [{ name: 'LearningRoadmaps1781110000000' }],
@@ -118,6 +169,8 @@ describe('resetLegacyLearningRoadmap', () => {
       LEGACY_COLUMNS.map((column_name) => ({ column_name })),
       undefined,
       [{ roadmap_count: '0' }],
+      [],
+      [],
       [],
       [{ table_exists: false }],
       undefined,

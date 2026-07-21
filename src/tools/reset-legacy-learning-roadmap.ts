@@ -4,6 +4,7 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { buildDataSourceOptions } from '../database/orm.config';
 
 const LEGACY_MIGRATION = 'LearningRoadmaps1781110000000';
+export const PRODUCTION_RESET_CONFIRMATION = 'DROP_ONLY_PUBLIC_LEARNING_ROADMAPS_AND_APPLY_V2';
 const LEGACY_COLUMNS = new Set([
   'id',
   'user_id',
@@ -15,6 +16,16 @@ const LEGACY_COLUMNS = new Set([
   'updated_at',
 ]);
 const V2_SIGNATURE_COLUMNS = ['intent', 'status', 'revision', 'draft_config'];
+const V2_TARGET_TABLES = [
+  'learning_roadmap_versions',
+  'learning_schedule_profiles',
+  'learning_availability_slots',
+  'learning_modules',
+  'learning_sessions',
+  'learning_quiz_attempts',
+  'learning_evidence',
+];
+const V2_PROGRESS_COLUMNS = ['learning_session_id', 'revision'];
 
 interface ColumnRow {
   column_name: string;
@@ -37,6 +48,10 @@ interface TableExistsRow {
   table_exists: boolean | string | number;
 }
 
+interface TableNameRow {
+  table_name: string;
+}
+
 interface LegacyLearningRoadmapInspection {
   hasMigrationTable: boolean;
   roadmapCount: number;
@@ -45,7 +60,11 @@ interface LegacyLearningRoadmapInspection {
 
 export function assertSafeResetEnvironment(environment: NodeJS.ProcessEnv, readOnly = false): void {
   if (readOnly) return;
-  if (environment.NODE_ENV === 'production' || environment.K_SERVICE || environment.ALLOW_PROD_DB) {
+  const isProductionLike =
+    environment.NODE_ENV === 'production' || environment.K_SERVICE || environment.ALLOW_PROD_DB;
+  const hasExactConfirmation =
+    environment.CONFIRM_LEGACY_LEARNING_ROADMAP_RESET === PRODUCTION_RESET_CONFIRMATION;
+  if (isProductionLike && !hasExactConfirmation) {
     throw new Error('Legacy learning roadmap reset is forbidden in production or override mode.');
   }
 }
@@ -91,6 +110,43 @@ export async function inspectLegacyLearningRoadmap(
     throw new Error(
       `Refusing to reset learning_roadmaps because it is referenced by: ${dependencies
         .map((row) => `${row.dependent_table}.${row.constraint_name}`)
+        .join(', ')}.`,
+    );
+  }
+
+  const existingV2Tables = (await queryRunner.query(
+    `
+      SELECT table_name
+        FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_name = ANY($1::text[])
+       ORDER BY table_name
+    `,
+    [V2_TARGET_TABLES],
+  )) as unknown as TableNameRow[];
+  if (existingV2Tables.length > 0) {
+    throw new Error(
+      `Refusing to reset because Learning V2 target tables already exist: ${existingV2Tables
+        .map((row) => row.table_name)
+        .join(', ')}.`,
+    );
+  }
+
+  const existingV2ProgressColumns = (await queryRunner.query(
+    `
+      SELECT column_name
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'learning_session_progress'
+         AND column_name = ANY($1::text[])
+       ORDER BY column_name
+    `,
+    [V2_PROGRESS_COLUMNS],
+  )) as unknown as ColumnRow[];
+  if (existingV2ProgressColumns.length > 0) {
+    throw new Error(
+      `Refusing to reset because Learning V2 progress columns already exist: ${existingV2ProgressColumns
+        .map((row) => row.column_name)
         .join(', ')}.`,
     );
   }
