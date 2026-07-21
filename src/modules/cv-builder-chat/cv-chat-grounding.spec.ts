@@ -1004,3 +1004,49 @@ it('still refuses "5 lỗi" — the writing-noun cap (≤3) holds for lỗi too'
   const r = groundCvChat(proseOnly('Mình đếm được 5 lỗi trong đoạn này.'), facts, 'vi', '');
   expect(r.answer_kind).toBe('refusal');
 });
+
+// ---- 2026-07-21 adversarial review Finding #1 (CONFIRMED by red probe, then fixed) -----------
+// A per-line properNounPhrases variant let a fabricated org pass by splitting its words across a
+// bare '\n' — the edit-path probe reached a CV edit as 'grounded'. Tokenization is whole-text
+// again (a line break neither breaks a run nor grants sentence-initial); the measured quote/
+// punctuation FPs stay fixed via unwrap + the trailing-closer run-breaker.
+
+it('refuses a fabricated org split across a newline in PROSE ("Quantum\nLeap Robotics")', () => {
+  const r = groundCvChat(
+    proseOnly('I think you interned at Quantum\nLeap Robotics.'),
+    facts,
+    'en',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses a fabricated org split across a newline in a PROPOSED EDIT ("Nova\nDynamics")', () => {
+  const r = groundCvChat(
+    {
+      message: 'Đây nhé.',
+      used_facts: [],
+      proposed_edit: {
+        field_path: 'projects[0].description',
+        after: 'Làm web bán hàng cùng Nova\nDynamics',
+      },
+      cited_field_path: null,
+      suggested_next_step: null,
+    },
+    facts,
+    'vi',
+    'làm web bán hàng',
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.proposed_edit).toBeNull();
+});
+
+it('refuses a fabricated org split across a newline in VI prose too ("Nova\nDynamics")', () => {
+  const r = groundCvChat(
+    proseOnly('Mình thấy bạn hợp với phong cách của Nova\nDynamics đấy.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});

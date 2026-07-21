@@ -308,9 +308,17 @@ export function properNounPhrases(text: string): string[] {
   // false-kill family ("Firebase Auth If" ×7, live 2026-07-21): strip closers before testing, for
   // BOTH run-continuation and the sentence-initial guard, or a quoted sentence end joins sentences.
   const unwrap = (raw: string) => raw.replace(/["'”’»)\]]+$/u, '');
-  // a run never CONTINUES across trailing punctuation — "React, Firebase" is a list of two single
-  // tokens and "Node.js. Đã" spans a sentence boundary; joining them minted phrases nobody wrote,
-  // which the corpus lookup then "caught" (measured false kills).
+  // a run never CONTINUES across trailing punctuation OR a trailing closing quote/bracket — "React,
+  // Firebase" is a list of two single tokens, "Node.js. Đã" spans a sentence boundary, and a closer
+  // ('Auth"') ends the quoted clause even with no punctuation inside; joining across any of these
+  // minted phrases nobody wrote, which the corpus lookup then "caught" (measured false kills).
+  // ⚠️ Tokenization is deliberately WHOLE-TEXT (`\s+` spans newlines): a per-line variant was tried
+  // (2026-07-21) and REVERTED — adversarial review CONFIRMED (red probe) that it let a fabricated
+  // org pass by splitting its words across a bare '\n' ("Nova\nDynamics" reached a CV edit). A line
+  // break alone therefore neither breaks a run nor makes the next token sentence-initial; the FP
+  // cost (a line ending in a TitleCase word joining the next line's opener with NO punctuation and
+  // NO quote between) was 0/90 measured live turns — every measured kill had a quote or punctuation
+  // at the boundary, which the unwrap/closer rules above now handle.
   // DOCUMENTED RESIDUAL (adversarial review 2026-07-20): a two-word org SPELLED with punctuation
   // between its halves ("Nova, Dynamics") now degrades into two lone capitalized tokens, which this
   // net skips — the same class as the pre-existing single-word-org residual above ("Google" slips
@@ -319,30 +327,24 @@ export function properNounPhrases(text: string): string[] {
   // NOTE: this set stays OFF the run-START guard below — a capitalized word after a comma is not
   // sentence-initial, and skipping it would hide an ADJACENT unpunctuated pair ("với React, Nova
   // Dynamics xử lý…" must still form the "Nova Dynamics" phrase).
-  const breaksRun = (raw: string) => /[.!?:;,]$/.test(unwrap(raw));
+  const breaksRun = (raw: string) => /[.!?:;,]$/.test(unwrap(raw)) || /["'”’»)\]]$/u.test(raw);
   const phrases: string[] = [];
-  // Per-LINE processing: a run never crosses a line break (chat prose starts a new sentence on a
-  // new line, often with no terminal punctuation — "Firebase Auth\nIf" is two sentences, not one
-  // org), and each line's first token is sentence-initial by definition. An org deliberately split
-  // across lines degrades to single tokens — same accepted residual class as "Nova, Dynamics".
-  for (const line of text.split('\n')) {
-    const toks = line.split(/\s+/).filter(Boolean);
-    let i = 1; // token 0 is sentence-initial by definition
-    while (i < toks.length) {
-      const sentenceInitial = /[.!?:]$/.test(unwrap(toks[i - 1]));
-      const w = clean(toks[i]);
-      if (!sentenceInitial && isCap(w)) {
-        const run = [w];
-        let j = i + 1;
-        while (j < toks.length && !breaksRun(toks[j - 1]) && isCap(clean(toks[j]))) {
-          run.push(clean(toks[j]));
-          j += 1;
-        }
-        if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
-        i = j;
-      } else {
-        i += 1;
+  const toks = text.split(/\s+/).filter(Boolean);
+  let i = 1; // token 0 is sentence-initial by definition
+  while (i < toks.length) {
+    const sentenceInitial = /[.!?:]$/.test(unwrap(toks[i - 1]));
+    const w = clean(toks[i]);
+    if (!sentenceInitial && isCap(w)) {
+      const run = [w];
+      let j = i + 1;
+      while (j < toks.length && !breaksRun(toks[j - 1]) && isCap(clean(toks[j]))) {
+        run.push(clean(toks[j]));
+        j += 1;
       }
+      if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
+      i = j;
+    } else {
+      i += 1;
     }
   }
   return phrases;
