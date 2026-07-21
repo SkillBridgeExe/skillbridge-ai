@@ -56,6 +56,14 @@ export class LearningSessionProgressService {
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${dto.skill_canonical}' was not found.`);
     }
+    if (
+      sessionId.startsWith('roadmap-') &&
+      sessionId !== legacyRoadmapSessionId(dto.skill_canonical)
+    ) {
+      throw new BadRequestException(
+        `Session '${sessionId}' does not belong to lesson '${dto.skill_canonical}'.`,
+      );
+    }
 
     const question = lesson.quiz.find((item) => item.id === dto.question_id);
     if (!question) {
@@ -187,6 +195,15 @@ export class LearningSessionProgressService {
       updated_at: row.updatedAt ? row.updatedAt.toISOString() : null,
     };
   }
+}
+
+function legacyRoadmapSessionId(skillCanonical: string): string {
+  const slug = skillCanonical
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `roadmap-${slug}`;
 }
 
 function normalizeChecklistItems(value: unknown): Record<string, string[]> {

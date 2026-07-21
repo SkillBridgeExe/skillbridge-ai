@@ -35,10 +35,12 @@ export function answerQuizQuestion(
     return {
       attempt: {
         ...existingAttempt,
+        selected_option_index: selectedOptionIndex,
+        is_correct: selectedOptionIndex === correctOptionIndex,
         attempts: Math.max(1, existingAttempt.attempts) + 1,
         last_answered_at: answeredAt,
       },
-      scored: false,
+      scored: true,
     };
   }
 

@@ -4,13 +4,13 @@ import {
 } from '../../../src/platform/learning/quiz-mastery';
 
 describe('learning quiz mastery', () => {
-  it('scores the first attempt and keeps retries unscored', () => {
-    const first = answerQuizQuestion(undefined, 1, 1, '2026-07-03T00:00:00.000Z');
+  it('scores every practice retry using the latest answer', () => {
+    const first = answerQuizQuestion(undefined, 0, 1, '2026-07-03T00:00:00.000Z');
 
     expect(first).toMatchObject({
       attempt: {
-        selected_option_index: 1,
-        is_correct: true,
+        selected_option_index: 0,
+        is_correct: false,
         attempts: 1,
         answered_at: '2026-07-03T00:00:00.000Z',
         last_answered_at: '2026-07-03T00:00:00.000Z',
@@ -18,7 +18,7 @@ describe('learning quiz mastery', () => {
       scored: true,
     });
 
-    const retry = answerQuizQuestion(first.attempt, 0, 1, '2026-07-03T00:01:00.000Z');
+    const retry = answerQuizQuestion(first.attempt, 1, 1, '2026-07-03T00:01:00.000Z');
 
     expect(retry).toMatchObject({
       attempt: {
@@ -28,7 +28,7 @@ describe('learning quiz mastery', () => {
         answered_at: '2026-07-03T00:00:00.000Z',
         last_answered_at: '2026-07-03T00:01:00.000Z',
       },
-      scored: false,
+      scored: true,
     });
   });
 

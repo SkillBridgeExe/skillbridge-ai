@@ -188,7 +188,25 @@ describe('LearningSessionProgressService', () => {
     });
   });
 
-  it('keeps retry answers unscored and preserves first-attempt correctness', async () => {
+  it('rejects a quiz lesson that does not belong to the legacy session id', async () => {
+    const repo = repoMock();
+    repo.findOne.mockResolvedValue(null);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
+
+    await expect(
+      service.answerQuizQuestion('user-1', 'roadmap-typescript', {
+        skill_canonical: 'react',
+        question_id: 'state-purpose',
+        selected_option_index: 0,
+      }),
+    ).rejects.toThrow("Session 'roadmap-typescript' does not belong to lesson 'react'.");
+
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('scores retry answers and persists the latest practice result', async () => {
     const repo = repoMock();
     repo.findOne.mockResolvedValue({
       id: 'progress-1',
@@ -213,24 +231,24 @@ describe('LearningSessionProgressService', () => {
     const result = await service.answerQuizQuestion('user-1', 'roadmap-react', {
       skill_canonical: 'react',
       question_id: 'state-purpose',
-      selected_option_index: 2,
+      selected_option_index: 1,
     });
 
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         quizAttempts: {
           'state-purpose': expect.objectContaining({
-            selected_option_index: 0,
-            is_correct: true,
+            selected_option_index: 1,
+            is_correct: false,
             attempts: 2,
           }),
         },
       }),
     );
     expect(result).toMatchObject({
-      selected_option_index: 0,
-      is_correct: true,
-      scored: false,
+      selected_option_index: 1,
+      is_correct: false,
+      scored: true,
       attempt_count: 2,
     });
   });

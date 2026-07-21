@@ -485,42 +485,43 @@ export class CvMatchesService {
     dto: RoadmapFromMatchDto,
   ): Promise<ComposedRoadmap> {
     const { match, parsed } = await this.loadOwnedMatchParsedResponse(userId, matchId);
-    // Atomic charge-first reserve (race-free); refunded on any failure below.
+    const report = await this.buildGapReportFromParsed(userId, match, parsed);
+    const plan = buildUnifiedPlan({
+      matchId,
+      sessionId: null,
+      gapItems: report.gap_items,
+      interviewItems: [],
+      actions: report.recommended_actions,
+    });
+    const preferences = await this.learningPreferences?.findOne({ where: { userId } });
+    const budget = {
+      available_days: dto.available_days ?? preferences?.availableDays ?? 30,
+      hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
+    };
+    const languagePref: LearningLanguagePref =
+      dto.language_pref ?? preferences?.languagePref ?? 'both';
+
+    if (plan.learn_items.length === 0) {
+      return {
+        budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
+        steps: [],
+        not_feasible_items: [],
+        ai_summary:
+          'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
+        no_learning_gaps: true,
+      };
+    }
+
+    if (!this.roadmapComposer) {
+      throw new Error('Roadmap composer dependency is not configured');
+    }
+
+    // Reserve only after the server has established that generation has useful learning work.
     const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.ROADMAP_GENERATE, {
       sourceType: 'cv_match',
       sourceId: matchId,
     });
     try {
-      const report = await this.buildGapReportFromParsed(userId, match, parsed);
-      const plan = buildUnifiedPlan({
-        matchId,
-        sessionId: null,
-        gapItems: report.gap_items,
-        interviewItems: [],
-        actions: report.recommended_actions,
-      });
-      const preferences = await this.learningPreferences?.findOne({ where: { userId } });
-      const budget = {
-        available_days: dto.available_days ?? preferences?.availableDays ?? 30,
-        hours_per_week: dto.hours_per_week ?? preferences?.hoursPerWeek ?? 8,
-      };
-      const languagePref: LearningLanguagePref =
-        dto.language_pref ?? preferences?.languagePref ?? 'both';
-
-      if (plan.learn_items.length === 0) {
-        return {
-          budget_hours: Number(((budget.available_days * budget.hours_per_week) / 7).toFixed(1)),
-          steps: [],
-          not_feasible_items: [],
-          ai_summary:
-            'No learnable skill gaps were found for this match; remaining gaps should be handled through CV evidence, wording, or interview practice.',
-          no_learning_gaps: true,
-        };
-      }
-
-      if (!this.roadmapComposer) {
-        throw new Error('Roadmap composer dependency is not configured');
-      }
 
       return await this.roadmapComposer.compose({
         learnItems: plan.learn_items,
