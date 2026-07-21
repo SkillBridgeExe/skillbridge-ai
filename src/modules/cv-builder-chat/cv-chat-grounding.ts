@@ -274,11 +274,15 @@ export function firstUngroundedToken(text: string, licensed: string): string | n
   // "CV " is the product-domain word, not an org — "CV Business Analyst" (the ALL-CAPS acronym
   // joining the licensed role into one phrase, a measured live FP) asserts nothing beyond its
   // licensed remainder. Only the literal "CV " prefix is stripped; a fabricated org after it
-  // ("CV Nova Dynamics") keeps an unlicensed remainder and still refuses.
+  // ("CV Nova Dynamics") keeps an unlicensed remainder and still refuses. A one-word remainder is
+  // matched on a WORD boundary, not substring — "CV An" must not ride on "Data ANalyst".
   for (const phrase of properNounPhrases(t)) {
     const pl = phrase.toLowerCase();
     if (srcLower.includes(pl)) continue;
-    if (pl.startsWith('cv ') && srcLower.includes(pl.slice(3))) continue;
+    if (pl.startsWith('cv ')) {
+      const rest = pl.slice(3);
+      if (rest.includes(' ') ? srcLower.includes(rest) : hasWord(src, rest)) continue;
+    }
     return phrase;
   }
   // (e) fabricated credential.

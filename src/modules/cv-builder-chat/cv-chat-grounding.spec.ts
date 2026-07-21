@@ -895,3 +895,13 @@ it('EN refusal copy: digit-free and gap-contextual too', () => {
   expect(r.answer).not.toMatch(/\d/);
   expect(r.answer).toContain('result'); // gaps=['result'] → 'the result you achieved'
 });
+
+it('still refuses "CV An" — a one-word remainder needs a WORD match, not a substring of "Data Analyst"', () => {
+  const r = groundCvChat(
+    proseOnly('Mình từng thấy CV An viết phần này rất hay.'), // fabricated person, "an" ⊂ "analyst"
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
