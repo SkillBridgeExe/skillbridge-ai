@@ -202,9 +202,11 @@ function firstNonAsciiDigitRun(nfkcText: string): string | null {
 //   - `điểm` counts ONLY inside `điểm mạnh`/`điểm chính` (a score is never a "điểm chính"), so the
 //     bare-`điểm` score wall is intact;
 //   - `kiểu` counts ONLY phrase-final ("có 3 kiểu:") — a following letter-word ("3 kiểu dự án" =
-//     a record claim) falls back to the wall; `cách` counts ONLY as the full phrase `cách viết`.
+//     a record claim) falls back to the wall; `cách` counts ONLY as the full phrase `cách viết`;
+//   - `lỗi` (measured live: "bắt đúng 2 lỗi chính" — a count of problems in the TEXT under review,
+//     the same class as "yếu ở 3 chỗ") is benign at the ≤3 writing cap.
 const WRITING_NOUN =
-  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|mảnh thông tin|điểm mạnh|điểm chính|cách viết|kiểu(?=\s*(?:[^\p{L}\p{N}\s]|$))|phần(?!\s*(?:trăm|nghìn))(?=\s*(?:[^\p{L}\p{N}\s]|$))|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
+  /^\s*(?:phiên bản|bản|gạch đầu dòng|dòng|câu|bullets?|chỗ|ý|động từ|mảnh thông tin|điểm mạnh|điểm chính|cách viết|lỗi|kiểu(?=\s*(?:[^\p{L}\p{N}\s]|$))|phần(?!\s*(?:trăm|nghìn))(?=\s*(?:[^\p{L}\p{N}\s]|$))|versions?|lines?|sentences?|verbs?|wording)(?![\p{L}\p{N}])/iu;
 const ASK_NOUN =
   /^\s*(?:công nghệ|công cụ|kết quả|chi tiết|thông tin|số liệu|con số|việc|mục|phần(?!\s*(?:trăm|nghìn))|technolog(?:y|ies)|tools?|results?|details?|things?|parts?)(?![\p{L}\p{N}])/iu;
 

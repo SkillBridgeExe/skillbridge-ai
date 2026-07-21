@@ -986,3 +986,21 @@ it('served prose PRESERVES newlines, so a line-start list the gate allowed stays
   ).normalize('NFKC');
   expect(firstUngroundedToken(r.answer, licensed)).toBeNull();
 });
+
+// ---- 2026-07-21 run-2 measured buy-back: `lỗi` (count of problems in the reviewed text) --------
+
+it('keeps "2 lỗi chính" — a count of problems found in the TEXT, same class as "yếu ở 3 chỗ"', () => {
+  const r = groundCvChat(
+    proseOnly('Bullet này đang có 2 lỗi chính: mở đầu còn yếu và thiếu kết quả đo được.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('2 lỗi');
+});
+
+it('still refuses "5 lỗi" — the writing-noun cap (≤3) holds for lỗi too', () => {
+  const r = groundCvChat(proseOnly('Mình đếm được 5 lỗi trong đoạn này.'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
