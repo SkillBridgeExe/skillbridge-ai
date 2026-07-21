@@ -333,4 +333,61 @@ describe('LearningSessionProgressService', () => {
       }),
     );
   });
+
+  it('validates that a persisted V2 session belongs to the user and requested skill', async () => {
+    const repo = repoMock();
+    repo.findOne.mockResolvedValue(null);
+    const getRawOne = jest.fn().mockResolvedValue({ skill_canonical: 'react' });
+    const queryBuilder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawOne,
+    };
+    const dataSource = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    };
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      dataSource as never,
+    );
+
+    await service.answerQuizQuestion('user-1', '11111111-1111-4111-8111-111111111111', {
+      skill_canonical: 'react',
+      question_id: 'state-purpose',
+      selected_option_index: 0,
+    });
+
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'module.skillCanonical = :skillCanonical',
+      { skillCanonical: 'react' },
+    );
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        learningSessionId: '11111111-1111-4111-8111-111111111111',
+      }),
+    );
+  });
+
+  it('rejects an unowned V2 session before reading or writing progress', async () => {
+    const repo = repoMock();
+    const queryBuilder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue(null),
+    };
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      { createQueryBuilder: jest.fn().mockReturnValue(queryBuilder) } as never,
+    );
+
+    await expect(
+      service.getProgress('user-2', '11111111-1111-4111-8111-111111111111'),
+    ).rejects.toThrow("Learning session '11111111-1111-4111-8111-111111111111' was not found.");
+    expect(repo.findOne).not.toHaveBeenCalled();
+  });
 });

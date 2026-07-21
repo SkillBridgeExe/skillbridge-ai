@@ -159,7 +159,10 @@ describe('LearningRoadmapGenerationService', () => {
     );
     expect(manager.save).toHaveBeenCalledWith(
       LearningSessionEntity,
-      expect.objectContaining({ moduleId: 'module-1' }),
+      expect.objectContaining({
+        moduleId: 'module-1',
+        requiredTasks: expect.arrayContaining([expect.objectContaining({ type: 'resources' })]),
+      }),
     );
     expect(manager.update).toHaveBeenCalledWith(
       LearningRoadmapEntity,

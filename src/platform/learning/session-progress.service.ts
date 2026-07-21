@@ -1,6 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
+import { LearningModuleEntity } from '../../database/entities/learning-module.entity';
+import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
+import { LearningRoadmapVersionEntity } from '../../database/entities/learning-roadmap-version.entity';
+import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import {
@@ -22,12 +26,14 @@ export class LearningSessionProgressService {
   constructor(
     @InjectRepository(LearningSessionProgressEntity)
     private readonly progress: Repository<LearningSessionProgressEntity>,
+    @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
   ) {}
 
   async getProgress(
     userId: string,
     sessionId: string,
   ): Promise<LearningSessionProgressResponseDto> {
+    await this.assertOwnedV2Session(userId, sessionId);
     const row = await this.progress.findOne({ where: { userId, sessionId } });
     if (!row) return this.emptyResponse(sessionId);
     return this.toResponse(row);
@@ -38,8 +44,15 @@ export class LearningSessionProgressService {
     sessionId: string,
     dto: UpdateLearningSessionProgressDto,
   ): Promise<LearningSessionProgressResponseDto> {
+    const isV2 = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
-    const next = existing ?? this.progress.create({ userId, sessionId });
+    const next =
+      existing ??
+      this.progress.create({
+        userId,
+        sessionId,
+        ...(isV2 ? { learningSessionId: sessionId } : {}),
+      });
 
     next.checkedChecklistItems = normalizeChecklistItems(dto.checked_checklist_items);
     next.exerciseProofs = normalizeExerciseProofs(dto.exercise_proofs);
@@ -52,6 +65,7 @@ export class LearningSessionProgressService {
     sessionId: string,
     dto: AnswerLearningQuizQuestionDto,
   ): Promise<LearningQuizAnswerResponseDto> {
+    const isV2 = await this.assertOwnedV2Session(userId, sessionId, dto.skill_canonical);
     const lesson = getSkillBridgeLessonContent(dto.skill_canonical);
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${dto.skill_canonical}' was not found.`);
@@ -92,6 +106,7 @@ export class LearningSessionProgressService {
       this.progress.create({
         userId,
         sessionId,
+        ...(isV2 ? { learningSessionId: sessionId } : {}),
         checkedChecklistItems: {},
         exerciseProofs: {},
         quizAttempts,
@@ -135,6 +150,7 @@ export class LearningSessionProgressService {
     sessionId: string,
     skillCanonical: string,
   ): Promise<LearningNextQuestionsResponseDto> {
+    await this.assertOwnedV2Session(userId, sessionId, skillCanonical);
     const lesson = getSkillBridgeLessonContent(skillCanonical);
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${skillCanonical}' was not found.`);
@@ -153,12 +169,14 @@ export class LearningSessionProgressService {
     itemId: string,
     dto: PatchLearningChecklistItemDto,
   ): Promise<LearningSessionProgressResponseDto> {
+    const isV2 = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     const next =
       existing ??
       this.progress.create({
         userId,
         sessionId,
+        ...(isV2 ? { learningSessionId: sessionId } : {}),
         checkedChecklistItems: {},
         exerciseProofs: {},
         quizAttempts: {},
@@ -174,6 +192,31 @@ export class LearningSessionProgressService {
     next.checkedChecklistItems = checkedChecklistItems;
 
     return this.toResponse(await this.progress.save(next));
+  }
+
+  private async assertOwnedV2Session(
+    userId: string,
+    sessionId: string,
+    skillCanonical?: string,
+  ): Promise<boolean> {
+    if (!UUID_PATTERN.test(sessionId)) return false;
+    if (!this.dataSource) {
+      throw new Error('Learning V2 session validation requires a DataSource.');
+    }
+    const query = this.dataSource
+      .createQueryBuilder(LearningSessionEntity, 'session')
+      .innerJoin(LearningModuleEntity, 'module', 'module.id = session.moduleId')
+      .innerJoin(LearningRoadmapVersionEntity, 'version', 'version.id = module.versionId')
+      .innerJoin(LearningRoadmapEntity, 'roadmap', 'roadmap.id = version.roadmapId')
+      .select('module.skillCanonical', 'skill_canonical')
+      .where('session.id = :sessionId', { sessionId })
+      .andWhere('roadmap.userId = :userId', { userId });
+    if (skillCanonical) {
+      query.andWhere('module.skillCanonical = :skillCanonical', { skillCanonical });
+    }
+    const owned = await query.getRawOne<{ skill_canonical: string }>();
+    if (!owned) throw new NotFoundException(`Learning session '${sessionId}' was not found.`);
+    return true;
   }
 
   private emptyResponse(sessionId: string): LearningSessionProgressResponseDto {
@@ -196,6 +239,9 @@ export class LearningSessionProgressService {
     };
   }
 }
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function legacyRoadmapSessionId(skillCanonical: string): string {
   const slug = skillCanonical

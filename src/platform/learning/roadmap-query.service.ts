@@ -87,7 +87,7 @@ export class LearningRoadmapQueryService {
       intent: roadmap.intent,
       status: 'ACTIVE',
       revision: roadmap.revision,
-      target_role: roadmap.targetRole ?? null,
+      target_role: roadmap.targetRole ?? roadmap.draftConfig.source_target_role ?? null,
       target_level: roadmap.targetLevel ?? null,
       version: {
         id: version.id,

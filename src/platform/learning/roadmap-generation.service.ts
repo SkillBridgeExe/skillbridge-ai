@@ -384,7 +384,7 @@ function requiredTasks(
   const tasks: Array<Record<string, unknown>> = [
     { type: 'study', sequence, total_sessions: totalSessions },
   ];
-  if (sequence === 1 && step) {
+  if (step) {
     tasks.push({ type: 'resources', items: step.resources });
     if (step.lesson_content) tasks.push({ type: 'lesson', content: step.lesson_content });
   }
