@@ -365,6 +365,288 @@ it('keeps "1 chi tiết" — ASK noun at exactly 1', () => {
   expect(r.answer).toContain('chi tiết');
 });
 
+// ---- measured gate-overkill FP families (field-filling probe 2026-07-20): cooperative coaching
+// turns were killed by TOKENIZER artifacts, not by real fabrication. Each family locks the buy-back
+// AND a same-shape stay-refusal, so the fix cannot silently widen the number/entity wall.
+
+// family 1 — en-dash range: "1–2" must be ONE range token folding to "1-2", not a killed bare "1".
+it('keeps "1–2 câu" — an en-dash advice range folds to the ASCII range form', () => {
+  const r = groundCvChat(proseOnly('Phần này nên gói trong 1–2 câu là đủ nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('1–2 câu');
+});
+
+it('still refuses an en-dash range over a non-advice noun ("1–2 triệu")', () => {
+  const r = groundCvChat(proseOnly('Mức đó tầm 1–2 triệu mỗi tháng'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps a proposed edit whose en-dash range the user gave in ASCII ("2022–2023")', () => {
+  const parsed = {
+    message: 'Đây nhé.',
+    used_facts: [],
+    proposed_edit: {
+      field_path: 'projects[0].description',
+      after: 'Làm web bán hàng, thực tập 2022–2023',
+    },
+    cited_field_path: null,
+    suggested_next_step: null,
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'mình thực tập 2022-2023');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.proposed_edit?.after).toContain('2022–2023');
+});
+
+// family 2 — a letter unit must not eat the first letter of the next word: "1 kết quả" tokenized as
+// "1 k" (thousand) and "3 mảnh" as "3 m" (metres), so the benign noun was never adjacent.
+it('keeps "1 kết quả" — the unit "k" no longer swallows "kết quả"', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn cho mình xin 1 kết quả đo được của dự án nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('1 kết quả');
+});
+
+it('still refuses "4 kết quả" — ASK noun stays benign only at exactly 1', () => {
+  const r = groundCvChat(proseOnly('Bạn kể mình 4 kết quả nổi bật nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('still refuses a REAL k-unit metric ("tăng 5k mỗi tháng") — the unit net is intact', () => {
+  const r = groundCvChat(proseOnly('Bạn ghi doanh thu tăng 5k mỗi tháng nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+// family 3 — measured noun-list gaps: thứ / mảnh / con số / điểm mạnh.
+// `thứ` was measured as an FP but is NOT bought back: it is a bare classifier that joins record
+// nouns ("2 thứ tiếng" = two languages, "2 thứ hạng cao" = rankings) with no safe discriminator —
+// adversarial-review finding. The over-refusal is accepted as a residual (safe direction).
+it('refuses "2 thứ hạng cao" — bare `thứ` stays OUT of the benign lists (classifier hole)', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn đã có 2 thứ hạng cao trong các cuộc thi lập trình'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses "3 mảnh kinh nghiệm" — `mảnh` is benign ONLY in the full phrase "mảnh thông tin"', () => {
+  const r = groundCvChat(
+    proseOnly('Nhìn CV thì bạn có 3 mảnh kinh nghiệm quốc tế nổi bật'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('refuses "3 phần kinh nghiệm" — `phần` is benign only phrase-final ("cần 2 phần:")', () => {
+  const r = groundCvChat(
+    proseOnly('CV của bạn có 3 phần kinh nghiệm ấn tượng đấy'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps "3 mảnh thông tin" — pieces of info to collect, not a metric', () => {
+  const r = groundCvChat(
+    proseOnly('Cho mình 3 mảnh thông tin nhé: bạn làm gì, dùng công nghệ nào, kết quả ra sao'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('keeps "1 con số" — asking the user for exactly one number', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn cho mình đúng 1 con số cụ thể về kết quả nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('keeps "2-3 điểm mạnh" — a summary-writing count; bare "điểm" stays walled', () => {
+  const r = groundCvChat(
+    proseOnly('Phần tóm tắt nên nêu 2-3 điểm mạnh gắn với vị trí bạn nhắm nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses "5 điểm mạnh" — the ≤3 writing cap holds for the new noun too', () => {
+  const r = groundCvChat(proseOnly('Nhìn CV thì bạn có 5 điểm mạnh rõ ràng'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps "cần 2 phần" — a bullet-structure count (live-run kill 2026-07-20)', () => {
+  const r = groundCvChat(
+    proseOnly('Câu nghe xịn hơn thường cần 2 phần: bạn đã làm gì và nó tạo ra tác động gì'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses "tăng 2 phần trăm" — the trăm lookahead rides along into WRITING_NOUN', () => {
+  const r = groundCvChat(proseOnly('Bạn ghi là tăng 2 phần trăm nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+// family 6 — enumeration markers: "1) … 2) …" opening the lines of an advice list.
+it('keeps a numbered list of two rewrite options ("1) … 2) …")', () => {
+  const r = groundCvChat(
+    proseOnly(
+      'Mình gợi ý 2 bản ngắn hơn:\n1) Xây dựng API đăng nhập cho nhóm dự án cuối kỳ.\n2) Phát triển API đăng nhập cho nhóm dự án cuối kỳ.',
+    ),
+    facts,
+    'vi',
+    'mình xây dựng API đăng nhập cho nhóm dự án cuối kỳ',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses an "(x2)" multiplier — a digit before ")" mid-line is not a list marker', () => {
+  const r = groundCvChat(proseOnly('Hiệu năng tăng (x2) sau đợt tối ưu'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('still refuses a metric INSIDE a numbered list item — the marker shields only the ordinal', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn có thể trình bày:\n1) Xây dựng API đăng nhập.\n2) Đạt 90% uptime.'),
+    facts,
+    'vi',
+    'mình xây dựng API đăng nhập',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps a DOT-numbered list ("1. … 2. …") — the other marker style from the live runs', () => {
+  const r = groundCvChat(
+    proseOnly(
+      'Mình viết 2 bản để bạn chọn:\n1. Xây dựng website bán hàng cùng nhóm.\n2. Cùng nhóm xây dựng website bán hàng.',
+    ),
+    facts,
+    'vi',
+    'mình cùng nhóm xây dựng website bán hàng',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses a sentence-final digit mid-line ("đạt 2.") — not a list marker', () => {
+  const r = groundCvChat(proseOnly('Kỹ năng này bạn đạt 2. Cần cải thiện thêm'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps "2 điểm chính" — main points of the critique, never a score phrase', () => {
+  const r = groundCvChat(
+    proseOnly('Bản quét đang chê đúng 2 điểm chính ở bullet này: mở đầu yếu và thiếu kết quả'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses bare "2 điểm" — the score wall does not ride on the new phrase', () => {
+  const r = groundCvChat(proseOnly('CV của bạn được 2 điểm thôi nhé'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+// family 4 — a comma list must not be joined into a phrase nobody wrote ("React, Firebase" was
+// minted as the entity "React Firebase", unlicensed even though EACH tech was licensed).
+it('keeps "React, Firebase" — a comma list of two LICENSED techs is not one fabricated entity', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn nên nêu rõ React, Firebase ngay câu đầu phần dự án nhé'),
+    facts,
+    'vi',
+    'mình dùng React và Firebase cho đồ án',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses an UNLICENSED tech after a comma ("…, Kafka") — NAMED_TECH is per-token', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn nên thêm Redis, Kafka vào phần kỹ năng'),
+    facts,
+    'vi',
+    'mình dùng Redis',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('still refuses a fabricated TitleCase org pair inside one sentence ("Nova Dynamics")', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn nên ghi kinh nghiệm ở Nova Dynamics vào nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('keeps a proposed edit listing licensed techs with commas', () => {
+  const parsed = {
+    message: 'Đây nhé.',
+    used_facts: [],
+    proposed_edit: {
+      field_path: 'projects[0].description',
+      after: 'Xây dựng web bán hàng với React, Firebase',
+    },
+    cited_field_path: null,
+    suggested_next_step: null,
+  };
+  const r = groundCvChat(parsed, facts, 'vi', 'mình dùng React và Firebase');
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.proposed_edit?.after).toContain('React, Firebase');
+});
+
+// family 5 — a name run must not be joined ACROSS a sentence boundary ("Docker. Bản" / "Backend
+// Developer. Với" were minted as phrases and killed licensed prose).
+it('keeps the licensed target_role at a sentence end ("… Backend Developer. Với …")', () => {
+  const bdFacts = { ...facts, target_role: 'Backend Developer' };
+  const r = groundCvChat(
+    proseOnly(
+      'Hồ sơ đang nhắm Backend Developer. Với mục tiêu đó, phần dự án nên nêu kết quả rõ hơn nhé',
+    ),
+    bdFacts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('keeps a licensed tech at a sentence end ("… dùng Docker. Bản mô tả …")', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn có kể đã dùng Docker. Bản mô tả nên nói rõ bạn dùng nó vào việc gì nhé'),
+    facts,
+    'vi',
+    'mình có dùng docker để deploy đồ án',
+  );
+  expect(r.answer_kind).toBe('grounded');
+});
+
+it('still refuses an UNLICENSED tech even at a sentence end ("… dùng Docker. Bạn …")', () => {
+  const r = groundCvChat(
+    proseOnly('Mình khuyên bạn dùng Docker. Bạn thêm vào phần kỹ năng nhé'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+});
+
 // ---- Task B3: TWO-CORPUS gate — the diagnosis block licenses PROSE (the message) only. It must
 // NEVER widen the edit corpus (a tool the scan says the user is MISSING can't be inserted into the CV)
 // nor the suggestion chip, and its number-wall (digit-strip in the block) must stay intact. -----------

@@ -152,15 +152,25 @@ export function groundCvAssistantAnswers(answers: CvAnswer[], language: Language
  * A number, an optional range, and an optional ADJACENT unit, captured as ONE token. This makes the
  * gate unit-aware ("30%" ≠ "30ms") and range-atomic ("3-5 years" does not authorize the bare digits
  * 3 or 5 as standalone metrics) — both real anti-fabrication holes a bare-digit set would miss.
+ *
+ * The range separator accepts en/em-dash ("1–2" is one range token, not two bare digits), and a
+ * letter unit only counts when NOT followed by a letter/digit — otherwise "3 mảnh" tokenized as
+ * "3 m" (metres) and "1 kết quả" as "1 k" (thousand), which broke the benign-noun adjacency check
+ * downstream. The lookahead sits INSIDE the optional unit group on purpose: if it sat after the
+ * whole token, a failed unit would fail the entire match and the digits would escape the net.
  */
 export const NUMBER_TOKEN_RE =
-  /\d+(?:\.\d+)?(?:\s*-\s*\d+(?:\.\d+)?)?\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)?/giu;
+  /\d+(?:\.\d+)?(?:\s*[-–—]\s*\d+(?:\.\d+)?)?(?:\s?(?:%|ms|s|x|k|m|gb|mb|users?|requests?|reqs?|hours?|days?|weeks?|months?|years?|năm)(?![\p{L}\p{N}]))?/giu;
 
-/** normalized number+unit tokens (spaces stripped, lowercased) for exact, unit-aware comparison. */
+/** ONE normalization for number tokens on EVERY licensing side (spaces stripped, dash variants
+ *  folded to ASCII "-", lowercased) — if the sides disagree on form, "1–2" can never match "1-2". */
+export function normalizeNumberToken(raw: string): string {
+  return raw.replace(/\s+/g, '').replace(/[–—]/g, '-').toLowerCase();
+}
+
+/** normalized number+unit tokens for exact, unit-aware comparison. */
 export function numberTokens(text: string): string[] {
-  return (text.match(NUMBER_TOKEN_RE) ?? [])
-    .map((t) => t.replace(/\s+/g, '').toLowerCase())
-    .filter((t) => /\d/.test(t));
+  return (text.match(NUMBER_TOKEN_RE) ?? []).map(normalizeNumberToken).filter((t) => /\d/.test(t));
 }
 
 /**
@@ -288,9 +298,25 @@ export const CREDENTIAL_WORDS = [
  */
 export function properNounPhrases(text: string): string[] {
   const toks = text.split(/\s+/);
-  const clean = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.+#&-]+$/gu, '');
+  // trailing dots are stripped so a sentence-final name compares clean ("Developer." → "Developer");
+  // internal dots survive ("Node.js"). Stripping only widens what a licensed corpus can match — a
+  // fabricated "Nova Dynamics." still fails the corpus lookup with or without its dot.
+  const clean = (w: string) =>
+    w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.+#&-]+$/gu, '').replace(/\.+$/, '');
   const isCap = (w: string) => w.length >= 2 && /^[\p{Lu}][\p{L}\p{N}.+#&-]*$/u.test(w);
   const isTitle = (w: string) => /^[\p{Lu}]\p{Ll}/u.test(w);
+  // a run never CONTINUES across trailing punctuation — "React, Firebase" is a list of two single
+  // tokens and "Node.js. Đã" spans a sentence boundary; joining them minted phrases nobody wrote,
+  // which the corpus lookup then "caught" (measured false kills).
+  // DOCUMENTED RESIDUAL (adversarial review 2026-07-20): a two-word org SPELLED with punctuation
+  // between its halves ("Nova, Dynamics") now degrades into two lone capitalized tokens, which this
+  // net skips — the same class as the pre-existing single-word-org residual above ("Google" slips
+  // too). The old accidental catch was inseparable from the measured false kills, and a
+  // constituent-aware re-join needs exactly the org gazetteer this net deliberately avoids.
+  // NOTE: this set stays OFF the run-START guard below — a capitalized word after a comma is not
+  // sentence-initial, and skipping it would hide an ADJACENT unpunctuated pair ("với React, Nova
+  // Dynamics xử lý…" must still form the "Nova Dynamics" phrase).
+  const breaksRun = (raw: string) => /[.!?:;,]$/.test(raw);
   const phrases: string[] = [];
   let i = 1; // token 0 is sentence-initial by definition
   while (i < toks.length) {
@@ -299,7 +325,7 @@ export function properNounPhrases(text: string): string[] {
     if (!sentenceInitial && isCap(w)) {
       const run = [w];
       let j = i + 1;
-      while (j < toks.length && isCap(clean(toks[j]))) {
+      while (j < toks.length && !breaksRun(toks[j - 1]) && isCap(clean(toks[j]))) {
         run.push(clean(toks[j]));
         j += 1;
       }
