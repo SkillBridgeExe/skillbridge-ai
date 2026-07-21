@@ -41,6 +41,7 @@ export interface LearningRoadmapDraftConfig {
 
 @Entity('learning_roadmaps')
 @Index(['userId', 'status'])
+@Index(['userId'], { unique: true, where: `"status" = 'ACTIVE'` })
 @Check(`"intent" IN ('JD_APPLICATION', 'CAREER_ROLE')`)
 @Check(`"status" IN ('DRAFT', 'ACTIVE', 'ARCHIVED')`)
 @Check(

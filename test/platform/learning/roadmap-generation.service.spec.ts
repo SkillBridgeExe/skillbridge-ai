@@ -166,6 +166,11 @@ describe('LearningRoadmapGenerationService', () => {
     );
     expect(manager.update).toHaveBeenCalledWith(
       LearningRoadmapEntity,
+      { userId: 'user-1', status: 'ACTIVE' },
+      { status: 'ARCHIVED' },
+    );
+    expect(manager.update).toHaveBeenCalledWith(
+      LearningRoadmapEntity,
       { id: 'roadmap-1', userId: 'user-1', status: 'DRAFT', revision: 2 },
       { status: 'ACTIVE', activeVersionId: 'version-1', revision: 3 },
     );

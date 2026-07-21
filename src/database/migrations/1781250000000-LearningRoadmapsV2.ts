@@ -29,6 +29,9 @@ export class LearningRoadmapsV21781250000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX idx_learning_roadmaps_user_status ON learning_roadmaps(user_id, status);`,
     );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX uq_learning_roadmaps_active_user ON learning_roadmaps(user_id) WHERE status = 'ACTIVE';`,
+    );
 
     await queryRunner.query(`
       CREATE TABLE learning_roadmap_versions (
@@ -173,6 +176,7 @@ export class LearningRoadmapsV21781250000000 implements MigrationInterface {
       `ALTER TABLE learning_roadmaps DROP CONSTRAINT fk_learning_roadmaps_active_version;`,
     );
     await queryRunner.query(`DROP TABLE learning_roadmap_versions;`);
+    await queryRunner.query(`DROP INDEX IF EXISTS uq_learning_roadmaps_active_user;`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_learning_roadmaps_user_status;`);
     await queryRunner.query(`DROP TABLE learning_roadmaps;`);
   }

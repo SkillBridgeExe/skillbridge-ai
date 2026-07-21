@@ -298,6 +298,11 @@ export class LearningRoadmapGenerationService {
       }
     }
 
+    await manager.update(
+      LearningRoadmapEntity,
+      { userId, status: 'ACTIVE' },
+      { status: 'ARCHIVED' },
+    );
     const activated = await manager.update(
       LearningRoadmapEntity,
       { id: locked.id, userId, status: 'DRAFT', revision: expectedRevision },
