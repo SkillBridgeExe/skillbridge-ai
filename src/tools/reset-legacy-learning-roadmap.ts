@@ -43,7 +43,8 @@ interface LegacyLearningRoadmapInspection {
   migrationNames: string[];
 }
 
-export function assertSafeResetEnvironment(environment: NodeJS.ProcessEnv): void {
+export function assertSafeResetEnvironment(environment: NodeJS.ProcessEnv, readOnly = false): void {
+  if (readOnly) return;
   if (environment.NODE_ENV === 'production' || environment.K_SERVICE || environment.ALLOW_PROD_DB) {
     throw new Error('Legacy learning roadmap reset is forbidden in production or override mode.');
   }
@@ -158,7 +159,8 @@ function assertLegacyColumns(columns: string[]): void {
 }
 
 async function main(): Promise<void> {
-  assertSafeResetEnvironment(process.env);
+  const readOnly = process.argv.includes('--check');
+  assertSafeResetEnvironment(process.env, readOnly);
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 
   const dataSource = new DataSource(buildDataSourceOptions());
@@ -166,7 +168,7 @@ async function main(): Promise<void> {
   const queryRunner = dataSource.createQueryRunner();
   await queryRunner.connect();
   try {
-    if (process.argv.includes('--check')) {
+    if (readOnly) {
       const inspection = await inspectLegacyLearningRoadmap(queryRunner);
       process.stdout.write(
         `Legacy learning roadmap reset is safe: ${inspection.roadmapCount} row(s), migrations: ${inspection.migrationNames.join(', ') || 'none'}.\n`,

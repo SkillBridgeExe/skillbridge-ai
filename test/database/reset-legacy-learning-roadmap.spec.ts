@@ -44,6 +44,12 @@ describe('resetLegacyLearningRoadmap', () => {
     ).not.toThrow();
   });
 
+  it('allows the read-only inspection command in production', () => {
+    expect(() =>
+      assertSafeResetEnvironment({ NODE_ENV: 'production', ALLOW_PROD_DB: '1' }, true),
+    ).not.toThrow();
+  });
+
   it('rolls back without deleting when the table has unexpected columns', async () => {
     const queryRunner = runnerWith([
       [...LEGACY_COLUMNS, 'unexpected_column'].map((column_name) => ({ column_name })),
