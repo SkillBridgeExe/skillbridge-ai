@@ -24,6 +24,10 @@ import {
   CvJdMatchExtractionCacheMetadata,
   CvJdMatchExtractionCacheService,
 } from './cv-jd-match-extraction-cache.service';
+import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
+import { DatabaseService } from '../../infrastructure/database/database.service';
+import { loadLatestReviewSkills } from './cv-review-facts';
+import { reconcileCvProficiency, unionJdRequirements } from './match-input-parity';
 
 interface LlmExtractionOutput {
   cv_skills_raw: RawCvSkill[];
@@ -63,6 +67,12 @@ export class CvJdMatchService {
     private readonly config?: ConfigService,
     @Optional()
     private readonly extractionCache?: CvJdMatchExtractionCacheService,
+    // PARITY deps (match-input-parity.ts) — @Optional so DB-less specs/harnesses keep the
+    // pre-parity behavior; in prod both come from @Global modules and are always present.
+    @Optional()
+    private readonly normalizer?: SkillNormalizerService,
+    @Optional()
+    private readonly db?: DatabaseService,
   ) {}
 
   async match(userId: string, input: CvJdMatchRequestDto): Promise<CvJdMatchResponseDto> {
@@ -219,12 +229,43 @@ export class CvJdMatchService {
         });
       }
 
+      // PARITY (see match-input-parity.ts): score the paste the way the job card scores.
+      // Requirements = LLM extraction ∪ gazetteer scan of the SAME JD text; CV levels are
+      // reconciled against the stored review (anti-inflation, review-lookup failure degrades).
+      const cvScan = this.scanner.scan(input.cv_text);
+      const jdScan = this.scanner.scan(input.jd_text ?? '');
+      const normalize = this.normalizer
+        ? (name: string) =>
+            this.normalizer!.normalizeMention(name)
+              .map((r) => r.canonical_name)
+              .filter((c): c is string => c !== null)
+        : null;
+
+      let jdRequirementsRaw = extraction.jd_requirements_raw;
+      if (normalize && jdText) {
+        jdRequirementsRaw = unionJdRequirements(jdRequirementsRaw, jdScan, normalize);
+      }
+
+      let cvSkillsRaw = extraction.cv_skills_raw;
+      if (normalize && this.db && input.cv_id) {
+        try {
+          const reviewSkills = await loadLatestReviewSkills(this.db, userId, input.cv_id);
+          cvSkillsRaw = reconcileCvProficiency(cvSkillsRaw, reviewSkills, normalize);
+        } catch (error) {
+          // Same degrade stance as the card path (R1): a review lookup failure must never
+          // block the match — it only means we score from the fresh extraction alone.
+          this.logger.warn(
+            `cv_jd_match: review-skill lookup failed, scoring from fresh extraction only — ${String(error)}`,
+          );
+        }
+      }
+
       // Run deterministic diff — this is where scoring actually happens.
       // PRODUCT default band = 'fresher' (our audience); the pure diff layer defaults to
       // 'mid' so eval pairs/tests stay byte-identical. JD path ignores the band entirely.
       const diff = this.skillDiff.diff({
-        cv_skills_raw: extraction.cv_skills_raw,
-        jd_requirements_raw: extraction.jd_requirements_raw,
+        cv_skills_raw: cvSkillsRaw,
+        jd_requirements_raw: jdRequirementsRaw,
         target_role: input.target_role,
         target_band: input.target_band ?? 'fresher',
       });
@@ -245,8 +286,6 @@ export class CvJdMatchService {
         );
       }
 
-      const cvScan = this.scanner.scan(input.cv_text);
-      const jdScan = this.scanner.scan(input.jd_text ?? '');
       const keyword_frequency = buildKeywordFrequency(
         [...diff.matched_skills, ...diff.partial_skills, ...diff.missing_skills],
         cvScan,
