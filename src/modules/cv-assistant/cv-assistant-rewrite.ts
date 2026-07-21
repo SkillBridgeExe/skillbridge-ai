@@ -297,7 +297,6 @@ export const CREDENTIAL_WORDS = [
  * org gazetteer only if this proves too loose in the eval corpus.
  */
 export function properNounPhrases(text: string): string[] {
-  const toks = text.split(/\s+/);
   // trailing dots are stripped so a sentence-final name compares clean ("Developer." → "Developer");
   // internal dots survive ("Node.js"). Stripping only widens what a licensed corpus can match — a
   // fabricated "Nova Dynamics." still fails the corpus lookup with or without its dot.
@@ -305,6 +304,10 @@ export function properNounPhrases(text: string): string[] {
     w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.+#&-]+$/gu, '').replace(/\.+$/, '');
   const isCap = (w: string) => w.length >= 2 && /^[\p{Lu}][\p{L}\p{N}.+#&-]*$/u.test(w);
   const isTitle = (w: string) => /^[\p{Lu}]\p{Ll}/u.test(w);
+  // sentence punctuation can hide behind a closing quote/bracket ('Auth."', 'xong.”') — measured EN
+  // false-kill family ("Firebase Auth If" ×7, live 2026-07-21): strip closers before testing, for
+  // BOTH run-continuation and the sentence-initial guard, or a quoted sentence end joins sentences.
+  const unwrap = (raw: string) => raw.replace(/["'”’»)\]]+$/u, '');
   // a run never CONTINUES across trailing punctuation — "React, Firebase" is a list of two single
   // tokens and "Node.js. Đã" spans a sentence boundary; joining them minted phrases nobody wrote,
   // which the corpus lookup then "caught" (measured false kills).
@@ -316,23 +319,30 @@ export function properNounPhrases(text: string): string[] {
   // NOTE: this set stays OFF the run-START guard below — a capitalized word after a comma is not
   // sentence-initial, and skipping it would hide an ADJACENT unpunctuated pair ("với React, Nova
   // Dynamics xử lý…" must still form the "Nova Dynamics" phrase).
-  const breaksRun = (raw: string) => /[.!?:;,]$/.test(raw);
+  const breaksRun = (raw: string) => /[.!?:;,]$/.test(unwrap(raw));
   const phrases: string[] = [];
-  let i = 1; // token 0 is sentence-initial by definition
-  while (i < toks.length) {
-    const sentenceInitial = /[.!?:]$/.test(toks[i - 1]);
-    const w = clean(toks[i]);
-    if (!sentenceInitial && isCap(w)) {
-      const run = [w];
-      let j = i + 1;
-      while (j < toks.length && !breaksRun(toks[j - 1]) && isCap(clean(toks[j]))) {
-        run.push(clean(toks[j]));
-        j += 1;
+  // Per-LINE processing: a run never crosses a line break (chat prose starts a new sentence on a
+  // new line, often with no terminal punctuation — "Firebase Auth\nIf" is two sentences, not one
+  // org), and each line's first token is sentence-initial by definition. An org deliberately split
+  // across lines degrades to single tokens — same accepted residual class as "Nova, Dynamics".
+  for (const line of text.split('\n')) {
+    const toks = line.split(/\s+/).filter(Boolean);
+    let i = 1; // token 0 is sentence-initial by definition
+    while (i < toks.length) {
+      const sentenceInitial = /[.!?:]$/.test(unwrap(toks[i - 1]));
+      const w = clean(toks[i]);
+      if (!sentenceInitial && isCap(w)) {
+        const run = [w];
+        let j = i + 1;
+        while (j < toks.length && !breaksRun(toks[j - 1]) && isCap(clean(toks[j]))) {
+          run.push(clean(toks[j]));
+          j += 1;
+        }
+        if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
+        i = j;
+      } else {
+        i += 1;
       }
-      if (run.length >= 2 && run.some(isTitle)) phrases.push(run.join(' '));
-      i = j;
-    } else {
-      i += 1;
     }
   }
   return phrases;

@@ -1,4 +1,4 @@
-import { groundCvChat } from './cv-chat-grounding';
+import { firstUngroundedToken, groundCvChat } from './cv-chat-grounding';
 import { buildDiagnosisChatBlock } from './cv-builder-diagnosis';
 
 const facts: any = {
@@ -904,4 +904,85 @@ it('still refuses "CV An" — a one-word remainder needs a WORD match, not a sub
     '',
   );
   expect(r.answer_kind).toBe('refusal');
+});
+
+// ---- 2026-07-21 run-1 measured FP families (quote-masked punctuation / newline / trailing CV) --
+
+const fbFacts: any = {
+  ...facts,
+  focus: { ...facts.focus, current_text: 'Giúp nhóm làm module đăng nhập, dùng Firebase Auth' },
+};
+
+it('keeps a licensed tech at a QUOTED sentence end — "…Firebase Auth.” Nhưng…" is two sentences', () => {
+  const r = groundCvChat(
+    proseOnly(
+      'Bản mạnh hơn: “Hoàn thành module đăng nhập, dùng Firebase Auth.” Nhưng bạn cần xác nhận vai trò đã nhé.',
+    ),
+    fbFacts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+  expect(r.answer).toContain('Firebase Auth');
+});
+
+it('keeps a licensed tech at a LINE end — "Firebase Auth\nIf" never joins across a line break', () => {
+  const enFacts: any = {
+    ...fbFacts,
+    focus: { ...fbFacts.focus, current_text: 'Helped build the login module using Firebase Auth' },
+  };
+  const r = groundCvChat(
+    proseOnly(
+      'Here is a cleaner version:\n"Contributed to the login module using Firebase Auth"\nIf you have a real result, tell me and I will add it.',
+    ),
+    enFacts,
+    'en',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+});
+
+it('still refuses a QUOTED fabricated org mid-sentence — closers only mask punctuation, not names', () => {
+  const r = groundCvChat(
+    proseOnly('Bạn nên tham khảo cách "Nova Dynamics" trình bày nhé.'),
+    facts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).toBe('refusal');
+  expect(r.answer).not.toContain('Nova');
+});
+
+it('keeps "Frontend Developer CV" — trailing edge-CV relief mirrors the leading one', () => {
+  const feFacts = { ...facts, target_role: 'Frontend Developer' };
+  const r = groundCvChat(
+    proseOnly('Bullet này sẽ giúp Frontend Developer CV của bạn nổi bật hơn.'),
+    feFacts,
+    'vi',
+    '',
+  );
+  expect(r.answer_kind).not.toBe('refusal');
+});
+
+it('still refuses "Nova Dynamics CV" — a fabricated org cannot hide in front of the CV word', () => {
+  const r = groundCvChat(proseOnly('Nhìn thử Nova Dynamics CV mẫu nhé.'), facts, 'vi', '');
+  expect(r.answer_kind).toBe('refusal');
+});
+
+it('served prose PRESERVES newlines, so a line-start list the gate allowed stays clean on re-scan', () => {
+  const message =
+    'Có mấy hướng như sau:\n\n1. Làm rõ vai trò của bạn\n\n2. Thêm công nghệ bạn đã dùng';
+  const candidateSaid = 'giúp mình viết lại bullet này';
+  const r = groundCvChat(proseOnly(message), facts, 'vi', candidateSaid);
+  expect(r.answer_kind).toBe('grounded');
+  expect(r.answer).toContain('\n'); // the old \s{2,} collapse flattened paragraphs (prod display bug)
+  // the exact invariant the harness leak-scan checks: the SERVED text passes the same gate net.
+  const licensed = (
+    candidateSaid +
+    ' ' +
+    facts.focus.current_text +
+    ' ' +
+    facts.target_role
+  ).normalize('NFKC');
+  expect(firstUngroundedToken(r.answer, licensed)).toBeNull();
 });

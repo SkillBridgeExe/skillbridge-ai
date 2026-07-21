@@ -145,11 +145,15 @@ function editRefusal(l: Lang, gaps: string[], seed: string): string {
 // ---------------------------------------------------------------------------
 
 /** strip any raw URL from displayed prose (defense in depth — the prose gate already refuses a
- *  link the user never gave; this keeps even a licensed link out of the chat bubble). */
+ *  link the user never gave; this keeps even a licensed link out of the chat bubble).
+ *  NEWLINES ARE PRESERVED: the old `\s{2,}` collapse flattened blank lines, which (a) mushed
+ *  multi-paragraph answers into one blob and (b) moved a line-start "1." list marker the gate had
+ *  allowed (enumeration relief is line-start-anchored) into mid-line — the served text then failed
+ *  the very scan its raw message passed (measured live leak "1" ×2, 2026-07-21). */
 function stripRawUrls(text: string): string {
   return text
     .replace(/(?:https?:\/\/|www\.)\S+/gi, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/[^\S\n]{2,}/g, ' ')
     .trim();
 }
 
@@ -270,19 +274,20 @@ export function firstUngroundedToken(text: string, licensed: string): string | n
   for (const tech of NAMED_TECH) if (hasWord(t, tech) && !hasWord(src, tech)) return tech;
   // (d) fabricated URL / domain.
   for (const url of urlTokens(t)) if (!srcLower.includes(url)) return url;
-  // (f) fabricated multi-word proper-noun (employer / org / product). ONE narrow relief: a leading
-  // "CV " is the product-domain word, not an org — "CV Business Analyst" (the ALL-CAPS acronym
-  // joining the licensed role into one phrase, a measured live FP) asserts nothing beyond its
-  // licensed remainder. Only the literal "CV " prefix is stripped; a fabricated org after it
-  // ("CV Nova Dynamics") keeps an unlicensed remainder and still refuses. A one-word remainder is
-  // matched on a WORD boundary, not substring — "CV An" must not ride on "Data ANalyst".
+  // (f) fabricated multi-word proper-noun (employer / org / product). ONE narrow relief: an edge
+  // "CV" is the product-domain word, not an org — "CV Business Analyst" / "Frontend Developer CV"
+  // (the ALL-CAPS acronym joining the licensed role into one phrase, both measured live FPs)
+  // assert nothing beyond their licensed remainder. Only the literal edge "CV" is stripped; a
+  // fabricated org next to it ("CV Nova Dynamics", "Nova Dynamics CV") keeps an unlicensed
+  // remainder and still refuses. A one-word remainder is matched on a WORD boundary, not
+  // substring — "CV An" must not ride on "Data ANalyst".
+  const restLicensed = (rest: string): boolean =>
+    rest.includes(' ') ? srcLower.includes(rest) : hasWord(src, rest);
   for (const phrase of properNounPhrases(t)) {
     const pl = phrase.toLowerCase();
     if (srcLower.includes(pl)) continue;
-    if (pl.startsWith('cv ')) {
-      const rest = pl.slice(3);
-      if (rest.includes(' ') ? srcLower.includes(rest) : hasWord(src, rest)) continue;
-    }
+    if (pl.startsWith('cv ') && restLicensed(pl.slice(3))) continue;
+    if (pl.endsWith(' cv') && restLicensed(pl.slice(0, -3))) continue;
     return phrase;
   }
   // (e) fabricated credential.
