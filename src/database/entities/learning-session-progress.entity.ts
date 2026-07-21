@@ -26,6 +26,12 @@ export class LearningSessionProgressEntity {
   @Column({ type: 'varchar', name: 'session_id', length: 160 })
   sessionId!: string;
 
+  @Column({ type: 'uuid', name: 'learning_session_id', nullable: true })
+  learningSessionId!: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  revision!: number;
+
   @Column({ type: 'jsonb', name: 'checked_checklist_items', default: () => "'{}'::jsonb" })
   checkedChecklistItems!: Record<string, string[]>;
 
