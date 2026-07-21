@@ -1,12 +1,12 @@
 import { JobsController } from '../../../src/modules/jobs/jobs.controller';
 
 describe('JobsController quota enforcement', () => {
-  function build(recommendations: unknown[] = []) {
+  function build(recommendations: unknown[] = [], total = recommendations.length) {
     const reco = {
       recommendForCv: jest.fn().mockResolvedValue({
         cv_id: 'cv-1',
         pool_size: 1,
-        total: recommendations.length,
+        total,
         limit: 5,
         offset: 0,
         recommendations,
@@ -40,12 +40,22 @@ describe('JobsController quota enforcement', () => {
     expect(reservation.refund).not.toHaveBeenCalled();
   });
 
-  it('refunds the charge when the pool returns zero recommendations', async () => {
-    const { controller, reservation } = build([]);
+  it('refunds the charge when the pool is genuinely empty (total 0)', async () => {
+    const { controller, reservation } = build([], 0);
 
     await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
 
     expect(reservation.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the charge for an over-paginated empty page (total > 0)', async () => {
+    // offset past the end returns [] but the scoring+embedding pipeline ran —
+    // refunding here would let a client farm unlimited free scored calls.
+    const { controller, reservation } = build([], 7);
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
+
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('refunds the charge when the recommendation service throws', async () => {

@@ -55,7 +55,12 @@ export class JobsController {
         offset: offset ? parseInt(offset, 10) : undefined,
         roleCode: role,
       });
-      if (usage && response.recommendations.length === 0) {
+      // Refund ONLY a genuinely empty pool (total === 0). An over-paginated
+      // page (offset >= total) also yields an empty `recommendations` array but
+      // total > 0 — the full scoring+embedding pipeline already ran, so
+      // refunding it would let a client farm unlimited free scored calls by
+      // requesting past-the-end offsets (bug hunt R2 07-22).
+      if (usage && response.total === 0) {
         await usage.refund();
       }
       return response;
