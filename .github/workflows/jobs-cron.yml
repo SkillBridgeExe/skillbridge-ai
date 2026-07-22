@@ -14,13 +14,14 @@ on:
   schedule:
     - cron: '0 19 * * *' # 02:00 ICT — crawl
     - cron: '30 20 * * *' # 03:30 ICT — trends (after the crawl window)
+    - cron: '0 */6 * * *' # every 6h — business-jobs maintenance (notification retry + PDPL PII purge + job expiry)
   workflow_dispatch:
     inputs:
       task:
         description: 'which step to run'
         type: choice
         default: both
-        options: [both, crawl, trends]
+        options: [both, crawl, trends, maintenance]
 
 env:
   # development (not production) → relax prod-only required env (RESEND/GCS) the CLI doesn't need.
@@ -33,8 +34,12 @@ env:
   # them for 'test'). The crawl/trends CLI never actually uses GCS/email — literals satisfy
   # boot validation while keeping NODE_ENV=development (so skill normalization behaves like local).
   GCS_BUCKET: skillbridge-cv
-  RESEND_API_KEY: re_cron_not_used
-  RESEND_FROM_EMAIL: 'SkillBridge <noreply@skillbridge.vn>'
+  # crawl/trends never send email (literal fallback keeps boot validation happy).
+  # The maintenance job DOES send: set the RESEND_API_KEY repo secret to enable
+  # real delivery. Without it, email retries keep failing but the DB-only
+  # maintenance (PDPL PII purge + job expiry + retention) still runs.
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 're_cron_not_used' }}
+  RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL || 'SkillBridge <noreply@skillbridge.vn>' }}
 
 jobs:
   crawl:
@@ -68,3 +73,23 @@ jobs:
       # so "emerging skills" becomes meaningful after this has run on 2+ days.
       - name: Refresh skill-demand trends
         run: pnpm trends:refresh
+
+  maintenance:
+    # The external scheduler for BusinessJobsMaintenanceService. Without this,
+    # a failed status/apply email is never retried and the PDPL PII purge never
+    # runs (bug hunt R3 07-22 — the retry/backoff machinery was dead wiring).
+    #   • expireDueEmployerJobs + scheduleEndedJobRetention (DB-only)
+    #   • purgeDueApplicationPii (PDPL compliance, DB-only)
+    #   • processPendingNotifications (retries FAILED/PENDING emails on backoff)
+    if: github.event.schedule == '0 */6 * * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.task == 'maintenance')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --trust-lockfile
+      - name: Run business-jobs maintenance sweep
+        run: pnpm business-jobs:maintenance
