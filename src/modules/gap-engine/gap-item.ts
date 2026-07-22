@@ -83,6 +83,9 @@ export interface BuildGapItemsInput {
   ledger?: EvidenceLedger | null;
   /** canonical_name → pct_of_postings (0-100). Optional; PR1 callers may omit. */
   marketDemand?: Map<string, number> | null;
+  /** #4: snapshot data-confidence weight [0,1] (from dataConfidence(total_active_jobs)) — discounts
+   *  the market factor in severity when the job pool is thin. Optional; absent ⇒ 1 (byte-identical). */
+  marketConfidence?: number | null;
   /** Extracted non-skill JD requirements (PR3, JD-Intelligence v2). Optional — when absent, output
    *  is byte-identical to PR1/PR2. Only `seniority` is graded into a GapItem here (see gradeJdDimensions). */
   jdDimensions?: JdDimension[] | null;
@@ -167,6 +170,11 @@ type SeverityInput = Pick<
    *  GapItem field: it lives in BuildGapItemsInput.interviewSignals and must be re-supplied wherever
    *  severity recomputes (applyInterviewSignals + the final ranking in buildGapItems). */
   interview_risk_signal?: number;
+  /** #4: snapshot data-confidence weight [0,1] for the market signal — a thin job pool (few active
+   *  postings behind pct_of_postings) pulls the market multiplier toward neutral so a noisy % can't
+   *  dominate the fix-priority ranking. Absent/1 ⇒ market applied as-is (byte-identical). Like
+   *  interview_risk_signal it must be re-supplied wherever severity recomputes (the overlays). */
+  market_confidence?: number;
 };
 
 /** The three severityRaw() locals, unrounded — shared by severityRaw() and severityFactors() (E5)
@@ -181,8 +189,12 @@ function severityComponents(item: SeverityInput): {
   const evPart = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
   const need = Math.max(levelPart, evPart); // never zeroed by gap_levels=0 — evidence carries it
   const core = NEED_W * need + IV_W * interviewRiskRaw(item);
-  const fMarket = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
-  const marketMult = MARKET_FLOOR + MARKET_SPAN * fMarket; // [0.8,1.2]; null → 1.0
+  const fMarketRaw = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
+  // #4: blend the market signal toward neutral by (1 - confidence) — a thin-pool % is unreliable,
+  // so a low-confidence snapshot collapses the market factor to 1.0 (no boost/penalty).
+  const conf = item.market_confidence == null ? 1 : clamp01(item.market_confidence);
+  const fMarket = MARKET_NEUTRAL + conf * (fMarketRaw - MARKET_NEUTRAL);
+  const marketMult = MARKET_FLOOR + MARKET_SPAN * fMarket; // [0.8,1.2]; neutral/low-conf → 1.0
   return { imp, core, marketMult };
 }
 
@@ -235,6 +247,7 @@ const CORROBORATION_DOWNGRADE: Record<EvidenceRisk, EvidenceRisk> = {
 function applyGithubCorroboration(
   items: GapItem[],
   corroborated: Map<string, { ref: string }>,
+  marketConfidence: number | undefined,
 ): GapItem[] {
   return items.map((item) => {
     const hit = corroborated.get(item.canonical_name);
@@ -246,6 +259,7 @@ function applyGithubCorroboration(
       evidence_risk,
       cv_status: item.cv_status,
       market_demand: item.market_demand,
+      market_confidence: marketConfidence,
     };
     return {
       ...item,
@@ -270,6 +284,7 @@ function applyGithubCorroboration(
 function applyInterviewSignals(
   items: GapItem[],
   interviewSignals: Map<string, { risk: number; ref: string }>,
+  marketConfidence: number | undefined,
 ): GapItem[] {
   return items.map((item) => {
     const hit = interviewSignals.get(item.canonical_name);
@@ -281,6 +296,7 @@ function applyInterviewSignals(
       cv_status: item.cv_status,
       market_demand: item.market_demand,
       interview_risk_signal: hit.risk,
+      market_confidence: marketConfidence,
     };
     return {
       ...item,
@@ -427,12 +443,16 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
     match,
     ledger,
     marketDemand,
+    marketConfidence,
     jdDimensions,
     cvSeniority,
     cvProfileSignals,
     corroborated,
     interviewSignals,
   } = input;
+  // #4: snapshot confidence, re-supplied into every sevInput (like interview_risk_signal). null ⇒
+  // undefined ⇒ market applied as-is.
+  const marketConf = marketConfidence ?? undefined;
   const source: GapSource = match.source_of_requirements === 'jd_extraction' ? 'jd' : 'role_rubric';
 
   const evidenceGap = new Set(ledger?.evidence_gap ?? []);
@@ -488,6 +508,7 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       evidence_risk,
       cv_status: 'missing',
       market_demand: marketDemand?.get(m.canonical_name) ?? null,
+      market_confidence: marketConf,
     };
     items.push({
       ...base(m.canonical_name, m.display_name, m.importance, typeOf(m.skill_type)),
@@ -525,6 +546,7 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
       evidence_risk,
       cv_status,
       market_demand: marketDemand?.get(p.canonical_name) ?? null,
+      market_confidence: marketConf,
     };
     items.push({
       ...base(p.canonical_name, p.display_name, p.importance, typeOf(p.skill_type)),
@@ -591,12 +613,14 @@ export function buildGapItems(input: BuildGapItemsInput): GapItem[] {
 
   // I3: overlay github corroboration (evidence_risk downgrade + citation) BEFORE ranking, so the
   // sort below sees the corrected severity. No-op (same items) when corroborated is absent/empty.
-  const overlaid = corroborated?.size ? applyGithubCorroboration(items, corroborated) : items;
+  const overlaid = corroborated?.size
+    ? applyGithubCorroboration(items, corroborated, marketConf)
+    : items;
 
   // V1: overlay real interview outcomes AFTER github (so the raise recomputes from the already-
   // downgraded evidence_risk), still before ranking. No-op (same items) when absent/empty.
   const withInterview = interviewSignals?.size
-    ? applyInterviewSignals(overlaid, interviewSignals)
+    ? applyInterviewSignals(overlaid, interviewSignals, marketConf)
     : overlaid;
 
   // Highest severity first. Rank by the UNROUNDED raw severity (not the rounded public `severity`)
