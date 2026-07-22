@@ -89,10 +89,16 @@ export const configValidationSchema = Joi.object({
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug', 'verbose').default('debug'),
   ENABLE_REQUEST_LOGGING: Joi.boolean().default(true),
 
-  // Auth (JWT + Google) — defaults are DEV ONLY; override in prod.
-  JWT_ACCESS_SECRET: Joi.string().min(16).default('dev-access-secret-change-me-please'),
+  // Auth (JWT + Google) — defaults are DEV ONLY; require explicit secrets in production.
+  JWT_ACCESS_SECRET:
+    process.env.NODE_ENV === 'production'
+      ? Joi.string().min(16).required()
+      : Joi.string().min(16).default('dev-access-secret-change-me-please'),
   JWT_ACCESS_TTL: Joi.number().integer().positive().default(3600),
-  JWT_REFRESH_SECRET: Joi.string().min(16).default('dev-refresh-secret-change-me-please'),
+  JWT_REFRESH_SECRET:
+    process.env.NODE_ENV === 'production'
+      ? Joi.string().min(16).required()
+      : Joi.string().min(16).default('dev-refresh-secret-change-me-please'),
   JWT_REFRESH_TTL: Joi.number().integer().positive().default(604800),
   GOOGLE_CLIENT_ID: Joi.string().allow('').optional(),
   CORS_ORIGINS: Joi.string().allow('').optional(),
