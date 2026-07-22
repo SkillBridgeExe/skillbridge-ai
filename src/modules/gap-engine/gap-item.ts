@@ -189,7 +189,8 @@ function severityComponents(item: SeverityInput): {
   const evPart = EVIDENCE_RISK_W[item.evidence_risk] ?? 0;
   const need = Math.max(levelPart, evPart); // never zeroed by gap_levels=0 — evidence carries it
   const core = NEED_W * need + IV_W * interviewRiskRaw(item);
-  const fMarketRaw = item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
+  const fMarketRaw =
+    item.market_demand == null ? MARKET_NEUTRAL : clamp01(item.market_demand / 100);
   // #4: blend the market signal toward neutral by (1 - confidence) — a thin-pool % is unreliable,
   // so a low-confidence snapshot collapses the market factor to 1.0 (no boost/penalty).
   const conf = item.market_confidence == null ? 1 : clamp01(item.market_confidence);

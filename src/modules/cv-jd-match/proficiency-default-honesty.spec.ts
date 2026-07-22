@@ -47,7 +47,9 @@ describe('proficiency default is fail-closed for unproven CV skills', () => {
   it('an unproven CV skill still fully matches a LOW (NOVICE) explicit requirement', () => {
     const out = diffSvc.diff({
       cv_skills_raw: [{ name: 'PHP' }], // unproven → NOVICE(2)
-      jd_requirements_raw: [{ name: 'PHP', importance_hint: 'REQUIRED', required_level_hint: 'NOVICE' }],
+      jd_requirements_raw: [
+        { name: 'PHP', importance_hint: 'REQUIRED', required_level_hint: 'NOVICE' },
+      ],
     });
     expect(out.matched_skills).toHaveLength(1);
   });
