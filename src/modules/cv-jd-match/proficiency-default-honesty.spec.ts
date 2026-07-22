@@ -51,4 +51,23 @@ describe('proficiency default is fail-closed for unproven CV skills', () => {
     });
     expect(out.matched_skills).toHaveLength(1);
   });
+
+  // #3 investigation (2026-07-22): an all-PREFERRED JD sets required_coverage=1 → cap=100, but
+  // that is HARMLESS — raw = achievedWeight/weightSum already reflects preferred coverage, so a
+  // CV matching few of the preferred skills scores LOW regardless of the (open) cap. There is no
+  // inflation path when there are zero REQUIRED skills (nothing to hide behind preferred stuffing),
+  // so the cap formula is left unchanged. This test pins that "cap=100 here does not inflate".
+  it('an all-PREFERRED JD does not inflate — raw reflects coverage even when the cap is open', () => {
+    const out = diffSvc.diff({
+      cv_skills_raw: [{ name: 'PHP', proficiency_hint: 'ADVANCED' }], // matches 1 of 4
+      jd_requirements_raw: [
+        { name: 'PHP', importance_hint: 'PREFERRED' },
+        { name: 'Laravel', importance_hint: 'PREFERRED' },
+        { name: 'MySQL', importance_hint: 'PREFERRED' },
+        { name: 'Git', importance_hint: 'PREFERRED' },
+      ],
+    });
+    expect(out.scoring_breakdown.required_total).toBe(0); // cap defaults to 100...
+    expect(out.overall_score!).toBeLessThan(45); // ...but raw already caps it at ~1/4 coverage
+  });
 });
