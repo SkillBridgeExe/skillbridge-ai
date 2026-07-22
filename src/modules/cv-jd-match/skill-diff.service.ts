@@ -179,7 +179,15 @@ export interface DiffResult {
   inferred_skills?: InferredSkill[];
 }
 
-const DEFAULT_LEVEL = 3; // INTERMEDIATE — used when LLM hint is missing/invalid
+const DEFAULT_LEVEL = 3; // INTERMEDIATE — neutral bar for a JD requirement with no stated level
+/**
+ * A CV skill LISTED WITHOUT a proficiency hint is unproven, not intermediate. Grading it
+ * NOVICE(2) — the level a stored review assigns unproven skills — stops a bare skill from
+ * trivially satisfying a default-level(3) requirement (the silent-inflation lever behind the
+ * prod 100-vs-45 split on the no-review path, where the parity layer can't reconcile). An
+ * EXPLICIT hint still wins; only the missing/invalid fallback changes. (bug hunt 2026-07-22)
+ */
+const CV_MISSING_LEVEL = PROFICIENCY_TO_LEVEL.NOVICE;
 const DEFAULT_IMPORTANCE: Importance = 'REQUIRED';
 
 /**
@@ -237,7 +245,7 @@ export class SkillDiffService {
         });
         continue;
       }
-      const level = this.proficiencyToLevel(raw.proficiency_hint);
+      const level = this.proficiencyToLevel(raw.proficiency_hint, CV_MISSING_LEVEL);
       for (const normalized of results) {
         const canonical = normalized.canonical_name as string;
         const existing = cvSkillsByCanonical.get(canonical);
@@ -575,10 +583,10 @@ export class SkillDiffService {
     return { requirements, unnormalizedJd };
   }
 
-  private proficiencyToLevel(hint?: string): number {
-    if (!hint) return DEFAULT_LEVEL;
+  private proficiencyToLevel(hint?: string, fallback: number = DEFAULT_LEVEL): number {
+    if (!hint) return fallback;
     const up = hint.toUpperCase() as ProficiencyHint;
-    return PROFICIENCY_TO_LEVEL[up] ?? DEFAULT_LEVEL;
+    return PROFICIENCY_TO_LEVEL[up] ?? fallback;
   }
 
   private toImportance(hint?: string): Importance {
