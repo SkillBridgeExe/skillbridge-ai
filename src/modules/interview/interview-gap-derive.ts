@@ -213,14 +213,37 @@ export function deriveInterviewGaps(contexts: AnswerGapContext[]): InterviewGapI
     }
   }
 
-  // mask + truncate evidence on every item.
-  for (const item of raw) {
+  // #8: a skill the candidate DEMONSTRATED with a concrete example (evidence_quality 'strong')
+  // anywhere in the session retires an evidence_gap raised by a weaker answer on the SAME skill —
+  // once they prove it, "add a concrete example for X" is contradictory. Only evidence_gaps are
+  // retired; knowledge/communication/behavioral gaps are distinct weaknesses and still stand.
+  const demonstratedSkills = new Set<string>();
+  for (const c of contexts) {
+    if (
+      SKILL_TOPICS.has(c.topic_phase) &&
+      c.insight.evidence_quality === 'strong' &&
+      c.skill_canonical
+    ) {
+      demonstratedSkills.add(c.skill_canonical);
+    }
+  }
+  const kept = raw.filter(
+    (item) =>
+      !(
+        item.weakness_type === 'evidence_gap' &&
+        item.skill_canonical !== null &&
+        demonstratedSkills.has(item.skill_canonical)
+      ),
+  );
+
+  // mask + truncate evidence on every kept item.
+  for (const item of kept) {
     item.evidence_from_answer = maskTruncate(item.evidence_from_answer);
   }
 
   // dedup by (skill_canonical ?? display_name) + '|' + weakness_type, keeping MAX severity.
   const byKey = new Map<string, InterviewGapItem>();
-  for (const item of raw) {
+  for (const item of kept) {
     const key = `${item.skill_canonical ?? item.display_name}|${item.weakness_type}`;
     const existing = byKey.get(key);
     if (!existing || item.severity > existing.severity) byKey.set(key, item);

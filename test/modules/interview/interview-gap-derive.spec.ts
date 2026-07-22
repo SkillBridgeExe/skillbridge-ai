@@ -428,3 +428,63 @@ describe('deriveInterviewGaps — bounding, dedup, masking, grounding', () => {
     }
   });
 });
+
+describe('deriveInterviewGaps — a demonstrated skill retires its evidence_gap (#8)', () => {
+  const evidenceGaps = (out: ReturnType<typeof deriveInterviewGaps>, skill: string) =>
+    out.filter((g) => g.weakness_type === 'evidence_gap' && g.skill_canonical === skill);
+
+  it('suppresses the evidence_gap for a skill the candidate demonstrated (strong) elsewhere', () => {
+    const out = deriveInterviewGaps([
+      // confident but no concrete example → overclaimed → evidence_gap
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'react',
+        display_name: 'React',
+        answer: 'I am absolutely an expert in React, I know it inside out, no question.',
+        insight: { evidence_quality: 'overclaimed' },
+      }),
+      // same skill, a concrete example → strong → retires the overclaimed evidence_gap above
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'react',
+        display_name: 'React',
+        answer: STRONG_ANSWER,
+        insight: { evidence_quality: 'strong' },
+      }),
+    ]);
+    expect(evidenceGaps(out, 'react')).toHaveLength(0);
+  });
+
+  it('KEEPS the evidence_gap when the skill was never demonstrated', () => {
+    const out = deriveInterviewGaps([
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'react',
+        display_name: 'React',
+        answer: 'I am absolutely an expert in React, no doubt about it.',
+        insight: { evidence_quality: 'overclaimed' },
+      }),
+    ]);
+    expect(evidenceGaps(out, 'react')).toHaveLength(1);
+  });
+
+  it('a strong answer on ANOTHER skill does not retire this skill’s evidence_gap', () => {
+    const out = deriveInterviewGaps([
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'react',
+        display_name: 'React',
+        answer: 'I know React very well, trust me on that.',
+        insight: { evidence_quality: 'overclaimed' },
+      }),
+      ctx({
+        topic_phase: 'SKILL_PROBE',
+        skill_canonical: 'nodejs',
+        display_name: 'Node.js',
+        answer: STRONG_ANSWER,
+        insight: { evidence_quality: 'strong' },
+      }),
+    ]);
+    expect(evidenceGaps(out, 'react')).toHaveLength(1);
+  });
+});

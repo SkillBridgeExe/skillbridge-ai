@@ -30,7 +30,7 @@ const LLM_JD: RawJdRequirement[] = [
   { name: 'English', importance_hint: 'REQUIRED' },
 ];
 
-// Fresh CV extraction: same five skills, no proficiency hints (→ engine default 3).
+// Fresh CV extraction: same five skills, no proficiency hints (→ fail-closed NOVICE(2), #1 fix).
 const LLM_CV: RawCvSkill[] = ['PHP', 'HTML', 'CSS', 'JavaScript', 'English'].map((name) => ({
   name,
 }));
@@ -90,11 +90,15 @@ describe('paste-vs-card parity on the same JD', () => {
     expect(canonicals.length).toBeGreaterThan(LLM_JD.length);
   });
 
-  it('pins the prod bug: WITHOUT parity the same JD splits 100 vs capped-45', () => {
+  it('the fail-closed default (#1 fix) closes the split at the root: bare CV skills no longer inflate', () => {
     const paste = diffSvc.diff({ cv_skills_raw: LLM_CV, jd_requirements_raw: LLM_JD });
     const card = cardScore();
-    expect(paste.overall_score).toBe(100); // default 3 vs default 3, coverage 5/5
-    expect(card.overall_score).toBe(45); // NOVICE partials, required_coverage 0 → cap floor
+    // Pre-fix this split 100 (paste: default 3 vs 3, full match) vs 45 (card: NOVICE partials).
+    // With the fail-closed default a bare CV skill is NOVICE(2) — a PARTIAL on the default-3
+    // requirement — so the fresh-extraction paste path lands at the SAME capped 45 as the card,
+    // WITHOUT needing the parity layer. (bug hunt 2026-07-22, #1)
+    expect(paste.overall_score).toBe(45);
+    expect(card.overall_score).toBe(45);
   });
 
   it('WITH parity both paths land on the same score for the same facts', () => {

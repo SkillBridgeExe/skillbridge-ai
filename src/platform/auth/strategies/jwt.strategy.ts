@@ -29,7 +29,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret-change-me',
+      secretOrKey:
+        config.get<string>('JWT_ACCESS_SECRET') ??
+        (process.env.NODE_ENV === 'production'
+          ? (() => {
+              throw new Error('FATAL: JWT_ACCESS_SECRET is not defined in production environment!');
+            })()
+          : 'dev-access-secret-change-me'),
     });
   }
 
