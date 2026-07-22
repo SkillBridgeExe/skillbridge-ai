@@ -24,6 +24,7 @@ import {
   PartialSkill,
   MissingSkill,
   MATCH_TUNING,
+  overallFromContributions,
 } from '../cv-jd-match/skill-diff.service';
 import { CvJdMatchParsedResponse } from '../cv-jd-match/dto/cv-jd-match-response.dto';
 import { GapItem, EvidenceRisk, computeSeverity } from '../gap-engine/gap-item';
@@ -49,9 +50,11 @@ const round1 = (n: number): number => Math.round(n * 10) / 10;
 const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 /**
- * Mirrors SkillDiffService.diff()'s scoring math EXACTLY (skill-diff.service.ts:269-344) from the
- * persisted matched/partial/missing arrays — no re-run of diff(). Proven byte-identical against
- * real diff() output in impact-simulator.spec.ts.
+ * Reconstructs SkillDiffService.diff()'s overall_score from the persisted matched/partial/missing
+ * arrays — no re-run of diff() (its raw inputs are gone after PII masking). Accumulates the same
+ * weight/coverage contributions and then defers the FINAL cap/round to overallFromContributions(),
+ * the single source shared with diff() itself, so the two can't diverge. Proven byte-identical
+ * against real diff() output in impact-simulator.spec.ts.
  */
 export function recomputeOverall(arrays: PersistedMatchArrays): number {
   const tuning = MATCH_TUNING;
@@ -81,10 +84,10 @@ export function recomputeOverall(arrays: PersistedMatchArrays): number {
     if (ms.importance === 'REQUIRED') requiredTotal += 1;
   }
 
-  const requiredCoverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
-  const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
-  const cap = tuning.coverageCapBase + tuning.coverageCapSlope * requiredCoverage;
-  return Math.round(Math.min(raw, cap));
+  // Final cap/coverage/round comes from the SINGLE shared source in skill-diff.service.ts, so a
+  // future edit to the cap formula updates the real score AND this what-if together (bug hunt #7).
+  return overallFromContributions(weightSum, achievedWeight, requiredTotal, requiredMet, tuning)
+    .overall;
 }
 
 type SkillBase = Pick<
