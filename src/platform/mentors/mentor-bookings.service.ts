@@ -343,6 +343,19 @@ export class MentorBookingsService {
       if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(booking.status)) {
         throw this.validationError('Booking cannot be cancelled in its current status');
       }
+      // A confirmed session whose end time has passed was already delivered —
+      // there is no auto-complete, so it lingers as CONFIRMED. Cancelling it here
+      // would queue a refund for a session that actually happened (bug hunt R3);
+      // the correct paths are mark-completed (mentor) or a dispute.
+      if (
+        booking.status === 'CONFIRMED' &&
+        booking.slotEnd &&
+        booking.slotEnd.getTime() <= this.now().getTime()
+      ) {
+        throw this.validationError(
+          'This session has already taken place and cannot be cancelled — mark it completed or open a dispute',
+        );
+      }
       const requiresRefund = booking.status !== 'PENDING_PAYMENT';
       booking.status = 'CANCELLED';
       booking.cancelledAt = this.now();

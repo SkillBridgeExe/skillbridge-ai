@@ -346,6 +346,29 @@ describe('MentorBookingsService', () => {
     expect(result.refundStatus).toBe('PENDING');
   });
 
+  it('refuses to cancel a confirmed session whose end time has already passed', async () => {
+    const { service, bookings } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      mentorId: 'mentor-1',
+      availabilitySlotId: 'slot-1',
+      status: 'CONFIRMED',
+      paymentOrderId: 'mentor-payment-order-1',
+      slotStart: new Date('2020-01-01T09:00:00.000Z'),
+      slotEnd: new Date('2020-01-01T10:00:00.000Z'),
+      createdAt: new Date(),
+      updatedAt: null,
+    });
+
+    await expect(
+      service.cancelByStudent('student-1', 'booking-1', {
+        reason: 'I want a refund for a session that already happened',
+      }),
+    ).rejects.toThrow(/already taken place/);
+    expect(bookings.save).not.toHaveBeenCalled();
+  });
+
   it('cancels an unpaid pending booking without queuing a refund', async () => {
     const { service, bookings, slots } = setup();
     bookings.findOne.mockResolvedValue({
