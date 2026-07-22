@@ -346,8 +346,10 @@ describe('MentorBookingsService', () => {
     expect(result.refundStatus).toBe('PENDING');
   });
 
-  it('refuses to cancel a confirmed session whose end time has already passed', async () => {
-    const { service, bookings } = setup();
+  it('cancels a past confirmed booking into the manual refund-review queue (no-show case)', async () => {
+    // A past CONFIRMED booking may be a no-show; cancellation must still queue a
+    // PENDING refund for human review, not be blocked (bug hunt R4 revert).
+    const { service, bookings, slots } = setup();
     bookings.findOne.mockResolvedValue({
       id: 'booking-1',
       studentId: 'student-1',
@@ -360,13 +362,13 @@ describe('MentorBookingsService', () => {
       createdAt: new Date(),
       updatedAt: null,
     });
+    slots.findOne.mockResolvedValue({ ...openSlot, status: 'BOOKED' });
 
-    await expect(
-      service.cancelByStudent('student-1', 'booking-1', {
-        reason: 'I want a refund for a session that already happened',
-      }),
-    ).rejects.toThrow(/already taken place/);
-    expect(bookings.save).not.toHaveBeenCalled();
+    const result = await service.cancelByStudent('student-1', 'booking-1', {
+      reason: 'Mentor did not show up',
+    });
+
+    expect(result.refundStatus).toBe('PENDING');
   });
 
   it('cancels an unpaid pending booking without queuing a refund', async () => {

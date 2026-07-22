@@ -343,19 +343,14 @@ export class MentorBookingsService {
       if (['COMPLETED', 'CANCELLED', 'EXPIRED'].includes(booking.status)) {
         throw this.validationError('Booking cannot be cancelled in its current status');
       }
-      // A confirmed session whose end time has passed was already delivered —
-      // there is no auto-complete, so it lingers as CONFIRMED. Cancelling it here
-      // would queue a refund for a session that actually happened (bug hunt R3);
-      // the correct paths are mark-completed (mentor) or a dispute.
-      if (
-        booking.status === 'CONFIRMED' &&
-        booking.slotEnd &&
-        booking.slotEnd.getTime() <= this.now().getTime()
-      ) {
-        throw this.validationError(
-          'This session has already taken place and cannot be cancelled — mark it completed or open a dispute',
-        );
-      }
+      // NOTE (bug hunt R4): a time-based "session already happened" block was
+      // tried here and reverted — slotEnd-passed does NOT mean delivered (there
+      // is no auto-complete and no attendance signal), so it wrongly stranded
+      // no-show refunds with no recourse (no dispute flow exists). Cancelling a
+      // past CONFIRMED booking sets refundStatus=PENDING, which is a MANUAL
+      // review queue — a reviewer approves a genuine no-show and rejects an
+      // abusive post-delivery refund. That human gate is the correct control
+      // until real completion/attendance tracking exists.
       const requiresRefund = booking.status !== 'PENDING_PAYMENT';
       booking.status = 'CANCELLED';
       booking.cancelledAt = this.now();
