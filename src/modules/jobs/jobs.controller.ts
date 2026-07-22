@@ -40,20 +40,33 @@ export class JobsController {
     @Query('offset') offset?: string,
     @Query('role') role?: string,
   ): Promise<JobRecommendationResponse> {
-    if (this.entitlements) {
-      await this.entitlements.assertCanUse(user.userId, BillingFeatureKey.JOB_RECOMMENDATION);
-    }
-    const response = await this.reco.recommendForCv(user.userId, cvId, {
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-      roleCode: role,
-    });
-    if (this.entitlements) {
-      await this.entitlements.recordUsage(user.userId, BillingFeatureKey.JOB_RECOMMENDATION, {
-        sourceType: 'cv',
-        sourceId: cvId,
+    // Atomic charge-first reserve (replaces the racy assertCanUse→recordUsage
+    // pair); refunded when no value is delivered — an empty pool or a thrown
+    // error must not consume a slot (bug hunt 2026-07-21).
+    const usage = this.entitlements
+      ? await this.entitlements.reserveUsage(user.userId, BillingFeatureKey.JOB_RECOMMENDATION, {
+          sourceType: 'cv',
+          sourceId: cvId,
+        })
+      : null;
+    try {
+      const response = await this.reco.recommendForCv(user.userId, cvId, {
+        limit: limit ? parseInt(limit, 10) : undefined,
+        offset: offset ? parseInt(offset, 10) : undefined,
+        roleCode: role,
       });
+      // Refund ONLY a genuinely empty pool (total === 0). An over-paginated
+      // page (offset >= total) also yields an empty `recommendations` array but
+      // total > 0 — the full scoring+embedding pipeline already ran, so
+      // refunding it would let a client farm unlimited free scored calls by
+      // requesting past-the-end offsets (bug hunt R2 07-22).
+      if (usage && response.total === 0) {
+        await usage.refund();
+      }
+      return response;
+    } catch (error) {
+      await usage?.refund();
+      throw error;
     }
-    return response;
   }
 }

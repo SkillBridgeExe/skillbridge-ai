@@ -2,6 +2,12 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CoOccurrencePair } from './trends-insight.types';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
 import { dataConfidence, DataConfidence } from './data-confidence';
+import { findSatisfying, loadSatisfiesEdges } from '../../cv-jd-match/skill-satisfies';
+
+/** Row cap for a trends query. Sized above the 203-skill taxonomy so a full-snapshot
+ *  request (TRENDS_LIMIT=200) is never silently truncated — the old 106 cap (pre-O*NET
+ *  taxonomy size) cut rank-107+ rows and made their real demand read as 0%. */
+const MAX_TRENDS_ROWS = 250;
 
 export interface SkillDemandRow {
   canonical_name: string;
@@ -145,7 +151,7 @@ export class SkillDemandService {
         ORDER BY cur.posting_count DESC, s.canonical_name ASC
         LIMIT $2`,
       // Number(NaN)||20 guards a non-numeric ?limit that would otherwise bind "NaN" → SQL 500.
-      [roleCode, Math.min(Math.max(Number(limit) || 20, 1), 106)],
+      [roleCode, Math.min(Math.max(Number(limit) || 20, 1), MAX_TRENDS_ROWS)],
     );
     if (rows.length === 0) {
       throw new NotFoundException({
@@ -256,10 +262,19 @@ export class SkillDemandService {
       [cvId],
     );
     const covered = new Set(cvSkillRows.map((r) => r.canonical_name));
+    // Parity with the match engine: a curated child skill on the CV covers its
+    // parent (postgresql ⇒ sql). Without the closure, the SAME skill rendered as
+    // "matched (satisfied by X)" on the match audit and as a missing market
+    // skill in this gap list one tab away (bug hunt 2026-07-21).
+    const cvSkillsByCanonical = new Map(cvSkillRows.map((r) => [r.canonical_name, { level: 1 }]));
+    const satisfiesEdges = loadSatisfiesEdges();
+    const isCovered = (canonical: string): boolean =>
+      covered.has(canonical) ||
+      findSatisfying(canonical, cvSkillsByCanonical, satisfiesEdges) !== null;
 
     const skills: SkillGapRow[] = trends.skills.map((s) => ({
       ...s,
-      covered: covered.has(s.canonical_name),
+      covered: isCovered(s.canonical_name),
     }));
     return {
       cv_id: cvId,
