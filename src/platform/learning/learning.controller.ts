@@ -11,6 +11,7 @@ import {
 } from './dto/session-progress.dto';
 import { LearningChatPlatformService } from './learning-chat-platform.service';
 import { LearningSessionProgressService } from './session-progress.service';
+import { LearningSessionCompletionService } from './session-completion.service';
 
 @ApiTags('Learning')
 @Public()
@@ -39,7 +40,10 @@ export class LearningChatController {
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/learning/sessions')
 export class LearningSessionProgressController {
-  constructor(private readonly sessionProgress: LearningSessionProgressService) {}
+  constructor(
+    private readonly sessionProgress: LearningSessionProgressService,
+    private readonly sessionCompletion: LearningSessionCompletionService,
+  ) {}
 
   @Get(':sessionId/progress')
   @ApiOperation({ summary: 'Get the current learner progress for one learning session' })
@@ -55,6 +59,12 @@ export class LearningSessionProgressController {
     @Body() dto: UpdateLearningSessionProgressDto,
   ) {
     return this.sessionProgress.saveProgress(user.userId, sessionId, dto);
+  }
+
+  @Post(':sessionId/complete')
+  @ApiOperation({ summary: 'Validate and complete an available learning session' })
+  complete(@CurrentUser() user: JwtUser, @Param('sessionId') sessionId: string) {
+    return this.sessionCompletion.complete(user.userId, sessionId);
   }
 
   @Post(':sessionId/quiz/answer')

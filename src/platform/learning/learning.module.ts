@@ -23,6 +23,7 @@ import { LearningRoadmapDraftService } from './roadmap-draft.service';
 import { LearningRoadmapGenerationService } from './roadmap-generation.service';
 import { BillingModule } from '../billing/billing.module';
 import { LearningRoadmapQueryService } from './roadmap-query.service';
+import { LearningSessionCompletionService } from './session-completion.service';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { LearningRoadmapQueryService } from './roadmap-query.service';
     LearningRoadmapDraftService,
     LearningRoadmapGenerationService,
     LearningRoadmapQueryService,
+    LearningSessionCompletionService,
   ],
 })
 export class LearningModule {}

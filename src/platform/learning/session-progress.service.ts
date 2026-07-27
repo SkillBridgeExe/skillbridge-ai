@@ -44,6 +44,11 @@ export class LearningSessionProgressService {
     sessionId: string,
     dto: UpdateLearningSessionProgressDto,
   ): Promise<LearningSessionProgressResponseDto> {
+    if (Object.prototype.hasOwnProperty.call(dto.checked_checklist_items ?? {}, '__session')) {
+      throw new BadRequestException(
+        'Session completion must use the dedicated completion endpoint.',
+      );
+    }
     const isV2 = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     const next =
@@ -54,7 +59,11 @@ export class LearningSessionProgressService {
         ...(isV2 ? { learningSessionId: sessionId } : {}),
       });
 
-    next.checkedChecklistItems = normalizeChecklistItems(dto.checked_checklist_items);
+    const checkedChecklistItems = normalizeChecklistItems(dto.checked_checklist_items);
+    if (existing?.checkedChecklistItems?.__session?.includes('completed')) {
+      checkedChecklistItems.__session = ['completed'];
+    }
+    next.checkedChecklistItems = checkedChecklistItems;
     next.exerciseProofs = normalizeExerciseProofs(dto.exercise_proofs);
 
     return this.toResponse(await this.progress.save(next));
@@ -169,6 +178,11 @@ export class LearningSessionProgressService {
     itemId: string,
     dto: PatchLearningChecklistItemDto,
   ): Promise<LearningSessionProgressResponseDto> {
+    if (dto.section_id === '__session') {
+      throw new BadRequestException(
+        'Session completion must use the dedicated completion endpoint.',
+      );
+    }
     const isV2 = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     const next =

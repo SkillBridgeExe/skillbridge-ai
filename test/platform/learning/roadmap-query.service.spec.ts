@@ -10,6 +10,7 @@ describe('LearningRoadmapQueryService', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     expect(typeof (service as unknown as { archiveActive?: unknown }).archiveActive).toBe(
@@ -24,6 +25,7 @@ describe('LearningRoadmapQueryService', () => {
     };
     const service = new LearningRoadmapQueryService(
       roadmaps as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -88,7 +90,7 @@ describe('LearningRoadmapQueryService', () => {
           title: 'TypeScript · Session 2',
           durationMinutes: 60,
           requiredTasks: [],
-          scheduledStartAt: new Date('2026-08-03T12:00:00.000Z'),
+          scheduledStartAt: new Date('2026-07-20T12:00:00.000Z'),
         },
         {
           id: 'session-1',
@@ -101,11 +103,20 @@ describe('LearningRoadmapQueryService', () => {
         },
       ]),
     };
+    const progress = {
+      find: jest.fn().mockResolvedValue([
+        {
+          sessionId: 'session-1',
+          checkedChecklistItems: { __session: ['completed'] },
+        },
+      ]),
+    };
     const service = new LearningRoadmapQueryService(
       roadmaps as unknown as Repository<LearningRoadmapEntity>,
       versions as never,
       modules as never,
       sessions as never,
+      progress as never,
     );
 
     const result = await service.getActive('user-1', 'roadmap-1');
@@ -118,12 +129,18 @@ describe('LearningRoadmapQueryService', () => {
       'session-1',
       'session-2',
     ]);
+    expect(result.modules[0].sessions.map((session) => session.status)).toEqual([
+      'COMPLETED',
+      'AVAILABLE',
+    ]);
     expect(result.modules[1].sessions).toEqual([]);
+    expect(progress.find).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose an unowned or inactive roadmap', async () => {
     const service = new LearningRoadmapQueryService(
       { findOne: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

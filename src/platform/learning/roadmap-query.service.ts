@@ -5,6 +5,12 @@ import { LearningModuleEntity } from '../../database/entities/learning-module.en
 import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.entity';
 import { LearningRoadmapVersionEntity } from '../../database/entities/learning-roadmap-version.entity';
 import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
+import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
+import {
+  isLearningSessionMarkedComplete,
+  resolveModuleSessionStatuses,
+  type LearningRuntimeSessionStatus,
+} from './learning-session-state';
 
 export interface ActiveLearningRoadmapResponse {
   id: string;
@@ -34,6 +40,7 @@ export interface ActiveLearningRoadmapResponse {
       scheduled_start_at: string;
       duration_minutes: number;
       required_tasks: Array<Record<string, unknown>>;
+      status: LearningRuntimeSessionStatus;
     }>;
   }>;
 }
@@ -49,6 +56,8 @@ export class LearningRoadmapQueryService {
     private readonly modules: Repository<LearningModuleEntity>,
     @InjectRepository(LearningSessionEntity)
     private readonly sessions: Repository<LearningSessionEntity>,
+    @InjectRepository(LearningSessionProgressEntity)
+    private readonly progress: Repository<LearningSessionProgressEntity>,
   ) {}
 
   async archiveActive(userId: string): Promise<{ archived: number }> {
@@ -79,7 +88,7 @@ export class LearningRoadmapQueryService {
         ? []
         : await this.sessions.find({
             where: { moduleId: In(moduleIds) },
-            order: { scheduledStartAt: 'ASC', sequence: 'ASC' },
+            order: { sequence: 'ASC', scheduledStartAt: 'ASC' },
           });
     const sessionsByModule = new Map<string, LearningSessionEntity[]>();
     for (const session of sessions) {
@@ -87,6 +96,19 @@ export class LearningRoadmapQueryService {
       rows.push(session);
       sessionsByModule.set(session.moduleId, rows);
     }
+    const sessionIds = sessions.map((session) => session.id);
+    const progressRows =
+      sessionIds.length === 0
+        ? []
+        : await this.progress.find({
+            where: { userId, sessionId: In(sessionIds) },
+          });
+    const completedSessionIds = new Set(
+      progressRows
+        .filter((row) => isLearningSessionMarkedComplete(row.checkedChecklistItems))
+        .map((row) => row.sessionId),
+    );
+    const statuses = resolveModuleSessionStatuses(modules, sessions, completedSessionIds);
     return {
       id: roadmap.id,
       intent: roadmap.intent,
@@ -113,8 +135,8 @@ export class LearningRoadmapQueryService {
           sessions: (sessionsByModule.get(module.id) ?? [])
             .sort(
               (a, b) =>
-                a.scheduledStartAt.getTime() - b.scheduledStartAt.getTime() ||
-                a.sequence - b.sequence,
+                a.sequence - b.sequence ||
+                a.scheduledStartAt.getTime() - b.scheduledStartAt.getTime(),
             )
             .map((session) => ({
               id: session.id,
@@ -123,6 +145,7 @@ export class LearningRoadmapQueryService {
               scheduled_start_at: session.scheduledStartAt.toISOString(),
               duration_minutes: session.durationMinutes,
               required_tasks: session.requiredTasks,
+              status: statuses.get(session.id) ?? 'LOCKED',
             })),
         })),
     };
