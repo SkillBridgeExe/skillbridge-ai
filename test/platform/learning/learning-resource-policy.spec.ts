@@ -45,7 +45,7 @@ describe('learning resource presentation policy', () => {
     expect(result.map((item) => item.id)).toEqual(['valid']);
   });
 
-  it('demotes a long unsegmented course but allows a chaptered resource as primary', () => {
+  it('excludes a long unsegmented course from fast track but allows a chaptered resource', () => {
     const result = presentLearningResources(
       [
         resource({ id: 'long', duration_minutes: 1610 }),
@@ -71,8 +71,15 @@ describe('learning resource presentation policy', () => {
         },
       }),
     );
-    expect(result[1]).toEqual(
-      expect.objectContaining({ id: 'long', resource_role: 'SUPPLEMENTARY' }),
+    expect(result.map((item) => item.id)).toEqual(['chaptered']);
+  });
+
+  it('does not offer only-long unsegmented resources as a fast-track default', () => {
+    const result = presentLearningResources(
+      [resource({ id: 'long', duration_minutes: 1610 })],
+      'FAST_TRACK',
     );
+
+    expect(result).toEqual([]);
   });
 });

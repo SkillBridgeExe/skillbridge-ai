@@ -1,4 +1,4 @@
-export type LearningRuntimeSessionStatus = 'COMPLETED' | 'AVAILABLE' | 'LOCKED';
+export type LearningRuntimeSessionStatus = 'COMPLETED' | 'AVAILABLE';
 
 interface RankedLearningModule {
   id: string;

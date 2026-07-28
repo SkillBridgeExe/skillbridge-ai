@@ -313,6 +313,60 @@ describe('LearningRoadmapDraftService', () => {
     ).rejects.toThrow("Resource 'fabricated-resource' is not available for skill 'typescript'.");
   });
 
+  it('uses the same fast-track resource policy when saving a selection', async () => {
+    const { service, roadmaps, composer } = serviceSetup();
+    roadmaps.findOne.mockResolvedValue({
+      id: 'roadmap-1',
+      userId: 'user-1',
+      intent: 'JD_APPLICATION',
+      status: 'DRAFT',
+      revision: 2,
+      draftConfig: {
+        language_pref: 'en',
+        candidate_skills: [
+          {
+            skill_canonical: 'typescript',
+            display_name: 'TypeScript',
+            system_priority: 0.8,
+            rationale: 'Required for the job.',
+            prerequisites: [],
+          },
+        ],
+      },
+    });
+    composer.compose.mockReturnValue({
+      budget_hours: 2,
+      ai_summary: 'Learn TypeScript.',
+      not_feasible_items: [],
+      steps: [
+        {
+          skill_canonical: 'typescript',
+          display_name: 'TypeScript',
+          estimated_hours: 20,
+          priority: 0.8,
+          resources: [
+            {
+              id: 'long-course',
+              source_type: 'course',
+              title: 'Complete TypeScript course',
+              provider: 'Provider',
+              language: 'en',
+              duration_minutes: 1610,
+              validation_status: 'verified',
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(
+      service.updateDraft('user-1', 'roadmap-1', {
+        expected_revision: 2,
+        selected_resources: { typescript: ['long-course'] },
+      }),
+    ).rejects.toThrow("Resource 'long-course' is not available for skill 'typescript'.");
+  });
+
   it('lists only roadmaps owned by the current user', async () => {
     const { service, roadmaps } = serviceSetup();
     roadmaps.find.mockResolvedValue([

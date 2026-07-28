@@ -177,4 +177,39 @@ describe('LearningRoadmapQueryService', () => {
       NotFoundException,
     );
   });
+
+  it('resolves the current active roadmap without requiring the client to list drafts first', async () => {
+    const service = new LearningRoadmapQueryService(
+      {
+        findOne: jest.fn().mockResolvedValue({
+          id: 'roadmap-active',
+          activeVersionId: 'version-active',
+        }),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const getActive = jest
+      .spyOn(service, 'getActive')
+      .mockResolvedValue({ id: 'roadmap-active' } as never);
+
+    await expect(service.getCurrentActive('user-1')).resolves.toEqual({
+      id: 'roadmap-active',
+    });
+    expect(getActive).toHaveBeenCalledWith('user-1', 'roadmap-active');
+  });
+
+  it('returns null when the learner does not have an active roadmap', async () => {
+    const service = new LearningRoadmapQueryService(
+      { findOne: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.getCurrentActive('user-1')).resolves.toBeNull();
+  });
 });

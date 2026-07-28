@@ -261,7 +261,7 @@ export class LearningRoadmapGenerationService {
           skill_canonical: module.skillCanonical,
           display_name: candidate.display_name,
           rank: module.rank,
-          estimated_minutes: module.estimatedMinutes,
+          estimated_minutes: module.scheduledMinutes,
           feasibility: module.scopeStatus === 'DEFERRED' ? 'DEFERRED' : 'FEASIBLE',
           resources: (step?.resources ?? []) as Array<Record<string, unknown>>,
           lesson_content: (step?.lesson_content as unknown as Record<string, unknown>) ?? null,
@@ -557,7 +557,6 @@ function requiredTasks(
       }
     }
   }
-  if (sequence === totalSessions) tasks.push({ type: 'evidence', required: true });
   return tasks;
 }
 

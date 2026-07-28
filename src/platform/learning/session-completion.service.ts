@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In } from 'typeorm';
 import { LearningModuleEntity } from '../../database/entities/learning-module.entity';
@@ -80,9 +75,7 @@ export class LearningSessionCompletionService {
       const completedBefore = completedSessionIds(progressRows);
       const statusesBefore = resolveModuleSessionStatuses(modules, sessions, completedBefore);
       const targetStatus = statusesBefore.get(sessionId);
-      if (targetStatus === 'LOCKED' || !targetStatus) {
-        throw new ConflictException('This learning session is still locked.');
-      }
+      if (!targetStatus) throw sessionNotFound(sessionId);
 
       if (targetStatus !== 'COMPLETED') {
         const existing =
@@ -138,20 +131,12 @@ export class LearningSessionCompletionService {
           .slice(targetIndex + 1)
           .find((session) => statusesAfter.get(session.id) === 'AVAILABLE') ??
         orderedSessions.find((session) => statusesAfter.get(session.id) === 'AVAILABLE');
-      const unlockedSessionIds = orderedSessions
-        .filter(
-          (session) =>
-            statusesBefore.get(session.id) === 'LOCKED' &&
-            statusesAfter.get(session.id) === 'AVAILABLE',
-        )
-        .map((session) => session.id);
-
       return {
         session_id: sessionId,
         status: 'COMPLETED',
         module_completed: moduleCompleted,
         next_session_id: nextSession?.id ?? null,
-        unlocked_session_ids: unlockedSessionIds,
+        unlocked_session_ids: [],
       };
     });
   }

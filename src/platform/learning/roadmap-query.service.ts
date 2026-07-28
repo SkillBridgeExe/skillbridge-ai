@@ -76,6 +76,15 @@ export class LearningRoadmapQueryService {
     return { archived: result.affected ?? 0 };
   }
 
+  async getCurrentActive(userId: string): Promise<ActiveLearningRoadmapResponse | null> {
+    const roadmap = await this.roadmaps.findOne({
+      where: { userId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!roadmap) return null;
+    return this.getActive(userId, roadmap.id);
+  }
+
   async getActive(userId: string, roadmapId: string): Promise<ActiveLearningRoadmapResponse> {
     const roadmap = await this.roadmaps.findOne({
       where: { id: roadmapId, userId, status: 'ACTIVE' },

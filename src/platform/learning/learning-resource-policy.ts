@@ -53,6 +53,13 @@ export function presentLearningResources<T extends Record<string, unknown>>(
         resource.validation_status === 'verified' &&
         resource.language === 'en' &&
         !CJK_SCRIPT.test(resource.title),
+    )
+    .filter(
+      ({ resource }) =>
+        track !== 'FAST_TRACK' ||
+        resource.duration_minutes === undefined ||
+        resource.duration_minutes <= 180 ||
+        Boolean(resource.video_chapters?.length),
     );
   const primaryMaxMinutes = track === 'FAST_TRACK' ? 180 : 480;
   const primaryIndex = eligible.findIndex(

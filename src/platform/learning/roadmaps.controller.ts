@@ -55,6 +55,12 @@ export class LearningRoadmapsController {
     return this.queries.archiveActive(user.userId);
   }
 
+  @Get('active')
+  @ApiOperation({ summary: 'Get the current learner active roadmap' })
+  getCurrentActive(@CurrentUser() user: JwtUser) {
+    return this.queries.getCurrentActive(user.userId);
+  }
+
   @Get(':roadmapId')
   @ApiOperation({ summary: 'Get an owned active roadmap with dated runtime sessions' })
   getActive(@CurrentUser() user: JwtUser, @Param('roadmapId') roadmapId: string) {

@@ -27,6 +27,7 @@ import {
   assertValidResourceSelection,
   composeLearningCandidates,
 } from './learning-roadmap-resources';
+import { presentLearningResources } from './learning-resource-policy';
 
 const IMPORTANCE_WEIGHT: Record<string, number> = {
   REQUIRED: 1,
@@ -167,7 +168,19 @@ export class LearningRoadmapDraftService {
         nextConfig.language_pref,
         validationBudget,
       );
-      assertValidResourceSelection(nextConfig.candidate_skills, composed, dto.selected_resources);
+      const learningTrack = existing.intent === 'JD_APPLICATION' ? 'FAST_TRACK' : 'FOUNDATION';
+      const policyComposed = {
+        ...composed,
+        steps: composed.steps.map((step) => ({
+          ...step,
+          resources: presentLearningResources(step.resources, learningTrack),
+        })),
+      };
+      assertValidResourceSelection(
+        nextConfig.candidate_skills,
+        policyComposed,
+        dto.selected_resources,
+      );
     }
 
     const updateResult = await this.roadmaps.update(

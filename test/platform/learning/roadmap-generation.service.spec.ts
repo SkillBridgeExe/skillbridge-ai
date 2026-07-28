@@ -229,6 +229,34 @@ describe('LearningRoadmapGenerationService', () => {
     );
   });
 
+  it('reports only scheduled core minutes for a fast-track module', async () => {
+    const fastTrackDraft = draft();
+    fastTrackDraft.intent = 'JD_APPLICATION';
+    fastTrackDraft.cvMatchId = 'match-1';
+    fastTrackDraft.draftConfig.cadence = {
+      timezone: 'Asia/Ho_Chi_Minh',
+      start_date: '2026-08-03',
+      study_days_per_week: 3,
+      session_minutes: 60,
+    };
+    delete fastTrackDraft.draftConfig.schedule;
+    const { service, roadmaps } = setup();
+    roadmaps.findOne.mockResolvedValue(fastTrackDraft);
+
+    const result = await service.preview('user-1', 'roadmap-1', 2);
+    const scheduledMinutes = result.sessions
+      .filter((session) => session.skill_canonical === 'typescript')
+      .reduce((sum, session) => sum + session.duration_minutes, 0);
+    const fullContentMinutes = result.modules[0].lessons.reduce(
+      (sum, lesson) => sum + lesson.estimated_minutes,
+      0,
+    );
+
+    expect(result.learning_track).toBe('FAST_TRACK');
+    expect(result.modules[0].estimated_minutes).toBe(scheduledMinutes);
+    expect(result.modules[0].estimated_minutes).toBeLessThan(fullContentMinutes);
+  });
+
   it('enhances once during generate but never during preview', async () => {
     const { service, enhancer } = setup();
 
@@ -396,6 +424,12 @@ describe('LearningRoadmapGenerationService', () => {
         moduleId: 'module-1',
         requiredTasks: expect.arrayContaining([expect.objectContaining({ type: 'resources' })]),
       }),
+    );
+    const persistedSessions = manager.save.mock.calls
+      .filter(([entity]) => entity === LearningSessionEntity)
+      .map(([, value]) => value);
+    expect(persistedSessions.flatMap((item) => item.requiredTasks)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: 'evidence' })]),
     );
     expect(manager.update).toHaveBeenCalledWith(
       LearningRoadmapEntity,
