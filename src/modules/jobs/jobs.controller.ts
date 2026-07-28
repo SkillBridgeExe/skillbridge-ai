@@ -9,6 +9,10 @@ import {
   JobRecommendationResponse,
   JobRecommendationService,
 } from './reco/job-recommendation.service';
+import {
+  JobRecommendationQueryDto,
+  toJobRecommendationOptions,
+} from './dto/job-recommendation-query.dto';
 
 /**
  * User-facing job recommendations (J4). Mirrors the cvs.controller auth posture:
@@ -36,36 +40,35 @@ export class JobsController {
   async recommend(
     @CurrentUser() user: JwtUser,
     @Param('cvId') cvId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('role') role?: string,
+    @Query() query: JobRecommendationQueryDto = {},
   ): Promise<JobRecommendationResponse> {
-    // Atomic charge-first reserve (replaces the racy assertCanUse→recordUsage
-    // pair); refunded when no value is delivered — an empty pool or a thrown
-    // error must not consume a slot (bug hunt 2026-07-21).
-    const usage = this.entitlements
-      ? await this.entitlements.reserveUsage(user.userId, BillingFeatureKey.JOB_RECOMMENDATION, {
-          sourceType: 'cv',
-          sourceId: cvId,
-        })
-      : null;
+    // Validate before touching quota. Browsing an existing recommendation snapshot
+    // (filter/sort/page) is free; only a cache miss generates embeddings/scores.
+    const options = toJobRecommendationOptions(query);
+    const quota: {
+      usage: Awaited<ReturnType<EntitlementsService['reserveUsage']>> | null;
+    } = { usage: null };
     try {
-      const response = await this.reco.recommendForCv(user.userId, cvId, {
-        limit: limit ? parseInt(limit, 10) : undefined,
-        offset: offset ? parseInt(offset, 10) : undefined,
-        roleCode: role,
+      const response = await this.reco.recommendForCv(user.userId, cvId, options, {
+        beforeGenerate: async () => {
+          quota.usage = this.entitlements
+            ? await this.entitlements.reserveUsage(
+                user.userId,
+                BillingFeatureKey.JOB_RECOMMENDATION,
+                {
+                  sourceType: 'cv',
+                  sourceId: cvId,
+                },
+              )
+            : null;
+        },
       });
-      // Refund ONLY a genuinely empty pool (total === 0). An over-paginated
-      // page (offset >= total) also yields an empty `recommendations` array but
-      // total > 0 — the full scoring+embedding pipeline already ran, so
-      // refunding it would let a client farm unlimited free scored calls by
-      // requesting past-the-end offsets (bug hunt R2 07-22).
-      if (usage && response.total === 0) {
-        await usage.refund();
+      if (quota.usage && response.generation.snapshot_size === 0) {
+        await quota.usage.refund();
       }
       return response;
     } catch (error) {
-      await usage?.refund();
+      await quota.usage?.refund();
       throw error;
     }
   }

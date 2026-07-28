@@ -1,16 +1,32 @@
 import { JobsController } from '../../../src/modules/jobs/jobs.controller';
 
 describe('JobsController quota enforcement', () => {
-  function build(recommendations: unknown[] = [], total = recommendations.length) {
+  function build(
+    recommendations: unknown[] = [],
+    total = recommendations.length,
+    cacheHit = false,
+    snapshotSize = total,
+  ) {
     const reco = {
-      recommendForCv: jest.fn().mockResolvedValue({
-        cv_id: 'cv-1',
-        pool_size: 1,
-        total,
-        limit: 5,
-        offset: 0,
-        recommendations,
-      }),
+      recommendForCv: jest.fn(
+        async (
+          _userId: string,
+          _cvId: string,
+          _options: unknown,
+          hooks: { beforeGenerate?: () => Promise<void> },
+        ) => {
+          if (!cacheHit) await hooks.beforeGenerate?.();
+          return {
+            cv_id: 'cv-1',
+            pool_size: 1,
+            total,
+            limit: 5,
+            offset: 0,
+            generation: { cache_hit: cacheHit, snapshot_size: snapshotSize },
+            recommendations,
+          };
+        },
+      ),
     };
     const reservation = {
       refund: jest.fn().mockResolvedValue(undefined),
@@ -32,20 +48,40 @@ describe('JobsController quota enforcement', () => {
       sourceType: 'cv',
       sourceId: 'cv-1',
     });
-    expect(reco.recommendForCv).toHaveBeenCalledWith('user-1', 'cv-1', {
-      limit: undefined,
-      offset: undefined,
-      roleCode: undefined,
-    });
+    expect(reco.recommendForCv).toHaveBeenCalledWith(
+      'user-1',
+      'cv-1',
+      {
+        cityCodes: [],
+        employmentTypes: [],
+        experienceLevels: [],
+        fit: [],
+        limit: undefined,
+        offset: undefined,
+        roleCode: undefined,
+        salaryOnly: false,
+        sort: 'RECOMMENDED',
+        workModes: [],
+      },
+      expect.objectContaining({ beforeGenerate: expect.any(Function) }),
+    );
     expect(reservation.refund).not.toHaveBeenCalled();
   });
 
-  it('refunds the charge when the pool is genuinely empty (total 0)', async () => {
-    const { controller, reservation } = build([], 0);
+  it('refunds the charge when the generated snapshot is genuinely empty', async () => {
+    const { controller, reservation } = build([], 0, false, 0);
 
     await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
 
     expect(reservation.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the charge when filters hide every row from a non-empty generated snapshot', async () => {
+    const { controller, reservation } = build([], 0, false, 7);
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
+
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 
   it('keeps the charge for an over-paginated empty page (total > 0)', async () => {
@@ -58,9 +94,30 @@ describe('JobsController quota enforcement', () => {
     expect(reservation.refund).not.toHaveBeenCalled();
   });
 
+  it('does not reserve quota when filters/pages reuse a cached snapshot', async () => {
+    const { controller, entitlements } = build([{ job_id: 'job-1' }], 1, true);
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1', {
+      offset: '5',
+      sort: 'NEWEST',
+    });
+
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
+  });
+
   it('refunds the charge when the recommendation service throws', async () => {
     const { controller, reco, reservation } = build();
-    reco.recommendForCv.mockRejectedValue(new Error('pool unavailable'));
+    reco.recommendForCv.mockImplementation(
+      async (
+        _userId: string,
+        _cvId: string,
+        _options: unknown,
+        hooks: { beforeGenerate?: () => Promise<void> },
+      ) => {
+        await hooks.beforeGenerate?.();
+        throw new Error('pool unavailable');
+      },
+    );
 
     await expect(controller.recommend({ userId: 'user-1' } as never, 'cv-1')).rejects.toThrow(
       'pool unavailable',
@@ -69,7 +126,7 @@ describe('JobsController quota enforcement', () => {
     expect(reservation.refund).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call the recommendation service when the reserve is denied', async () => {
+  it('does not run the expensive generator when the cache-miss reserve is denied', async () => {
     const { controller, reco, entitlements } = build();
     entitlements.reserveUsage.mockRejectedValue(new Error('quota denied'));
 
@@ -77,6 +134,55 @@ describe('JobsController quota enforcement', () => {
       'quota denied',
     );
 
+    expect(reco.recommendForCv).toHaveBeenCalledTimes(1);
+  });
+
+  it('normalizes explorer query fields before invoking the service', async () => {
+    const { controller, reco } = build([{ job_id: 'job-1' }]);
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1', {
+      limit: '10',
+      offset: '20',
+      role: 'all',
+      cityCodes: 'hcm,HAN,HCM',
+      workModes: 'REMOTE,HYBRID',
+      employmentTypes: 'FULL_TIME,INTERNSHIP',
+      experienceLevels: 'FRESHER,JUNIOR',
+      fit: 'safe_apply,stretch',
+      salaryOnly: 'true',
+      sort: 'NEWEST',
+    });
+
+    expect(reco.recommendForCv).toHaveBeenCalledWith(
+      'user-1',
+      'cv-1',
+      {
+        limit: 10,
+        offset: 20,
+        roleCode: 'all',
+        cityCodes: ['HCM', 'HAN'],
+        workModes: ['REMOTE', 'HYBRID'],
+        employmentTypes: ['FULL_TIME', 'INTERNSHIP'],
+        experienceLevels: ['FRESHER', 'JUNIOR'],
+        fit: ['safe_apply', 'stretch'],
+        salaryOnly: true,
+        sort: 'NEWEST',
+      },
+      expect.any(Object),
+    );
+  });
+
+  it('rejects unsupported filter values before running the recommendation pipeline', async () => {
+    const { controller, reco, entitlements, reservation } = build();
+
+    await expect(
+      controller.recommend({ userId: 'user-1' } as never, 'cv-1', {
+        workModes: 'TELEPORT',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+
     expect(reco.recommendForCv).not.toHaveBeenCalled();
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
+    expect(reservation.refund).not.toHaveBeenCalled();
   });
 });
