@@ -123,6 +123,7 @@ export class LearningDisplayTranslationService {
     if (!this.config.get<boolean>('learning.translation.googleEnabled')) return undefined;
     const projectId = this.config.get<string>('learning.translation.googleProjectId');
     if (!projectId) return undefined;
+    const timeoutMs = this.config.get<number>('learning.translation.timeoutMs') ?? 5000;
     try {
       const client = await this.googleAuth.getClient();
       const response = await client.request<{
@@ -130,6 +131,7 @@ export class LearningDisplayTranslationService {
       }>({
         url: `https://translation.googleapis.com/v3/projects/${projectId}/locations/global:translateText`,
         method: 'POST',
+        timeout: timeoutMs,
         data: {
           mimeType: 'text/plain',
           targetLanguageCode: locale,

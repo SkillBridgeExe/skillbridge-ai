@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { LearningModuleEntity } from '../../../src/database/entities/learning-module.entity';
 import { LearningRoadmapEntity } from '../../../src/database/entities/learning-roadmap.entity';
@@ -133,5 +133,51 @@ describe('LearningRoadmapRescheduleService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid persisted cadence timezone as a client error', async () => {
+    const { service, manager, roadmap } = setup();
+    roadmap.draftConfig.cadence.timezone = 'Invalid/Timezone';
+
+    await expect(
+      service.reschedule('user-1', 'roadmap-1', {
+        expected_revision: 3,
+        start_date: '2026-08-10',
+        study_days_per_week: 2,
+        session_minutes: 60,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing or unowned active roadmap before updating sessions', async () => {
+    const { service, manager } = setup();
+    manager.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.reschedule('user-2', 'roadmap-1', {
+        expected_revision: 3,
+        start_date: '2026-08-10',
+        study_days_per_week: 2,
+        session_minutes: 60,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('rolls back when the optimistic roadmap update affects no row', async () => {
+    const { service, manager } = setup();
+    manager.update.mockImplementation(async (entity) => ({
+      affected: entity === LearningRoadmapEntity ? 0 : 1,
+    }));
+
+    await expect(
+      service.reschedule('user-1', 'roadmap-1', {
+        expected_revision: 3,
+        start_date: '2026-08-10',
+        study_days_per_week: 2,
+        session_minutes: 60,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

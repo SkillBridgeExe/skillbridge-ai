@@ -200,6 +200,36 @@ describe('LearningSessionCompletionService', () => {
     });
   });
 
+  it('does not recommend an earlier unfinished session after completing the final session', async () => {
+    const { service } = completionHarness({
+      targetSessionId: 'session-4',
+      targetModuleId: 'module-2',
+      completedSessionIds: ['session-3'],
+    });
+
+    await expect(service.complete('user-1', 'session-4')).resolves.toEqual({
+      session_id: 'session-4',
+      status: 'COMPLETED',
+      module_completed: true,
+      next_session_id: null,
+      unlocked_session_ids: [],
+    });
+  });
+
+  it('does not save or bump progress when completing an already-completed session', async () => {
+    const { service, progressRepo } = completionHarness({
+      completedSessionIds: ['session-1', 'session-2'],
+    });
+
+    await expect(service.complete('user-1', 'session-2')).resolves.toEqual(
+      expect.objectContaining({
+        session_id: 'session-2',
+        status: 'COMPLETED',
+      }),
+    );
+    expect(progressRepo.save).not.toHaveBeenCalled();
+  });
+
   it('does not reveal or complete a session outside the active owned roadmap', async () => {
     const { service, progressRepo } = completionHarness({
       roadmapOwned: false,

@@ -48,6 +48,7 @@ interface SlotOccurrence {
   usedMinutes: number;
 }
 
+// Ignore tiny legacy-slot remainders that are too short for a useful learning unit.
 const MIN_USABLE_LEARNING_MINUTES = 15;
 
 export function scheduleLearningModules(

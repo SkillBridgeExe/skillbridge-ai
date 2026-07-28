@@ -61,8 +61,8 @@ export class RoadmapComposerService {
     const not_feasible_items: NotFeasibleItem[] = [];
 
     for (const item of plan.items) {
-      // Honest feasibility: items the planner could not fit into the hour budget are surfaced
-      // as not_feasible_items (with a fallback track) instead of being promised as steps.
+      // Preserve the feasibility warning even when a downstream planner asks to retain the
+      // item as a step so it can apply its own final scope.
       if (item.verdict === 'not_feasible_before_deadline') {
         not_feasible_items.push({
           skill_canonical: item.skill_canonical,

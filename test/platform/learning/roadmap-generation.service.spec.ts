@@ -229,6 +229,23 @@ describe('LearningRoadmapGenerationService', () => {
     );
   });
 
+  it('reports the legacy schedule completion date in the learner timezone', async () => {
+    const legacyDraft = draft();
+    legacyDraft.draftConfig.schedule = {
+      timezone: 'Asia/Ho_Chi_Minh',
+      deadline: '2026-07-27',
+      session_minutes: 60,
+      slots: [{ iso_weekday: 1, start_time: '00:30', duration_minutes: 60 }],
+    };
+    const { service, roadmaps } = setup();
+    roadmaps.findOne.mockResolvedValue(legacyDraft);
+
+    const result = await service.preview('user-1', 'roadmap-1', 2);
+
+    expect(result.sessions.at(-1)?.scheduled_start_at).toBe('2026-07-26T17:30:00.000Z');
+    expect(result.estimated_completion_date).toBe('2026-07-27');
+  });
+
   it('reports only scheduled core minutes for a fast-track module', async () => {
     const fastTrackDraft = draft();
     fastTrackDraft.intent = 'JD_APPLICATION';
@@ -255,6 +272,66 @@ describe('LearningRoadmapGenerationService', () => {
     expect(result.learning_track).toBe('FAST_TRACK');
     expect(result.modules[0].estimated_minutes).toBe(scheduledMinutes);
     expect(result.modules[0].estimated_minutes).toBeLessThan(fullContentMinutes);
+  });
+
+  it('keeps every included lesson reachable when lesson groups outnumber raw time slots', async () => {
+    const cadenceDraft = draft();
+    cadenceDraft.draftConfig.cadence = {
+      timezone: 'Asia/Ho_Chi_Minh',
+      start_date: '2026-08-03',
+      study_days_per_week: 3,
+      session_minutes: 30,
+    };
+    delete cadenceDraft.draftConfig.schedule;
+    const { service, roadmaps, composer } = setup();
+    roadmaps.findOne.mockResolvedValue(cadenceDraft);
+    composer.compose.mockReturnValue({
+      budget_hours: 100,
+      ai_summary: 'Focus on TypeScript practice.',
+      not_feasible_items: [],
+      steps: [
+        {
+          skill_canonical: 'typescript',
+          display_name: 'TypeScript',
+          estimated_hours: 1,
+          priority: 0.8,
+          resources: [
+            {
+              id: 'resource-1',
+              source_type: 'official_doc',
+              title: 'TypeScript handbook',
+              provider: 'TypeScript',
+              language: 'en',
+              duration_minutes: 60,
+              validation_status: 'verified',
+            },
+          ],
+          lesson_content: {
+            ...lessonContent,
+            learning_objectives: [],
+            sections: [],
+            exercises: ['one', 'two', 'three'].map((id) => ({
+              id,
+              title: `Exercise ${id}`,
+              prompt: `Complete exercise ${id}.`,
+              acceptance_criteria: ['Save proof', 'Explain the result'],
+              proof_of_completion: 'Save the code.',
+            })),
+          },
+        },
+      ],
+    });
+
+    const result = await service.preview('user-1', 'roadmap-1', 2);
+    const includedLessonIds = result.modules[0].lessons
+      .filter((lesson) => lesson.scope_status === 'INCLUDED')
+      .map((lesson) => lesson.id);
+    const scheduledLessonIds = result.sessions.flatMap((session) => session.lesson_ids);
+
+    expect(result.sessions).toHaveLength(3);
+    expect(scheduledLessonIds).toEqual(expect.arrayContaining(includedLessonIds));
+    expect(new Set(scheduledLessonIds).size).toBe(includedLessonIds.length);
+    expect(result.sessions.every((session) => session.duration_minutes <= 30)).toBe(true);
   });
 
   it('enhances once during generate but never during preview', async () => {
@@ -395,6 +472,22 @@ describe('LearningRoadmapGenerationService', () => {
     const withoutSchedule = draft();
     delete withoutSchedule.draftConfig.schedule;
     roadmaps.findOne.mockResolvedValue(withoutSchedule);
+    await expect(service.preview('user-1', 'roadmap-1', 2)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('returns a client error when candidate prerequisites contain a cycle', async () => {
+    const cyclicDraft = draft();
+    cyclicDraft.draftConfig.candidate_skills[0].prerequisites = ['typescript'];
+    const { service, roadmaps, drafts } = setup();
+    roadmaps.findOne.mockResolvedValue(cyclicDraft);
+    drafts.rederiveCurrentCandidates.mockResolvedValue({
+      targetRole: 'frontend_developer',
+      candidates: cyclicDraft.draftConfig.candidate_skills,
+      sourceGapSnapshot: { source: 'career_role', skills: ['typescript'] },
+    });
+
     await expect(service.preview('user-1', 'roadmap-1', 2)).rejects.toBeInstanceOf(
       BadRequestException,
     );

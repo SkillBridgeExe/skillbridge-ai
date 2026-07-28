@@ -103,4 +103,17 @@ describe('scheduleLearningModules', () => {
 
     expect(result.capacityMinutes).toBe(60);
   });
+
+  it('keeps a legacy slot remainder when it is long enough for a useful unit', () => {
+    const result = scheduleLearningModules({
+      modules: [],
+      timezone: 'Asia/Ho_Chi_Minh',
+      startDate: '2026-07-20',
+      deadline: '2026-07-20',
+      sessionMinutes: 60,
+      slots: [{ isoWeekday: 1, startTime: '19:00', durationMinutes: 80 }],
+    });
+
+    expect(result.capacityMinutes).toBe(80);
+  });
 });

@@ -51,6 +51,13 @@ export interface LearningContentPlan {
   modules: PlannedLearningModule[];
 }
 
+export class LearningPrerequisiteCycleError extends Error {
+  constructor() {
+    super('Learning prerequisite graph contains a cycle.');
+    this.name = LearningPrerequisiteCycleError.name;
+  }
+}
+
 interface LearningContentPlanInput {
   track: LearningTrack;
   capacityMinutes?: number;
@@ -83,10 +90,10 @@ export function buildLearningContentPlan(input: LearningContentPlanInput): Learn
         : 1 - ((candidate.userRank ?? candidateCount) - 1) / Math.max(1, candidateCount - 1);
     const impact = clamp(candidate.systemPriority / maxPriority, 0, 1);
     const effortAdvantage = 1 - Math.min(estimatedMinutes / 480, 1);
-    const missingPrerequisites = candidate.prerequisites.filter((skill) =>
+    const unlearnedPrerequisites = candidate.prerequisites.filter((skill) =>
       candidateSkills.has(skill),
     ).length;
-    const readiness = 1 - Math.min(missingPrerequisites / 3, 1);
+    const readiness = 1 - Math.min(unlearnedPrerequisites / 3, 1);
     const quickWinScore = Math.round(
       100 * (impact * 0.45 + rankScore * 0.25 + effortAdvantage * 0.2 + readiness * 0.1),
     );
@@ -268,7 +275,7 @@ function topologicalOrder<T extends { candidate: LearningContentCandidate }>(
     const available = [...pending.values()]
       .filter((module) => module.candidate.prerequisites.every((skill) => !pending.has(skill)))
       .sort(compare);
-    if (available.length === 0) throw new Error('Learning prerequisite graph contains a cycle.');
+    if (available.length === 0) throw new LearningPrerequisiteCycleError();
     const next = available[0];
     ordered.push(next);
     pending.delete(next.candidate.skillCanonical);

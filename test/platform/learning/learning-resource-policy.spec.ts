@@ -82,4 +82,18 @@ describe('learning resource presentation policy', () => {
 
     expect(result).toEqual([]);
   });
+
+  it('retains a long verified resource as supplementary material for foundation learning', () => {
+    const result = presentLearningResources(
+      [resource({ id: 'long', duration_minutes: 1610 })],
+      'FOUNDATION',
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'long',
+        resource_role: 'SUPPLEMENTARY',
+      }),
+    ]);
+  });
 });

@@ -23,7 +23,7 @@ export interface LearningCompletionValidation {
   missing_exercise_ids: string[];
 }
 
-const MIN_CHECKLIST_PROOF_LENGTH = 12;
+const MIN_REQUIRED_PROOF_LENGTH = 12;
 
 export function isLearningSessionMarkedComplete(
   checkedChecklistItems: Record<string, string[]> | null | undefined,
@@ -77,7 +77,7 @@ export function validateLearningSessionCompletion(
         const itemId = stringValue(item.id);
         if (!itemId) continue;
         const proof = progress.exerciseProofs[`task:${sectionId}:${itemId}`]?.trim() ?? '';
-        if (!checked.has(itemId) || proof.length < MIN_CHECKLIST_PROOF_LENGTH) {
+        if (!checked.has(itemId) || proof.length < MIN_REQUIRED_PROOF_LENGTH) {
           missingChecklistItemIds.add(`${sectionId}:${itemId}`);
         }
       }
@@ -86,7 +86,8 @@ export function validateLearningSessionCompletion(
     for (const exerciseValue of asArray(content?.exercises)) {
       const exercise = asRecord(exerciseValue);
       const exerciseId = stringValue(exercise?.id);
-      if (exerciseId && !progress.exerciseProofs[exerciseId]?.trim()) {
+      const proof = exerciseId ? (progress.exerciseProofs[exerciseId]?.trim() ?? '') : '';
+      if (exerciseId && proof.length < MIN_REQUIRED_PROOF_LENGTH) {
         missingExerciseIds.add(exerciseId);
       }
     }

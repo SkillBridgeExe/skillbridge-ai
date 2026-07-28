@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsObject,
   IsString,
+  IsTimeZone,
   IsUUID,
   MaxLength,
   Matches,
@@ -91,9 +92,11 @@ export class LearningScheduleDraftDto {
 
 export class LearningCadenceDraftDto {
   @IsString()
+  @IsTimeZone()
   timezone!: string;
 
   @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   start_date!: string;
 
   @IsInt()
@@ -153,6 +156,7 @@ export class RescheduleLearningRoadmapDto {
   expected_revision!: number;
 
   @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
   start_date!: string;
 
   @IsInt()

@@ -107,4 +107,68 @@ describe('learning session state', () => {
       missing_exercise_ids: ['build-form'],
     });
   });
+
+  it('requires a meaningful proof for required exercises', () => {
+    const result = validateLearningSessionCompletion(
+      [
+        {
+          type: 'lesson',
+          content: {
+            sections: [],
+            exercises: [{ id: 'build-form' }],
+          },
+        },
+      ],
+      {
+        checkedChecklistItems: {},
+        exerciseProofs: {
+          'build-form': 'x',
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      complete: false,
+      missing_section_ids: [],
+      missing_checklist_item_ids: [],
+      missing_exercise_ids: ['build-form'],
+    });
+  });
+
+  it('gates a resource-only session on completion of every assigned resource', () => {
+    const requiredTasks = [
+      {
+        type: 'resources',
+        items: [{ id: 'resource-1' }, { id: 'resource-2' }],
+      },
+    ];
+
+    expect(
+      validateLearningSessionCompletion(requiredTasks, {
+        checkedChecklistItems: {
+          'resource-1': ['__completed'],
+        },
+        exerciseProofs: {},
+      }),
+    ).toEqual({
+      complete: false,
+      missing_section_ids: ['resource-2'],
+      missing_checklist_item_ids: [],
+      missing_exercise_ids: [],
+    });
+    expect(
+      validateLearningSessionCompletion(requiredTasks, {
+        checkedChecklistItems: {
+          'resource-1': ['__completed'],
+          'resource-2': ['__completed'],
+        },
+        exerciseProofs: {},
+      }),
+    ).toEqual({
+      complete: true,
+      missing_section_ids: [],
+      missing_checklist_item_ids: [],
+      missing_exercise_ids: [],
+    });
+  });
 });

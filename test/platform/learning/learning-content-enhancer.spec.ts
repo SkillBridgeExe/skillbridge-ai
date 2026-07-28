@@ -62,7 +62,15 @@ describe('LearningContentEnhancer', () => {
       get: jest.fn().mockReturnValue({ meta: { system: 'system' } }),
       render: jest.fn().mockReturnValue('prompt'),
     };
-    const config = { get: jest.fn().mockReturnValue(true) };
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'learning.contentAiEnabled'
+          ? true
+          : key === 'learning.contentAiModel'
+            ? 'gpt-4.1-mini'
+            : undefined,
+      ),
+    };
     const service = new LearningContentEnhancer(llm as never, prompts as never, config as never);
 
     const result = await service.enhance(preview() as never);
@@ -101,7 +109,15 @@ describe('LearningContentEnhancer', () => {
         get: jest.fn().mockReturnValue({ meta: { system: 'system' } }),
         render: jest.fn().mockReturnValue('prompt'),
       } as never,
-      { get: jest.fn().mockReturnValue(true) } as never,
+      {
+        get: jest.fn((key: string) =>
+          key === 'learning.contentAiEnabled'
+            ? true
+            : key === 'learning.contentAiModel'
+              ? 'gpt-4.1-mini'
+              : undefined,
+        ),
+      } as never,
     );
 
     const result = await service.enhance(preview() as never);
@@ -109,5 +125,25 @@ describe('LearningContentEnhancer', () => {
     expect(result.content_source).toBe('DETERMINISTIC_FALLBACK');
     expect(result.modules[0].lessons[0].summary).toBe('Original summary');
     expect(result.modules[0].lessons[0].content_source).toBe('DETERMINISTIC_FALLBACK');
+  });
+
+  it('returns deterministic content without calling dependencies when AI enhancement is disabled', async () => {
+    const llm = { complete: jest.fn() };
+    const prompts = { get: jest.fn(), render: jest.fn() };
+    const service = new LearningContentEnhancer(
+      llm as never,
+      prompts as never,
+      {
+        get: jest.fn((key: string) => (key === 'learning.contentAiEnabled' ? false : undefined)),
+      } as never,
+    );
+    const original = preview();
+
+    const result = await service.enhance(original as never);
+
+    expect(result).toBe(original);
+    expect(llm.complete).not.toHaveBeenCalled();
+    expect(prompts.get).not.toHaveBeenCalled();
+    expect(prompts.render).not.toHaveBeenCalled();
   });
 });

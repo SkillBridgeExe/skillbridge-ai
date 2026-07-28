@@ -25,6 +25,7 @@ import { scheduleLearningModules } from './learning-scheduler';
 import { buildStudyWeekdays, scheduleLearningCadence } from './learning-cadence';
 import {
   buildLearningContentPlan,
+  LearningPrerequisiteCycleError,
   type LearningContentPlan,
   type LearningTrack,
   type PlannedLearningLesson,
@@ -37,6 +38,7 @@ import {
 } from './learning-roadmap-resources';
 import { LearningContentEnhancer } from './learning-content-enhancer';
 import { presentLearningResources } from './learning-resource-policy';
+import { dateInLearningTimezone, todayInLearningTimezone } from './learning-projection';
 
 const RESOURCE_CATALOG_VERSION = 'learning-resources-v1';
 const CONTENT_VERSION = 'skillbridge-lessons-v1';
@@ -121,7 +123,7 @@ export class LearningRoadmapGenerationService {
     }
 
     const timezone = cadence?.timezone ?? schedule!.timezone;
-    const startDate = cadence?.start_date ?? todayInTimezone(timezone);
+    const startDate = cadence?.start_date ?? todayInLearningTimezone(timezone);
     const sessionMinutes = cadence?.session_minutes ?? schedule!.session_minutes;
     const legacyScheduleInput = schedule
       ? {
@@ -176,36 +178,52 @@ export class LearningRoadmapGenerationService {
     const composed = applyResourceSelection(policyComposed, selectedResources);
 
     const stepBySkill = new Map(composed.steps.map((step) => [step.skill_canonical, step]));
-    const contentPlan = buildLearningContentPlan({
-      track: learningTrack,
-      ...(capacitySchedule ? { capacityMinutes: capacitySchedule.capacityMinutes } : {}),
-      candidates: selected.map((candidate) => ({
-        skillCanonical: candidate.skill_canonical,
-        displayName: candidate.display_name,
-        systemPriority: candidate.system_priority,
-        userRank: roadmap.draftConfig.selected_priorities?.find(
-          (item) => item.skill_canonical === candidate.skill_canonical,
-        )?.rank,
-        prerequisites: candidate.prerequisites,
-        lessonContent: stepBySkill.get(candidate.skill_canonical)?.lesson_content,
-      })),
-    });
+    let contentPlan: LearningContentPlan;
+    try {
+      contentPlan = buildLearningContentPlan({
+        track: learningTrack,
+        ...(capacitySchedule ? { capacityMinutes: capacitySchedule.capacityMinutes } : {}),
+        candidates: selected.map((candidate) => ({
+          skillCanonical: candidate.skill_canonical,
+          displayName: candidate.display_name,
+          systemPriority: candidate.system_priority,
+          userRank: roadmap.draftConfig.selected_priorities?.find(
+            (item) => item.skill_canonical === candidate.skill_canonical,
+          )?.rank,
+          prerequisites: candidate.prerequisites,
+          lessonContent: stepBySkill.get(candidate.skill_canonical)?.lesson_content,
+        })),
+      });
+    } catch (error) {
+      if (error instanceof LearningPrerequisiteCycleError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+    const lessonGroupsBySkill = groupIncludedLessons(contentPlan, sessionMinutes);
     const schedulable = contentPlan.modules
       .filter((module) => module.scheduledMinutes > 0)
-      .map((module) => ({
-        skillCanonical: module.skillCanonical,
-        displayName: module.displayName,
-        estimatedMinutes: module.scheduledMinutes,
-        systemPriority:
-          learningTrack === 'FAST_TRACK'
-            ? module.quickWinScore
-            : selected.find((item) => item.skill_canonical === module.skillCanonical)!
-                .system_priority,
-        userRank: module.rank,
-        prerequisites: module.prerequisites,
-      }));
+      .map((module) => {
+        const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
+        return {
+          skillCanonical: module.skillCanonical,
+          displayName: module.displayName,
+          estimatedMinutes:
+            lessonGroups.length > 0
+              ? lessonGroups.length * sessionMinutes
+              : module.scheduledMinutes,
+          systemPriority:
+            learningTrack === 'FAST_TRACK'
+              ? module.quickWinScore
+              : selected.find((item) => item.skill_canonical === module.skillCanonical)!
+                  .system_priority,
+          userRank: module.rank,
+          prerequisites: module.prerequisites,
+        };
+      });
 
     let scheduled;
+    let sessionsWithLessons;
     try {
       scheduled = cadence
         ? scheduleLearningCadence({
@@ -219,15 +237,10 @@ export class LearningRoadmapGenerationService {
             ...legacyScheduleInput!,
             modules: schedulable,
           });
+      sessionsWithLessons = attachLessonsToSessions(lessonGroupsBySkill, scheduled.sessions);
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
-
-    const sessionsWithLessons = attachLessonsToSessions(
-      contentPlan,
-      scheduled.sessions,
-      sessionMinutes,
-    );
     const candidateBySkill = new Map(
       selected.map((candidate) => [candidate.skill_canonical, candidate]),
     );
@@ -253,7 +266,9 @@ export class LearningRoadmapGenerationService {
       estimated_completion_date:
         'estimatedCompletionDate' in scheduled
           ? scheduled.estimatedCompletionDate
-          : (scheduled.sessions.at(-1)?.scheduledStartAt.toISOString().slice(0, 10) ?? null),
+          : scheduled.sessions.at(-1)
+            ? dateInLearningTimezone(scheduled.sessions.at(-1)!.scheduledStartAt, timezone)
+            : null,
       modules: contentPlan.modules.map((module) => {
         const candidate = candidateBySkill.get(module.skillCanonical)!;
         const step = stepBySkill.get(module.skillCanonical);
@@ -468,19 +483,6 @@ function selectCurrentCandidates(
     .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
 }
 
-function todayInTimezone(timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(
-    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
-  );
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
 function learningBudget(
   startDate: string,
   deadline: string,
@@ -495,22 +497,10 @@ function learningBudget(
   };
 }
 
-function attachLessonsToSessions(
+function groupIncludedLessons(
   plan: LearningContentPlan,
-  sessions: Array<{
-    skillCanonical: string;
-    sequence: number;
-    scheduledStartAt: Date;
-    durationMinutes: number;
-  }>,
   sessionMinutes: number,
-): Array<{
-  skillCanonical: string;
-  sequence: number;
-  scheduledStartAt: Date;
-  durationMinutes: number;
-  lessonIds: string[];
-}> {
+): Map<string, PlannedLearningLesson[][]> {
   const groupsBySkill = new Map<string, PlannedLearningLesson[][]>();
   for (const module of plan.modules) {
     const included = module.lessons.filter((lesson) => lesson.scopeStatus === 'INCLUDED');
@@ -526,14 +516,45 @@ function attachLessonsToSessions(
     }
     groupsBySkill.set(module.skillCanonical, groups);
   }
+  return groupsBySkill;
+}
+
+function attachLessonsToSessions(
+  groupsBySkill: ReadonlyMap<string, PlannedLearningLesson[][]>,
+  sessions: Array<{
+    skillCanonical: string;
+    sequence: number;
+    scheduledStartAt: Date;
+    durationMinutes: number;
+  }>,
+): Array<{
+  skillCanonical: string;
+  sequence: number;
+  scheduledStartAt: Date;
+  durationMinutes: number;
+  lessonIds: string[];
+}> {
+  for (const [skillCanonical, groups] of groupsBySkill) {
+    if (groups.length === 0) continue;
+    const sessionCount = sessions.filter(
+      (session) => session.skillCanonical === skillCanonical,
+    ).length;
+    if (sessionCount !== groups.length) {
+      throw new Error(
+        `Learning cadence cannot fit every lesson for '${skillCanonical}' without splitting content.`,
+      );
+    }
+  }
 
   return sessions.map((session) => {
     const lessons = groupsBySkill.get(session.skillCanonical)?.[session.sequence - 1] ?? [];
+    const lessonMinutes = lessons.reduce((sum, lesson) => sum + lesson.estimatedMinutes, 0);
     return {
       ...session,
       durationMinutes:
-        lessons.reduce((sum, lesson) => sum + lesson.estimatedMinutes, 0) ||
-        session.durationMinutes,
+        lessonMinutes > 0
+          ? Math.min(lessonMinutes, session.durationMinutes)
+          : session.durationMinutes,
       lessonIds: lessons.map((lesson) => lesson.id),
     };
   });

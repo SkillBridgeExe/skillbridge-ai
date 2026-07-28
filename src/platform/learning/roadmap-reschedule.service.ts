@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, In } from 'typeorm';
 import { LearningModuleEntity } from '../../database/entities/learning-module.entity';
@@ -9,7 +14,12 @@ import {
 import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import { RescheduleLearningRoadmapDto } from './dto/roadmap.dto';
-import { projectCadenceDates } from './learning-cadence';
+import {
+  DEFAULT_LEARNING_SESSION_MINUTES,
+  DEFAULT_LEARNING_TIMEZONE,
+  LearningCadenceValidationError,
+  projectCadenceDates,
+} from './learning-cadence';
 import { isLearningSessionMarkedComplete } from './learning-session-state';
 import {
   ActiveLearningRoadmapResponse,
@@ -72,12 +82,20 @@ export class LearningRoadmapRescheduleService {
             left.sequence - right.sequence,
         );
       const cadence = nextCadence(roadmap, dto);
-      const projectedDates = projectCadenceDates({
-        timezone: cadence.timezone,
-        startDate: cadence.start_date,
-        studyDaysPerWeek: cadence.study_days_per_week,
-        count: pendingSessions.length,
-      });
+      let projectedDates: Date[];
+      try {
+        projectedDates = projectCadenceDates({
+          timezone: cadence.timezone,
+          startDate: cadence.start_date,
+          studyDaysPerWeek: cadence.study_days_per_week,
+          count: pendingSessions.length,
+        });
+      } catch (error) {
+        if (error instanceof LearningCadenceValidationError) {
+          throw new BadRequestException(error.message);
+        }
+        throw error;
+      }
 
       for (let index = 0; index < pendingSessions.length; index += 1) {
         await manager.update(
@@ -108,10 +126,13 @@ function nextCadence(
   const previous = roadmap.draftConfig.cadence;
   const legacy = roadmap.draftConfig.schedule;
   return {
-    timezone: previous?.timezone ?? legacy?.timezone ?? 'Asia/Ho_Chi_Minh',
+    timezone: previous?.timezone ?? legacy?.timezone ?? DEFAULT_LEARNING_TIMEZONE,
     start_date: dto.start_date,
     study_days_per_week: dto.study_days_per_week,
     session_minutes:
-      dto.session_minutes ?? previous?.session_minutes ?? legacy?.session_minutes ?? 60,
+      dto.session_minutes ??
+      previous?.session_minutes ??
+      legacy?.session_minutes ??
+      DEFAULT_LEARNING_SESSION_MINUTES,
   };
 }

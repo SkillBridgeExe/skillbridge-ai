@@ -29,7 +29,7 @@ export function computeLearningProjection(input: {
   );
   const dated = ordered.map((session) => ({
     ...session,
-    scheduledDate: dateInTimezone(session.scheduledStartAt, input.cadence.timezone),
+    scheduledDate: dateInLearningTimezone(session.scheduledStartAt, input.cadence.timezone),
   }));
   const plannedUnits = dated.filter((session) => session.scheduledDate <= input.today).length;
   const missedUnits = dated.filter(
@@ -57,10 +57,10 @@ export function computeLearningProjection(input: {
 }
 
 export function todayInLearningTimezone(timezone: string, now = new Date()): string {
-  return dateInTimezone(now, timezone);
+  return dateInLearningTimezone(now, timezone);
 }
 
-function dateInTimezone(value: Date, timezone: string): string {
+export function dateInLearningTimezone(value: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',

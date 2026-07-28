@@ -17,6 +17,7 @@ import {
   todayInLearningTimezone,
 } from './learning-projection';
 import type { LearningRoadmapCadenceDraft } from '../../database/entities/learning-roadmap.entity';
+import { DEFAULT_LEARNING_SESSION_MINUTES, DEFAULT_LEARNING_TIMEZONE } from './learning-cadence';
 
 export interface ActiveLearningRoadmapResponse {
   id: string;
@@ -208,10 +209,10 @@ function resolveCadence(
     ? Math.min(7, Math.max(1, new Set(schedule.slots.map((slot) => slot.iso_weekday)).size))
     : 1;
   return {
-    timezone: schedule?.timezone ?? 'Asia/Ho_Chi_Minh',
+    timezone: schedule?.timezone ?? DEFAULT_LEARNING_TIMEZONE,
     start_date: firstDate ?? new Date().toISOString().slice(0, 10),
     study_days_per_week: studyDays as LearningRoadmapCadenceDraft['study_days_per_week'],
-    session_minutes: schedule?.session_minutes ?? 60,
+    session_minutes: schedule?.session_minutes ?? DEFAULT_LEARNING_SESSION_MINUTES,
   };
 }
 

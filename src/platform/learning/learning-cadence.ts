@@ -8,6 +8,8 @@ import {
 
 const INTERNAL_STUDY_TIME = '12:00';
 const MAX_PROJECTION_DAYS = 5 * 366;
+export const DEFAULT_LEARNING_TIMEZONE = 'Asia/Ho_Chi_Minh';
+export const DEFAULT_LEARNING_SESSION_MINUTES = 60;
 const STUDY_DAY_OFFSETS: Readonly<Record<number, readonly number[]>> = {
   1: [0],
   2: [0, 3],
@@ -31,6 +33,13 @@ export interface LearningCadenceResult {
   sessions: ScheduledLearningSession[];
   scheduledMinutes: number;
   estimatedCompletionDate: string | null;
+}
+
+export class LearningCadenceValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = LearningCadenceValidationError.name;
+  }
 }
 
 export function buildStudyWeekdays(startDate: string, studyDaysPerWeek: number): number[] {
@@ -154,13 +163,13 @@ function dateInTimezone(value: Date, timezone: string): string {
 
 function assertDate(value: string, field: string): void {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
-    throw new Error(`${field} must use YYYY-MM-DD`);
+    throw new LearningCadenceValidationError(`${field} must use YYYY-MM-DD`);
   }
 }
 
 function assertStudyDays(value: number): void {
   if (!Number.isInteger(value) || value < 1 || value > 7) {
-    throw new Error('studyDaysPerWeek must be between 1 and 7');
+    throw new LearningCadenceValidationError('studyDaysPerWeek must be between 1 and 7');
   }
 }
 
@@ -168,12 +177,14 @@ function assertTimezone(timezone: string): void {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
   } catch {
-    throw new Error(`Unsupported learning timezone '${timezone}'`);
+    throw new LearningCadenceValidationError(`Unsupported learning timezone '${timezone}'`);
   }
 }
 
 function assertProjectionHorizon(elapsedDays: number): void {
   if (elapsedDays > MAX_PROJECTION_DAYS) {
-    throw new Error('Learning projection exceeds the five-year safety horizon');
+    throw new LearningCadenceValidationError(
+      'Learning projection exceeds the five-year safety horizon',
+    );
   }
 }

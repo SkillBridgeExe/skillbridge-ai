@@ -126,11 +126,9 @@ export class LearningSessionCompletionService {
       );
       const orderedSessions = orderSessions(modules, sessions);
       const targetIndex = orderedSessions.findIndex((session) => session.id === sessionId);
-      const nextSession =
-        orderedSessions
-          .slice(targetIndex + 1)
-          .find((session) => statusesAfter.get(session.id) === 'AVAILABLE') ??
-        orderedSessions.find((session) => statusesAfter.get(session.id) === 'AVAILABLE');
+      const nextSession = orderedSessions
+        .slice(targetIndex + 1)
+        .find((session) => statusesAfter.get(session.id) === 'AVAILABLE');
       return {
         session_id: sessionId,
         status: 'COMPLETED',
