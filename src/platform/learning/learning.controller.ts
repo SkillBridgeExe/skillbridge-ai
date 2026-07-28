@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { LearningChatRequestDto } from './dto/learning-chat.dto';
@@ -12,6 +13,8 @@ import {
 import { LearningChatPlatformService } from './learning-chat-platform.service';
 import { LearningSessionProgressService } from './session-progress.service';
 import { LearningSessionCompletionService } from './session-completion.service';
+import { TranslateLearningDisplayDto } from './dto/roadmap.dto';
+import { LearningDisplayTranslationService } from './learning-display-translation.service';
 
 @ApiTags('Learning')
 @Public()
@@ -96,5 +99,23 @@ export class LearningSessionProgressController {
     @Body() dto: PatchLearningChecklistItemDto,
   ) {
     return this.sessionProgress.patchChecklistItem(user.userId, sessionId, itemId, dto);
+  }
+}
+
+@ApiTags('Learning')
+@Public()
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'))
+@Controller('api/learning')
+export class LearningDisplayController {
+  constructor(private readonly translation: LearningDisplayTranslationService) {}
+
+  @Post('translate-display')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Translate transient Learning UI text without persistence' })
+  translate(@Body() dto: TranslateLearningDisplayDto) {
+    return this.translation.translateMany(
+      dto.items.map((item) => ({ ...item, locale: dto.locale })),
+    );
   }
 }
