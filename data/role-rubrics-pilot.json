@@ -1,9 +1,9 @@
 {
   "$schema_note": "Seed data for the `role_skill_requirements` table. Each role lists 10-13 skill requirements with required_level (1-5), importance (REQUIRED|PREFERRED|NICE_TO_HAVE), and weight (sum ~= 1.00 within each role for weighted composite scoring).",
-  "version": "pilot-v1",
+  "version": "market-calibrated-v2",
   "created_at": "2026-05-26",
-  "scoring_notes": "SkillDiffService.computeMatchScore() uses these weights. For each requirement: match_strength = 1.0 (cv_level >= required_level), or (cv_level / required_level) if cv_level < required_level (partial), or 0 (missing). Final score = SUM(weight × match_strength) / SUM(weight) × 100.",
-  "design_notes": "Importance is a SEMANTIC label for UI display. Weight is what drives the math. REQUIRED skills carry the heaviest weights (0.08-0.20). PREFERRED 0.05-0.10. NICE_TO_HAVE 0.02-0.05. Soft skills (communication etc.) have low weight individually but appear across all roles.",
+  "scoring_notes": "SkillDiffService uses MATCH_TUNING match-tuning-v1. Effective weight = rubric weight × importance multiplier (REQUIRED 1.0, PREFERRED 0.6, NICE_TO_HAVE 0.3). Partial strength is convex: (cv_level / required_level)^1.6. The final weighted score is capped by required-skill coverage: 45 + 55 × required_coverage, then rounded.",
+  "design_notes": "Importance affects both UI meaning and math through MATCH_TUNING. Weights and required levels are market-calibrated role yardsticks; any_of groups represent valid technology alternatives instead of requiring every language/framework. Soft skills remain low-weight and do not compensate for missing REQUIRED technical skills.",
   "validation_rules": [
     "Each role must have at least 8 skills (otherwise scoring is too coarse).",
     "Sum of weights per role should be 0.95 <= sum <= 1.05 (small rounding tolerance).",

@@ -24,6 +24,7 @@ import {
   SkillDiffService,
   RawCvSkill,
   DiffResult,
+  MATCH_TUNING_VERSION,
 } from '../modules/cv-jd-match/skill-diff.service';
 import { spearman } from './calibration-stats';
 
@@ -49,7 +50,15 @@ const mid = ([lo, hi]: [number, number]): number => (lo + hi) / 2;
 
 async function main(): Promise<void> {
   const file = path.join(process.cwd(), 'data', 'eval-match-pairs.json');
-  const { pairs } = JSON.parse(fs.readFileSync(file, 'utf-8')) as { pairs: MatchPair[] };
+  const fixture = JSON.parse(fs.readFileSync(file, 'utf-8')) as {
+    rubric_version?: string;
+    match_tuning_version?: string;
+    pairs: MatchPair[];
+  };
+  const { pairs } = fixture;
+  const rubricFile = path.join(process.cwd(), 'data', 'role-rubrics-pilot.json');
+  const rubricVersion = (JSON.parse(fs.readFileSync(rubricFile, 'utf-8')) as { version?: string })
+    .version;
 
   const taxonomy = new SkillTaxonomyService();
   await taxonomy.onModuleInit();
@@ -69,6 +78,17 @@ async function main(): Promise<void> {
   const dataErrors: string[] = [];
   const drift: string[] = [];
   const outOfBand: string[] = [];
+
+  if (fixture.rubric_version !== rubricVersion) {
+    dataErrors.push(
+      `  fixture rubric_version=${fixture.rubric_version ?? '<missing>'}, active=${rubricVersion ?? '<missing>'}`,
+    );
+  }
+  if (fixture.match_tuning_version !== MATCH_TUNING_VERSION) {
+    dataErrors.push(
+      `  fixture match_tuning_version=${fixture.match_tuning_version ?? '<missing>'}, active=${MATCH_TUNING_VERSION}`,
+    );
+  }
 
   for (const pair of pairs) {
     const res: DiffResult = diffSvc.diff({
@@ -96,7 +116,8 @@ async function main(): Promise<void> {
     predicted.push(score);
     expectedMid.push(mid(pair.expected_overall));
 
-    // required_coverage check (report-only — promotes to a strict bar once stable).
+    // Required coverage is a first-class score guard: a formula can land in the broad overall
+    // band while still treating mandatory requirements incorrectly.
     if (pair.expected_required_coverage) {
       covTotal += 1;
       const [clo, chi] = pair.expected_required_coverage;
@@ -133,7 +154,7 @@ async function main(): Promise<void> {
   );
   console.log(`Spearman    : ${rho}  [strict min ${SPEARMAN_MIN}]`);
   if (covTotal > 0) {
-    console.log(`req-coverage: ${covIn}/${covTotal} in expected band (report-only)`);
+    console.log(`req-coverage: ${covIn}/${covTotal} in expected band`);
     if (covOut.length) console.log(`Coverage out-of-band:\n${covOut.join('\n')}`);
   }
   if (outOfBand.length) console.log(`Out-of-band:\n${outOfBand.join('\n')}`);
@@ -145,7 +166,8 @@ async function main(): Promise<void> {
     console.log(`DATA ERRORS (must fix — corrupt measurement):\n${dataErrors.join('\n')}`);
 
   const sanityFail = dataErrors.length > 0;
-  const strictFail = STRICT && (rate < BAND_BAR || rho < SPEARMAN_MIN);
+  const strictFail =
+    STRICT && (rate < BAND_BAR || rho < SPEARMAN_MIN || covOut.length > 0 || drift.length > 0);
   console.log(
     `\nVerdict: ${sanityFail ? 'FAIL ❌ (data sanity)' : strictFail ? 'FAIL ❌ (strict bars not met yet)' : 'PASS ✅'}${STRICT ? ' [strict]' : ''}\n`,
   );

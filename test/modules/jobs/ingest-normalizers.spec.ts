@@ -1,8 +1,10 @@
 import {
   classifyRole,
   classifySeniority,
+  classifyWorkMode,
   isAdvantageLine,
   normalizeCompanyName,
+  normalizeJobLocation,
   scrubPii,
 } from '../../../src/modules/jobs/ingest/ingest-normalizers';
 
@@ -105,6 +107,27 @@ describe('JD ingest normalizers (pure)', () => {
 
     it('most-senior word wins when multiple appear', () => {
       expect(classifySeniority('Senior / Lead Backend Engineer')).toBe('LEAD');
+    });
+  });
+
+  describe('location and work-mode metadata', () => {
+    it.each([
+      ['Ho Chi Minh City', ['HCM']],
+      ['Hà Nội / Hải Phòng', ['HAN', 'HPH']],
+      ['Đà Nẵng', ['DAD']],
+      ['Bình Dương, Đồng Nai', ['BDG', 'DNI']],
+      ['Singapore', []],
+    ])('normalizes "%s" conservatively', (raw, expected) => {
+      expect(normalizeJobLocation(raw).cityCodes).toEqual(expected);
+    });
+
+    it.each([
+      ['Remote - Vietnam', 'REMOTE'],
+      ['Hybrid tại Hà Nội', 'HYBRID'],
+      ['On-site at company office', 'ONSITE'],
+      ['Ho Chi Minh City', null],
+    ])('classifies work mode "%s" → %s', (raw, expected) => {
+      expect(classifyWorkMode(raw)).toBe(expected);
     });
   });
 

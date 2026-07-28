@@ -13,6 +13,7 @@ describe('JobsController quota enforcement', () => {
       }),
     };
     const reservation = {
+      reused: false,
       refund: jest.fn().mockResolvedValue(undefined),
       confirm: jest.fn().mockResolvedValue(undefined),
     };
@@ -28,14 +29,26 @@ describe('JobsController quota enforcement', () => {
 
     await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
 
-    expect(entitlements.reserveUsage).toHaveBeenCalledWith('user-1', 'job_recommendation', {
-      sourceType: 'cv',
-      sourceId: 'cv-1',
-    });
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith(
+      'user-1',
+      'job_recommendation',
+      {
+        sourceType: 'cv',
+        sourceId: 'cv-1',
+      },
+      { dedupeBySource: true },
+    );
     expect(reco.recommendForCv).toHaveBeenCalledWith('user-1', 'cv-1', {
-      limit: undefined,
-      offset: undefined,
+      limit: 5,
+      offset: 0,
       roleCode: undefined,
+      cityCodes: undefined,
+      workModes: undefined,
+      employmentTypes: undefined,
+      experienceLevels: undefined,
+      fitVerdicts: undefined,
+      sort: 'RECOMMENDED',
+      salaryOnly: false,
     });
     expect(reservation.refund).not.toHaveBeenCalled();
   });
@@ -52,6 +65,15 @@ describe('JobsController quota enforcement', () => {
     // offset past the end returns [] but the scoring+embedding pipeline ran —
     // refunding here would let a client farm unlimited free scored calls.
     const { controller, reservation } = build([], 7);
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
+
+    expect(reservation.refund).not.toHaveBeenCalled();
+  });
+
+  it('does not refund a reused source charge when a filtered page is empty', async () => {
+    const { controller, reservation } = build([], 0);
+    reservation.reused = true;
 
     await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
 

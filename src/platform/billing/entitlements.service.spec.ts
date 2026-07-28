@@ -207,6 +207,7 @@ describe('EntitlementsService.reserveUsage', () => {
     const manager = {
       query: jest.fn().mockResolvedValue(undefined),
       count: jest.fn().mockResolvedValue(options.used ?? 0),
+      findOne: jest.fn().mockResolvedValue(null),
       create: jest.fn((_entity: unknown, input: object) => input),
       save: jest.fn(async (input: object) => ({ id: 'evt-1', ...input })),
     };
@@ -250,6 +251,7 @@ describe('EntitlementsService.reserveUsage', () => {
     );
     expect(manager.save).toHaveBeenCalledTimes(1);
     expect(reservation.eventId).toBe('evt-1');
+    expect(reservation.reused).toBe(false);
   });
 
   it('rejects with 402 at the limit and inserts nothing', async () => {
@@ -294,5 +296,30 @@ describe('EntitlementsService.reserveUsage', () => {
     await expect(reservation.refund()).resolves.toBeUndefined();
     await reservation.refund();
     expect(usageEvents.delete).toHaveBeenCalledWith('evt-1');
+  });
+
+  it('reuses a matching source charge in the same period without counting or inserting', async () => {
+    const { service, manager, usageEvents } = setup({ limitValue: 3, used: 2 });
+    manager.findOne.mockResolvedValue({
+      id: 'existing-event',
+      sourceType: 'cv',
+      sourceId: 'cv-1',
+    });
+
+    const reservation = await service.reserveUsage(
+      'user-1',
+      BillingFeatureKey.CV_JD_MATCH,
+      { sourceType: 'cv', sourceId: 'cv-1' },
+      { dedupeBySource: true },
+    );
+    await reservation.confirm({ sourceType: 'cv', sourceId: 'cv-1' });
+    await reservation.refund();
+
+    expect(reservation.eventId).toBe('existing-event');
+    expect(reservation.reused).toBe(true);
+    expect(manager.count).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(usageEvents.update).not.toHaveBeenCalled();
+    expect(usageEvents.delete).not.toHaveBeenCalled();
   });
 });

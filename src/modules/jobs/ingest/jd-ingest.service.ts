@@ -8,9 +8,11 @@ import { SkillTaxonomyService } from '../../../common/services/skill-taxonomy.se
 import {
   classifyRole,
   classifySeniority,
+  classifyWorkMode,
   isAdvantageLine,
   normalizeCompanyName,
   normalizeForHash,
+  normalizeJobLocation,
   scrubPii,
 } from './ingest-normalizers';
 
@@ -28,6 +30,7 @@ export interface RawJobInput {
   location?: string;
   employment_type?: 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'FREELANCE';
   experience_level?: 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD';
+  work_mode?: 'ONSITE' | 'HYBRID' | 'REMOTE';
   salary_min?: number;
   salary_max?: number;
   currency?: string;
@@ -193,6 +196,9 @@ export class JdIngestService {
     // experience_level: trust an explicit crawl value; else derive deterministically from the title
     // (crawl sources almost never set it → the job-rec seniority guard had no data to act on).
     const experienceLevel = item.experience_level ?? classifySeniority(item.title) ?? null;
+    const normalizedLocation = normalizeJobLocation(item.location ?? '');
+    const workMode =
+      item.work_mode ?? classifyWorkMode(`${item.title} ${item.location ?? ''}`) ?? null;
 
     // 5-7. ATOMIC: job upsert + cross-source canonical link + job_skills replacement run in
     // ONE transaction so a new job row never becomes visible WITHOUT its skills (a crash
@@ -201,14 +207,19 @@ export class JdIngestService {
     const { jobId, isNew } = await this.db.transaction(async (client) => {
       const jobRows = await client.query<{ id: string; is_new: boolean }>(
         `INSERT INTO public.jobs
-           (company_id, title, role_code, location, employment_type, experience_level,
+           (company_id, title, role_code, location, primary_city_code, location_city_codes,
+            work_mode, employment_type, experience_level,
             salary_min, salary_max, currency, status, source_type, source_name, source_url,
             external_id, content_hash, posted_at, last_seen_at, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,'VND'),'active',$10,$11,$12,$13,$14,$15,now(),$16)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12,'VND'),'active',
+                $13,$14,$15,$16,$17,$18,now(),$19)
          ON CONFLICT (source_name, external_id) DO UPDATE SET
            title = EXCLUDED.title,
            role_code = EXCLUDED.role_code,
            location = EXCLUDED.location,
+           primary_city_code = EXCLUDED.primary_city_code,
+           location_city_codes = EXCLUDED.location_city_codes,
+           work_mode = EXCLUDED.work_mode,
            employment_type = EXCLUDED.employment_type,
            experience_level = EXCLUDED.experience_level,
            salary_min = EXCLUDED.salary_min,
@@ -226,6 +237,9 @@ export class JdIngestService {
           item.title.slice(0, 255),
           roleCode,
           item.location?.slice(0, 255) ?? null,
+          normalizedLocation.primaryCityCode,
+          normalizedLocation.cityCodes,
+          workMode,
           item.employment_type ?? null,
           experienceLevel,
           this.clampSalary(item.salary_min),

@@ -36,10 +36,15 @@ const DIFF_STUB = {
  * cvSkillRows → candidates → (TRUST B1) latest-review skills. `llm.embed` rejects so the dense
  * signal (B) degrades gracefully and never issues a 5th query — keeps the mock minimal.
  */
-function makeService(options: { reviewRows: Array<{ parsed_response: unknown }> }) {
+function makeService(options: {
+  reviewRows: Array<{ parsed_response: unknown }>;
+  targetRole?: string | null;
+}) {
   const query = jest
     .fn()
-    .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }]) // cvRows
+    .mockResolvedValueOnce([
+      { id: CV_ID, parsed_json: null, target_role: options.targetRole ?? null },
+    ]) // cvRows
     .mockResolvedValueOnce([{ canonical_name: 'react' }]) // cvSkillRows
     .mockResolvedValueOnce([CANDIDATE_ROW]) // candidates
     .mockResolvedValueOnce(options.reviewRows); // TRUST (B1) latest-review lookup
@@ -62,6 +67,33 @@ function makeService(options: { reviewRows: Array<{ parsed_response: unknown }> 
 }
 
 describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
+  it('uses the owned CV target role by default and exposes the resolution source', async () => {
+    const { service, query } = makeService({
+      reviewRows: [],
+      targetRole: 'backend_developer',
+    });
+
+    const result = await service.recommendForCv(USER_ID, CV_ID);
+
+    expect(query.mock.calls[2][1]).toEqual(['backend_developer', USER_ID]);
+    expect(result.role_scope).toEqual({
+      role_code: 'backend_developer',
+      source: 'cv_target',
+    });
+  });
+
+  it('uses all roles only when explicitly requested', async () => {
+    const { service, query } = makeService({
+      reviewRows: [],
+      targetRole: 'backend_developer',
+    });
+
+    const result = await service.recommendForCv(USER_ID, CV_ID, { roleCode: null });
+
+    expect(query.mock.calls[2][1]).toEqual([null, USER_ID]);
+    expect(result.role_scope).toEqual({ role_code: null, source: 'all' });
+  });
+
   it('feeds SkillDiffService with the proficiency_hint from the latest CV review', async () => {
     const { service, diff } = makeService({
       reviewRows: [

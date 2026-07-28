@@ -29,6 +29,8 @@ import { EntitlementFeatureDto, SubscriptionResponseDto } from './dto/billing.dt
  */
 export interface UsageReservation {
   eventId: string;
+  /** True when an existing source charge in the same entitlement period was reused. */
+  reused: boolean;
   /** Attach the delivered artifact (e.g. the created match id) to the charged event. Never throws. */
   confirm(source: { sourceType?: string; sourceId?: string }): Promise<void>;
   /** Delete the reserved charge — call on failure or a no-value result. Idempotent, never throws. */
@@ -107,6 +109,7 @@ export class EntitlementsService {
     userId: string,
     featureKey: BillingFeatureKey,
     source?: { sourceType?: string; sourceId?: string },
+    options?: { dedupeBySource?: boolean },
   ): Promise<UsageReservation> {
     if (!this.dataSource)
       throw new Error('EntitlementsService requires a DataSource for reserveUsage');
@@ -127,12 +130,29 @@ export class EntitlementsService {
     const currentPeriodEnd = subscription?.currentPeriodEnd ?? addMonths(currentPeriodStart, 1);
     const window = this.featureWindow(feature.period, currentPeriodStart, currentPeriodEnd);
 
-    const event = await this.dataSource.transaction(async (manager) => {
-      if (!unlimited) {
-        // Serialize concurrent reserves for the same (user, feature); released at commit/rollback.
+    const result = await this.dataSource.transaction(async (manager) => {
+      // The same lock also serializes source-deduped requests, preventing two first-page calls
+      // from both charging before either can observe the other's usage row. Preserve the old
+      // lock-free path for unlimited, non-deduped features.
+      if (!unlimited || options?.dedupeBySource) {
         await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
           `usage:${userId}:${featureKey}`,
         ]);
+      }
+      if (options?.dedupeBySource && source?.sourceType && source?.sourceId) {
+        const existing = await manager.findOne(UsageEventEntity, {
+          where: {
+            userId,
+            featureKey,
+            sourceType: source.sourceType,
+            sourceId: source.sourceId,
+            usedAt: And(MoreThanOrEqual(window.periodStart), LessThan(window.periodEnd)),
+          },
+          order: { usedAt: 'DESC' },
+        });
+        if (existing) return { event: existing, reused: true };
+      }
+      if (!unlimited) {
         const used = await manager.count(UsageEventEntity, {
           where: {
             userId,
@@ -150,7 +170,7 @@ export class EntitlementsService {
           );
         }
       }
-      return manager.save(
+      const event = await manager.save(
         manager.create(UsageEventEntity, {
           userId,
           featureKey,
@@ -159,13 +179,17 @@ export class EntitlementsService {
           sourceId: source?.sourceId ?? null,
         }),
       );
+      return { event, reused: false };
     });
+    const { event, reused } = result;
 
     // confirm/refund are best-effort and never throw: a metadata update (or refund) failure must
     // not mask the flow's own result/error. A failed refund means one over-charged event — log it.
     return {
       eventId: event.id,
+      reused,
       confirm: async (s) => {
+        if (reused) return;
         try {
           await this.usageEvents.update(event.id, {
             sourceType: s.sourceType ?? null,
@@ -176,6 +200,7 @@ export class EntitlementsService {
         }
       },
       refund: async () => {
+        if (reused) return;
         try {
           await this.usageEvents.delete(event.id);
         } catch (error) {

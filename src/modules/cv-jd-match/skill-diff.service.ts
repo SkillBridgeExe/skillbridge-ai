@@ -90,6 +90,8 @@ export interface MatchTuning {
   coverageCapSlope: number;
 }
 
+export const MATCH_TUNING_VERSION = 'match-tuning-v1';
+
 export const MATCH_TUNING: MatchTuning = {
   importanceMultiplier: { REQUIRED: 1.0, PREFERRED: 0.6, NICE_TO_HAVE: 0.3 },
   partialExponent: 1.6,
