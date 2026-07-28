@@ -8,6 +8,7 @@ import {
   JdMarketPositionService,
 } from '../jobs/trends/jd-market-position.service';
 import { ImpliedSkill } from '../jobs/trends/jd-market-position';
+import { dataConfidence, MARKET_CONFIDENCE_WEIGHT } from '../jobs/trends/data-confidence';
 import { deriveCvSeniority } from '../../common/services/seniority';
 import { deriveCvProfileSignals } from '../../common/services/cv-profile-signals';
 import { buildGapReportCore, GapReportCore } from './gap-report';
@@ -79,6 +80,12 @@ export class GapReportService {
     const marketDemand = marketDto.available
       ? new Map(marketDto.jd_skills.map((s) => [s.skill_canonical, s.pct_of_postings] as const))
       : null;
+    // #4: discount the market factor in gap severity when the job pool is thin (few active postings
+    // behind the percentages) so a noisy pct can't skew the fix-priority order. market_demand stays
+    // the true % for display; only the severity multiplier is pulled toward neutral.
+    const marketConfidence = marketDto.available
+      ? MARKET_CONFIDENCE_WEIGHT[dataConfidence(marketDto.total_active_jobs)]
+      : null;
 
     // PR3/PR3c: feed extracted JD dimensions + CV seniority + CV profile signals — seniority/language/
     // education/domain grade into GapItems (work_mode is disclosure-only); absent (v1 path) ⇒
@@ -88,6 +95,7 @@ export class GapReportService {
       match: input.match,
       ledger,
       marketDemand,
+      marketConfidence,
       jdDimensions: input.match.jd_dimensions ?? null,
       cvSeniority,
       cvProfileSignals,

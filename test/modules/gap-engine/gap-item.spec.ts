@@ -523,3 +523,28 @@ describe('buildGapItems', () => {
     expect(items[0].severity).toBe(0.063); // …both 0.063
   });
 });
+
+describe('computeSeverity — market discounted by data confidence (#4)', () => {
+  // market_demand 80 (> neutral 50) BOOSTS severity; low confidence must pull that boost back.
+  const sev = (o: Record<string, unknown>) =>
+    computeSeverity({
+      importance: 'REQUIRED',
+      gap_levels: 3,
+      evidence_risk: 'listed_only',
+      cv_status: 'partial',
+      market_demand: 80,
+      ...o,
+    } as never);
+
+  it('full confidence (or absent) applies the market boost as-is (byte-identical default)', () => {
+    expect(sev({})).toBe(sev({ market_confidence: 1 }));
+  });
+
+  it('LOW confidence pulls a high-demand boost back toward neutral → lower severity', () => {
+    expect(sev({ market_confidence: 0.25 })).toBeLessThan(sev({ market_confidence: 1 }));
+  });
+
+  it('ZERO confidence collapses the market factor to neutral (== a real 50% demand)', () => {
+    expect(sev({ market_confidence: 0 })).toBe(sev({ market_demand: 50, market_confidence: 1 }));
+  });
+});

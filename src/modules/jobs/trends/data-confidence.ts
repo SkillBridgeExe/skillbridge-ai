@@ -10,3 +10,14 @@ export function dataConfidence(sampleSize: number): DataConfidence {
   if (sampleSize >= 20) return 'medium';
   return 'low';
 }
+
+/**
+ * #4: market-signal discount weight [0,1] per confidence tier for gap-severity ranking. A high-data
+ * pool trusts pct_of_postings fully (1.0); thinner pools pull the market factor toward neutral so a
+ * noisy few-posting percentage can't dominate the fix-priority order (see gap-item severity).
+ */
+export const MARKET_CONFIDENCE_WEIGHT: Record<DataConfidence, number> = {
+  high: 1,
+  medium: 0.6,
+  low: 0.25,
+};

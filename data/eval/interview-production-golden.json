@@ -523,10 +523,6 @@
         {
           "weakness_type": "knowledge_gap",
           "skill_canonical": "sql"
-        },
-        {
-          "weakness_type": "evidence_gap",
-          "skill_canonical": "sql"
         }
       ],
       "forbidden_gaps": [

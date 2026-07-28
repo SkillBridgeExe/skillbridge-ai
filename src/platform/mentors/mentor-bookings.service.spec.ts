@@ -346,6 +346,31 @@ describe('MentorBookingsService', () => {
     expect(result.refundStatus).toBe('PENDING');
   });
 
+  it('cancels a past confirmed booking into the manual refund-review queue (no-show case)', async () => {
+    // A past CONFIRMED booking may be a no-show; cancellation must still queue a
+    // PENDING refund for human review, not be blocked (bug hunt R4 revert).
+    const { service, bookings, slots } = setup();
+    bookings.findOne.mockResolvedValue({
+      id: 'booking-1',
+      studentId: 'student-1',
+      mentorId: 'mentor-1',
+      availabilitySlotId: 'slot-1',
+      status: 'CONFIRMED',
+      paymentOrderId: 'mentor-payment-order-1',
+      slotStart: new Date('2020-01-01T09:00:00.000Z'),
+      slotEnd: new Date('2020-01-01T10:00:00.000Z'),
+      createdAt: new Date(),
+      updatedAt: null,
+    });
+    slots.findOne.mockResolvedValue({ ...openSlot, status: 'BOOKED' });
+
+    const result = await service.cancelByStudent('student-1', 'booking-1', {
+      reason: 'Mentor did not show up',
+    });
+
+    expect(result.refundStatus).toBe('PENDING');
+  });
+
   it('cancels an unpaid pending booking without queuing a refund', async () => {
     const { service, bookings, slots } = setup();
     bookings.findOne.mockResolvedValue({

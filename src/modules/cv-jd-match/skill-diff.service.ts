@@ -97,6 +97,27 @@ export const MATCH_TUNING: MatchTuning = {
   coverageCapSlope: 55,
 };
 
+/**
+ * SINGLE SOURCE of the final composite score (coverage cap + round). Both SkillDiffService.diff()
+ * and the impact-simulator "what-if" recompute (gap-report/impact-simulator.ts — which cannot re-run
+ * diff() after PII masking) derive overall_score from their accumulated contributions HERE, so the
+ * cap/coverage/round math can never silently diverge between the real score and the projected one.
+ * (bug hunt 2026-07-22, #7)
+ */
+export function overallFromContributions(
+  weightSum: number,
+  achievedWeight: number,
+  requiredTotal: number,
+  requiredMet: number,
+  tuning: MatchTuning = MATCH_TUNING,
+): { required_coverage: number; raw: number; cap: number; overall: number } {
+  const required_coverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
+  const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
+  const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
+  const overall = Math.round(Math.min(raw, cap));
+  return { required_coverage, raw, cap, overall };
+}
+
 /** EXPLAIN' E1: one requirement's contribution to the weighted score — lets the FE render
  *  "React contributed 8.2/10.5 points (REQUIRED × weight 0.18)" without knowing MATCH_TUNING.
  *  Invariants (spec-pinned): Σ points_earned = raw_weighted_score, Σ points_possible ≈ 100. */
@@ -179,7 +200,15 @@ export interface DiffResult {
   inferred_skills?: InferredSkill[];
 }
 
-const DEFAULT_LEVEL = 3; // INTERMEDIATE — used when LLM hint is missing/invalid
+const DEFAULT_LEVEL = 3; // INTERMEDIATE — neutral bar for a JD requirement with no stated level
+/**
+ * A CV skill LISTED WITHOUT a proficiency hint is unproven, not intermediate. Grading it
+ * NOVICE(2) — the level a stored review assigns unproven skills — stops a bare skill from
+ * trivially satisfying a default-level(3) requirement (the silent-inflation lever behind the
+ * prod 100-vs-45 split on the no-review path, where the parity layer can't reconcile). An
+ * EXPLICIT hint still wins; only the missing/invalid fallback changes. (bug hunt 2026-07-22)
+ */
+const CV_MISSING_LEVEL = PROFICIENCY_TO_LEVEL.NOVICE;
 const DEFAULT_IMPORTANCE: Importance = 'REQUIRED';
 
 /**
@@ -237,7 +266,7 @@ export class SkillDiffService {
         });
         continue;
       }
-      const level = this.proficiencyToLevel(raw.proficiency_hint);
+      const level = this.proficiencyToLevel(raw.proficiency_hint, CV_MISSING_LEVEL);
       for (const normalized of results) {
         const canonical = normalized.canonical_name as string;
         const existing = cvSkillsByCanonical.get(canonical);
@@ -415,8 +444,13 @@ export class SkillDiffService {
       : totalReqs > 0
         ? Math.round((matched.length / totalReqs) * 100)
         : 0;
-    const required_coverage = requiredTotal > 0 ? requiredMet / requiredTotal : 1;
-    const raw = weightSum > 0 ? (achievedWeight / weightSum) * 100 : 0;
+    const { required_coverage, raw, cap } = overallFromContributions(
+      weightSum,
+      achievedWeight,
+      requiredTotal,
+      requiredMet,
+      tuning,
+    );
     // EXPLAIN' E1: points derived from the SAME effectiveWeight/strength the score used —
     // Σ points_earned reproduces raw_weighted_score (spec-pinned), so the UI math can't drift.
     const per_skill: PerSkillContribution[] = perSkillRaw.map((p) => ({
@@ -426,8 +460,8 @@ export class SkillDiffService {
         weightSum > 0 ? round3(((p.effective_weight * p.strength) / weightSum) * 100) : 0,
       points_possible: weightSum > 0 ? round3((p.effective_weight / weightSum) * 100) : 0,
     }));
-    // Soft cap: PREFERRED/NICE riches cannot carry a CV past what its REQUIRED coverage supports.
-    const cap = tuning.coverageCapBase + tuning.coverageCapSlope * required_coverage;
+    // Soft cap (PREFERRED/NICE riches cannot carry a CV past its REQUIRED coverage) + overall come
+    // from overallFromContributions above — the single source shared with the impact-simulator.
     const overall_score = noBasis ? null : Math.round(Math.min(raw, cap));
 
     // Inferred layer (display-only, post-score — touches NO scoring math).
@@ -575,10 +609,10 @@ export class SkillDiffService {
     return { requirements, unnormalizedJd };
   }
 
-  private proficiencyToLevel(hint?: string): number {
-    if (!hint) return DEFAULT_LEVEL;
+  private proficiencyToLevel(hint?: string, fallback: number = DEFAULT_LEVEL): number {
+    if (!hint) return fallback;
     const up = hint.toUpperCase() as ProficiencyHint;
-    return PROFICIENCY_TO_LEVEL[up] ?? DEFAULT_LEVEL;
+    return PROFICIENCY_TO_LEVEL[up] ?? fallback;
   }
 
   private toImportance(hint?: string): Importance {
