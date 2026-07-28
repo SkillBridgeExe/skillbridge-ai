@@ -26,6 +26,9 @@ export class RoadmapComposerService {
     gapItems: GapItem[];
     budget: FeasibilityBudget;
     languagePref?: LanguagePref;
+    strictResourceLanguage?: 'vi' | 'en';
+    /** Catalog consumers may need resources/content even when their own planner owns final scope. */
+    includeNotFeasibleSteps?: boolean;
   }): ComposedRoadmap {
     const feasibilityInputs = toFeasibilityInputs(input.learnItems, input.gapItems);
     const matchRequests = feasibilityInputs.map((item) => ({
@@ -35,6 +38,12 @@ export class RoadmapComposerService {
     const matched = this.matcher.matchResources(matchRequests, {
       sourceTypes: [...LEARN_SOURCE_TYPES],
       langPref: input.languagePref ?? 'both',
+      ...(input.strictResourceLanguage
+        ? {
+            requiredLanguage: input.strictResourceLanguage,
+            verifiedOnly: true,
+          }
+        : {}),
     });
     const resourcesBySkill = new Map(
       matched.per_skill.map(
@@ -61,7 +70,7 @@ export class RoadmapComposerService {
           reason: 'ran_out_of_budget',
           fallback: fallbackFor(inputsBySkill.get(item.skill_canonical)),
         });
-        continue;
+        if (!input.includeNotFeasibleSteps) continue;
       }
       const skillResources = resourcesBySkill.get(item.skill_canonical) ?? [];
       const hasVideo = skillResources.some((r) => r.source_type === 'video');
@@ -72,6 +81,7 @@ export class RoadmapComposerService {
             (r) =>
               r.source_type === 'video' &&
               r.validation_status === 'verified' &&
+              (!input.strictResourceLanguage || r.language === input.strictResourceLanguage) &&
               r.skills.some((s) => s.skill_canonical_name === item.skill_canonical),
           );
         if (videoCandidate) {
@@ -105,11 +115,15 @@ export class RoadmapComposerService {
         id: resource.id,
         source_type: resource.source_type,
         title: resource.title,
+        provider: resource.provider,
+        language: resource.language,
         url: resource.url,
         is_internal: resource.is_internal,
         content_template_id: resource.content_template_id,
         description: resource.description,
         duration_minutes: resource.duration_minutes,
+        validation_status: resource.validation_status,
+        video_chapters: resource.video_chapters,
         outcome_type: resource.outcome_type,
         proof_of_completion: resource.proof_of_completion,
         match_score: resource.match_score,

@@ -32,6 +32,10 @@ export interface LlmCompleteOptions {
   temperature?: number;
   /** Max output tokens; default 2048. */
   maxOutputTokens?: number;
+  /** Optional per-request transport timeout. Provider defaults remain unchanged when omitted. */
+  timeoutMs?: number;
+  /** Optional per-request retry override. Provider defaults remain unchanged when omitted. */
+  maxRetries?: number;
   /**
    * Optional JSON Schema constraining model output (model-level structured output).
    * Gemini → `responseJsonSchema`; OpenAI → `response_format: json_schema` (strict).

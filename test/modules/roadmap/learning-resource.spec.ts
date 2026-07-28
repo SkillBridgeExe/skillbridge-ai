@@ -128,6 +128,34 @@ describe('matchResources', () => {
     expect(out.per_skill[0].resources.map((r) => r.match_breakdown.language_pts)).toEqual([20, 0]);
   });
 
+  it('supports a strict verified-English policy for Learning V2 without changing legacy matching', () => {
+    const catalog = [
+      res({
+        id: 'en',
+        language: 'en',
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+      res({
+        id: 'vi',
+        language: 'vi',
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+      res({
+        id: 'pending-en',
+        language: 'en',
+        validation_status: 'pending',
+        skills: [{ skill_canonical_name: 'react', teaches_level: 3 }],
+      }),
+    ];
+
+    const out = matchResources(catalog, reqs, {
+      requiredLanguage: 'en',
+      verifiedOnly: true,
+    });
+
+    expect(out.per_skill[0].resources.map((resource) => resource.id)).toEqual(['en']);
+  });
+
   it('excludes flagged + dead_link resources entirely', () => {
     const catalog = [
       res({

@@ -44,6 +44,7 @@ const REQUIRED_TEMPLATES = [
   'interview_transcription_vi_v1',
   'interview_transcription_en_v1',
   'learning_chat_v1',
+  'learning_content_enhance_v1',
   'resource_curation_v1',
   'roadmap_v1',
   'roadmap_v2',
