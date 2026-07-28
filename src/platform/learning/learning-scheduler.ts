@@ -48,6 +48,8 @@ interface SlotOccurrence {
   usedMinutes: number;
 }
 
+const MIN_USABLE_LEARNING_MINUTES = 15;
+
 export function scheduleLearningModules(
   input: ScheduleLearningModulesInput,
 ): LearningScheduleResult {
@@ -57,7 +59,7 @@ export function scheduleLearningModules(
   assertTimezone(input.timezone);
   if (input.sessionMinutes <= 0) throw new Error('sessionMinutes must be positive.');
 
-  const ordered = orderModules(input.modules);
+  const ordered = orderLearningModules(input.modules);
   const occurrences = buildSlotOccurrences(input);
   const sessions: ScheduledLearningSession[] = [];
   const deferred: LearningScheduleResult['deferred'] = [];
@@ -108,7 +110,9 @@ export function scheduleLearningModules(
   };
 }
 
-function orderModules(modules: SchedulableLearningModule[]): SchedulableLearningModule[] {
+export function orderLearningModules(
+  modules: SchedulableLearningModule[],
+): SchedulableLearningModule[] {
   const pending = new Map(modules.map((module) => [module.skillCanonical, module]));
   if (pending.size !== modules.length)
     throw new Error('Learning modules contain duplicate skills.');
@@ -147,9 +151,15 @@ function buildSlotOccurrences(input: ScheduleLearningModulesInput): SlotOccurren
     const jsWeekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
     const isoWeekday = jsWeekday === 0 ? 7 : jsWeekday;
     for (const slot of slotsByWeekday.get(isoWeekday) ?? []) {
+      const fullBlocks = Math.floor(slot.durationMinutes / input.sessionMinutes);
+      const remainder = slot.durationMinutes % input.sessionMinutes;
+      const usableMinutes =
+        fullBlocks * input.sessionMinutes +
+        (remainder >= MIN_USABLE_LEARNING_MINUTES ? remainder : 0);
+      if (usableMinutes === 0) continue;
       occurrences.push({
         startAt: zonedDateTimeToUtc(date, slot.startTime, input.timezone),
-        availableMinutes: slot.durationMinutes,
+        availableMinutes: usableMinutes,
         usedMinutes: 0,
       });
     }
@@ -157,7 +167,7 @@ function buildSlotOccurrences(input: ScheduleLearningModulesInput): SlotOccurren
   return occurrences.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
 }
 
-function zonedDateTimeToUtc(date: string, time: string, timezone: string): Date {
+export function zonedDateTimeToUtc(date: string, time: string, timezone: string): Date {
   const [year, month, day] = date.split('-').map(Number);
   const [hour, minute] = time.split(':').map(Number);
   if (![year, month, day, hour, minute].every(Number.isFinite)) {

@@ -15,55 +15,25 @@ describe('learning session state', () => {
     { id: 'session-4', moduleId: 'module-2', sequence: 2 },
   ];
 
-  it('makes every unfinished session in the current module available', () => {
+  it('makes every unfinished session available for self-directed learning', () => {
     const statuses = resolveModuleSessionStatuses(modules, sessions, new Set(['session-1']));
 
     expect(Object.fromEntries(statuses)).toEqual({
       'session-1': 'COMPLETED',
       'session-2': 'AVAILABLE',
-      'session-3': 'LOCKED',
-      'session-4': 'LOCKED',
-    });
-  });
-
-  it('unlocks every session in the next module after the current module is complete', () => {
-    const statuses = resolveModuleSessionStatuses(
-      modules,
-      sessions,
-      new Set(['session-1', 'session-2']),
-    );
-
-    expect(Object.fromEntries(statuses)).toEqual({
-      'session-1': 'COMPLETED',
-      'session-2': 'COMPLETED',
       'session-3': 'AVAILABLE',
       'session-4': 'AVAILABLE',
     });
   });
 
-  it('keeps future modules locked even if they contain a stale completion marker', () => {
+  it('recognizes completion markers regardless of recommended module order', () => {
     const statuses = resolveModuleSessionStatuses(modules, sessions, new Set(['session-3']));
 
     expect(Object.fromEntries(statuses)).toEqual({
       'session-1': 'AVAILABLE',
       'session-2': 'AVAILABLE',
-      'session-3': 'LOCKED',
-      'session-4': 'LOCKED',
-    });
-  });
-
-  it('keeps a fully marked future module locked until the current module is complete', () => {
-    const statuses = resolveModuleSessionStatuses(
-      modules,
-      sessions,
-      new Set(['session-3', 'session-4']),
-    );
-
-    expect(Object.fromEntries(statuses)).toEqual({
-      'session-1': 'AVAILABLE',
-      'session-2': 'AVAILABLE',
-      'session-3': 'LOCKED',
-      'session-4': 'LOCKED',
+      'session-3': 'COMPLETED',
+      'session-4': 'AVAILABLE',
     });
   });
 

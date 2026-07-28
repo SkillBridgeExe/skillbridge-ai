@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { LearningModuleEntity } from '../../../src/database/entities/learning-module.entity';
 import { LearningRoadmapEntity } from '../../../src/database/entities/learning-roadmap.entity';
 import { LearningRoadmapVersionEntity } from '../../../src/database/entities/learning-roadmap-version.entity';
@@ -137,7 +137,7 @@ function completionHarness(options?: {
 }
 
 describe('LearningSessionCompletionService', () => {
-  it('completes the final session in a module and unlocks every session in the next module', async () => {
+  it('completes the final session and recommends the next already-available session', async () => {
     const { service, progressRepo, roadmapRepo } = completionHarness();
 
     await expect(service.complete('user-1', 'session-2')).resolves.toEqual({
@@ -145,7 +145,7 @@ describe('LearningSessionCompletionService', () => {
       status: 'COMPLETED',
       module_completed: true,
       next_session_id: 'session-3',
-      unlocked_session_ids: ['session-3', 'session-4'],
+      unlocked_session_ids: [],
     });
     expect(progressRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -184,14 +184,20 @@ describe('LearningSessionCompletionService', () => {
     });
   });
 
-  it('rejects completion for a session in a future locked module', async () => {
+  it('allows completion in any owned roadmap module', async () => {
     const { service } = completionHarness({
       targetSessionId: 'session-3',
       targetModuleId: 'module-2',
       completedSessionIds: [],
     });
 
-    await expect(service.complete('user-1', 'session-3')).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.complete('user-1', 'session-3')).resolves.toEqual({
+      session_id: 'session-3',
+      status: 'COMPLETED',
+      module_completed: false,
+      next_session_id: 'session-4',
+      unlocked_session_ids: [],
+    });
   });
 
   it('does not reveal or complete a session outside the active owned roadmap', async () => {

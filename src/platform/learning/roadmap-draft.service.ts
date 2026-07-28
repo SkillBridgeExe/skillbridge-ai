@@ -64,7 +64,7 @@ export class LearningRoadmapDraftService {
       derived = await this.deriveJdCandidates(
         userId,
         dto.cv_match_id as string,
-        dto.language_pref ?? 'both',
+        dto.language_pref ?? 'en',
       );
     } else {
       derived = await this.deriveCareerCandidates(
@@ -77,7 +77,7 @@ export class LearningRoadmapDraftService {
     const { targetRole, candidates } = derived;
 
     const draftConfig: LearningRoadmapDraftConfig = {
-      language_pref: dto.language_pref ?? 'both',
+      language_pref: dto.language_pref ?? 'en',
       source_target_role: targetRole || null,
       source_cv_id: dto.intent === 'CAREER_ROLE' ? (dto.cv_id as string) : null,
       candidate_skills: candidates,
@@ -137,6 +137,7 @@ export class LearningRoadmapDraftService {
       ...(dto.language_pref ? { language_pref: dto.language_pref } : {}),
       ...(dto.selected_priorities ? { selected_priorities: dto.selected_priorities } : {}),
       ...(dto.selected_resources ? { selected_resources: dto.selected_resources } : {}),
+      ...(dto.cadence ? { cadence: dto.cadence } : {}),
       ...(dto.schedule ? { schedule: dto.schedule } : {}),
       ...(dto.deadline && existing.draftConfig.schedule
         ? { schedule: { ...existing.draftConfig.schedule, deadline: dto.deadline } }
@@ -144,10 +145,27 @@ export class LearningRoadmapDraftService {
     };
     this.assertSelectedCandidates(nextConfig);
     if (dto.selected_resources) {
+      const validationBudget = nextConfig.schedule
+        ? {
+            available_days: Math.max(
+              1,
+              Math.floor(
+                (Date.parse(`${nextConfig.schedule.deadline}T00:00:00.000Z`) - Date.now()) /
+                  86_400_000,
+              ) + 1,
+            ),
+            hours_per_week: Number(
+              (
+                nextConfig.schedule.slots.reduce((sum, slot) => sum + slot.duration_minutes, 0) / 60
+              ).toFixed(2),
+            ),
+          }
+        : { available_days: 1, hours_per_week: 0 };
       const composed = composeLearningCandidates(
         this.composer,
         nextConfig.candidate_skills,
         nextConfig.language_pref,
+        validationBudget,
       );
       assertValidResourceSelection(nextConfig.candidate_skills, composed, dto.selected_resources);
     }
@@ -303,6 +321,7 @@ export class LearningRoadmapDraftService {
       candidate_skills: row.draftConfig.candidate_skills,
       selected_priorities: row.draftConfig.selected_priorities ?? [],
       selected_resources: row.draftConfig.selected_resources ?? {},
+      cadence: row.draftConfig.cadence ?? null,
       schedule: row.draftConfig.schedule ?? null,
     };
   }

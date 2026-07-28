@@ -165,6 +165,21 @@ describe('LearningRoadmapDraftService', () => {
     expect(result.candidate_skills.map((item) => item.skill_canonical)).toEqual(['react']);
   });
 
+  it('defaults new learning drafts to verified English resources without a language prompt', async () => {
+    const { service, roadmaps } = serviceSetup();
+
+    await service.createDraft('user-1', {
+      intent: 'JD_APPLICATION',
+      cv_match_id: 'match-1',
+    });
+
+    expect(roadmaps.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftConfig: expect.objectContaining({ language_pref: 'en' }),
+      }),
+    );
+  });
+
   it('attaches curated prerequisites when both skills are learning candidates', async () => {
     const { service, cvMatches } = serviceSetup();
     cvMatches.getGapReport.mockResolvedValue({

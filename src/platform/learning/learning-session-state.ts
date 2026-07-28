@@ -32,44 +32,14 @@ export function isLearningSessionMarkedComplete(
 }
 
 export function resolveModuleSessionStatuses(
-  modules: RankedLearningModule[],
+  _modules: RankedLearningModule[],
   sessions: OrderedLearningSession[],
   completedSessionIds: ReadonlySet<string>,
 ): Map<string, LearningRuntimeSessionStatus> {
   const statuses = new Map<string, LearningRuntimeSessionStatus>();
-  const sessionsByModule = new Map<string, OrderedLearningSession[]>();
-
   for (const session of sessions) {
-    const rows = sessionsByModule.get(session.moduleId) ?? [];
-    rows.push(session);
-    sessionsByModule.set(session.moduleId, rows);
+    statuses.set(session.id, completedSessionIds.has(session.id) ? 'COMPLETED' : 'AVAILABLE');
   }
-  for (const rows of sessionsByModule.values()) {
-    rows.sort((left, right) => left.sequence - right.sequence);
-  }
-
-  let currentModuleFound = false;
-  for (const module of [...modules].sort((left, right) => left.rank - right.rank)) {
-    const moduleSessions = sessionsByModule.get(module.id) ?? [];
-    if (moduleSessions.length === 0) continue;
-
-    if (currentModuleFound) {
-      for (const session of moduleSessions) statuses.set(session.id, 'LOCKED');
-      continue;
-    }
-
-    const moduleComplete = moduleSessions.every((session) => completedSessionIds.has(session.id));
-    if (moduleComplete) {
-      for (const session of moduleSessions) statuses.set(session.id, 'COMPLETED');
-      continue;
-    }
-
-    currentModuleFound = true;
-    for (const session of moduleSessions) {
-      statuses.set(session.id, completedSessionIds.has(session.id) ? 'COMPLETED' : 'AVAILABLE');
-    }
-  }
-
   return statuses;
 }
 

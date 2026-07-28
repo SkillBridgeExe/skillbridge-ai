@@ -30,6 +30,13 @@ export interface LearningRoadmapScheduleDraft {
   }>;
 }
 
+export interface LearningRoadmapCadenceDraft {
+  timezone: string;
+  start_date: string;
+  study_days_per_week: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  session_minutes: 30 | 45 | 60 | 90;
+}
+
 export interface LearningRoadmapDraftConfig {
   language_pref: 'vi' | 'en' | 'both';
   source_target_role?: string | null;
@@ -37,6 +44,7 @@ export interface LearningRoadmapDraftConfig {
   candidate_skills: LearningCandidateSkill[];
   selected_priorities?: Array<{ skill_canonical: string; rank: number }>;
   selected_resources?: Record<string, string[]>;
+  cadence?: LearningRoadmapCadenceDraft;
   schedule?: LearningRoadmapScheduleDraft;
 }
 

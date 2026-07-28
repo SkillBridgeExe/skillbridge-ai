@@ -50,6 +50,14 @@ describe('LearningRoadmapQueryService', () => {
         targetRole: 'frontend_developer',
         targetLevel: 'fresher',
         revision: 3,
+        draftConfig: {
+          cadence: {
+            timezone: 'Asia/Ho_Chi_Minh',
+            start_date: '2026-07-20',
+            study_days_per_week: 3,
+            session_minutes: 60,
+          },
+        },
       }),
     };
     const versions = {
@@ -58,6 +66,13 @@ describe('LearningRoadmapQueryService', () => {
         versionNo: 1,
         resourceCatalogVersion: 'catalog-v1',
         contentVersion: 'content-v1',
+        inputSnapshot: {
+          generated_plan: {
+            learning_track: 'FOUNDATION',
+            content_source: 'AI_ENHANCED',
+            coverage_percentage: 75,
+          },
+        },
         createdAt: new Date('2026-07-21T00:00:00.000Z'),
       }),
     };
@@ -134,6 +149,18 @@ describe('LearningRoadmapQueryService', () => {
       'AVAILABLE',
     ]);
     expect(result.modules[1].sessions).toEqual([]);
+    expect(result).toEqual(
+      expect.objectContaining({
+        learning_track: 'FOUNDATION',
+        content_source: 'AI_ENHANCED',
+        coverage_percentage: 75,
+        projection: expect.objectContaining({
+          total_units: 2,
+          completed_units: 1,
+          estimated_completion_date: '2026-07-27',
+        }),
+      }),
+    );
     expect(progress.find).toHaveBeenCalledTimes(1);
   });
 
