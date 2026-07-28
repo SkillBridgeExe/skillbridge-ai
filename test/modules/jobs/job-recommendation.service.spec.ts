@@ -30,6 +30,16 @@ const DIFF_STUB = {
   scoring_breakdown: {},
 } as never;
 
+function snapshotStore() {
+  return {
+    find: jest.fn().mockResolvedValue(null),
+    tryClaim: jest.fn().mockResolvedValue('claim-1'),
+    waitFor: jest.fn().mockResolvedValue(null),
+    releaseClaim: jest.fn().mockResolvedValue(undefined),
+    save: jest.fn().mockResolvedValue(true),
+  };
+}
+
 /**
  * Plain-object mocks at the IO boundary (mirrors diagnosis-chat-platform.service.spec.ts style).
  * `db.query` is asserted to be called in the SAME order the service issues queries: cvRows →
@@ -39,10 +49,11 @@ const DIFF_STUB = {
 function makeService(options: { reviewRows: Array<{ parsed_response: unknown }> }) {
   const query = jest
     .fn()
-    .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }]) // cvRows
+    .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend' }]) // cvRows
     .mockResolvedValueOnce([{ canonical_name: 'react' }]) // cvSkillRows
     .mockResolvedValueOnce([CANDIDATE_ROW]) // candidates
-    .mockResolvedValueOnce(options.reviewRows); // TRUST (B1) latest-review lookup
+    .mockResolvedValueOnce(options.reviewRows) // TRUST (B1) latest-review lookup
+    .mockResolvedValueOnce([]); // no interview signals
 
   const db = { query };
   const config = { get: jest.fn().mockReturnValue(undefined) };
@@ -57,6 +68,7 @@ function makeService(options: { reviewRows: Array<{ parsed_response: unknown }> 
     llm as never,
     skillDiff as never,
     taxonomy as never,
+    snapshotStore() as never,
   );
   return { service, diff, query };
 }
@@ -96,9 +108,10 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
     };
     const query = jest
       .fn()
-      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }])
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend' }])
       .mockResolvedValueOnce([{ canonical_name: 'react' }])
       .mockResolvedValueOnce([row])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     const service = new JobRecommendationService(
       { query } as never,
@@ -106,6 +119,7 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
       { embed: jest.fn().mockRejectedValue(new Error('no vectors in test')) } as never,
       { diff: jest.fn().mockReturnValue(DIFF_STUB) } as never,
       { getByCanonical: jest.fn().mockReturnValue(undefined) } as never,
+      snapshotStore() as never,
     );
     const diff = (service as unknown as { skillDiff: { diff: jest.Mock } }).skillDiff.diff;
 
@@ -160,7 +174,7 @@ describe('JobRecommendationService — R4 interview signal overlay', () => {
     };
     const query = jest
       .fn()
-      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null }]) // cvRows
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend' }]) // cvRows
       .mockResolvedValueOnce([{ canonical_name: 'react' }]) // cvSkillRows
       .mockResolvedValueOnce([row]) // candidates
       .mockResolvedValueOnce([]); // latest-review skills
@@ -172,6 +186,7 @@ describe('JobRecommendationService — R4 interview signal overlay', () => {
       { embed: jest.fn().mockRejectedValue(new Error('no vectors in test')) } as never,
       { diff: jest.fn().mockReturnValue(DIFF_STUB) } as never,
       { getByCanonical: jest.fn().mockReturnValue(undefined) } as never,
+      snapshotStore() as never,
     );
   }
 

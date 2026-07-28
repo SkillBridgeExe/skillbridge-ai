@@ -4,6 +4,7 @@ import { CvJdMatchModule } from '../cv-jd-match/cv-jd-match.module';
 import { JdIngestService } from './ingest/jd-ingest.service';
 import { ItviecCrawlerService } from './crawl/itviec-crawler.service';
 import { JobRecommendationService } from './reco/job-recommendation.service';
+import { JobRecommendationSnapshotStore } from './reco/job-recommendation-snapshot.store';
 import { SkillDemandService } from './trends/skill-demand.service';
 import { TrendsInsightService } from './trends/trends-insight.service';
 import { JdMarketPositionService } from './trends/jd-market-position.service';
@@ -29,6 +30,7 @@ const QUOTA_IMPORTS = process.env.NODE_ENV === 'test' ? [] : [BillingModule];
     JdIngestService,
     ItviecCrawlerService,
     JobRecommendationService,
+    JobRecommendationSnapshotStore,
     SkillDemandService,
     TrendsInsightService,
     JdMarketPositionService,

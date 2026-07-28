@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { createHash } from 'node:crypto';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
 import { LlmService } from '../../../infrastructure/llm/llm.service';
 import { SkillDiffService, DiffResult, RawCvSkill } from '../../cv-jd-match/skill-diff.service';
@@ -25,6 +26,33 @@ import {
   fetchLatestInterviewSignalsForUser,
   InterviewSignalMap,
 } from '../../../platform/interviews/interview-signals';
+import {
+  JobRecommendationSnapshot,
+  JobRecommendationSnapshotStore,
+} from './job-recommendation-snapshot.store';
+
+export type WorkMode = 'ONSITE' | 'HYBRID' | 'REMOTE';
+export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'FREELANCE';
+export type ExperienceLevel = 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD';
+export type JobRecommendationSort = 'RECOMMENDED' | 'SKILL_MATCH' | 'NEWEST' | 'SALARY_DESC';
+
+export interface JobRecommendationOptions {
+  limit?: number;
+  offset?: number;
+  /** Omitted = CV target role; "all" = explicitly browse every role. */
+  roleCode?: string;
+  cityCodes?: string[];
+  workModes?: WorkMode[];
+  employmentTypes?: EmploymentType[];
+  experienceLevels?: ExperienceLevel[];
+  fit?: FitVerdict['verdict'][];
+  sort?: JobRecommendationSort;
+  salaryOnly?: boolean;
+}
+
+export interface JobRecommendationGenerationHooks {
+  beforeGenerate?: () => Promise<void>;
+}
 
 export interface JobRecommendation {
   job_id: string;
@@ -34,11 +62,15 @@ export interface JobRecommendation {
   title: string;
   company_name: string;
   location: string | null;
+  city_codes: string[];
   role_code: string | null;
   experience_level: string | null;
+  work_mode: WorkMode | null;
+  employment_type: EmploymentType | null;
   salary_min: number | null;
   salary_max: number | null;
   salary_visible: boolean;
+  salary_period: 'MONTH' | 'YEAR' | null;
   currency: string;
   source_url: string | null;
   posted_at: string | null;
@@ -102,12 +134,53 @@ export interface JobRecommendationResponse {
   cv_id: string;
   /** Size of the candidate pool considered (active/canonical, role-filtered). */
   pool_size: number;
+  /** Jobs remaining after metadata filters, before optional fit filtering. */
+  eligible_pool_size: number;
   /** Total ranked recommendations available — paginate with limit/offset to "see all". */
   total: number;
   /** Page size applied (default 5 for the headline; up to 50). */
   limit: number;
   /** Page offset applied (0-based). */
   offset: number;
+  role_scope: {
+    role_code: string | null;
+    source: 'explicit' | 'cv_target' | 'all' | 'cv_target_missing';
+  };
+  filters_applied: {
+    city_codes: string[];
+    work_modes: WorkMode[];
+    employment_types: EmploymentType[];
+    experience_levels: ExperienceLevel[];
+    fit: FitVerdict['verdict'][];
+    salary_only: boolean;
+    sort: JobRecommendationSort;
+  };
+  facets: {
+    city_codes: Array<{ value: string; count: number }>;
+    work_modes: Array<{ value: WorkMode; count: number }>;
+    employment_types: Array<{ value: EmploymentType; count: number }>;
+    experience_levels: Array<{ value: ExperienceLevel; count: number }>;
+    fit: Array<{ value: FitVerdict['verdict']; count: number }>;
+  };
+  data_quality: {
+    missing_role: number;
+    missing_experience_level: number;
+    missing_location: number;
+    missing_city_code: number;
+    missing_work_mode: number;
+    missing_employment_type: number;
+    facet_coverage: {
+      city_codes: number;
+      work_modes: number;
+      employment_types: number;
+      experience_levels: number;
+    };
+    salary_sort_supported: boolean;
+  };
+  generation: {
+    cache_hit: boolean;
+    snapshot_size: number;
+  };
   recommendations: JobRecommendation[];
 }
 
@@ -119,15 +192,255 @@ interface CandidateJobRow {
   title: string;
   company_name: string;
   location: string | null;
+  primary_city_code?: string | null;
+  location_city_codes?: string[];
   role_code: string | null;
   experience_level: string | null;
+  work_mode?: WorkMode | null;
+  employment_type?: EmploymentType | null;
   salary_min: string | null;
   salary_max: string | null;
   salary_visible: boolean;
+  salary_period?: 'MONTH' | 'YEAR' | null;
   currency: string;
   source_url: string | null;
   posted_at: string | null;
   skills: Array<{ canonical: string; importance: string; min_level: number | null }>;
+}
+
+interface CvRecommendationRow {
+  id: string;
+  parsed_json: CanonicalCvDocument | null;
+  target_role: string | null;
+}
+
+function countFacets<T extends string>(
+  values: Array<T | null | undefined>,
+): Array<{
+  value: T;
+  count: number;
+}> {
+  const counts = new Map<T, number>();
+  for (const value of values) {
+    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+}
+
+function jobCityCodes(job: CandidateJobRow): string[] {
+  return [
+    ...new Set(
+      [job.primary_city_code, ...(job.location_city_codes ?? [])]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.toUpperCase()),
+    ),
+  ];
+}
+
+function compareNullableDateDesc(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return Date.parse(b) - Date.parse(a);
+}
+
+function visibleSalaryValue(job: JobRecommendation): number | null {
+  if (!job.salary_visible) return null;
+  const value = job.salary_max ?? job.salary_min;
+  if (value == null) return null;
+  return job.salary_period === 'YEAR' ? value / 12 : value;
+}
+
+export function sortJobRecommendations(
+  recommendations: JobRecommendation[],
+  sort: JobRecommendationSort,
+): JobRecommendation[] {
+  if (sort === 'SALARY_DESC') {
+    const salaryRows = recommendations.filter(hasVisibleRecommendationSalary);
+    const currencies = new Set(salaryRows.map((row) => row.currency));
+    if (
+      salaryRows.length === 0 ||
+      currencies.size !== 1 ||
+      salaryRows.some((row) => row.salary_period == null)
+    ) {
+      return [...recommendations].sort(
+        (a, b) => a.rank - b.rank || a.job_id.localeCompare(b.job_id),
+      );
+    }
+  }
+  return [...recommendations].sort((a, b) => {
+    if (sort === 'SKILL_MATCH') {
+      return b.match_score - a.match_score || a.rank - b.rank || a.job_id.localeCompare(b.job_id);
+    }
+    if (sort === 'NEWEST') {
+      return (
+        compareNullableDateDesc(a.posted_at, b.posted_at) ||
+        a.rank - b.rank ||
+        a.job_id.localeCompare(b.job_id)
+      );
+    }
+    if (sort === 'SALARY_DESC') {
+      const salaryA = visibleSalaryValue(a);
+      const salaryB = visibleSalaryValue(b);
+      if (salaryA == null && salaryB != null) return 1;
+      if (salaryA != null && salaryB == null) return -1;
+      return (salaryB ?? 0) - (salaryA ?? 0) || a.rank - b.rank || a.job_id.localeCompare(b.job_id);
+    }
+    return a.rank - b.rank || a.job_id.localeCompare(b.job_id);
+  });
+}
+
+type MetadataDimension = 'city' | 'work_mode' | 'employment_type' | 'experience_level' | 'fit';
+
+function applyRecommendationFilters(
+  rows: JobRecommendation[],
+  options: JobRecommendationOptions,
+  omit?: MetadataDimension,
+): JobRecommendation[] {
+  const cityCodes = new Set(options.cityCodes ?? []);
+  const workModes = new Set(options.workModes ?? []);
+  const employmentTypes = new Set(options.employmentTypes ?? []);
+  const experienceLevels = new Set(options.experienceLevels ?? []);
+  const fit = new Set(options.fit ?? []);
+
+  return rows.filter((row) => {
+    if (omit !== 'city' && cityCodes.size > 0 && !row.city_codes.some((x) => cityCodes.has(x))) {
+      return false;
+    }
+    if (
+      omit !== 'work_mode' &&
+      workModes.size > 0 &&
+      (!row.work_mode || !workModes.has(row.work_mode))
+    ) {
+      return false;
+    }
+    if (
+      omit !== 'employment_type' &&
+      employmentTypes.size > 0 &&
+      (!row.employment_type || !employmentTypes.has(row.employment_type))
+    ) {
+      return false;
+    }
+    if (
+      omit !== 'experience_level' &&
+      experienceLevels.size > 0 &&
+      (!row.experience_level || !experienceLevels.has(row.experience_level as ExperienceLevel))
+    ) {
+      return false;
+    }
+    if (omit !== 'fit' && fit.size > 0 && (!row.fit?.verdict || !fit.has(row.fit.verdict))) {
+      return false;
+    }
+    if (options.salaryOnly && !hasVisibleRecommendationSalary(row)) return false;
+    return true;
+  });
+}
+
+function hasVisibleRecommendationSalary(row: JobRecommendation): boolean {
+  return row.salary_visible && (row.salary_min != null || row.salary_max != null);
+}
+
+function ratio(present: number, total: number): number {
+  return total === 0 ? 0 : Number((present / total).toFixed(3));
+}
+
+export function projectJobRecommendationSnapshot(
+  cvId: string,
+  snapshot: JobRecommendationSnapshot,
+  options: JobRecommendationOptions,
+  cacheHit: boolean,
+): JobRecommendationResponse {
+  const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 50);
+  const offset = Math.max(Number(options.offset) || 0, 0);
+  const explicitRole = options.roleCode && options.roleCode !== 'all' ? options.roleCode : null;
+
+  let roleScope: JobRecommendationResponse['role_scope'];
+  let scoped: JobRecommendation[];
+  if (explicitRole) {
+    roleScope = { role_code: explicitRole, source: 'explicit' };
+    scoped = snapshot.recommendations.filter((row) => row.role_code === explicitRole);
+  } else if (options.roleCode === 'all') {
+    roleScope = { role_code: null, source: 'all' };
+    scoped = snapshot.recommendations;
+  } else if (snapshot.cv_target_role) {
+    roleScope = { role_code: snapshot.cv_target_role, source: 'cv_target' };
+    scoped = snapshot.recommendations.filter((row) => row.role_code === snapshot.cv_target_role);
+  } else {
+    roleScope = { role_code: null, source: 'cv_target_missing' };
+    scoped = [];
+  }
+
+  const filtersApplied: JobRecommendationResponse['filters_applied'] = {
+    city_codes: options.cityCodes ?? [],
+    work_modes: options.workModes ?? [],
+    employment_types: options.employmentTypes ?? [],
+    experience_levels: options.experienceLevels ?? [],
+    fit: options.fit ?? [],
+    salary_only: options.salaryOnly ?? false,
+    sort: options.sort ?? 'RECOMMENDED',
+  };
+  const metadataFiltered = applyRecommendationFilters(scoped, { ...options, fit: [] });
+  const filtered = applyRecommendationFilters(scoped, options);
+  const currencies = new Set(
+    filtered.filter(hasVisibleRecommendationSalary).map((row) => row.currency),
+  );
+  const salaryRows = filtered.filter(hasVisibleRecommendationSalary);
+  const facetCoverage = {
+    city_codes: ratio(scoped.filter((row) => row.city_codes.length > 0).length, scoped.length),
+    work_modes: ratio(scoped.filter((row) => row.work_mode).length, scoped.length),
+    employment_types: ratio(scoped.filter((row) => row.employment_type).length, scoped.length),
+    experience_levels: ratio(scoped.filter((row) => row.experience_level).length, scoped.length),
+  };
+
+  const sorted = sortJobRecommendations(filtered, options.sort ?? 'RECOMMENDED');
+  return {
+    cv_id: cvId,
+    pool_size: scoped.length,
+    eligible_pool_size: metadataFiltered.length,
+    total: sorted.length,
+    limit,
+    offset,
+    role_scope: roleScope,
+    filters_applied: filtersApplied,
+    facets: {
+      city_codes: countFacets(
+        applyRecommendationFilters(scoped, options, 'city').flatMap((row) => row.city_codes),
+      ),
+      work_modes: countFacets(
+        applyRecommendationFilters(scoped, options, 'work_mode').map((row) => row.work_mode),
+      ),
+      employment_types: countFacets(
+        applyRecommendationFilters(scoped, options, 'employment_type').map(
+          (row) => row.employment_type,
+        ),
+      ),
+      experience_levels: countFacets(
+        applyRecommendationFilters(scoped, options, 'experience_level').map(
+          (row) => row.experience_level as ExperienceLevel | null,
+        ),
+      ),
+      fit: countFacets(
+        applyRecommendationFilters(scoped, options, 'fit').map((row) => row.fit?.verdict),
+      ),
+    },
+    data_quality: {
+      missing_role: scoped.filter((row) => !row.role_code).length,
+      missing_experience_level: scoped.filter((row) => !row.experience_level).length,
+      missing_location: scoped.filter((row) => !row.location).length,
+      missing_city_code: scoped.filter((row) => row.city_codes.length === 0).length,
+      missing_work_mode: scoped.filter((row) => !row.work_mode).length,
+      missing_employment_type: scoped.filter((row) => !row.employment_type).length,
+      facet_coverage: facetCoverage,
+      salary_sort_supported:
+        salaryRows.length > 0 &&
+        currencies.size === 1 &&
+        salaryRows.every((row) => row.salary_period != null),
+    },
+    generation: { cache_hit: cacheHit, snapshot_size: snapshot.recommendations.length },
+    recommendations: sorted.slice(offset, offset + limit),
+  };
 }
 
 /**
@@ -178,21 +491,20 @@ export class JobRecommendationService {
     private readonly llm: LlmService,
     private readonly skillDiff: SkillDiffService,
     private readonly taxonomy: SkillTaxonomyService,
+    private readonly snapshots: JobRecommendationSnapshotStore,
   ) {}
 
   async recommendForCv(
     userId: string,
     cvId: string,
-    options: { limit?: number; offset?: number; roleCode?: string } = {},
+    options: JobRecommendationOptions = {},
+    hooks: JobRecommendationGenerationHooks = {},
   ): Promise<JobRecommendationResponse> {
-    // Default 5 (the headline top-5); cap 50/page so "see all" can paginate without huge payloads.
-    // Number(NaN)||5 → a non-numeric ?limit falls back to 5 (not an empty result); 0→1 via Math.max.
-    const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 50);
-    const offset = Math.max(Number(options.offset) || 0, 0);
-
     // 1. Ownership + CV skills (persisted by the CV review pipeline).
-    const cvRows = await this.db.query<{ id: string; parsed_json: CanonicalCvDocument | null }>(
-      `SELECT id, parsed_json FROM public.cvs WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    const cvRows = await this.db.query<CvRecommendationRow>(
+      `SELECT id, parsed_json, target_role
+         FROM public.cvs
+        WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
       [cvId, userId],
     );
     if (cvRows.length === 0) {
@@ -210,14 +522,19 @@ export class JobRecommendationService {
     const cvCanonicals = cvSkillRows.map((r) => r.canonical_name);
 
     // 2. Candidate pool (active, unexpired, canonical representatives, with their skills).
-    const candidates = await this.db.query<CandidateJobRow>(
+    const allCandidates = await this.db.query<CandidateJobRow>(
       `SELECT j.id, j.slug, j.application_mode,
-              EXISTS (SELECT 1 FROM public.saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $2) AS saved,
-              j.title, c.name AS company_name, j.location, j.role_code,
-              j.experience_level, j.salary_min, j.salary_max, j.salary_visible, j.currency, j.source_url,
+              EXISTS (SELECT 1 FROM public.saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1) AS saved,
+              j.title, c.name AS company_name, j.location, j.primary_city_code,
+              j.location_city_codes, j.role_code, j.experience_level, j.work_mode,
+              j.employment_type, j.salary_min, j.salary_max, j.salary_visible, j.salary_period,
+              j.currency, j.source_url,
               j.posted_at::text AS posted_at,
               COALESCE(
-                json_agg(json_build_object('canonical', s.canonical_name, 'importance', js.importance, 'min_level', js.min_level))
+                json_agg(
+                  json_build_object('canonical', s.canonical_name, 'importance', js.importance, 'min_level', js.min_level)
+                  ORDER BY s.canonical_name
+                )
                   FILTER (WHERE s.id IS NOT NULL),
                 '[]'
               ) AS skills
@@ -235,59 +552,162 @@ export class JobRecommendationService {
                WHERE bp.company_id = j.company_id AND bp.status = 'VERIFIED'
             )
           )
-          AND ($1::varchar IS NULL OR j.role_code = $1)
         GROUP BY j.id, c.name
         ORDER BY j.id`, // deterministic source order → reproducible RRF for tied scores
-      [options.roleCode ?? null, userId],
+      [userId],
     );
-    if (candidates.length === 0 || cvCanonicals.length === 0) {
-      return {
-        cv_id: cvId,
-        pool_size: candidates.length,
-        total: 0,
-        limit,
-        offset,
-        recommendations: [],
-      };
-    }
 
-    // TRUST (B1): score jobs with the user's REAL proficiency from their latest CV review —
-    // the same input class cv-jd-match uses — instead of presence-only (everything level 3).
-    // Falls back to presence-only when no review exists (fresh CV, review failed).
-    // R1: shared fact builder — the candidate apply/match path builds its facts the same way.
+    const cvTargetRole = cvRows[0].target_role?.trim() || null;
+    const requestedRole =
+      options.roleCode && options.roleCode !== 'all' ? options.roleCode : cvTargetRole;
+    if (
+      options.roleCode !== 'all' &&
+      (!requestedRole || !allCandidates.some((candidate) => candidate.role_code === requestedRole))
+    ) {
+      return projectJobRecommendationSnapshot(
+        cvId,
+        { cv_target_role: cvTargetRole, recommendations: [] },
+        options,
+        true,
+      );
+    }
     const reviewSkills = await loadLatestReviewSkills(this.db, userId, cvId);
     const cvSkillsRaw: RawCvSkill[] = toRawCvSkills(reviewSkills, cvCanonicals);
+    const interviewSignals =
+      (await fetchLatestInterviewSignalsForUser(this.db, userId)) ?? new Map();
+    const inputFingerprint = createHash('sha256')
+      .update(
+        JSON.stringify({
+          cv: cvRows[0].parsed_json,
+          cv_target_role: cvTargetRole,
+          skills: [...cvCanonicals].sort(),
+          proficiency: [...cvSkillsRaw].sort((a, b) => a.name.localeCompare(b.name)),
+          interview: [...interviewSignals.entries()].sort(([a], [b]) => a.localeCompare(b)),
+          embedding: {
+            provider: this.config.get<string>('llm.providerDefault') ?? 'openai',
+            model: this.config.get<string>('llm.openai.modelEmbedding') ?? '',
+            dimension: this.config.get<number>('vector.dimension') ?? null,
+            version: this.config.get<string>('vector.embeddingVersion') ?? 'v1',
+          },
+          jobs: allCandidates.map((job) => ({
+            id: job.id,
+            slug: job.slug,
+            title: job.title,
+            company_name: job.company_name,
+            location: job.location,
+            primary_city_code: job.primary_city_code,
+            location_city_codes: job.location_city_codes,
+            role_code: job.role_code,
+            experience_level: job.experience_level,
+            work_mode: job.work_mode,
+            employment_type: job.employment_type,
+            application_mode: job.application_mode,
+            salary_min: job.salary_min,
+            salary_max: job.salary_max,
+            salary_visible: job.salary_visible,
+            salary_period: job.salary_period,
+            currency: job.currency,
+            source_url: job.source_url,
+            posted_at: job.posted_at,
+            skills: [...job.skills].sort((a, b) => a.canonical.localeCompare(b.canonical)),
+          })),
+        }),
+      )
+      .digest('hex');
 
-    // R4: latest completed interview (any match) → per-skill risk map, fetched ONCE per request.
-    // Confidence overlay only — it never enters rankA/rankB/RRF/rerank below. Never-throw.
-    const interviewSignals = await fetchLatestInterviewSignalsForUser(this.db, userId);
+    let cacheHit = true;
+    let snapshot = await this.snapshots.find(userId, cvId, inputFingerprint);
+    if (!snapshot) {
+      const claimToken = await this.snapshots.tryClaim(userId, cvId, inputFingerprint);
+      if (claimToken) {
+        cacheHit = false;
+        try {
+          await hooks.beforeGenerate?.();
+          snapshot = await this.buildSnapshot(
+            cvTargetRole,
+            cvCanonicals,
+            cvSkillsRaw,
+            cvSeniority,
+            allCandidates,
+            interviewSignals,
+          );
+          const saved = await this.snapshots.save(
+            userId,
+            cvId,
+            inputFingerprint,
+            snapshot,
+            claimToken,
+          );
+          if (!saved) {
+            snapshot = await this.snapshots.waitFor(userId, cvId, inputFingerprint);
+            if (!snapshot) {
+              throw new ServiceUnavailableException({
+                code: 'JOB_RECOMMENDATION_BUILD_LEASE_LOST',
+                message: 'Job recommendation generation was superseded. Please retry shortly.',
+              });
+            }
+            cacheHit = true;
+          }
+        } catch (error) {
+          await this.snapshots.releaseClaim(userId, cvId, inputFingerprint, claimToken);
+          throw error;
+        }
+      } else {
+        snapshot = await this.snapshots.waitFor(userId, cvId, inputFingerprint);
+        if (!snapshot) {
+          throw new ServiceUnavailableException({
+            code: 'JOB_RECOMMENDATION_GENERATION_IN_PROGRESS',
+            message: 'Job recommendations are still being generated. Please retry shortly.',
+          });
+        }
+      }
+    }
 
-    // 3. Signal A — deterministic skill match per candidate (pure code, reproducible).
+    const projected = projectJobRecommendationSnapshot(cvId, snapshot, options, cacheHit);
+    const currentSavedByJob = new Map(allCandidates.map((job) => [job.id, job.saved]));
+    return {
+      ...projected,
+      recommendations: projected.recommendations.map((recommendation) => ({
+        ...recommendation,
+        saved: currentSavedByJob.get(recommendation.job_id) ?? recommendation.saved,
+      })),
+    };
+  }
+
+  private async buildSnapshot(
+    cvTargetRole: string | null,
+    cvCanonicals: string[],
+    cvSkillsRaw: RawCvSkill[],
+    cvSeniority: CvSeniority | null,
+    candidates: CandidateJobRow[],
+    interviewSignals: InterviewSignalMap,
+  ): Promise<JobRecommendationSnapshot> {
+    if (candidates.length === 0 || cvCanonicals.length === 0) {
+      return { cv_target_role: cvTargetRole, recommendations: [] };
+    }
+
     const diffByJob = new Map<string, ReturnType<SkillDiffService['diff']>>();
     for (const job of candidates) {
-      const diff = this.skillDiff.diff({
-        cv_skills_raw: cvSkillsRaw,
-        jd_requirements_raw: job.skills.map((s) => ({
-          name: s.canonical,
-          importance_hint: s.importance,
-          // Employer-posted jobs carry a REAL min_level (HR-entered, 1-5); honor it instead of
-          // letting every requirement collapse to the engine's INTERMEDIATE default (which made
-          // 'matched' trivially true for any listed skill). Scraped/manual jobs have no
-          // min_level → undefined → engine default, unchanged behavior.
-          required_level_hint: proficiencyHintForLevel(s.min_level),
-        })),
-      });
-      diffByJob.set(job.id, diff);
+      diffByJob.set(
+        job.id,
+        this.skillDiff.diff({
+          cv_skills_raw: cvSkillsRaw,
+          jd_requirements_raw: job.skills.map((skill) => ({
+            name: skill.canonical,
+            importance_hint: skill.importance,
+            required_level_hint: proficiencyHintForLevel(skill.min_level),
+          })),
+        }),
+      );
     }
     const rankA = [...candidates]
       .sort(
         (a, b) =>
           (diffByJob.get(b.id)!.overall_score ?? 0) - (diffByJob.get(a.id)!.overall_score ?? 0) ||
-          a.id.localeCompare(b.id), // explicit tiebreak — equal scores rank by stable id
+          a.id.localeCompare(b.id),
       )
-      .map((j) => j.id);
+      .map((job) => job.id);
 
-    // 4. Signal B — dense cosine rank (best-effort: pool stays usable without vectors).
     let rankB: string[] = [];
     const simByJob = new Map<string, number>();
     try {
@@ -295,61 +715,60 @@ export class JobRecommendationService {
         this.config.get<string>('llm.openai.modelEmbedding') ?? 'text-embedding-3-large';
       const dimensions = this.config.get<number>('vector.dimension') ?? 1024;
       const version = this.config.get<string>('vector.embeddingVersion') ?? 'v1';
-      // Same skill-set text construction as the job side (JdIngestService.embedJob).
       const cvText = cvCanonicals
-        .map((c) => this.taxonomy.getByCanonical(c)?.display_name ?? c)
+        .map((canonical) => this.taxonomy.getByCanonical(canonical)?.display_name ?? canonical)
         .sort((a, b) => a.localeCompare(b, 'en'))
         .join(', ');
       const { embedding } = await this.llm.embed(cvText, { provider: 'openai', dimensions });
-      const vectorLiteral = `[${embedding.join(',')}]`;
-      // Restrict the dense ranking to the SAME candidate set (active/canonical/role-filtered)
-      // BEFORE the LIMIT — otherwise expired/duplicate/out-of-role jobs steal the top-N dense
-      // slots from real candidates (review finding). job_id = ANY($5) does that in-DB.
-      const candIdArray = candidates.map((c) => c.id);
       const simRows = await this.db.query<{ job_id: string; similarity: number }>(
         `SELECT job_id, 1 - (embedding <=> $1::extensions.vector) AS similarity
            FROM public.job_embeddings
           WHERE model = $2 AND dimensions = $3 AND embedding_version = $4
             AND job_id = ANY($5)
           ORDER BY embedding <=> $1::extensions.vector`,
-        [vectorLiteral, model, dimensions, version, candIdArray],
+        [
+          `[${embedding.join(',')}]`,
+          model,
+          dimensions,
+          version,
+          candidates.map((candidate) => candidate.id),
+        ],
       );
       for (const row of simRows) {
         simByJob.set(row.job_id, Number(row.similarity));
         rankB.push(row.job_id);
       }
-    } catch (err) {
+    } catch (error) {
       this.logger.warn(
-        `dense signal degraded (skill-match-only ranking): ${(err as Error).message}`,
+        `dense signal degraded (skill-match-only ranking): ${(error as Error).message}`,
       );
       rankB = [];
     }
 
-    // 5. RRF fuse → soft tie-breaker re-rank by experience fit → slice the requested page.
-    // fitByJob pre-computes experience fit for all candidates so rerankByExperience can apply
-    // the nudge in O(n) without re-deriving per job. Stable tiebreak by job_id keeps pagination
-    // reproducible across requests.
     const fitByJob = new Map<string, ExperienceFit>(
-      candidates.map((c) => [c.id, computeExperienceFit(cvSeniority, c.experience_level)]),
+      candidates.map((candidate) => [
+        candidate.id,
+        computeExperienceFit(cvSeniority, candidate.experience_level),
+      ]),
     );
-    const fused = rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]);
-    const allRanked = rerankByExperience(fused, fitByJob);
-    const total = allRanked.length;
-    const page = allRanked.slice(offset, offset + limit);
-
-    const byId = new Map(candidates.map((c) => [c.id, c]));
-    const recommendations: JobRecommendation[] = page.map(([jobId], i) =>
-      buildJobRecommendation(
-        byId.get(jobId)!,
-        diffByJob.get(jobId)!,
-        offset + i + 1,
-        simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
-        fitByJob.get(jobId)!,
-        interviewSignals,
+    const ranked = rerankByExperience(
+      rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]),
+      fitByJob,
+    );
+    const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+    return {
+      cv_target_role: cvTargetRole,
+      recommendations: ranked.map(([jobId], index) =>
+        buildJobRecommendation(
+          byId.get(jobId)!,
+          diffByJob.get(jobId)!,
+          index + 1,
+          simByJob.has(jobId) ? Number(simByJob.get(jobId)!.toFixed(4)) : null,
+          fitByJob.get(jobId)!,
+          interviewSignals,
+        ),
       ),
-    );
-
-    return { cv_id: cvId, pool_size: candidates.length, total, limit, offset, recommendations };
+    };
   }
 }
 
@@ -401,11 +820,15 @@ export function buildJobRecommendation(
     title: job.title,
     company_name: job.company_name,
     location: job.location,
+    city_codes: jobCityCodes(job),
     role_code: job.role_code,
-    experience_level: job.experience_level,
+    experience_level: job.experience_level as ExperienceLevel | null,
+    work_mode: job.work_mode ?? null,
+    employment_type: job.employment_type ?? null,
     salary_min: job.salary_visible && job.salary_min ? Number(job.salary_min) : null,
     salary_max: job.salary_visible && job.salary_max ? Number(job.salary_max) : null,
     salary_visible: job.salary_visible,
+    salary_period: job.salary_period ?? null,
     currency: job.currency,
     source_url: job.application_mode === 'EXTERNAL' ? job.source_url : null,
     posted_at: job.posted_at,
