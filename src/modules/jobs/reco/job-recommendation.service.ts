@@ -229,14 +229,40 @@ function countFacets<T extends string>(
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
+const LOCATION_CITY_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(?:ho chi minh(?: city)?|hcmc?|tp\.?\s*hcm|sai gon)\b/i, 'HCM'],
+  [/\b(?:ha noi|hanoi)\b/i, 'HAN'],
+  [/\b(?:da nang|danang)\b/i, 'DAD'],
+  [/\b(?:hai phong|haiphong)\b/i, 'HPH'],
+  [/\b(?:can tho|cantho)\b/i, 'CTO'],
+  [/\b(?:binh duong)\b/i, 'BDU'],
+  [/\b(?:dong nai)\b/i, 'DNA'],
+  [/\b(?:ba ria|vung tau)\b/i, 'VTU'],
+  [/\b(?:da lat|lam dong)\b/i, 'DLI'],
+];
+
+function foldLocation(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd');
+}
+
+export function normalizeLocationCityCodes(location: string | null | undefined): string[] {
+  if (!location) return [];
+  const folded = foldLocation(location);
+  return LOCATION_CITY_PATTERNS.filter(([pattern]) => pattern.test(folded)).map(([, code]) => code);
+}
+
 function jobCityCodes(job: CandidateJobRow): string[] {
-  return [
+  const structured = [
     ...new Set(
       [job.primary_city_code, ...(job.location_city_codes ?? [])]
         .filter((value): value is string => Boolean(value))
         .map((value) => value.toUpperCase()),
     ),
   ];
+  return structured.length > 0 ? structured : normalizeLocationCityCodes(job.location);
 }
 
 function compareNullableDateDesc(a: string | null, b: string | null): number {
@@ -589,6 +615,7 @@ export class JobRecommendationService {
             dimension: this.config.get<number>('vector.dimension') ?? null,
             version: this.config.get<string>('vector.embeddingVersion') ?? 'v1',
           },
+          recommendation_projection_version: 2,
           jobs: allCandidates.map((job) => ({
             id: job.id,
             slug: job.slug,
