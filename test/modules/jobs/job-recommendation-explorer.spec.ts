@@ -1,6 +1,8 @@
 import {
   JobRecommendation,
   JobRecommendationService,
+  buildJobRecommendation,
+  normalizeLocationCityCodes,
   sortJobRecommendations,
 } from '../../../src/modules/jobs/reco/job-recommendation.service';
 
@@ -134,6 +136,64 @@ describe('Job Explorer deterministic sorting', () => {
       'rank-1-usd',
       'rank-2-vnd',
     ]);
+  });
+});
+
+describe('Job Explorer location normalization', () => {
+  it.each([
+    ['Ho Chi Minh City', ['HCM']],
+    ['TP.HCM', ['HCM']],
+    ['Hà Nội', ['HAN']],
+    ['Đà Nẵng', ['DAD']],
+    ['Bình Dương', ['BDU']],
+  ])('derives a stable city facet from legacy location text: %s', (location, expected) => {
+    expect(normalizeLocationCityCodes(location)).toEqual(expected);
+  });
+
+  it('uses structured city codes first and falls back to location text when they are absent', () => {
+    const mapped = buildJobRecommendation(
+      {
+        id: 'legacy-location',
+        slug: 'legacy-location',
+        application_mode: 'NATIVE',
+        saved: false,
+        title: 'Backend Developer',
+        company_name: 'SkillBridge',
+        location: 'Ho Chi Minh City',
+        primary_city_code: null,
+        location_city_codes: [],
+        role_code: 'backend_developer',
+        experience_level: 'JUNIOR',
+        work_mode: 'ONSITE',
+        employment_type: 'FULL_TIME',
+        salary_min: null,
+        salary_max: null,
+        salary_visible: false,
+        salary_period: null,
+        currency: 'VND',
+        source_url: null,
+        posted_at: null,
+        skills: [],
+      },
+      {
+        overall_score: 50,
+        matched_skills: [],
+        partial_skills: [],
+        missing_skills: [],
+        required_coverage: 0.5,
+        scoring_breakdown: {},
+      } as never,
+      1,
+      null,
+      {
+        cv_seniority: 'junior',
+        job_level: 'JUNIOR',
+        verdict: 'fits',
+        confidence: 'high',
+      },
+    );
+
+    expect(mapped.city_codes).toEqual(['HCM']);
   });
 });
 
