@@ -14,6 +14,7 @@ import { LearningSessionEntity } from '../../database/entities/learning-session.
 import { LearningScheduleProfileEntity } from '../../database/entities/learning-schedule-profile.entity';
 import { LearningAvailabilitySlotEntity } from '../../database/entities/learning-availability-slot.entity';
 import type { ComposedRoadmap, ComposedRoadmapStep } from '../../modules/roadmap/roadmap-composer';
+import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import {
@@ -21,12 +22,23 @@ import {
   LearningRoadmapPreviewResponseDto,
 } from './dto/roadmap.dto';
 import { scheduleLearningModules } from './learning-scheduler';
+import { buildStudyWeekdays, scheduleLearningCadence } from './learning-cadence';
+import {
+  buildLearningContentPlan,
+  LearningPrerequisiteCycleError,
+  type LearningContentPlan,
+  type LearningTrack,
+  type PlannedLearningLesson,
+} from './learning-content-planner';
 import { DerivedLearningCandidates, LearningRoadmapDraftService } from './roadmap-draft.service';
 import {
   applyResourceSelection,
   assertValidResourceSelection,
   composeLearningCandidates,
 } from './learning-roadmap-resources';
+import { LearningContentEnhancer } from './learning-content-enhancer';
+import { presentLearningResources } from './learning-resource-policy';
+import { dateInLearningTimezone, todayInLearningTimezone } from './learning-projection';
 
 const RESOURCE_CATALOG_VERSION = 'learning-resources-v1';
 const CONTENT_VERSION = 'skillbridge-lessons-v1';
@@ -35,6 +47,7 @@ interface PreparedRoadmap {
   roadmap: LearningRoadmapEntity;
   derived: DerivedLearningCandidates;
   composed: ComposedRoadmap;
+  contentPlan: LearningContentPlan;
   preview: LearningRoadmapPreviewResponseDto;
 }
 
@@ -47,6 +60,7 @@ export class LearningRoadmapGenerationService {
     private readonly drafts: LearningRoadmapDraftService,
     private readonly composer: RoadmapComposerService,
     private readonly entitlements: EntitlementsService,
+    private readonly contentEnhancer: LearningContentEnhancer,
   ) {}
 
   async preview(
@@ -72,12 +86,14 @@ export class LearningRoadmapGenerationService {
       sourceId: roadmapId,
     });
     try {
+      const enhancedPreview = await this.contentEnhancer.enhance(prepared.preview);
+      const finalPrepared: PreparedRoadmap = { ...prepared, preview: enhancedPreview };
       const versionId = await this.dataSource.transaction((manager) =>
-        this.persistVersion(manager, userId, expectedRevision, prepared),
+        this.persistVersion(manager, userId, expectedRevision, finalPrepared),
       );
       await usage.confirm({ sourceType: 'learning_roadmap', sourceId: roadmapId });
       return {
-        ...prepared.preview,
+        ...enhancedPreview,
         version_id: versionId,
         revision: expectedRevision + 1,
         status: 'ACTIVE',
@@ -101,12 +117,34 @@ export class LearningRoadmapGenerationService {
       throw new ConflictException('Learning roadmap draft has changed; reload before continuing.');
     }
     const schedule = roadmap.draftConfig.schedule;
-    if (!schedule || schedule.slots.length === 0) {
-      throw new BadRequestException('Save at least one learning schedule slot before previewing.');
+    const cadence = roadmap.draftConfig.cadence;
+    if (!cadence && (!schedule || schedule.slots.length === 0)) {
+      throw new BadRequestException('Save a learning cadence before previewing.');
     }
 
+    const timezone = cadence?.timezone ?? schedule!.timezone;
+    const startDate = cadence?.start_date ?? todayInLearningTimezone(timezone);
+    const sessionMinutes = cadence?.session_minutes ?? schedule!.session_minutes;
+    const legacyScheduleInput = schedule
+      ? {
+          timezone: schedule.timezone,
+          startDate,
+          deadline: schedule.deadline,
+          sessionMinutes: schedule.session_minutes,
+          slots: schedule.slots.map((slot) => ({
+            isoWeekday: slot.iso_weekday,
+            startTime: slot.start_time,
+            durationMinutes: slot.duration_minutes,
+          })),
+        }
+      : null;
+    const capacitySchedule = legacyScheduleInput
+      ? scheduleLearningModules({ ...legacyScheduleInput, modules: [] })
+      : null;
     const derived = await this.drafts.rederiveCurrentCandidates(userId, roadmap);
     const selected = selectCurrentCandidates(roadmap, derived);
+    const learningTrack: LearningTrack =
+      roadmap.intent === 'JD_APPLICATION' ? 'FAST_TRACK' : 'FOUNDATION';
     const unfilteredComposed =
       selected.length === 0
         ? {
@@ -115,51 +153,94 @@ export class LearningRoadmapGenerationService {
             not_feasible_items: [],
             ai_summary: 'No learning gaps remain.',
           }
-        : composeLearningCandidates(this.composer, selected, roadmap.draftConfig.language_pref);
+        : composeLearningCandidates(
+            this.composer,
+            selected,
+            roadmap.draftConfig.language_pref,
+            cadence
+              ? {
+                  available_days: 7,
+                  hours_per_week: (cadence.study_days_per_week * cadence.session_minutes) / 60,
+                }
+              : learningBudget(startDate, schedule!.deadline, capacitySchedule!.capacityMinutes),
+          );
+    const policyComposed: ComposedRoadmap = {
+      ...unfilteredComposed,
+      steps: unfilteredComposed.steps.map((step) => ({
+        ...step,
+        resources: presentLearningResources(step.resources, learningTrack),
+      })),
+    };
     const selectedResources = roadmap.draftConfig.selected_resources;
     if (selectedResources) {
-      assertValidResourceSelection(selected, unfilteredComposed, selectedResources);
+      assertValidResourceSelection(selected, policyComposed, selectedResources);
     }
-    const composed = applyResourceSelection(unfilteredComposed, selectedResources);
+    const composed = applyResourceSelection(policyComposed, selectedResources);
 
     const stepBySkill = new Map(composed.steps.map((step) => [step.skill_canonical, step]));
-    const schedulable = selected.map((candidate) => {
-      const step = stepBySkill.get(candidate.skill_canonical);
-      const rawMinutes = Math.max(
-        schedule.session_minutes,
-        Math.ceil((step?.estimated_hours ?? 8) * 60),
-      );
-      return {
-        skillCanonical: candidate.skill_canonical,
-        displayName: candidate.display_name,
-        estimatedMinutes:
-          Math.ceil(rawMinutes / schedule.session_minutes) * schedule.session_minutes,
-        systemPriority: candidate.system_priority,
-        userRank: roadmap.draftConfig.selected_priorities?.find(
-          (item) => item.skill_canonical === candidate.skill_canonical,
-        )?.rank,
-        prerequisites: candidate.prerequisites,
-      };
-    });
-
-    let scheduled;
+    let contentPlan: LearningContentPlan;
     try {
-      scheduled = scheduleLearningModules({
-        modules: schedulable,
-        timezone: schedule.timezone,
-        startDate: todayInTimezone(schedule.timezone),
-        deadline: schedule.deadline,
-        sessionMinutes: schedule.session_minutes,
-        slots: schedule.slots.map((slot) => ({
-          isoWeekday: slot.iso_weekday,
-          startTime: slot.start_time,
-          durationMinutes: slot.duration_minutes,
+      contentPlan = buildLearningContentPlan({
+        track: learningTrack,
+        ...(capacitySchedule ? { capacityMinutes: capacitySchedule.capacityMinutes } : {}),
+        candidates: selected.map((candidate) => ({
+          skillCanonical: candidate.skill_canonical,
+          displayName: candidate.display_name,
+          systemPriority: candidate.system_priority,
+          userRank: roadmap.draftConfig.selected_priorities?.find(
+            (item) => item.skill_canonical === candidate.skill_canonical,
+          )?.rank,
+          prerequisites: candidate.prerequisites,
+          lessonContent: stepBySkill.get(candidate.skill_canonical)?.lesson_content,
         })),
       });
     } catch (error) {
+      if (error instanceof LearningPrerequisiteCycleError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+    const lessonGroupsBySkill = groupIncludedLessons(contentPlan, sessionMinutes);
+    const schedulable = contentPlan.modules
+      .filter((module) => module.scheduledMinutes > 0)
+      .map((module) => {
+        const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
+        return {
+          skillCanonical: module.skillCanonical,
+          displayName: module.displayName,
+          estimatedMinutes:
+            lessonGroups.length > 0
+              ? lessonGroups.length * sessionMinutes
+              : module.scheduledMinutes,
+          systemPriority:
+            learningTrack === 'FAST_TRACK'
+              ? module.quickWinScore
+              : selected.find((item) => item.skill_canonical === module.skillCanonical)!
+                  .system_priority,
+          userRank: module.rank,
+          prerequisites: module.prerequisites,
+        };
+      });
+
+    let scheduled;
+    let sessionsWithLessons;
+    try {
+      scheduled = cadence
+        ? scheduleLearningCadence({
+            modules: schedulable,
+            timezone: cadence.timezone,
+            startDate: cadence.start_date,
+            studyDaysPerWeek: cadence.study_days_per_week,
+            sessionMinutes: cadence.session_minutes,
+          })
+        : scheduleLearningModules({
+            ...legacyScheduleInput!,
+            modules: schedulable,
+          });
+      sessionsWithLessons = attachLessonsToSessions(lessonGroupsBySkill, scheduled.sessions);
+    } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
-
     const candidateBySkill = new Map(
       selected.map((candidate) => [candidate.skill_canonical, candidate]),
     );
@@ -168,33 +249,69 @@ export class LearningRoadmapGenerationService {
       revision: roadmap.revision,
       target_role: derived.targetRole || null,
       summary: composed.ai_summary,
-      capacity_minutes: scheduled.capacityMinutes,
-      scheduled_minutes: scheduled.scheduledMinutes,
-      modules: scheduled.modules.map((module) => {
+      learning_track: learningTrack,
+      content_source: 'DETERMINISTIC',
+      capacity_minutes: capacitySchedule?.capacityMinutes ?? scheduled.scheduledMinutes,
+      scheduled_minutes: contentPlan.scheduledMinutes,
+      coverage_percentage: contentPlan.coveragePercentage,
+      cadence: cadence ?? {
+        timezone,
+        start_date: startDate,
+        study_days_per_week: Math.min(
+          7,
+          Math.max(1, new Set(schedule!.slots.map((slot) => slot.iso_weekday)).size),
+        ) as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+        session_minutes: sessionMinutes,
+      },
+      estimated_completion_date:
+        'estimatedCompletionDate' in scheduled
+          ? scheduled.estimatedCompletionDate
+          : scheduled.sessions.at(-1)
+            ? dateInLearningTimezone(scheduled.sessions.at(-1)!.scheduledStartAt, timezone)
+            : null,
+      modules: contentPlan.modules.map((module) => {
         const candidate = candidateBySkill.get(module.skillCanonical)!;
         const step = stepBySkill.get(module.skillCanonical);
         return {
           skill_canonical: module.skillCanonical,
           display_name: candidate.display_name,
           rank: module.rank,
-          estimated_minutes: module.estimatedMinutes,
-          feasibility: module.feasibility,
+          estimated_minutes: module.scheduledMinutes,
+          feasibility: module.scopeStatus === 'DEFERRED' ? 'DEFERRED' : 'FEASIBLE',
           resources: (step?.resources ?? []) as Array<Record<string, unknown>>,
           lesson_content: (step?.lesson_content as unknown as Record<string, unknown>) ?? null,
+          quick_win_score: module.quickWinScore,
+          scope_status: module.scopeStatus,
+          prerequisite_warnings: module.prerequisites,
+          lessons: module.lessons.map((lesson) => ({
+            id: lesson.id,
+            title: lesson.title,
+            summary: lesson.summary,
+            key_points: lesson.keyPoints,
+            estimated_minutes: lesson.estimatedMinutes,
+            importance: lesson.importance,
+            kind: lesson.kind,
+            scope_status: lesson.scopeStatus,
+            ...(lesson.omissionReason ? { omission_reason: lesson.omissionReason } : {}),
+            content_source: 'DETERMINISTIC',
+          })),
         };
       }),
-      sessions: scheduled.sessions.map((session) => ({
+      sessions: sessionsWithLessons.map((session) => ({
         skill_canonical: session.skillCanonical,
         sequence: session.sequence,
         scheduled_start_at: session.scheduledStartAt.toISOString(),
         duration_minutes: session.durationMinutes,
+        lesson_ids: session.lessonIds,
       })),
-      deferred: scheduled.deferred.map((item) => ({
-        skill_canonical: item.skillCanonical,
-        remaining_minutes: item.remainingMinutes,
-      })),
+      deferred: contentPlan.modules
+        .filter((module) => module.scopeStatus !== 'FULL')
+        .map((module) => ({
+          skill_canonical: module.skillCanonical,
+          remaining_minutes: module.estimatedMinutes - module.scheduledMinutes,
+        })),
     };
-    return { roadmap, derived, composed, preview };
+    return { roadmap, derived, composed, contentPlan, preview };
   }
 
   private async persistVersion(
@@ -220,35 +337,59 @@ export class LearningRoadmapGenerationService {
     const version = await manager.save(LearningRoadmapVersionEntity, {
       roadmapId: locked.id,
       versionNo: (latestVersion?.versionNo ?? 0) + 1,
-      inputSnapshot: locked.draftConfig as unknown as Record<string, unknown>,
+      inputSnapshot: {
+        ...(locked.draftConfig as unknown as Record<string, unknown>),
+        generated_plan: {
+          learning_track: prepared.preview.learning_track,
+          coverage_percentage: prepared.preview.coverage_percentage,
+          deferred: prepared.preview.deferred,
+          content_source: prepared.preview.content_source,
+          modules: prepared.preview.modules.map((module) => ({
+            skill_canonical: module.skill_canonical,
+            quick_win_score: module.quick_win_score,
+            scope_status: module.scope_status,
+            lessons: module.lessons,
+          })),
+        },
+      },
       sourceGapSnapshot: prepared.derived.sourceGapSnapshot,
       resourceCatalogVersion: RESOURCE_CATALOG_VERSION,
       contentVersion: CONTENT_VERSION,
     });
 
     const schedule = locked.draftConfig.schedule;
-    if (!schedule) throw new ConflictException('Learning schedule disappeared during generation.');
+    const cadence = locked.draftConfig.cadence;
+    if (!cadence && !schedule) {
+      throw new ConflictException('Learning cadence disappeared during generation.');
+    }
     const existingProfile = await manager.findOne(LearningScheduleProfileEntity, {
       where: { userId, isDefault: true },
     });
     const profile = existingProfile
       ? await manager.save(LearningScheduleProfileEntity, {
           ...existingProfile,
-          timezone: schedule.timezone,
-          sessionMinutes: schedule.session_minutes,
+          timezone: cadence?.timezone ?? schedule!.timezone,
+          sessionMinutes: cadence?.session_minutes ?? schedule!.session_minutes,
         })
       : await manager.save(LearningScheduleProfileEntity, {
           userId,
           name: 'Default',
-          timezone: schedule.timezone,
-          sessionMinutes: schedule.session_minutes,
+          timezone: cadence?.timezone ?? schedule!.timezone,
+          sessionMinutes: cadence?.session_minutes ?? schedule!.session_minutes,
           isDefault: true,
         });
     await manager.delete(LearningAvailabilitySlotEntity, { profileId: profile.id });
-    if (schedule.slots.length > 0) {
+    const availabilitySlots = cadence
+      ? buildStudyWeekdays(cadence.start_date, cadence.study_days_per_week).map((isoWeekday) => ({
+          iso_weekday: isoWeekday,
+          start_time: '12:00',
+          duration_minutes: cadence.session_minutes,
+        }))
+      : schedule!.slots;
+    if (availabilitySlots.length > 0) {
       await manager.save(
         LearningAvailabilitySlotEntity,
-        schedule.slots.map((slot) => ({
+        availabilitySlots.map((slot) => ({
           profileId: profile.id,
           isoWeekday: slot.iso_weekday,
           startTime: slot.start_time,
@@ -263,7 +404,9 @@ export class LearningRoadmapGenerationService {
     const stepBySkill = new Map(
       prepared.composed.steps.map((step) => [step.skill_canonical, step]),
     );
-    for (const modulePreview of [...prepared.preview.modules].sort((a, b) => a.rank - b.rank)) {
+    for (const modulePreview of [...prepared.preview.modules]
+      .filter((module) => module.scope_status !== 'DEFERRED')
+      .sort((a, b) => a.rank - b.rank)) {
       const candidate = candidateBySkill.get(modulePreview.skill_canonical);
       if (!candidate) throw new ConflictException('Roadmap candidates changed during generation.');
       const userPriority = locked.draftConfig.selected_priorities?.find(
@@ -287,13 +430,23 @@ export class LearningRoadmapGenerationService {
       );
       const step = stepBySkill.get(modulePreview.skill_canonical);
       for (const session of moduleSessions) {
+        const sessionLessons = modulePreview.lessons.filter((lesson) =>
+          session.lesson_ids.includes(lesson.id),
+        );
         await manager.save(LearningSessionEntity, {
           moduleId: module.id,
           sequence: session.sequence,
-          title: `${modulePreview.display_name} · Session ${session.sequence}`,
+          title:
+            sessionLessons[0]?.title ??
+            `${modulePreview.display_name} · Session ${session.sequence}`,
           scheduledStartAt: new Date(session.scheduled_start_at),
           durationMinutes: session.duration_minutes,
-          requiredTasks: requiredTasks(step, session.sequence, moduleSessions.length),
+          requiredTasks: requiredTasks(
+            step,
+            session.lesson_ids,
+            session.sequence,
+            moduleSessions.length,
+          ),
         });
       }
     }
@@ -330,21 +483,86 @@ function selectCurrentCandidates(
     .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate));
 }
 
-function todayInTimezone(timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(
-    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, part.value]),
-  );
-  return `${values.year}-${values.month}-${values.day}`;
+function learningBudget(
+  startDate: string,
+  deadline: string,
+  capacityMinutes: number,
+): { available_days: number; hours_per_week: number } {
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${deadline}T00:00:00.000Z`);
+  const availableDays = Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1);
+  return {
+    available_days: availableDays,
+    hours_per_week: Number(((capacityMinutes / 60) * (7 / availableDays)).toFixed(2)),
+  };
+}
+
+function groupIncludedLessons(
+  plan: LearningContentPlan,
+  sessionMinutes: number,
+): Map<string, PlannedLearningLesson[][]> {
+  const groupsBySkill = new Map<string, PlannedLearningLesson[][]>();
+  for (const module of plan.modules) {
+    const included = module.lessons.filter((lesson) => lesson.scopeStatus === 'INCLUDED');
+    const groups: PlannedLearningLesson[][] = [];
+    for (const lesson of included) {
+      const current = groups.at(-1);
+      const currentMinutes = current?.reduce((sum, item) => sum + item.estimatedMinutes, 0) ?? 0;
+      if (!current || currentMinutes + lesson.estimatedMinutes > sessionMinutes) {
+        groups.push([lesson]);
+      } else {
+        current.push(lesson);
+      }
+    }
+    groupsBySkill.set(module.skillCanonical, groups);
+  }
+  return groupsBySkill;
+}
+
+function attachLessonsToSessions(
+  groupsBySkill: ReadonlyMap<string, PlannedLearningLesson[][]>,
+  sessions: Array<{
+    skillCanonical: string;
+    sequence: number;
+    scheduledStartAt: Date;
+    durationMinutes: number;
+  }>,
+): Array<{
+  skillCanonical: string;
+  sequence: number;
+  scheduledStartAt: Date;
+  durationMinutes: number;
+  lessonIds: string[];
+}> {
+  for (const [skillCanonical, groups] of groupsBySkill) {
+    if (groups.length === 0) continue;
+    const sessionCount = sessions.filter(
+      (session) => session.skillCanonical === skillCanonical,
+    ).length;
+    if (sessionCount !== groups.length) {
+      throw new Error(
+        `Learning cadence cannot fit every lesson for '${skillCanonical}' without splitting content.`,
+      );
+    }
+  }
+
+  return sessions.map((session) => {
+    const lessons = groupsBySkill.get(session.skillCanonical)?.[session.sequence - 1] ?? [];
+    const lessonMinutes = lessons.reduce((sum, lesson) => sum + lesson.estimatedMinutes, 0);
+    return {
+      ...session,
+      durationMinutes:
+        lessonMinutes > 0
+          ? Math.min(lessonMinutes, session.durationMinutes)
+          : session.durationMinutes,
+      lessonIds: lessons.map((lesson) => lesson.id),
+    };
+  });
 }
 
 function requiredTasks(
   step: ComposedRoadmapStep | undefined,
+  lessonIds: string[],
   sequence: number,
   totalSessions: number,
 ): Array<Record<string, unknown>> {
@@ -352,9 +570,38 @@ function requiredTasks(
     { type: 'study', sequence, total_sessions: totalSessions },
   ];
   if (step) {
-    tasks.push({ type: 'resources', items: step.resources });
-    if (step.lesson_content) tasks.push({ type: 'lesson', content: step.lesson_content });
+    if (sequence === 1) tasks.push({ type: 'resources', items: step.resources });
+    if (step.lesson_content) {
+      const content = sliceLessonContent(step.lesson_content, lessonIds);
+      if (content.sections.length > 0 || content.exercises.length > 0) {
+        tasks.push({ type: 'lesson', content });
+      }
+    }
   }
-  if (sequence === totalSessions) tasks.push({ type: 'evidence', required: true });
   return tasks;
+}
+
+function sliceLessonContent(
+  content: SkillBridgeLessonContent,
+  lessonIds: string[],
+): SkillBridgeLessonContent {
+  const included = new Set(lessonIds);
+  const sections = content.sections.filter((section) =>
+    included.has(`${content.skill_canonical}:section:${section.id}`),
+  );
+  const exercises = content.exercises.filter((exercise) =>
+    included.has(`${content.skill_canonical}:exercise:${exercise.id}`),
+  );
+  const sectionIds = new Set(sections.map((section) => section.id));
+  const objectiveIds = new Set(sections.map((section) => section.objective_id));
+  return {
+    ...content,
+    learning_objectives: content.learning_objectives.filter((objective) =>
+      objectiveIds.has(objective.id),
+    ),
+    sections,
+    quiz_bank: content.quiz_bank.filter((question) => sectionIds.has(question.section_id)),
+    quiz: content.quiz.filter((question) => sectionIds.has(question.section_id)),
+    exercises,
+  };
 }

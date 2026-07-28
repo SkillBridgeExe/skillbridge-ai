@@ -172,7 +172,12 @@ export function scoreResource(
 export function matchResources(
   catalog: LearningResource[],
   requests: ResourceMatchRequest[],
-  opts?: { sourceTypes?: ResourceSourceType[]; langPref?: LanguagePref },
+  opts?: {
+    sourceTypes?: ResourceSourceType[];
+    langPref?: LanguagePref;
+    requiredLanguage?: 'vi' | 'en';
+    verifiedOnly?: boolean;
+  },
 ): LearningResourceMatchResult {
   const allowed = opts?.sourceTypes ? new Set(opts.sourceTypes) : null;
   const langPref: LanguagePref = opts?.langPref ?? 'both';
@@ -180,6 +185,8 @@ export function matchResources(
   for (const r of catalog) {
     if (allowed && !allowed.has(r.source_type)) continue;
     if (r.validation_status === 'flagged' || r.validation_status === 'dead_link') continue;
+    if (opts?.requiredLanguage && r.language !== opts.requiredLanguage) continue;
+    if (opts?.verifiedOnly && r.validation_status !== 'verified') continue;
     for (const s of r.skills ?? []) {
       if (!index.has(s.skill_canonical_name)) index.set(s.skill_canonical_name, []);
       index.get(s.skill_canonical_name)!.push({ resource: r, teaches_level: s.teaches_level });
@@ -193,7 +200,7 @@ export function matchResources(
   for (const req of requests) {
     const candidates = index.get(req.skill_canonical_name) ?? [];
     const verified = candidates.filter((c) => c.resource.validation_status === 'verified');
-    const usable = verified.length > 0 ? verified : candidates; // pending only as fallback
+    const usable = opts?.verifiedOnly ? verified : verified.length > 0 ? verified : candidates; // pending only as fallback
     if (usable.length === 0) {
       uncovered_skills.push(req.skill_canonical_name);
       per_skill.push({

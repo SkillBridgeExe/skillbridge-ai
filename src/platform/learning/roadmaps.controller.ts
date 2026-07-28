@@ -6,11 +6,13 @@ import { Public } from '../auth/decorators/public.decorator';
 import {
   CreateLearningRoadmapDraftDto,
   LearningRoadmapGenerateDto,
+  RescheduleLearningRoadmapDto,
   UpdateLearningRoadmapDraftDto,
 } from './dto/roadmap.dto';
 import { LearningRoadmapDraftService } from './roadmap-draft.service';
 import { LearningRoadmapGenerationService } from './roadmap-generation.service';
 import { LearningRoadmapQueryService } from './roadmap-query.service';
+import { LearningRoadmapRescheduleService } from './roadmap-reschedule.service';
 
 @ApiTags('Learning Roadmaps')
 @Public()
@@ -22,6 +24,7 @@ export class LearningRoadmapsController {
     private readonly drafts: LearningRoadmapDraftService,
     private readonly generation: LearningRoadmapGenerationService,
     private readonly queries: LearningRoadmapQueryService,
+    private readonly rescheduleService: LearningRoadmapRescheduleService,
   ) {}
 
   @Post()
@@ -52,6 +55,12 @@ export class LearningRoadmapsController {
     return this.queries.archiveActive(user.userId);
   }
 
+  @Get('active')
+  @ApiOperation({ summary: 'Get the current learner active roadmap' })
+  getCurrentActive(@CurrentUser() user: JwtUser) {
+    return this.queries.getCurrentActive(user.userId);
+  }
+
   @Get(':roadmapId')
   @ApiOperation({ summary: 'Get an owned active roadmap with dated runtime sessions' })
   getActive(@CurrentUser() user: JwtUser, @Param('roadmapId') roadmapId: string) {
@@ -76,5 +85,15 @@ export class LearningRoadmapsController {
     @Body() dto: LearningRoadmapGenerateDto,
   ) {
     return this.generation.generate(user.userId, roadmapId, dto.expected_revision);
+  }
+
+  @Post(':roadmapId/reschedule')
+  @ApiOperation({ summary: 'Redistribute incomplete learning units from a new start date' })
+  reschedule(
+    @CurrentUser() user: JwtUser,
+    @Param('roadmapId') roadmapId: string,
+    @Body() dto: RescheduleLearningRoadmapDto,
+  ) {
+    return this.rescheduleService.reschedule(user.userId, roadmapId, dto);
   }
 }

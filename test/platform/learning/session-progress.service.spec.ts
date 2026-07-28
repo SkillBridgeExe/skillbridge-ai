@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { LearningSessionProgressEntity } from '../../../src/database/entities/learning-session-progress.entity';
 import { LearningSessionProgressService } from '../../../src/platform/learning/session-progress.service';
@@ -88,6 +89,50 @@ describe('LearningSessionProgressService', () => {
         id: 'progress-1',
         checkedChecklistItems: { intro: ['Create a component'] },
         exerciseProofs: {},
+      }),
+    );
+  });
+
+  it('rejects the reserved completion marker through the generic progress endpoint', async () => {
+    const repo = repoMock();
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
+
+    await expect(
+      service.saveProgress('user-1', 'roadmap-react', {
+        checked_checklist_items: { __session: ['completed'] },
+        exercise_proofs: {},
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('does not erase a server-owned completion marker during a later progress save', async () => {
+    const repo = repoMock();
+    repo.findOne.mockResolvedValue({
+      id: 'progress-1',
+      userId: 'user-1',
+      sessionId: 'roadmap-react',
+      checkedChecklistItems: { __session: ['completed'] },
+      exerciseProofs: {},
+      quizAttempts: {},
+    });
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
+
+    await service.saveProgress('user-1', 'roadmap-react', {
+      checked_checklist_items: { intro: ['Create a component'] },
+      exercise_proofs: {},
+    });
+
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkedChecklistItems: {
+          intro: ['Create a component'],
+          __session: ['completed'],
+        },
       }),
     );
   });
@@ -332,6 +377,21 @@ describe('LearningSessionProgressService', () => {
         },
       }),
     );
+  });
+
+  it('rejects attempts to patch the reserved completion marker', async () => {
+    const repo = repoMock();
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+    );
+
+    await expect(
+      service.patchChecklistItem('user-1', 'roadmap-react', 'completed', {
+        section_id: '__session',
+        checked: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('validates that a persisted V2 session belongs to the user and requested skill', async () => {

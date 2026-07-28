@@ -38,6 +38,30 @@ export default () => ({
     },
   },
 
+  learning: {
+    contentAiEnabled: process.env.LEARNING_CONTENT_AI_ENABLED === 'true',
+    contentAiModel: process.env.LEARNING_CONTENT_AI_MODEL ?? '',
+    translation: {
+      libreUrl: process.env.LEARNING_TRANSLATION_LIBRE_URL ?? process.env.LIBRETRANSLATE_URL ?? '',
+      libreApiKey:
+        process.env.LEARNING_TRANSLATION_LIBRE_API_KEY ?? process.env.LIBRETRANSLATE_API_KEY ?? '',
+      timeoutMs: parseInt(
+        process.env.LEARNING_TRANSLATION_TIMEOUT_MS ??
+          process.env.LIBRETRANSLATE_TIMEOUT_MS ??
+          '5000',
+        10,
+      ),
+      googleEnabled:
+        process.env.LEARNING_TRANSLATION_GOOGLE_ENABLED === 'true' ||
+        process.env.GOOGLE_TRANSLATE_ENABLED === 'true',
+      googleProjectId:
+        process.env.LEARNING_TRANSLATION_GOOGLE_PROJECT_ID ??
+        process.env.GOOGLE_CLOUD_PROJECT_ID ??
+        process.env.GOOGLE_CLOUD_PROJECT ??
+        '',
+    },
+  },
+
   // CV-JD match prompt template (server-side flip). v1 = skill-only (legacy, byte-identical output);
   // v2 = adds JD-Intelligence (jd_dimensions → jd_intelligence + non-skill gap_items). Joi-validated
   // to v1|v2 at boot. Default v2 = what prod has run via Cloud Run env since 2026-06-16; env stays

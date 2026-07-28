@@ -64,6 +64,13 @@ interface YouTubeSearchItem {
 interface YouTubeVideoItem {
   id?: string;
   contentDetails?: { duration?: string };
+  snippet?: {
+    title?: string;
+    channelTitle?: string;
+    description?: string;
+    defaultAudioLanguage?: string;
+    defaultLanguage?: string;
+  };
 }
 
 interface GithubRepo {
@@ -608,16 +615,27 @@ async function fetchYouTubeEnglishInterview(): Promise<LearningResource | null> 
   if (!searchRes.ok) return null;
   const search = (await searchRes.json()) as { items?: YouTubeSearchItem[] };
   const videoId = search.items?.[0]?.id?.videoId;
-  const snippet = search.items?.[0]?.snippet;
-  if (!videoId || !snippet?.title) return null;
+  if (!videoId) return null;
 
   const detailQuery = new URLSearchParams({
-    part: 'contentDetails',
+    part: 'contentDetails,snippet',
     id: videoId,
     key,
   });
   const detailRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${detailQuery}`);
   const detail = detailRes.ok ? ((await detailRes.json()) as { items?: YouTubeVideoItem[] }) : {};
+  const video = detail.items?.[0];
+  const snippet = video?.snippet;
+  const audioLanguage = snippet?.defaultAudioLanguage?.toLowerCase();
+  const hasVerifiedEnglishAudio = audioLanguage?.startsWith('en');
+  if (
+    !video ||
+    !snippet?.title ||
+    !hasVerifiedEnglishAudio ||
+    /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/u.test(snippet.title)
+  ) {
+    return null;
+  }
   return source({
     id: `youtube-english-interview-${videoId}`,
     title: snippet.title,
@@ -626,7 +644,7 @@ async function fetchYouTubeEnglishInterview(): Promise<LearningResource | null> 
     source_type: 'video',
     is_internal: false,
     language: 'en',
-    duration_minutes: isoDurationMinutes(detail.items?.[0]?.contentDetails?.duration),
+    duration_minutes: isoDurationMinutes(video.contentDetails?.duration),
     is_free: true,
     skills: [
       { skill_canonical_name: 'english_proficiency', teaches_level: 2 },

@@ -59,7 +59,7 @@ export class OpenAiProvider implements LlmProviderClient {
     const modelCode = options.model ?? this.config.get<string>('llm.openai.modelDefault') ?? '';
 
     const start = Date.now();
-    const response = await this.getClient().chat.completions.create({
+    const request = {
       model: modelCode,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       ...buildChatParams(modelCode, {
@@ -89,7 +89,15 @@ export class OpenAiProvider implements LlmProviderClient {
             })),
           }
         : {}),
-    });
+    };
+    const requestOptions = {
+      ...(options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+    };
+    const response =
+      Object.keys(requestOptions).length > 0
+        ? await this.getClient().chat.completions.create(request, requestOptions)
+        : await this.getClient().chat.completions.create(request);
     const latencyMs = Date.now() - start;
 
     const text = response.choices[0]?.message?.content ?? '';

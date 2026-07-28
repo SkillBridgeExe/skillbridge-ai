@@ -11,13 +11,16 @@ export function composeLearningCandidates(
   composer: RoadmapComposerService,
   candidates: LearningCandidateSkill[],
   languagePref: 'vi' | 'en' | 'both',
+  budget: { available_days: number; hours_per_week: number },
 ): ComposedRoadmap {
   const { learnItems, gapItems } = toComposerInputs(candidates);
   return composer.compose({
     learnItems,
     gapItems,
-    budget: { available_days: 365, hours_per_week: 168 },
+    budget,
     languagePref,
+    strictResourceLanguage: 'en',
+    includeNotFeasibleSteps: true,
   });
 }
 

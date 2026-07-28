@@ -43,6 +43,18 @@ export const configValidationSchema = Joi.object({
     .valid(...INTERVIEW_VOICES)
     .default('marin'),
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),
+  LEARNING_CONTENT_AI_ENABLED: Joi.boolean().default(false),
+  LEARNING_CONTENT_AI_MODEL: Joi.string().allow('').default(''),
+  LEARNING_TRANSLATION_LIBRE_URL: Joi.string().uri().allow('').default(''),
+  LEARNING_TRANSLATION_LIBRE_API_KEY: Joi.string().allow('').default(''),
+  LEARNING_TRANSLATION_TIMEOUT_MS: Joi.number().integer().min(500).max(15000).default(5000),
+  LEARNING_TRANSLATION_GOOGLE_ENABLED: Joi.boolean().default(false),
+  LEARNING_TRANSLATION_GOOGLE_PROJECT_ID: Joi.string().allow('').default(''),
+  LIBRETRANSLATE_URL: Joi.string().uri().allow('').optional(),
+  LIBRETRANSLATE_API_KEY: Joi.string().allow('').optional(),
+  LIBRETRANSLATE_TIMEOUT_MS: Joi.number().integer().min(500).max(15000).optional(),
+  GOOGLE_TRANSLATE_ENABLED: Joi.boolean().optional(),
+  GOOGLE_CLOUD_PROJECT_ID: Joi.string().allow('').optional(),
 
   // Database
   DATABASE_URL: Joi.string()

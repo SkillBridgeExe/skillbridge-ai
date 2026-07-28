@@ -10,6 +10,7 @@ describe('LearningRoadmapQueryService', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     expect(typeof (service as unknown as { archiveActive?: unknown }).archiveActive).toBe(
@@ -24,6 +25,7 @@ describe('LearningRoadmapQueryService', () => {
     };
     const service = new LearningRoadmapQueryService(
       roadmaps as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -48,6 +50,14 @@ describe('LearningRoadmapQueryService', () => {
         targetRole: 'frontend_developer',
         targetLevel: 'fresher',
         revision: 3,
+        draftConfig: {
+          cadence: {
+            timezone: 'Asia/Ho_Chi_Minh',
+            start_date: '2026-07-20',
+            study_days_per_week: 3,
+            session_minutes: 60,
+          },
+        },
       }),
     };
     const versions = {
@@ -56,6 +66,13 @@ describe('LearningRoadmapQueryService', () => {
         versionNo: 1,
         resourceCatalogVersion: 'catalog-v1',
         contentVersion: 'content-v1',
+        inputSnapshot: {
+          generated_plan: {
+            learning_track: 'FOUNDATION',
+            content_source: 'AI_ENHANCED',
+            coverage_percentage: 75,
+          },
+        },
         createdAt: new Date('2026-07-21T00:00:00.000Z'),
       }),
     };
@@ -88,7 +105,7 @@ describe('LearningRoadmapQueryService', () => {
           title: 'TypeScript · Session 2',
           durationMinutes: 60,
           requiredTasks: [],
-          scheduledStartAt: new Date('2026-08-03T12:00:00.000Z'),
+          scheduledStartAt: new Date('2026-07-20T12:00:00.000Z'),
         },
         {
           id: 'session-1',
@@ -101,11 +118,20 @@ describe('LearningRoadmapQueryService', () => {
         },
       ]),
     };
+    const progress = {
+      find: jest.fn().mockResolvedValue([
+        {
+          sessionId: 'session-1',
+          checkedChecklistItems: { __session: ['completed'] },
+        },
+      ]),
+    };
     const service = new LearningRoadmapQueryService(
       roadmaps as unknown as Repository<LearningRoadmapEntity>,
       versions as never,
       modules as never,
       sessions as never,
+      progress as never,
     );
 
     const result = await service.getActive('user-1', 'roadmap-1');
@@ -118,7 +144,24 @@ describe('LearningRoadmapQueryService', () => {
       'session-1',
       'session-2',
     ]);
+    expect(result.modules[0].sessions.map((session) => session.status)).toEqual([
+      'COMPLETED',
+      'AVAILABLE',
+    ]);
     expect(result.modules[1].sessions).toEqual([]);
+    expect(result).toEqual(
+      expect.objectContaining({
+        learning_track: 'FOUNDATION',
+        content_source: 'AI_ENHANCED',
+        coverage_percentage: 75,
+        projection: expect.objectContaining({
+          total_units: 2,
+          completed_units: 1,
+          estimated_completion_date: '2026-07-27',
+        }),
+      }),
+    );
+    expect(progress.find).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose an unowned or inactive roadmap', async () => {
@@ -127,10 +170,46 @@ describe('LearningRoadmapQueryService', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await expect(service.getActive('user-2', 'roadmap-1')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('resolves the current active roadmap without requiring the client to list drafts first', async () => {
+    const service = new LearningRoadmapQueryService(
+      {
+        findOne: jest.fn().mockResolvedValue({
+          id: 'roadmap-active',
+          activeVersionId: 'version-active',
+        }),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const getActive = jest
+      .spyOn(service, 'getActive')
+      .mockResolvedValue({ id: 'roadmap-active' } as never);
+
+    await expect(service.getCurrentActive('user-1')).resolves.toEqual({
+      id: 'roadmap-active',
+    });
+    expect(getActive).toHaveBeenCalledWith('user-1', 'roadmap-active');
+  });
+
+  it('returns null when the learner does not have an active roadmap', async () => {
+    const service = new LearningRoadmapQueryService(
+      { findOne: jest.fn().mockResolvedValue(null) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await expect(service.getCurrentActive('user-1')).resolves.toBeNull();
   });
 });

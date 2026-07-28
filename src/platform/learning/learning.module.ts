@@ -15,7 +15,11 @@ import { CvEntity } from '../../database/entities/cv.entity';
 import { ChatService } from '../../modules/learning-chat/learning-chat.service';
 import { RoadmapModule } from '../../modules/roadmap/roadmap.module';
 import { CvMatchesModule } from '../cv-matches/cv-matches.module';
-import { LearningChatController, LearningSessionProgressController } from './learning.controller';
+import {
+  LearningChatController,
+  LearningDisplayController,
+  LearningSessionProgressController,
+} from './learning.controller';
 import { LearningChatPlatformService } from './learning-chat-platform.service';
 import { LearningSessionProgressService } from './session-progress.service';
 import { LearningRoadmapsController } from './roadmaps.controller';
@@ -23,6 +27,10 @@ import { LearningRoadmapDraftService } from './roadmap-draft.service';
 import { LearningRoadmapGenerationService } from './roadmap-generation.service';
 import { BillingModule } from '../billing/billing.module';
 import { LearningRoadmapQueryService } from './roadmap-query.service';
+import { LearningSessionCompletionService } from './session-completion.service';
+import { LearningContentEnhancer } from './learning-content-enhancer';
+import { LearningRoadmapRescheduleService } from './roadmap-reschedule.service';
+import { LearningDisplayTranslationService } from './learning-display-translation.service';
 
 @Module({
   imports: [
@@ -47,6 +55,7 @@ import { LearningRoadmapQueryService } from './roadmap-query.service';
   controllers: [
     LearningChatController,
     LearningSessionProgressController,
+    LearningDisplayController,
     LearningRoadmapsController,
   ],
   providers: [
@@ -56,6 +65,10 @@ import { LearningRoadmapQueryService } from './roadmap-query.service';
     LearningRoadmapDraftService,
     LearningRoadmapGenerationService,
     LearningRoadmapQueryService,
+    LearningSessionCompletionService,
+    LearningContentEnhancer,
+    LearningRoadmapRescheduleService,
+    LearningDisplayTranslationService,
   ],
 })
 export class LearningModule {}

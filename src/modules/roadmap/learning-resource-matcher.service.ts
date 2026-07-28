@@ -55,7 +55,12 @@ export class LearningResourceMatcherService implements OnModuleInit {
 
   matchResources(
     requests: ResourceMatchRequest[],
-    opts?: { sourceTypes?: ResourceSourceType[]; langPref?: LanguagePref },
+    opts?: {
+      sourceTypes?: ResourceSourceType[];
+      langPref?: LanguagePref;
+      requiredLanguage?: 'vi' | 'en';
+      verifiedOnly?: boolean;
+    },
   ): LearningResourceMatchResult {
     return matchResources(this.catalog, requests, opts);
   }
