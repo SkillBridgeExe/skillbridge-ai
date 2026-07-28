@@ -6,6 +6,7 @@ import { MentorBookingEntity } from '../../../database/entities/mentor-booking.e
 import { MentorAvailabilitySlotEntity } from '../../../database/entities/mentor-availability-slot.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
+import { VoucherRedemptionEntity } from '../../../database/entities/voucher-redemption.entity';
 import { addMonths } from '../entitlements.service';
 import { VerifiedPaymentWebhook } from '../payment-providers/payment-provider.port';
 
@@ -28,12 +29,21 @@ export class BillingSettlementService {
       const subscriptions = manager.getRepository(UserSubscriptionEntity);
       const mentorBookings = manager.getRepository(MentorBookingEntity);
       const mentorSlots = manager.getRepository(MentorAvailabilitySlotEntity);
+      const voucherRedemptions = manager.getRepository(VoucherRedemptionEntity);
       const order = await orders.findOne({
         where: { provider: payment.provider, orderCode: String(payment.orderCode) },
         lock: { mode: 'pessimistic_write' },
       });
       if (!order) return { processed: true };
-      await this.markOrderPaid(order, payment, orders, subscriptions, mentorBookings, mentorSlots);
+      await this.markOrderPaid(
+        order,
+        payment,
+        orders,
+        subscriptions,
+        mentorBookings,
+        mentorSlots,
+        voucherRedemptions,
+      );
       return { processed: true };
     });
   }
@@ -45,6 +55,7 @@ export class BillingSettlementService {
     subscriptions: Repository<UserSubscriptionEntity>,
     mentorBookings: Repository<MentorBookingEntity>,
     mentorSlots: Repository<MentorAvailabilitySlotEntity>,
+    voucherRedemptions: Repository<VoucherRedemptionEntity>,
   ): Promise<void> {
     if (order.status === 'PAID') return;
     this.assertPaymentMatchesOrder(order, payment);
@@ -53,6 +64,10 @@ export class BillingSettlementService {
 
     if (order.purpose === 'SUBSCRIPTION') {
       await this.activateSubscription(order, subscriptions);
+      await voucherRedemptions.update(
+        { paymentOrderId: order.id, status: 'RESERVED' },
+        { status: 'REDEEMED', redeemedAt: new Date() },
+      );
     } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
       await this.updateMentorBookingAfterPayment(order, mentorBookings, mentorSlots);
     }

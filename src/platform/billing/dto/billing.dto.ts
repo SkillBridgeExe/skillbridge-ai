@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
 import {
   BillingFeatureKey,
   BillingFeaturePeriod,
@@ -12,6 +13,23 @@ export class CreateCheckoutDto {
   @IsOptional()
   @IsString()
   planCode?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,64}$/)
+  voucherCode?: string;
+}
+
+export class ValidateVoucherDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  planCode!: string;
+
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,64}$/)
+  voucherCode!: string;
 }
 
 export interface PlanFeatureDto {
@@ -39,6 +57,16 @@ export interface CheckoutResponseDto {
   qrCode: string | null;
   paymentLinkId: string | null;
   expiresAt: string | null;
+  pricing: CheckoutPricingDto;
+}
+
+export interface CheckoutPricingDto {
+  originalAmountVnd: number;
+  discountPercent: number;
+  discountAmountVnd: number;
+  finalAmountVnd: number;
+  voucherCode: string | null;
+  currency: string;
 }
 
 export interface OrderStatusResponseDto {
@@ -54,6 +82,7 @@ export interface OrderStatusResponseDto {
   targetId: string | null;
   paidAt: string | null;
   createdAt: string;
+  pricing: CheckoutPricingDto;
 }
 
 export interface EntitlementFeatureDto {

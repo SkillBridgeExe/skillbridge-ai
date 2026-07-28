@@ -70,6 +70,25 @@ export class EntitlementsService {
     }
   }
 
+  async assertFeatureIncluded(userId: string, featureKey: BillingFeatureKey): Promise<void> {
+    const subscription = await this.findActiveSubscription(userId);
+    const planCode = subscription?.planCode ?? BillingPlanCode.FREE;
+    const feature = await this.features.findOne({ where: { planCode, featureKey } });
+    if (!feature || feature.limitValue === 0) {
+      throw new HttpException(
+        {
+          errorCode: ERROR_CODES.FEATURE_NOT_INCLUDED,
+          message: 'This feature is not included in your current plan.',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+  }
+
+  async getPlanCode(userId: string): Promise<string> {
+    return (await this.findActiveSubscription(userId))?.planCode ?? BillingPlanCode.FREE;
+  }
+
   /**
    * @deprecated The assertCanUse→recordUsage pair is racy (TOCTOU): two concurrent requests at
    * `limit-1` both pass the assert and both record, exceeding the limit. New/updated flows must
@@ -190,7 +209,7 @@ export class EntitlementsService {
   async getCurrentEntitlements(userId: string): Promise<SubscriptionResponseDto> {
     const subscription = await this.findActiveSubscription(userId);
     const planCode = subscription?.planCode ?? BillingPlanCode.FREE;
-    const plan = await this.plans.findOne({ where: { code: planCode, isActive: true } });
+    const plan = await this.plans.findOne({ where: { code: planCode } });
     const currentPeriodStart = subscription?.currentPeriodStart ?? startOfCurrentMonthIct();
     const currentPeriodEnd = subscription?.currentPeriodEnd ?? addMonths(currentPeriodStart, 1);
     const features = await this.features.find({ where: { planCode } });
@@ -207,7 +226,7 @@ export class EntitlementsService {
     }
 
     return {
-      planCode: plan?.code ?? BillingPlanCode.FREE,
+      planCode: subscription?.planCode ?? plan?.code ?? BillingPlanCode.FREE,
       status: subscription?.status ?? BillingPlanCode.FREE,
       currentPeriodStart: currentPeriodStart.toISOString(),
       currentPeriodEnd: currentPeriodEnd.toISOString(),

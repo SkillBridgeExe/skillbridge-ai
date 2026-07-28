@@ -14,6 +14,7 @@ import { BillingService } from './billing.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
+import { VoucherService } from './voucher.service';
 
 type RepoMock<T extends object> = Pick<Repository<T>, 'find' | 'findOne' | 'save'> & {
   find: jest.Mock;
@@ -52,6 +53,9 @@ describe('BillingService reconcileOrder', () => {
     const settlement = {
       settlePaidPayment: jest.fn().mockResolvedValue({ processed: true }),
     } as unknown as BillingSettlementService;
+    const vouchers = {
+      releaseByOrder: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<VoucherService>;
     const service = new BillingService(
       plans as unknown as Repository<BillingPlanEntity>,
       features as unknown as Repository<PlanFeatureEntity>,
@@ -61,8 +65,9 @@ describe('BillingService reconcileOrder', () => {
       webhooks,
       providers,
       settlement,
+      vouchers,
     ) as BillingService;
-    return { service, plans, features, orders, provider, settlement };
+    return { service, plans, features, orders, provider, settlement, vouchers };
   }
 
   it('hides internal billing plans from the public plan list', async () => {
@@ -99,6 +104,16 @@ describe('BillingService reconcileOrder', () => {
         metadata: null,
       },
       {
+        code: BillingPlanCode.PREMIUM,
+        name: 'Premium',
+        description: 'Monthly premium plan',
+        category: 'SUBSCRIPTION',
+        interval: 'MONTHLY',
+        priceVnd: 199000,
+        currency: 'VND',
+        metadata: null,
+      },
+      {
         code: 'MENTOR_60',
         name: 'Mentor 60 minutes',
         description: 'One mentor session package',
@@ -128,11 +143,20 @@ describe('BillingService reconcileOrder', () => {
         limitValue: 30,
         period: BillingFeaturePeriod.MONTHLY,
       },
+      {
+        planCode: BillingPlanCode.PREMIUM,
+        featureKey: BillingFeatureKey.CV_REVIEW,
+        limitValue: 80,
+        period: BillingFeaturePeriod.MONTHLY,
+      },
     ]);
 
     const result = await service.listPlans();
 
-    expect(result.map((plan) => plan.code)).toEqual([BillingPlanCode.FREE, BillingPlanCode.PRO]);
+    expect(result.map((plan) => plan.code)).toEqual([
+      BillingPlanCode.FREE,
+      BillingPlanCode.PREMIUM,
+    ]);
     expect(result).toEqual([
       expect.objectContaining({
         code: BillingPlanCode.FREE,
@@ -145,11 +169,11 @@ describe('BillingService reconcileOrder', () => {
         ],
       }),
       expect.objectContaining({
-        code: BillingPlanCode.PRO,
+        code: BillingPlanCode.PREMIUM,
         features: [
           {
             featureKey: BillingFeatureKey.CV_REVIEW,
-            limit: 30,
+            limit: 80,
             period: BillingFeaturePeriod.MONTHLY,
           },
         ],
@@ -239,7 +263,7 @@ describe('BillingService reconcileOrder', () => {
   });
 
   it('syncs a provider cancelled status without granting entitlements', async () => {
-    const { service, orders, provider, settlement } = setup();
+    const { service, orders, provider, settlement, vouchers } = setup();
     const pendingOrder = {
       id: 'order-1',
       userId: 'user-1',
@@ -273,6 +297,7 @@ describe('BillingService reconcileOrder', () => {
 
     expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
     expect(orders.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'CANCELLED' }));
+    expect(vouchers.releaseByOrder).toHaveBeenCalledWith('order-1');
     expect(result).toEqual(expect.objectContaining({ orderCode: 123, status: 'CANCELLED' }));
   });
 });

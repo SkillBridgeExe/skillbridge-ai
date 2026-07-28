@@ -8,6 +8,7 @@ export interface PaymentCheckoutRequest {
   amountVnd: number;
   description: string;
   itemName: string;
+  expiresAt: Date;
 }
 
 export interface PaymentCheckoutResult {

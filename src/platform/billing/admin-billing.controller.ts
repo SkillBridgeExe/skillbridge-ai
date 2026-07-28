@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminVoucherService } from './admin-voucher.service';
 import {
   AdminListMentorBookingsQueryDto,
   AdminListOrdersQueryDto,
@@ -14,6 +15,9 @@ import {
   UpdateAdminBillingPlanDto,
   UpdateAdminMentorBookingRefundDto,
   UpdateAdminPlanFeatureDto,
+  AdminListVouchersQueryDto,
+  CreateAdminVoucherDto,
+  UpdateAdminVoucherDto,
 } from './dto/admin-billing.dto';
 
 @ApiTags('Admin Billing')
@@ -22,7 +26,10 @@ import {
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles('ADMIN')
 export class AdminBillingController {
-  constructor(private readonly billing: AdminBillingService) {}
+  constructor(
+    private readonly billing: AdminBillingService,
+    private readonly vouchers: AdminVoucherService,
+  ) {}
 
   @Get('plans')
   @ApiOperation({ summary: 'Admin list billing plans, optionally including inactive plans' })
@@ -62,6 +69,24 @@ export class AdminBillingController {
     @Body() dto: UpdateAdminPlanFeatureDto,
   ) {
     return this.billing.updatePlanFeature(code, featureKey, dto);
+  }
+
+  @Get('vouchers')
+  @ApiOperation({ summary: 'Admin list vouchers and usage counters' })
+  listVouchers(@Query() query: AdminListVouchersQueryDto) {
+    return this.vouchers.list(query);
+  }
+
+  @Post('vouchers')
+  @ApiOperation({ summary: 'Admin create a Premium voucher' })
+  createVoucher(@Body() dto: CreateAdminVoucherDto) {
+    return this.vouchers.create(dto);
+  }
+
+  @Patch('vouchers/:id')
+  @ApiOperation({ summary: 'Admin update or toggle a voucher' })
+  updateVoucher(@Param('id') id: string, @Body() dto: UpdateAdminVoucherDto) {
+    return this.vouchers.update(id, dto);
   }
 
   @Get('orders')

@@ -4,6 +4,7 @@ import { MentorBookingEntity } from '../../../database/entities/mentor-booking.e
 import { MentorAvailabilitySlotEntity } from '../../../database/entities/mentor-availability-slot.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
+import { VoucherRedemptionEntity } from '../../../database/entities/voucher-redemption.entity';
 import { BillingSettlementService } from './billing-settlement.service';
 
 type RepoMock<T extends object> = Pick<Repository<T>, 'create' | 'findOne' | 'save' | 'update'> & {
@@ -27,11 +28,13 @@ function setup() {
   const subscriptions = repo<UserSubscriptionEntity>();
   const mentorBookings = repo<MentorBookingEntity>();
   const mentorSlots = repo<MentorAvailabilitySlotEntity>();
+  const voucherRedemptions = repo<VoucherRedemptionEntity>();
   const repos = new Map<EntityTarget<unknown>, unknown>([
     [PaymentOrderEntity, orders],
     [UserSubscriptionEntity, subscriptions],
     [MentorBookingEntity, mentorBookings],
     [MentorAvailabilitySlotEntity, mentorSlots],
+    [VoucherRedemptionEntity, voucherRedemptions],
   ]);
   const manager = {
     getRepository: jest.fn((entity: EntityTarget<unknown>) => repos.get(entity)),
@@ -48,12 +51,20 @@ function setup() {
     mentorSlots as unknown as Repository<MentorAvailabilitySlotEntity>,
     dataSource,
   );
-  return { service, orders, subscriptions, mentorBookings, mentorSlots, dataSource };
+  return {
+    service,
+    orders,
+    subscriptions,
+    mentorBookings,
+    mentorSlots,
+    voucherRedemptions,
+    dataSource,
+  };
 }
 
 describe('BillingSettlementService', () => {
   it('settles a paid subscription inside a transaction after validating amount and payment link', async () => {
-    const { service, orders, subscriptions, dataSource } = setup();
+    const { service, orders, subscriptions, voucherRedemptions, dataSource } = setup();
     const order = {
       id: 'order-1',
       userId: 'user-1',
@@ -98,6 +109,10 @@ describe('BillingSettlementService', () => {
     );
     expect(orders.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'PAID', paidAt: expect.any(Date) }),
+    );
+    expect(voucherRedemptions.update).toHaveBeenCalledWith(
+      { paymentOrderId: 'order-1', status: 'RESERVED' },
+      { status: 'REDEEMED', redeemedAt: expect.any(Date) },
     );
   });
 

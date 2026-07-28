@@ -474,6 +474,14 @@ export class MentorBookingsService {
       qrCode: order.qrCode,
       paymentLinkId: order.paymentLinkId,
       expiresAt: order.expiresAt?.toISOString() ?? null,
+      pricing: {
+        originalAmountVnd: order.originalAmountVnd ?? order.amountVnd,
+        discountPercent: order.discountPercent ?? 0,
+        discountAmountVnd: order.discountAmountVnd ?? 0,
+        finalAmountVnd: order.amountVnd,
+        voucherCode: order.voucherCode ?? null,
+        currency: order.currency,
+      },
     };
   }
 }

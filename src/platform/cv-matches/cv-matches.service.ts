@@ -163,7 +163,12 @@ export class CvMatchesService {
     // Atomic charge-first reserve (race-free); refunded below if the match fails — including the
     // deterministic OFF-TOPIC reject inside matcher.match, so a rejected non-JD stays free (the
     // pending product decision on charging junk input is unchanged by this refactor).
-    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_JD_MATCH);
+    const planCode = await this.entitlements.getPlanCode(userId);
+    const matchFeature =
+      planCode === 'FREE' || planCode === 'PREMIUM'
+        ? BillingFeatureKey.CV_REVIEW
+        : BillingFeatureKey.CV_JD_MATCH;
+    const usage = await this.entitlements.reserveUsage(userId, matchFeature);
     try {
       const targetRole = this.trimOrNull(dto.targetRole) ?? this.trimOrNull(cv.targetRole);
       const jd = await this.jobDescriptions.save(

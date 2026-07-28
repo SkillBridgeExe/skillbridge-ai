@@ -4,6 +4,7 @@ import { BillingPlanEntity } from '../../../database/entities/billing-plan.entit
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { PaymentProviderRegistry } from '../payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './billing-checkout.service';
+import { VoucherService } from '../voucher.service';
 
 type RepoMock<T extends object> = Pick<Repository<T>, 'create' | 'exist' | 'findOne' | 'save'> & {
   create: jest.Mock;
@@ -40,13 +41,27 @@ describe('BillingCheckoutService', () => {
       activeProviderCode: jest.fn().mockReturnValue('PAYOS'),
       get: jest.fn().mockReturnValue(provider),
     } as unknown as PaymentProviderRegistry;
+    const vouchers = {
+      reserve: jest.fn().mockResolvedValue({
+        redemptionId: 'redemption-1',
+        voucherId: 'voucher-1',
+        voucherCode: 'SKILLBRIDGE10',
+        originalAmountVnd: 199000,
+        discountPercent: 10,
+        discountAmountVnd: 19900,
+        finalAmountVnd: 179100,
+      }),
+      attachOrder: jest.fn().mockResolvedValue(undefined),
+      releaseReservation: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<VoucherService>;
 
     const service = new BillingCheckoutService(
       plans as unknown as Repository<BillingPlanEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
       registry,
+      vouchers,
     );
-    return { service, plans, orders, provider, registry };
+    return { service, plans, orders, provider, registry, vouchers };
   }
 
   it('creates a subscription checkout through the active provider abstraction', async () => {
@@ -87,6 +102,51 @@ describe('BillingCheckoutService', () => {
       service.createCheckout('user-1', { purpose: 'SUBSCRIPTION', planCode: 'FREE' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(provider.createPaymentLink).not.toHaveBeenCalled();
+  });
+
+  it('reserves a voucher and sends the discounted amount to the provider', async () => {
+    const { service, plans, orders, provider, vouchers } = setup();
+    plans.findOne.mockResolvedValue({
+      code: 'PREMIUM',
+      name: 'Premium',
+      category: 'SUBSCRIPTION',
+      priceVnd: 199000,
+      currency: 'VND',
+    });
+    orders.save.mockImplementation((input) => Promise.resolve({ id: 'order-1', ...input }));
+
+    const result = await service.createCheckout('user-1', {
+      purpose: 'SUBSCRIPTION',
+      planCode: 'PREMIUM',
+      voucherCode: 'SKILLBRIDGE10',
+    });
+
+    expect(vouchers.reserve).toHaveBeenCalledWith(
+      'user-1',
+      { planCode: 'PREMIUM', voucherCode: 'SKILLBRIDGE10' },
+      expect.any(Date),
+    );
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        originalAmountVnd: 199000,
+        discountPercent: 10,
+        discountAmountVnd: 19900,
+        amountVnd: 179100,
+        voucherId: 'voucher-1',
+        voucherCode: 'SKILLBRIDGE10',
+      }),
+    );
+    expect(provider.createPaymentLink).toHaveBeenCalledWith(
+      expect.objectContaining({ amountVnd: 179100, expiresAt: expect.any(Date) }),
+    );
+    expect(result.pricing).toEqual({
+      originalAmountVnd: 199000,
+      discountPercent: 10,
+      discountAmountVnd: 19900,
+      finalAmountVnd: 179100,
+      voucherCode: 'SKILLBRIDGE10',
+      currency: 'VND',
+    });
   });
 
   it('creates a full mentor booking checkout through the active provider abstraction', async () => {

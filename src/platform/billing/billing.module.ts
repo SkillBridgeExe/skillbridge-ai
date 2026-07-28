@@ -9,6 +9,8 @@ import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UsageEventEntity } from '../../database/entities/usage-event.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
+import { VoucherEntity } from '../../database/entities/voucher.entity';
+import { VoucherRedemptionEntity } from '../../database/entities/voucher-redemption.entity';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from './admin-billing.service';
@@ -21,6 +23,8 @@ import { PayosPaymentProvider } from './payment-providers/payos-payment.provider
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
+import { VoucherService } from './voucher.service';
+import { AdminVoucherService } from './admin-voucher.service';
 
 @Module({
   imports: [
@@ -34,6 +38,8 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
       MentorBookingEntity,
       MentorAvailabilitySlotEntity,
       UserEntity,
+      VoucherEntity,
+      VoucherRedemptionEntity,
     ]),
   ],
   controllers: [BillingController, AdminBillingController, MeEntitlementsController],
@@ -52,6 +58,8 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
     PaymentProviderRegistry,
     EntitlementsService,
     RolesGuard,
+    VoucherService,
+    AdminVoucherService,
   ],
   exports: [EntitlementsService, BillingCheckoutService],
 })

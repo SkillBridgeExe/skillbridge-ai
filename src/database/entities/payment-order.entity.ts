@@ -34,6 +34,22 @@ export class PaymentOrderEntity {
   @Column({ type: 'integer', name: 'amount_vnd' })
   amountVnd!: number;
 
+  @Column({ type: 'integer', name: 'original_amount_vnd' })
+  originalAmountVnd!: number;
+
+  @Column({ type: 'smallint', name: 'discount_percent', default: 0 })
+  discountPercent!: number;
+
+  @Column({ type: 'integer', name: 'discount_amount_vnd', default: 0 })
+  discountAmountVnd!: number;
+
+  @Index()
+  @Column('uuid', { name: 'voucher_id', nullable: true })
+  voucherId!: string | null;
+
+  @Column({ type: 'varchar', name: 'voucher_code', nullable: true })
+  voucherCode!: string | null;
+
   @Column({ type: 'varchar', default: 'VND' })
   currency!: string;
 

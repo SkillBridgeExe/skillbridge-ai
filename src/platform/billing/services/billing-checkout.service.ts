@@ -7,6 +7,9 @@ import { PaymentOrderEntity } from '../../../database/entities/payment-order.ent
 import { CheckoutResponseDto, CreateCheckoutDto } from '../dto/billing.dto';
 import { generatePayosOrderCode } from '../order-code.util';
 import { PaymentProviderRegistry } from '../payment-providers/payment-provider.registry';
+import { VoucherService } from '../voucher.service';
+
+const CHECKOUT_TTL_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class BillingCheckoutService {
@@ -14,6 +17,7 @@ export class BillingCheckoutService {
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     @InjectRepository(PaymentOrderEntity) private readonly orders: Repository<PaymentOrderEntity>,
     private readonly providers: PaymentProviderRegistry,
+    private readonly vouchers: VoucherService,
   ) {}
 
   async createCheckout(userId: string, dto: CreateCheckoutDto): Promise<CheckoutResponseDto> {
@@ -39,15 +43,35 @@ export class BillingCheckoutService {
         message: 'Free plan does not require checkout',
       });
     }
-    const order = await this.createPendingOrder({
-      userId,
-      amountVnd: plan.priceVnd,
-      purpose: 'SUBSCRIPTION',
-      targetType: 'SUBSCRIPTION',
-      targetId: null,
-      planCode: plan.code,
-    });
-    return this.createProviderLink(order, plan.name);
+    const expiresAt = new Date(Date.now() + CHECKOUT_TTL_MS);
+    const reservation = dto.voucherCode
+      ? await this.vouchers.reserve(
+          userId,
+          { planCode: plan.code, voucherCode: dto.voucherCode },
+          expiresAt,
+        )
+      : null;
+    try {
+      const order = await this.createPendingOrder({
+        userId,
+        amountVnd: reservation?.finalAmountVnd ?? plan.priceVnd,
+        originalAmountVnd: reservation?.originalAmountVnd ?? plan.priceVnd,
+        discountPercent: reservation?.discountPercent ?? 0,
+        discountAmountVnd: reservation?.discountAmountVnd ?? 0,
+        voucherId: reservation?.voucherId ?? null,
+        voucherCode: reservation?.voucherCode ?? null,
+        purpose: 'SUBSCRIPTION',
+        targetType: 'SUBSCRIPTION',
+        targetId: null,
+        planCode: plan.code,
+        expiresAt,
+      });
+      if (reservation) await this.vouchers.attachOrder(reservation.redemptionId, order.id);
+      return await this.createProviderLink(order, plan.name, expiresAt);
+    } catch (error) {
+      if (reservation) await this.vouchers.releaseReservation(reservation.redemptionId);
+      throw error;
+    }
   }
 
   async createMentorBookingCheckout(
@@ -61,8 +85,14 @@ export class BillingCheckoutService {
       targetId: input.bookingId,
       planCode: null,
       currency: input.currency,
+      originalAmountVnd: input.amountVnd,
+      discountPercent: 0,
+      discountAmountVnd: 0,
+      voucherId: null,
+      voucherCode: null,
+      expiresAt: new Date(Date.now() + CHECKOUT_TTL_MS),
     });
-    return this.createProviderLink(order, 'Mentor session');
+    return this.createProviderLink(order, 'Mentor session', order.expiresAt!);
   }
 
   private async requirePlan(
@@ -83,11 +113,17 @@ export class BillingCheckoutService {
   private async createPendingOrder(input: {
     userId: string;
     amountVnd: number;
+    originalAmountVnd: number;
+    discountPercent: number;
+    discountAmountVnd: number;
+    voucherId: string | null;
+    voucherCode: string | null;
     purpose: PaymentOrderEntity['purpose'];
     targetType: PaymentOrderEntity['targetType'];
     targetId: string | null;
     planCode: string | null;
     currency?: string;
+    expiresAt: Date;
   }): Promise<PaymentOrderEntity> {
     const provider = this.providers.activeProviderCode();
     for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -102,6 +138,7 @@ export class BillingCheckoutService {
           currency: input.currency ?? 'VND',
           status: 'PENDING',
           description: `SB${orderCode}`,
+          expiresAt: input.expiresAt,
         }),
       );
     }
@@ -111,6 +148,7 @@ export class BillingCheckoutService {
   private async createProviderLink(
     order: PaymentOrderEntity,
     itemName: string,
+    expiresAt: Date,
   ): Promise<CheckoutResponseDto> {
     const provider = this.providers.get(order.provider);
     const link = await provider
@@ -119,6 +157,7 @@ export class BillingCheckoutService {
         amountVnd: order.amountVnd,
         description: order.description,
         itemName,
+        expiresAt,
       })
       .catch(async (error) => {
         order.status = 'FAILED';
@@ -129,7 +168,7 @@ export class BillingCheckoutService {
     order.paymentLinkId = link.paymentLinkId;
     order.qrCode = link.qrCode;
     order.providerPayload = link.providerPayload;
-    order.expiresAt = link.expiresAt;
+    order.expiresAt = link.expiresAt ?? expiresAt;
     const saved = await this.orders.save(order);
     return {
       orderId: saved.id,
@@ -139,6 +178,14 @@ export class BillingCheckoutService {
       qrCode: saved.qrCode,
       paymentLinkId: saved.paymentLinkId,
       expiresAt: saved.expiresAt?.toISOString() ?? null,
+      pricing: {
+        originalAmountVnd: saved.originalAmountVnd,
+        discountPercent: saved.discountPercent,
+        discountAmountVnd: saved.discountAmountVnd,
+        finalAmountVnd: saved.amountVnd,
+        voucherCode: saved.voucherCode,
+        currency: saved.currency,
+      },
     };
   }
 }

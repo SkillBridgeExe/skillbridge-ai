@@ -36,6 +36,27 @@ function usageRepo(rows: Array<{ featureKey: string; count: string }>) {
 }
 
 describe('EntitlementsService', () => {
+  it('reports an active legacy PRO subscription even when the plan is no longer purchasable', async () => {
+    const service = new EntitlementsService(
+      repo<BillingPlanEntity>({ findOne: jest.fn().mockResolvedValue(null) }),
+      repo<PlanFeatureEntity>({ find: jest.fn().mockResolvedValue([]) }),
+      repo<UserSubscriptionEntity>({
+        findOne: jest.fn().mockResolvedValue({
+          id: 'sub-pro',
+          planCode: BillingPlanCode.PRO,
+          status: 'ACTIVE',
+          currentPeriodStart: new Date('2026-06-01T00:00:00.000Z'),
+          currentPeriodEnd: new Date('2026-07-01T00:00:00.000Z'),
+        }),
+      }),
+      usageRepo([]) as unknown as Repository<UsageEventEntity>,
+    );
+
+    const result = await service.getCurrentEntitlements('user-1');
+
+    expect(result.planCode).toBe(BillingPlanCode.PRO);
+  });
+
   it('allows usage below a positive monthly limit', async () => {
     const service = new EntitlementsService(
       repo<BillingPlanEntity>({

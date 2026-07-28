@@ -274,150 +274,155 @@ export class InterviewsService {
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
     await this.sweepStaleSessions(userId);
     const context = await this.resolveContext(userId, dto);
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.INTERVIEW_SESSION);
-    const entitlements = await this.entitlements.getCurrentEntitlements(userId);
-    const maxDurationSeconds = this.maxDurationSecondsForPlan(entitlements.planCode);
-    const startedAt = new Date();
-    const expiresAt = this.addSeconds(startedAt, maxDurationSeconds);
-    const language = dto.language ?? 'vi';
-    const mode = dto.mode ?? 'HYBRID';
-    const interviewType = dto.interviewType ?? 'TECHNICAL';
-    const questionBankItems = await this.loadQuestionBankItems(
-      context.targetRole,
-      language,
-      interviewType,
-    );
-    const agendaCriteria = {
-      language,
-      targetRole: context.targetRole,
-      interviewType,
-      seniority: context.snapshot.interviewDifficulty.level,
-    };
-    const focusAreas =
-      context.focusAreas.length > 0
-        ? context.focusAreas
-        : this.fallbackFocusAreasFromQuestionBank(
-            questionBankItems,
-            agendaCriteria,
-            context.contextMode,
-          );
-    const agenda = this.applyQuestionBankToAgenda(
-      buildInterviewAgenda({
-        focusAreas,
-        seniority: context.snapshot.interviewDifficulty.level,
-        turnBudget: this.turnBudgetForPlan(entitlements.planCode),
-      }),
-      questionBankItems,
-      agendaCriteria,
-      context.contextMode,
-    );
-    const interviewState = this.initialInterviewState(agenda);
-
-    let session = await this.sessions.save(
-      this.sessions.create({
-        userId,
-        cvId: context.cv?.id ?? null,
-        jobDescriptionId: context.jd?.id ?? null,
-        cvMatchId: context.match?.id ?? null,
-        targetRole: context.targetRole,
+    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.INTERVIEW_SESSION);
+    try {
+      const entitlements = await this.entitlements.getCurrentEntitlements(userId);
+      const maxDurationSeconds = this.maxDurationSecondsForPlan(entitlements.planCode);
+      const startedAt = new Date();
+      const expiresAt = this.addSeconds(startedAt, maxDurationSeconds);
+      const language = dto.language ?? 'vi';
+      const mode = dto.mode ?? 'HYBRID';
+      const interviewType = dto.interviewType ?? 'TECHNICAL';
+      const questionBankItems = await this.loadQuestionBankItems(
+        context.targetRole,
         language,
-        mode,
         interviewType,
-        voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
-        speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
-        status: 'IN_PROGRESS',
-        maxDurationSeconds,
-        startedAt,
-        expiresAt,
-        contextSnapshot: context.snapshot,
-        agenda,
-        interviewState,
-      }),
-    );
+      );
+      const agendaCriteria = {
+        language,
+        targetRole: context.targetRole,
+        interviewType,
+        seniority: context.snapshot.interviewDifficulty.level,
+      };
+      const focusAreas =
+        context.focusAreas.length > 0
+          ? context.focusAreas
+          : this.fallbackFocusAreasFromQuestionBank(
+              questionBankItems,
+              agendaCriteria,
+              context.contextMode,
+            );
+      const agenda = this.applyQuestionBankToAgenda(
+        buildInterviewAgenda({
+          focusAreas,
+          seniority: context.snapshot.interviewDifficulty.level,
+          turnBudget: this.turnBudgetForPlan(entitlements.planCode),
+        }),
+        questionBankItems,
+        agendaCriteria,
+        context.contextMode,
+      );
+      const interviewState = this.initialInterviewState(agenda);
 
-    let firstMessage = '';
-    let firstQuestion = '';
-    let phase: StartInterviewResponseDto['phase'] = null;
-    const firstTopic = agenda.topics[0];
-    if (!firstTopic) {
-      throw new BadRequestException({
-        errorCode: ERROR_CODES.VALIDATION_ERROR,
-        message: 'Interview agenda has no topics',
-      });
-    }
+      let session = await this.sessions.save(
+        this.sessions.create({
+          userId,
+          cvId: context.cv?.id ?? null,
+          jobDescriptionId: context.jd?.id ?? null,
+          cvMatchId: context.match?.id ?? null,
+          targetRole: context.targetRole,
+          language,
+          mode,
+          interviewType,
+          voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
+          speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
+          status: 'IN_PROGRESS',
+          maxDurationSeconds,
+          startedAt,
+          expiresAt,
+          contextSnapshot: context.snapshot,
+          agenda,
+          interviewState,
+        }),
+      );
 
-    firstMessage = this.openingInterviewerMessage(language);
-    firstQuestion = firstTopic.seed_question;
-    let openerAiRequestId: string | null = null;
-    if (this.interviewChain) {
-      // I-REAL-2: personalize the opener — ground the first question in the candidate's
-      // CV/JD topic instead of asking the raw seed. Best-effort: start must NEVER fail
-      // because the chain is down; any error falls back to the seed question.
-      try {
-        const opener = await this.interviewChain.ask(userId, {
+      let firstMessage = '';
+      let firstQuestion = '';
+      let phase: StartInterviewResponseDto['phase'] = null;
+      const firstTopic = agenda.topics[0];
+      if (!firstTopic) {
+        throw new BadRequestException({
+          errorCode: ERROR_CODES.VALIDATION_ERROR,
+          message: 'Interview agenda has no topics',
+        });
+      }
+
+      firstMessage = this.openingInterviewerMessage(language);
+      firstQuestion = firstTopic.seed_question;
+      let openerAiRequestId: string | null = null;
+      if (this.interviewChain) {
+        // I-REAL-2: personalize the opener — ground the first question in the candidate's
+        // CV/JD topic instead of asking the raw seed. Best-effort: start must NEVER fail
+        // because the chain is down; any error falls back to the seed question.
+        try {
+          const opener = await this.interviewChain.ask(userId, {
+            sessionId: session.id,
+            turnOrder: 1,
+            decision: 'opener',
+            language: this.language(language),
+            seniorityTarget: firstTopic.seniority_target,
+            currentTopic: this.topicForPrompt(firstTopic),
+            currentThread: firstTopic.what_to_probe,
+            recentQa: [],
+            runningNotes: [],
+            prevTopicOutcome: '',
+            topicPhase: firstTopic.phase,
+          });
+          if (opener.question) {
+            firstQuestion = opener.question;
+            openerAiRequestId = opener.aiRequestId;
+            if (opener.aiMessage) firstMessage = opener.aiMessage;
+          }
+        } catch (err) {
+          this.logger.warn(
+            `Opener chain call failed for session ${session.id}; using seed question: ${(err as Error).message}`,
+          );
+        }
+      }
+      await this.turns.save(
+        this.turns.create({
           sessionId: session.id,
           turnOrder: 1,
-          decision: 'opener',
-          language: this.language(language),
-          seniorityTarget: firstTopic.seniority_target,
-          currentTopic: this.topicForPrompt(firstTopic),
-          currentThread: firstTopic.what_to_probe,
-          recentQa: [],
-          runningNotes: [],
-          prevTopicOutcome: '',
+          phase: firstTopic.phase,
           topicPhase: firstTopic.phase,
-        });
-        if (opener.question) {
-          firstQuestion = opener.question;
-          openerAiRequestId = opener.aiRequestId;
-          if (opener.aiMessage) firstMessage = opener.aiMessage;
-        }
-      } catch (err) {
-        this.logger.warn(
-          `Opener chain call failed for session ${session.id}; using seed question: ${(err as Error).message}`,
-        );
-      }
+          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+          aiRequestId: openerAiRequestId,
+          interviewerMessage: firstMessage,
+          interviewerQuestion: firstQuestion,
+          currentThread: firstTopic.what_to_probe,
+          skillCanonical: firstTopic.skill_canonical,
+          questionBankItemId: firstTopic.question_bank_item_id ?? null,
+          questionBankKey: firstTopic.question_bank_key ?? null,
+          // the first question is always a fresh one — the opening budget, by definition.
+          timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
+        }),
+      );
+
+      phase = firstTopic.phase;
+      session.totalQuestionsPlanned = agenda.turn_budget;
+      const realtime = await this.createRealtimeIfNeeded(
+        userId,
+        session,
+        this.compactRealtimeContext(session),
+      );
+      session = await this.sessions.save(session);
+      await usage.confirm({
+        sourceType: 'interview_session',
+        sourceId: session.id,
+      });
+
+      return {
+        ...this.toSessionDto(session),
+        firstMessage,
+        firstQuestion,
+        phase,
+        realtime,
+        answerBudgetSeconds: answerTimeBudgetSeconds('opening'),
+      };
+    } catch (error) {
+      await usage.refund();
+      throw error;
     }
-    await this.turns.save(
-      this.turns.create({
-        sessionId: session.id,
-        turnOrder: 1,
-        phase: firstTopic.phase,
-        topicPhase: firstTopic.phase,
-        modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-        aiRequestId: openerAiRequestId,
-        interviewerMessage: firstMessage,
-        interviewerQuestion: firstQuestion,
-        currentThread: firstTopic.what_to_probe,
-        skillCanonical: firstTopic.skill_canonical,
-        questionBankItemId: firstTopic.question_bank_item_id ?? null,
-        questionBankKey: firstTopic.question_bank_key ?? null,
-        // the first question is always a fresh one — the opening budget, by definition.
-        timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
-      }),
-    );
-
-    phase = firstTopic.phase;
-    session.totalQuestionsPlanned = agenda.turn_budget;
-    const realtime = await this.createRealtimeIfNeeded(
-      userId,
-      session,
-      this.compactRealtimeContext(session),
-    );
-    session = await this.sessions.save(session);
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.INTERVIEW_SESSION, {
-      sourceType: 'interview_session',
-      sourceId: session.id,
-    });
-
-    return {
-      ...this.toSessionDto(session),
-      firstMessage,
-      firstQuestion,
-      phase,
-      realtime,
-      answerBudgetSeconds: answerTimeBudgetSeconds('opening'),
-    };
   }
 
   async answer(

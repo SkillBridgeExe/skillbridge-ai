@@ -1,16 +1,21 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
-import { CreateCheckoutDto } from './dto/billing.dto';
+import { CreateCheckoutDto, ValidateVoucherDto } from './dto/billing.dto';
+import { VoucherService } from './voucher.service';
 
 @ApiTags('Billing')
 @Public()
 @Controller('api/billing')
 export class BillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    private readonly vouchers: VoucherService,
+  ) {}
 
   @Get('plans')
   @ApiOperation({ summary: 'List active billing plans and feature limits' })
@@ -24,6 +29,15 @@ export class BillingController {
   @ApiOperation({ summary: 'Create a payOS checkout link' })
   checkout(@CurrentUser() user: JwtUser, @Body() dto: CreateCheckoutDto) {
     return this.billing.createCheckout(user.userId, dto);
+  }
+
+  @Post('vouchers/validate')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Validate a voucher and return a server-priced quote' })
+  validateVoucher(@CurrentUser() user: JwtUser, @Body() dto: ValidateVoucherDto) {
+    return this.vouchers.quote(user.userId, dto);
   }
 
   @Post('payos/webhook')

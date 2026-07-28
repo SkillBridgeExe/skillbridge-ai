@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   HttpException,
-  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,7 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { isDeepStrictEqual } from 'util';
-import { EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
@@ -24,7 +23,7 @@ import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
-import { EntitlementsService } from '../billing/entitlements.service';
+import { EntitlementsService, UsageReservation } from '../billing/entitlements.service';
 import {
   CvAssistantRewriteService,
   CvAssistantRewriteResult,
@@ -95,7 +94,6 @@ import { TextExtractorService } from './text-extractor.service';
 import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
-const MAX_REAL_UPLOADS_PER_DAY = 10;
 const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
 const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
 const CV_REVIEW_PROMPT_CODE = 'cv_review_v1';
@@ -248,18 +246,22 @@ export class CvsService {
       }
     }
 
-    await this.enforceUploadQuota(userId);
+    const uploadUsage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_UPLOAD);
     // Shared cv_review budget for a real upload. Generated PDFs enforce this in their branch only
     // on a cache miss; the reserve stays before storage/row writes so a reject leaves no orphan.
     // Charge-first: refunded in the catch below if extract/review fails.
-    const usage = await this.analysisQuota.reserveAnalysis(userId);
-
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
     const targetRole = this.normalizeTargetRole(dto.targetRole);
     let cvSaved = false;
+    let usage: UsageReservation | null = null;
 
     try {
+      try {
+        usage = await this.analysisQuota.reserveAnalysis(userId);
+      } catch (error) {
+        if (!this.isReviewQuotaUnavailable(error)) throw error;
+      }
       await this.storage.upload({
         key: objectKey,
         body: file.buffer,
@@ -285,13 +287,20 @@ export class CvsService {
       cvSaved = true;
       await this.recordConsentAudit(userId, cv.id);
 
+      if (!usage) {
+        await uploadUsage.confirm({ sourceType: 'cv', sourceId: cv.id });
+        return this.toResponse(cv, [], null);
+      }
+
       const review = await this.reviewCv(userId, cv, targetRole ?? undefined, dto.lang);
       cv = review.cv;
-      await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
+      await usage.confirm({ sourceType: 'cv', sourceId: cv.id });
+      await uploadUsage.confirm({ sourceType: 'cv', sourceId: cv.id });
 
       return this.toResponse(cv, review.skills, review.parsed);
     } catch (error) {
       await usage?.refund();
+      await uploadUsage.refund();
       if (!cvSaved) await this.storage.delete(objectKey).catch(() => undefined);
       throw error;
     }
@@ -477,35 +486,35 @@ export class CvsService {
       });
     }
 
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_CREATE);
+    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_CREATE);
+    try {
+      const language = dto.language ?? source?.language ?? source?.parsedJson?.language ?? 'en';
+      const parsedJson = source?.parsedJson
+        ? this.cloneDocument(source.parsedJson)
+        : emptyCanonicalCv(language);
 
-    const language = dto.language ?? source?.language ?? source?.parsedJson?.language ?? 'en';
-    const parsedJson = source?.parsedJson
-      ? this.cloneDocument(source.parsedJson)
-      : emptyCanonicalCv(language);
-
-    const cv = await this.cvs.save(
-      this.cvs.create({
-        userId,
-        title: dto.title?.trim() || this.defaultBuilderTitle(source),
-        originalFileName: null,
-        fileType: null,
-        fileSize: null,
-        fileUrl: null,
-        parsedText: null,
-        parsedJson,
-        cvKind: 'BUILT',
-        language,
-        targetRole: this.normalizeTargetRole(dto.targetRole ?? source?.targetRole ?? undefined),
-        isOcrOnly: false,
-      }),
-    );
-
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_CREATE, {
-      sourceType: 'cv',
-      sourceId: cv.id,
-    });
-    return this.toResponse(cv, [], null);
+      const cv = await this.cvs.save(
+        this.cvs.create({
+          userId,
+          title: dto.title?.trim() || this.defaultBuilderTitle(source),
+          originalFileName: null,
+          fileType: null,
+          fileSize: null,
+          fileUrl: null,
+          parsedText: null,
+          parsedJson,
+          cvKind: 'BUILT',
+          language,
+          targetRole: this.normalizeTargetRole(dto.targetRole ?? source?.targetRole ?? undefined),
+          isOcrOnly: false,
+        }),
+      );
+      await usage.confirm({ sourceType: 'cv', sourceId: cv.id });
+      return this.toResponse(cv, [], null);
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
   }
 
   async updateBuilderDraft(
@@ -514,6 +523,7 @@ export class CvsService {
     dto: UpdateBuilderCvDto,
   ): Promise<CvResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
+    await this.entitlements.assertFeatureIncluded(userId, BillingFeatureKey.CV_BUILDER_CREATE);
     this.assertBuiltCv(cv);
 
     // Column-scoped UPDATE, deliberately NOT save(entity): autosave must never write columns it
@@ -974,13 +984,18 @@ export class CvsService {
         message: 'CV has no structured builder data to render',
       });
     }
-    await this.entitlements.assertCanUse(userId, BillingFeatureKey.CV_BUILDER_RENDER_PDF);
-    const rendered = await this.pdfRenderer.renderHarvardPdf(cv);
-    await this.entitlements.recordUsage(userId, BillingFeatureKey.CV_BUILDER_RENDER_PDF, {
-      sourceType: 'cv',
-      sourceId: cv.id,
-    });
-    return rendered;
+    const usage = await this.entitlements.reserveUsage(
+      userId,
+      BillingFeatureKey.CV_BUILDER_RENDER_PDF,
+    );
+    try {
+      const rendered = await this.pdfRenderer.renderHarvardPdf(cv);
+      await usage.confirm({ sourceType: 'cv', sourceId: cv.id });
+      return rendered;
+    } catch (error) {
+      await usage.refund();
+      throw error;
+    }
   }
 
   async getInterviewPlan(
@@ -1008,24 +1023,11 @@ export class CvsService {
       throw new Error('InterviewPlanService is not configured');
     }
 
-    const usage = await this.entitlements.reserveUsage(
-      userId,
-      BillingFeatureKey.INTERVIEW_SESSION,
-      {
-        sourceType: 'cv',
-        sourceId: cvId,
-      },
-    );
-    try {
-      return await this.interviewPlan.generatePlan(userId, {
-        review,
-        target_role: targetRole,
-        lang,
-      });
-    } catch (error) {
-      await usage.refund();
-      throw error;
-    }
+    return this.interviewPlan.generatePlan(userId, {
+      review,
+      target_role: targetRole,
+      lang,
+    });
   }
 
   async getGithubEvidence(
@@ -1331,6 +1333,17 @@ export class CvsService {
     return trimmed ? trimmed : null;
   }
 
+  private isReviewQuotaUnavailable(error: unknown): boolean {
+    if (!(error instanceof HttpException)) return false;
+    const response = error.getResponse();
+    if (!response || typeof response !== 'object') return false;
+    const errorCode = (response as { errorCode?: unknown }).errorCode;
+    return (
+      errorCode === ERROR_CODES.FEATURE_NOT_INCLUDED ||
+      errorCode === ERROR_CODES.FEATURE_USAGE_LIMIT_REACHED
+    );
+  }
+
   private async findGeneratedPdfSource(
     userId: string,
     file: Express.Multer.File,
@@ -1363,27 +1376,6 @@ export class CvsService {
 
   private sha256(buffer: Buffer): string {
     return createHash('sha256').update(buffer).digest('hex');
-  }
-
-  private async enforceUploadQuota(userId: string): Promise<void> {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const count = await this.cvs.count({
-      where: {
-        userId,
-        cvKind: 'UPLOADED',
-        createdAt: MoreThanOrEqual(cutoff),
-      },
-      withDeleted: true,
-    });
-    if (count >= MAX_REAL_UPLOADS_PER_DAY) {
-      throw new HttpException(
-        {
-          errorCode: ERROR_CODES.CV_UPLOAD_QUOTA_EXCEEDED,
-          message: 'CV upload quota exceeded. You can upload up to 10 CVs per 24 hours.',
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
   }
 
   private async findLatestParsedUpload(userId: string): Promise<CvEntity | null> {

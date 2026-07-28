@@ -39,6 +39,7 @@ export class PayosPaymentProvider implements PaymentProviderPort {
       returnUrl: this.requiredEnv('PAYOS_RETURN_URL'),
       cancelUrl: this.requiredEnv('PAYOS_CANCEL_URL'),
       items: [{ name: input.itemName.slice(0, 64), quantity: 1, price: input.amountVnd }],
+      expiredAt: Math.floor(input.expiresAt.getTime() / 1000),
     });
 
     return {

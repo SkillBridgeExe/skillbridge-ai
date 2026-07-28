@@ -13,6 +13,7 @@ import {
   Max,
   Min,
   ValidateNested,
+  IsDate,
 } from 'class-validator';
 import {
   BillingPlanCategory,
@@ -264,4 +265,93 @@ export class UpdateAdminMentorBookingRefundDto {
   @IsString()
   @Matches(/\S/)
   note!: string;
+}
+
+export class CreateAdminVoucherDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,64}$/)
+  code!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  discountPercent!: number;
+
+  @Type(() => Date)
+  @IsDate()
+  startsAt!: Date;
+
+  @Type(() => Date)
+  @IsDate()
+  endsAt!: Date;
+
+  @IsInt()
+  @Min(1)
+  maxRedemptions!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  internalNote?: string | null;
+}
+
+export class UpdateAdminVoucherDto {
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,64}$/)
+  code?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(99)
+  discountPercent?: number;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  startsAt?: Date;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  endsAt?: Date;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxRedemptions?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  perUserLimit?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  internalNote?: string | null;
+}
+
+export class AdminListVouchersQueryDto extends AdminPaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsIn(['ACTIVE', 'UPCOMING', 'EXPIRED', 'INACTIVE'])
+  status?: 'ACTIVE' | 'UPCOMING' | 'EXPIRED' | 'INACTIVE';
 }

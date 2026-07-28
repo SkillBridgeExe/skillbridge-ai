@@ -15,10 +15,12 @@ import {
   OrderStatusResponseDto,
   SubscriptionResponseDto,
 } from './dto/billing.dto';
+import { BillingPlanCode } from '../../common/constants/billing.constants';
 import { PaymentProviderRegistry } from './payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
+import { VoucherService } from './voucher.service';
 
 @Injectable()
 export class BillingService {
@@ -31,6 +33,7 @@ export class BillingService {
     private readonly webhooks: PaymentWebhookService,
     private readonly providers: PaymentProviderRegistry,
     private readonly settlement: BillingSettlementService,
+    private readonly vouchers: VoucherService,
   ) {}
 
   async listPlans(): Promise<BillingPlanDto[]> {
@@ -48,7 +51,12 @@ export class BillingService {
       featuresByPlan.set(feature.planCode, current);
     }
     return plans
-      .filter((plan) => plan.category === 'SUBSCRIPTION' && !isInternalPlan(plan))
+      .filter(
+        (plan) =>
+          plan.category === 'SUBSCRIPTION' &&
+          !isInternalPlan(plan) &&
+          (plan.code === BillingPlanCode.FREE || plan.code === BillingPlanCode.PREMIUM),
+      )
       .map((plan) => ({
         code: plan.code,
         name: plan.name,
@@ -93,6 +101,7 @@ export class BillingService {
       order.status = snapshot.status;
       order.paymentLinkId = order.paymentLinkId ?? snapshot.paymentLinkId;
       await this.orders.save(order);
+      await this.vouchers.releaseByOrder(order.id);
     }
     const refreshed = await this.findOrderForUser(userId, orderCode);
     return this.toOrderResponse(refreshed);
@@ -142,6 +151,14 @@ export class BillingService {
       targetId: order.targetId,
       paidAt: order.paidAt?.toISOString() ?? null,
       createdAt: order.createdAt.toISOString(),
+      pricing: {
+        originalAmountVnd: order.originalAmountVnd ?? order.amountVnd,
+        discountPercent: order.discountPercent ?? 0,
+        discountAmountVnd: order.discountAmountVnd ?? 0,
+        finalAmountVnd: order.amountVnd,
+        voucherCode: order.voucherCode ?? null,
+        currency: order.currency,
+      },
     };
   }
 }
