@@ -174,10 +174,9 @@ describe('CvsService R1 completion behavior', () => {
       refund: jest.fn().mockResolvedValue(undefined),
     };
     const entitlements = {
-      // Legacy pair — still used by builder-create and render-pdf (not yet migrated).
-      assertCanUse: jest.fn().mockResolvedValue(undefined),
-      recordUsage: jest.fn().mockResolvedValue(undefined),
-      // Atomic reserve — used by rewrite/story/intake/interview-plan and the cv_review paths.
+      // Autosave is unlimited but still requires the builder feature to be included in the plan.
+      assertFeatureIncluded: jest.fn().mockResolvedValue(undefined),
+      // Quota-bearing flows use an atomic reservation and confirm/refund it around delivered value.
       reserveUsage: jest.fn().mockResolvedValue(reservation),
     };
     const interviewPlan = {
@@ -547,15 +546,15 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.parsedJson).toEqual(sourceDocument);
   });
 
-  it('enforces and records the builder create quota around successful draft creation', async () => {
-    const { service, cvsRepo, entitlements } = build();
+  it('reserves and confirms the builder create quota around successful draft creation', async () => {
+    const { service, cvsRepo, entitlements, reservation } = build();
     cvsRepo.findOne.mockResolvedValue(null);
 
     const response = await service.createBuilderDraft('u1', { language: 'en' });
 
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_create');
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'cv_builder_create');
     expect(response.id).toBe('saved-cv');
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_create', {
+    expect(reservation.confirm).toHaveBeenCalledWith({
       sourceType: 'cv',
       sourceId: 'saved-cv',
     });
@@ -727,7 +726,7 @@ describe('CvsService R1 completion behavior', () => {
   });
 
   it('renders a BUILT CV PDF from parsedJson without storage persistence', async () => {
-    const { service, cvsRepo, pdfRenderer, storage, entitlements } = build();
+    const { service, cvsRepo, pdfRenderer, storage, entitlements, reservation } = build();
     const draft = {
       id: 'draft-1',
       userId: 'u1',
@@ -741,9 +740,9 @@ describe('CvsService R1 completion behavior', () => {
 
     const rendered = await service.renderPdf('u1', 'draft-1');
 
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith('u1', 'cv_builder_render_pdf');
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'cv_builder_render_pdf');
     expect(pdfRenderer.renderHarvardPdf).toHaveBeenCalledWith(draft);
-    expect(entitlements.recordUsage).toHaveBeenCalledWith('u1', 'cv_builder_render_pdf', {
+    expect(reservation.confirm).toHaveBeenCalledWith({
       sourceType: 'cv',
       sourceId: 'draft-1',
     });
@@ -812,12 +811,14 @@ describe('CvsService R1 completion behavior', () => {
     expect(cvsRepo.count).not.toHaveBeenCalled();
   });
 
-  it('enforces 10 real CV uploads per rolling day', async () => {
-    const { service, cvsRepo, storage } = build();
-    cvsRepo.count.mockResolvedValue(10);
+  it('blocks a CV upload when the plan upload quota is reached before any storage write', async () => {
+    const { service, storage, entitlements } = build();
+    entitlements.reserveUsage.mockRejectedValueOnce(
+      new HttpException({ errorCode: 'FEATURE_USAGE_LIMIT_REACHED' }, HttpStatus.PAYMENT_REQUIRED),
+    );
 
     await expect(service.create('u1', { consentAccepted: true }, file)).rejects.toMatchObject({
-      response: expect.objectContaining({ errorCode: 'CV_UPLOAD_QUOTA_EXCEEDED' }),
+      response: expect.objectContaining({ errorCode: 'FEATURE_USAGE_LIMIT_REACHED' }),
     });
     expect(storage.upload).not.toHaveBeenCalled();
   });
@@ -1119,7 +1120,7 @@ describe('CvsService R1 completion behavior', () => {
     expect(response.review).toEqual(parsedReview);
   });
 
-  it('generates an interview plan from the latest review and records interview quota', async () => {
+  it('generates an interview plan from the latest review without consuming interview quota', async () => {
     const { service, cvsRepo, aiResults, entitlements, interviewPlan } = build();
     cvsRepo.findOne.mockResolvedValue({
       id: 'cv-1',
@@ -1133,10 +1134,7 @@ describe('CvsService R1 completion behavior', () => {
 
     const response = await service.getInterviewPlan('u1', 'cv-1', 'frontend_developer', 'en');
 
-    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'interview_session', {
-      sourceType: 'cv',
-      sourceId: 'cv-1',
-    });
+    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
     expect(interviewPlan.generatePlan).toHaveBeenCalledWith('u1', {
       review: { ...parsedReview, confidence_score: null },
       target_role: 'frontend_developer',

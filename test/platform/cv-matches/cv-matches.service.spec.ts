@@ -102,6 +102,7 @@ describe('CvMatchesService', () => {
       refund: jest.fn().mockResolvedValue(undefined),
     };
     const entitlements = {
+      getPlanCode: jest.fn().mockResolvedValue('PREMIUM'),
       reserveUsage: jest.fn().mockResolvedValue(reservation),
     };
     const gapReport = {
@@ -230,7 +231,7 @@ describe('CvMatchesService', () => {
         parsedResponse,
       }),
     );
-    expect(entitlements.reserveUsage).toHaveBeenCalledWith('user-1', 'cv_jd_match');
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith('user-1', 'cv_review');
     expect(reservation.confirm).toHaveBeenCalledWith({
       sourceType: 'cv_match',
       sourceId: 'match-1',
