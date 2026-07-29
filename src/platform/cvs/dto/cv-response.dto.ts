@@ -1,5 +1,6 @@
 import { CanonicalCvDocument } from '../../../common/types/canonical-cv';
 import { CvReviewParsedResponse } from '../../../modules/cv-review/dto/cv-review-response.dto';
+import type { DiagnosisPremiumDetails } from '../diagnosis-premium-access';
 
 export interface CvSkillResponseDto {
   id: string | null;
@@ -26,6 +27,8 @@ export interface CvResponseDto {
   atsReadabilityScore: number | null;
   skills: CvSkillResponseDto[];
   review: CvReviewParsedResponse | null;
+  /** Paid audit-detail access for this response. Scores and summaries remain available to all plans. */
+  premiumDetails: DiagnosisPremiumDetails | null;
   createdAt: string;
   updatedAt: string | null;
 }
