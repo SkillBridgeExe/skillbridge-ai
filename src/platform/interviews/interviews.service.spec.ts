@@ -56,6 +56,14 @@ function defaultInsight() {
   };
 }
 
+function usageReservation() {
+  return {
+    eventId: 'usage-event-1',
+    confirm: jest.fn(async () => undefined),
+    refund: jest.fn(async () => undefined),
+  };
+}
+
 describe('InterviewsService', () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const cvId = '22222222-2222-4222-8222-222222222222';
@@ -184,9 +192,9 @@ describe('InterviewsService', () => {
     const matches = repo<CvMatchEntity>();
     const jds = repo<JobDescriptionEntity>();
     const interviewAi = { start: jest.fn() };
+    const reservation = usageReservation();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => reservation),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     const realtime = {
@@ -283,7 +291,7 @@ describe('InterviewsService', () => {
         speechSpeed: 1.3,
       }),
     );
-    expect(entitlements.assertCanUse).toHaveBeenCalledWith(
+    expect(entitlements.reserveUsage).toHaveBeenCalledWith(
       userId,
       BillingFeatureKey.INTERVIEW_SESSION,
     );
@@ -310,11 +318,10 @@ describe('InterviewsService', () => {
         aiRequestId: null,
       }),
     );
-    expect(entitlements.recordUsage).toHaveBeenCalledWith(
-      userId,
-      BillingFeatureKey.INTERVIEW_SESSION,
+    expect(reservation.confirm).toHaveBeenCalledWith(
       { sourceType: 'interview_session', sourceId: 'session-1' },
     );
+    expect(reservation.refund).not.toHaveBeenCalled();
     expect(response).toMatchObject({
       id: 'session-1',
       cvId,
@@ -342,8 +349,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     sessions.save.mockImplementation(async (value) => ({
@@ -434,8 +440,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     sessions.save.mockImplementation(async (value) => ({
@@ -498,8 +503,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     const chain = {
@@ -570,8 +574,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     const chain = {
@@ -628,8 +631,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     sessions.save.mockImplementation(async (value) => ({
@@ -687,8 +689,7 @@ describe('InterviewsService', () => {
     const cvs = repo<CvEntity>();
     const questionBank = repo<InterviewQuestionBankItemEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     sessions.save.mockImplementation(async (value) => ({
@@ -758,8 +759,7 @@ describe('InterviewsService', () => {
     const matches = repo<CvMatchEntity>();
     const jds = repo<JobDescriptionEntity>();
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     sessions.save.mockImplementation(async (value) => ({
@@ -864,8 +864,7 @@ describe('InterviewsService', () => {
       repo<JobDescriptionEntity>() as never,
       { start: jest.fn() } as never,
       {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => usageReservation()),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
       } as never,
       realtime as never,
@@ -907,8 +906,7 @@ describe('InterviewsService', () => {
     const turns = repo<InterviewTurnEntity>();
     const interviewAi = { start: jest.fn() };
     const entitlements = {
-      assertCanUse: jest.fn(async () => undefined),
-      recordUsage: jest.fn(async () => undefined),
+      reserveUsage: jest.fn(async () => usageReservation()),
       getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
     };
     const realtime = {
@@ -1054,8 +1052,7 @@ describe('InterviewsService', () => {
       repo<JobDescriptionEntity>() as never,
       { start: jest.fn() } as never,
       {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => usageReservation()),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
       } as never,
       realtime as never,
@@ -1114,8 +1111,7 @@ describe('InterviewsService', () => {
       repo<JobDescriptionEntity>() as never,
       { start: jest.fn() } as never,
       {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => usageReservation()),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
       } as never,
       realtime as never,
@@ -1157,7 +1153,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { start: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       realtime as never,
     );
     attachRealtimePrompts(service);
@@ -1217,7 +1213,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { start: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       questionAudio as never,
     );
@@ -1276,8 +1272,7 @@ describe('InterviewsService', () => {
         })),
       } as never,
       {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => usageReservation()),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PREMIUM' })),
       } as never,
       {
@@ -1327,7 +1322,7 @@ describe('InterviewsService', () => {
       matches as never,
       jds as never,
       { start: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
 
@@ -1389,7 +1384,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -1572,7 +1567,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -1750,7 +1745,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -1888,7 +1883,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2029,7 +2024,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2141,7 +2136,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2274,7 +2269,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2399,7 +2394,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2525,7 +2520,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -2643,7 +2638,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
     sessions.findOne.mockResolvedValue({
@@ -2725,7 +2720,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
     sessions.findOne.mockResolvedValue({
@@ -2771,7 +2766,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
     sessions.findOne.mockResolvedValue({
@@ -2840,7 +2835,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
     sessions.findOne.mockResolvedValue({
@@ -2929,7 +2924,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
     );
     sessions.findOne.mockResolvedValue({
@@ -3019,7 +3014,7 @@ describe('InterviewsService', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       interviewAi as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       cvMatches as never,
@@ -3206,9 +3201,9 @@ describe('InterviewsService', () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-06-12T01:00:00.000Z'));
       const sessions = repo<InterviewSessionEntity>();
       const turns = repo<InterviewTurnEntity>();
+      const reservation = usageReservation();
       const entitlements = {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => reservation),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
       };
       const coaching = { summary: 'Recovered abandoned session.', strengths: [], priorities: [] };
@@ -3263,10 +3258,8 @@ describe('InterviewsService', () => {
       );
       expect(response.id).toBe('generated-id');
       expect(response.status).toBe('IN_PROGRESS');
-      expect(entitlements.recordUsage).toHaveBeenCalledTimes(1);
-      expect(entitlements.recordUsage).toHaveBeenCalledWith(
-        userId,
-        BillingFeatureKey.INTERVIEW_SESSION,
+      expect(entitlements.reserveUsage).toHaveBeenCalledTimes(1);
+      expect(reservation.confirm).toHaveBeenCalledWith(
         { sourceType: 'interview_session', sourceId: 'generated-id' },
       );
     });
@@ -3291,8 +3284,7 @@ describe('InterviewsService', () => {
         repo<JobDescriptionEntity>() as never,
         { start: jest.fn(), end: jest.fn() } as never,
         {
-          assertCanUse: jest.fn(async () => undefined),
-          recordUsage: jest.fn(async () => undefined),
+          reserveUsage: jest.fn(async () => usageReservation()),
           getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
         } as never,
         { createClientSecret: jest.fn() } as never,
@@ -3338,8 +3330,7 @@ describe('InterviewsService', () => {
         repo<JobDescriptionEntity>() as never,
         { start: jest.fn(), end: jest.fn() } as never,
         {
-          assertCanUse: jest.fn(async () => undefined),
-          recordUsage: jest.fn(async () => undefined),
+          reserveUsage: jest.fn(async () => usageReservation()),
           getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
         } as never,
         { createClientSecret: jest.fn() } as never,
@@ -3387,8 +3378,7 @@ describe('InterviewsService', () => {
         repo<JobDescriptionEntity>() as never,
         { start: jest.fn(), end: jest.fn() } as never,
         {
-          assertCanUse: jest.fn(async () => undefined),
-          recordUsage: jest.fn(async () => undefined),
+          reserveUsage: jest.fn(async () => usageReservation()),
           getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
         } as never,
         { createClientSecret: jest.fn() } as never,
@@ -3443,8 +3433,7 @@ describe('InterviewsService', () => {
         repo<JobDescriptionEntity>() as never,
         interviewAi as never,
         {
-          assertCanUse: jest.fn(async () => undefined),
-          recordUsage: jest.fn(async () => undefined),
+          reserveUsage: jest.fn(async () => usageReservation()),
           getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
         } as never,
         { createClientSecret: jest.fn() } as never,
@@ -3478,8 +3467,7 @@ describe('InterviewsService', () => {
         repo<JobDescriptionEntity>() as never,
         { start: jest.fn() } as never,
         {
-          assertCanUse: jest.fn(async () => undefined),
-          recordUsage: jest.fn(async () => undefined),
+          reserveUsage: jest.fn(async () => usageReservation()),
           getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
         } as never,
         { createClientSecret: jest.fn() } as never,
@@ -3509,9 +3497,9 @@ describe('InterviewsService', () => {
     it('still starts a new session when the stale sweep fails', async () => {
       const sessions = repo<InterviewSessionEntity>();
       const turns = repo<InterviewTurnEntity>();
+      const reservation = usageReservation();
       const entitlements = {
-        assertCanUse: jest.fn(async () => undefined),
-        recordUsage: jest.fn(async () => undefined),
+        reserveUsage: jest.fn(async () => reservation),
         getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
       };
       sessions.find.mockRejectedValue(new Error('db unavailable'));
@@ -3530,9 +3518,7 @@ describe('InterviewsService', () => {
       const response = await service.start(userId, startDto);
 
       expect(response.status).toBe('IN_PROGRESS');
-      expect(entitlements.recordUsage).toHaveBeenCalledWith(
-        userId,
-        BillingFeatureKey.INTERVIEW_SESSION,
+      expect(reservation.confirm).toHaveBeenCalledWith(
         expect.objectContaining({ sourceType: 'interview_session' }),
       );
     });
@@ -3571,7 +3557,7 @@ describe('InterviewsService — I-OWN ownership & metric probes', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -3743,7 +3729,7 @@ describe('InterviewsService — I-OWN probe is asked once, not on repeat', () =>
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -3918,7 +3904,7 @@ describe('InterviewsService — a topic gets exactly the turns the agenda alloca
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,
@@ -4110,7 +4096,7 @@ describe('InterviewsService — I-PACE per-turn answer budget', () => {
       repo<CvMatchEntity>() as never,
       repo<JobDescriptionEntity>() as never,
       { answer: jest.fn() } as never,
-      { assertCanUse: jest.fn(), recordUsage: jest.fn() } as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
       { createClientSecret: jest.fn() } as never,
       undefined,
       undefined,

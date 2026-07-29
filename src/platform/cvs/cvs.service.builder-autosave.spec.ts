@@ -9,6 +9,7 @@ import { UpdateBuilderCvDto } from './dto/builder-cv.dto';
  */
 describe('CvsService.updateBuilderDraft — title ownership', () => {
   const CV_SKILLS_ARG_INDEX = 1;
+  const ENTITLEMENTS_ARG_INDEX = 15;
 
   function makeCv(overrides: Record<string, unknown> = {}) {
     return {
@@ -36,6 +37,9 @@ describe('CvsService.updateBuilderDraft — title ownership', () => {
     const args: unknown[] = new Array(24).fill(undefined);
     args[0] = cvsRepo;
     args[CV_SKILLS_ARG_INDEX] = { find: jest.fn().mockResolvedValue([]) };
+    args[ENTITLEMENTS_ARG_INDEX] = {
+      assertFeatureIncluded: jest.fn().mockResolvedValue(undefined),
+    };
     return Reflect.construct(CvsService, args) as CvsService;
   }
 
