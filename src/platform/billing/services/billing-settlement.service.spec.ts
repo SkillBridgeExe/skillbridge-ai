@@ -111,9 +111,83 @@ describe('BillingSettlementService', () => {
       expect.objectContaining({ status: 'PAID', paidAt: expect.any(Date) }),
     );
     expect(voucherRedemptions.update).toHaveBeenCalledWith(
-      { paymentOrderId: 'order-1', status: 'RESERVED' },
+      { paymentOrderId: 'order-1' },
       { status: 'REDEEMED', redeemedAt: expect.any(Date) },
     );
+  });
+
+  it('redeems a voucher when a valid paid webhook arrives after its reservation was released', async () => {
+    const { service, orders, subscriptions, voucherRedemptions } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-late-voucher',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '124',
+      amountVnd: 179100,
+      currency: 'VND',
+      purpose: 'SUBSCRIPTION',
+      targetType: 'SUBSCRIPTION',
+      targetId: null,
+      planCode: 'PREMIUM',
+      status: 'PENDING',
+      paymentLinkId: 'plink-late-voucher',
+      paidAt: null,
+    } as PaymentOrderEntity);
+    subscriptions.findOne.mockResolvedValue(null);
+
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 124,
+      paymentLinkId: 'plink-late-voucher',
+      reference: 'ref-late-voucher',
+      status: 'PAID',
+      amountVnd: 179100,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(voucherRedemptions.update).toHaveBeenCalledWith(
+      { paymentOrderId: 'order-late-voucher' },
+      { status: 'REDEEMED', redeemedAt: expect.any(Date) },
+    );
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'order-late-voucher', status: 'PAID' }),
+    );
+  });
+
+  it('does not activate a subscription or redeem a voucher twice for a repeated paid webhook', async () => {
+    const { service, orders, subscriptions, voucherRedemptions } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-paid',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '126',
+      amountVnd: 179100,
+      currency: 'VND',
+      purpose: 'SUBSCRIPTION',
+      targetType: 'SUBSCRIPTION',
+      targetId: null,
+      planCode: 'PREMIUM',
+      status: 'PAID',
+      paymentLinkId: 'plink-paid',
+      paidAt: new Date('2026-07-29T00:00:00.000Z'),
+    } as PaymentOrderEntity);
+
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 126,
+      paymentLinkId: 'plink-paid',
+      reference: 'ref-paid-repeat',
+      status: 'PAID',
+      amountVnd: 179100,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(subscriptions.update).not.toHaveBeenCalled();
+    expect(subscriptions.save).not.toHaveBeenCalled();
+    expect(voucherRedemptions.update).not.toHaveBeenCalled();
+    expect(orders.save).not.toHaveBeenCalled();
   });
 
   it('rejects paid settlement when PayOS amount does not match the local order', async () => {

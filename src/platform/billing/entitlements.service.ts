@@ -90,31 +90,8 @@ export class EntitlementsService {
   }
 
   /**
-   * @deprecated The assertCanUse→recordUsage pair is racy (TOCTOU): two concurrent requests at
-   * `limit-1` both pass the assert and both record, exceeding the limit. New/updated flows must
-   * use `reserveUsage()` (atomic check-and-charge) + `refund()` on failure. Kept only for the
-   * not-yet-migrated callers (interviews.start, jobs recommend, builder-create, render-pdf).
-   */
-  async recordUsage(
-    userId: string,
-    featureKey: BillingFeatureKey,
-    source?: { sourceType?: string; sourceId?: string },
-  ): Promise<void> {
-    const subscription = await this.findActiveSubscription(userId);
-    await this.usageEvents.save(
-      this.usageEvents.create({
-        userId,
-        featureKey,
-        subscriptionId: subscription?.id ?? null,
-        sourceType: source?.sourceType ?? null,
-        sourceId: source?.sourceId ?? null,
-      }),
-    );
-  }
-
-  /**
-   * Atomic check-and-charge for one usage of `featureKey` — the race-free replacement for the
-   * assertCanUse→recordUsage pair. The count + insert run in ONE transaction serialized per
+   * Atomic check-and-charge for one usage of `featureKey`. The count + insert run in ONE
+   * transaction serialized per
    * (user, feature) by a pg advisory xact lock, so concurrent requests at `limit-1` queue and the
    * loser sees the winner's row (402 instead of a silent overrun).
    *

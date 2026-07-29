@@ -65,7 +65,7 @@ export class BillingSettlementService {
     if (order.purpose === 'SUBSCRIPTION') {
       await this.activateSubscription(order, subscriptions);
       await voucherRedemptions.update(
-        { paymentOrderId: order.id, status: 'RESERVED' },
+        { paymentOrderId: order.id },
         { status: 'REDEEMED', redeemedAt: new Date() },
       );
     } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
