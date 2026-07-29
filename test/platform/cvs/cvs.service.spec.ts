@@ -814,10 +814,7 @@ describe('CvsService R1 completion behavior', () => {
   it('blocks a CV upload when the plan upload quota is reached before any storage write', async () => {
     const { service, storage, entitlements } = build();
     entitlements.reserveUsage.mockRejectedValueOnce(
-      new HttpException(
-        { errorCode: 'FEATURE_USAGE_LIMIT_REACHED' },
-        HttpStatus.PAYMENT_REQUIRED,
-      ),
+      new HttpException({ errorCode: 'FEATURE_USAGE_LIMIT_REACHED' }, HttpStatus.PAYMENT_REQUIRED),
     );
 
     await expect(service.create('u1', { consentAccepted: true }, file)).rejects.toMatchObject({

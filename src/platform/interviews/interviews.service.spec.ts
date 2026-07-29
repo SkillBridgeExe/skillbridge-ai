@@ -318,9 +318,10 @@ describe('InterviewsService', () => {
         aiRequestId: null,
       }),
     );
-    expect(reservation.confirm).toHaveBeenCalledWith(
-      { sourceType: 'interview_session', sourceId: 'session-1' },
-    );
+    expect(reservation.confirm).toHaveBeenCalledWith({
+      sourceType: 'interview_session',
+      sourceId: 'session-1',
+    });
     expect(reservation.refund).not.toHaveBeenCalled();
     expect(response).toMatchObject({
       id: 'session-1',
@@ -3259,9 +3260,10 @@ describe('InterviewsService', () => {
       expect(response.id).toBe('generated-id');
       expect(response.status).toBe('IN_PROGRESS');
       expect(entitlements.reserveUsage).toHaveBeenCalledTimes(1);
-      expect(reservation.confirm).toHaveBeenCalledWith(
-        { sourceType: 'interview_session', sourceId: 'generated-id' },
-      );
+      expect(reservation.confirm).toHaveBeenCalledWith({
+        sourceType: 'interview_session',
+        sourceId: 'generated-id',
+      });
     });
 
     // Without this, a session whose finalization throws sits IN_PROGRESS forever, indistinguishable
