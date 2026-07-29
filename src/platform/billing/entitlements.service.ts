@@ -222,6 +222,12 @@ export class EntitlementsService {
     return this.getCurrentEntitlements(userId);
   }
 
+  /** Plan-level access check for premium surfaces that are not usage-counted operations. */
+  async hasActivePlan(userId: string, planCode: BillingPlanCode): Promise<boolean> {
+    const subscription = await this.findActiveSubscription(userId);
+    return subscription?.planCode === planCode;
+  }
+
   private async findActiveSubscription(userId: string): Promise<UserSubscriptionEntity | null> {
     return this.subscriptions.findOne({
       where: {

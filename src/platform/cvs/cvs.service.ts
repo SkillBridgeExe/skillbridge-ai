@@ -13,7 +13,7 @@ import { createHash } from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { EntityManager, In, IsNull, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
-import { BillingFeatureKey } from '../../common/constants/billing.constants';
+import { BillingFeatureKey, BillingPlanCode } from '../../common/constants/billing.constants';
 import { CanonicalCvDocument, emptyCanonicalCv } from '../../common/types/canonical-cv';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvConsentAuditEntity } from '../../database/entities/cv-consent-audit.entity';
@@ -93,6 +93,7 @@ import { CvListItemDto, CvResponseDto, CvSkillResponseDto } from './dto/cv-respo
 import { CvPdfRendererService, RenderedCvPdf } from './cv-pdf-renderer.service';
 import { TextExtractorService } from './text-extractor.service';
 import { CvAnalysisQuotaService } from './cv-analysis-quota.service';
+import { diagnosisPremiumView } from './diagnosis-premium-access';
 
 const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_REAL_UPLOADS_PER_DAY = 10;
@@ -1460,11 +1461,18 @@ export class CvsService {
     return JSON.parse(JSON.stringify(document)) as CanonicalCvDocument;
   }
 
-  private toResponse(
+  private async toResponse(
     cv: CvEntity,
     skills: CvSkillResponseDto[],
     review: CvReviewParsedResponse | null,
-  ): CvResponseDto {
+  ): Promise<CvResponseDto> {
+    const premiumView = review
+      ? diagnosisPremiumView(
+          review,
+          await this.entitlements.hasActivePlan(cv.userId, BillingPlanCode.PREMIUM),
+        )
+      : null;
+
     return {
       id: cv.id,
       title: cv.title,
@@ -1480,7 +1488,8 @@ export class CvsService {
       isOcrOnly: cv.isOcrOnly,
       atsReadabilityScore: cv.atsReadabilityScore ? Number(cv.atsReadabilityScore) : null,
       skills,
-      review,
+      review: premiumView?.review ?? null,
+      premiumDetails: premiumView?.premiumDetails ?? null,
       createdAt: cv.createdAt.toISOString(),
       updatedAt: cv.updatedAt ? cv.updatedAt.toISOString() : null,
     };

@@ -36,6 +36,23 @@ function usageRepo(rows: Array<{ featureKey: string; count: string }>) {
 }
 
 describe('EntitlementsService', () => {
+  it('recognizes only the requested active plan for plan-gated surfaces', async () => {
+    const subscriptions = repo<UserSubscriptionEntity>({
+      findOne: jest.fn().mockResolvedValue({
+        planCode: BillingPlanCode.PREMIUM,
+      }),
+    });
+    const service = new EntitlementsService(
+      repo<BillingPlanEntity>({}),
+      repo<PlanFeatureEntity>({}),
+      subscriptions,
+      usageRepo([]) as unknown as Repository<UsageEventEntity>,
+    );
+
+    await expect(service.hasActivePlan('user-1', BillingPlanCode.PREMIUM)).resolves.toBe(true);
+    await expect(service.hasActivePlan('user-1', BillingPlanCode.PRO)).resolves.toBe(false);
+  });
+
   it('allows usage below a positive monthly limit', async () => {
     const service = new EntitlementsService(
       repo<BillingPlanEntity>({
