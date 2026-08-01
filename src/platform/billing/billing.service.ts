@@ -75,8 +75,8 @@ export class BillingService {
       }));
   }
 
-  createCheckout(userId: string, dto: CreateCheckoutDto) {
-    return this.checkout.createCheckout(userId, dto);
+  createCheckout(userId: string, dto: CreateCheckoutDto, checkoutOrigin?: string) {
+    return this.checkout.createCheckout(userId, dto, checkoutOrigin);
   }
 
   async getOrder(userId: string, orderCode: number): Promise<OrderStatusResponseDto> {

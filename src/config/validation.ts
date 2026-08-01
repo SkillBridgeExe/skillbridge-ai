@@ -80,6 +80,7 @@ export const configValidationSchema = Joi.object({
   PAYOS_CHECKSUM_KEY: Joi.string().allow('').optional(),
   PAYOS_RETURN_URL: Joi.string().uri().allow('').optional(),
   PAYOS_CANCEL_URL: Joi.string().uri().allow('').optional(),
+  PAYOS_CHECKOUT_ALLOWED_ORIGINS: Joi.string().allow('').optional(),
   PAYOS_WEBHOOK_URL: Joi.string().uri().allow('').optional(),
   PAYOS_PARTNER_CODE: Joi.string().allow('').optional(),
 

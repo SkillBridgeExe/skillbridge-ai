@@ -101,6 +101,7 @@ export default () => ({
     checksumKey: process.env.PAYOS_CHECKSUM_KEY ?? '',
     returnUrl: process.env.PAYOS_RETURN_URL ?? '',
     cancelUrl: process.env.PAYOS_CANCEL_URL ?? '',
+    checkoutAllowedOrigins: process.env.PAYOS_CHECKOUT_ALLOWED_ORIGINS ?? '',
     webhookUrl: process.env.PAYOS_WEBHOOK_URL ?? '',
     partnerCode: process.env.PAYOS_PARTNER_CODE ?? '',
   },

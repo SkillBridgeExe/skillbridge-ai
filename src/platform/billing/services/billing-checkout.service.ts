@@ -22,10 +22,14 @@ export class BillingCheckoutService {
     private readonly vouchers: VoucherService,
   ) {}
 
-  async createCheckout(userId: string, dto: CreateCheckoutDto): Promise<CheckoutResponseDto> {
+  async createCheckout(
+    userId: string,
+    dto: CreateCheckoutDto,
+    checkoutOrigin?: string,
+  ): Promise<CheckoutResponseDto> {
     switch (dto.purpose) {
       case 'SUBSCRIPTION':
-        return this.createSubscriptionCheckout(userId, dto);
+        return this.createSubscriptionCheckout(userId, dto, checkoutOrigin);
       default:
         throw new BadRequestException({
           errorCode: ERROR_CODES.VALIDATION_ERROR,
@@ -37,6 +41,7 @@ export class BillingCheckoutService {
   private async createSubscriptionCheckout(
     userId: string,
     dto: CreateCheckoutDto,
+    checkoutOrigin?: string,
   ): Promise<CheckoutResponseDto> {
     const plan = await this.requirePlan(dto.planCode, 'SUBSCRIPTION');
     if (plan.priceVnd <= 0) {
@@ -69,7 +74,7 @@ export class BillingCheckoutService {
         expiresAt,
       });
       if (reservation) await this.vouchers.attachOrder(reservation.redemptionId, order.id);
-      return await this.createProviderLink(order, plan.name, expiresAt);
+      return await this.createProviderLink(order, plan.name, expiresAt, checkoutOrigin);
     } catch (error) {
       if (reservation) await this.vouchers.releaseReservation(reservation.redemptionId);
       throw error;
@@ -94,7 +99,7 @@ export class BillingCheckoutService {
       voucherCode: null,
       expiresAt: new Date(Date.now() + CHECKOUT_TTL_MS),
     });
-    return this.createProviderLink(order, 'Mentor session', order.expiresAt!);
+    return this.createProviderLink(order, 'Mentor session', order.expiresAt!, input.checkoutOrigin);
   }
 
   private async requirePlan(
@@ -151,6 +156,7 @@ export class BillingCheckoutService {
     order: PaymentOrderEntity,
     itemName: string,
     expiresAt: Date,
+    checkoutOrigin?: string,
   ): Promise<CheckoutResponseDto> {
     const provider = this.providers.get(order.provider);
     const link = await provider
@@ -160,6 +166,7 @@ export class BillingCheckoutService {
         description: order.description,
         itemName,
         expiresAt,
+        checkoutOrigin,
       })
       .catch(async (error) => {
         order.status = 'FAILED';
@@ -207,4 +214,5 @@ export interface MentorPaymentCheckoutInput {
   bookingId: string;
   amountVnd: number;
   currency: string;
+  checkoutOrigin?: string;
 }

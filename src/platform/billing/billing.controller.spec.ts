@@ -1,6 +1,32 @@
 import { BillingController, MeEntitlementsController } from './billing.controller';
 
 describe('BillingController', () => {
+  it('resolves and forwards the browser checkout origin without adding it to the DTO', async () => {
+    const billing = { createCheckout: jest.fn().mockResolvedValue({ orderCode: 123 }) };
+    const origins = {
+      resolve: jest.fn().mockReturnValue('https://skillbridgebuilder.com'),
+    };
+    const controller = new BillingController(billing as never, {} as never, origins as never);
+    const dto = { purpose: 'SUBSCRIPTION', planCode: 'PREMIUM' } as const;
+
+    await controller.checkout(
+      { userId: 'user-1' } as never,
+      dto,
+      'https://skillbridgebuilder.com',
+      'https://skillbridgebuilder.com/pricing',
+    );
+
+    expect(origins.resolve).toHaveBeenCalledWith(
+      'https://skillbridgebuilder.com',
+      'https://skillbridgebuilder.com/pricing',
+    );
+    expect(billing.createCheckout).toHaveBeenCalledWith(
+      'user-1',
+      dto,
+      'https://skillbridgebuilder.com',
+    );
+  });
+
   it('prevents browser caching on the dynamic order status endpoint', () => {
     const headers = Reflect.getMetadata('__headers__', BillingController.prototype.order);
 

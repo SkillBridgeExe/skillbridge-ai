@@ -32,8 +32,14 @@ export class PayosPaymentProvider implements PaymentProviderPort {
   }
 
   async createPaymentLink(input: PaymentCheckoutRequest): Promise<PaymentCheckoutResult> {
-    const returnUrl = buildOrderCheckoutUrl(this.requiredEnv('PAYOS_RETURN_URL'), input.orderCode);
-    const cancelUrl = buildOrderCheckoutUrl(this.requiredEnv('PAYOS_CANCEL_URL'), input.orderCode);
+    const returnBaseUrl = input.checkoutOrigin
+      ? buildCheckoutBaseUrl(input.checkoutOrigin)
+      : this.requiredEnv('PAYOS_RETURN_URL');
+    const cancelBaseUrl = input.checkoutOrigin
+      ? buildCheckoutBaseUrl(input.checkoutOrigin)
+      : this.requiredEnv('PAYOS_CANCEL_URL');
+    const returnUrl = buildOrderCheckoutUrl(returnBaseUrl, input.orderCode);
+    const cancelUrl = buildOrderCheckoutUrl(cancelBaseUrl, input.orderCode);
     const link = await this.requireClient().paymentRequests.create({
       orderCode: input.orderCode,
       amount: input.amountVnd,
@@ -105,6 +111,10 @@ export function buildOrderCheckoutUrl(baseUrl: string, orderCode: number): strin
   url.search = '';
   url.hash = '';
   return url.toString();
+}
+
+function buildCheckoutBaseUrl(origin: string): string {
+  return new URL('/billing/checkout', `${origin.replace(/\/+$/, '')}/`).toString();
 }
 
 function toVerifiedStatus(webhook: Webhook, data: WebhookData): VerifiedPaymentStatus {

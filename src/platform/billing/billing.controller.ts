@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, Headers, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -7,6 +7,7 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { BillingService } from './billing.service';
 import { CreateCheckoutDto, ValidateVoucherDto } from './dto/billing.dto';
 import { VoucherService } from './voucher.service';
+import { CheckoutOriginService } from './services/checkout-origin.service';
 
 @ApiTags('Billing')
 @Public()
@@ -15,6 +16,7 @@ export class BillingController {
   constructor(
     private readonly billing: BillingService,
     private readonly vouchers: VoucherService,
+    private readonly checkoutOrigins: CheckoutOriginService,
   ) {}
 
   @Get('plans')
@@ -27,8 +29,14 @@ export class BillingController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Create a payOS checkout link' })
-  checkout(@CurrentUser() user: JwtUser, @Body() dto: CreateCheckoutDto) {
-    return this.billing.createCheckout(user.userId, dto);
+  checkout(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateCheckoutDto,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
+  ) {
+    const checkoutOrigin = this.checkoutOrigins.resolve(origin, referer);
+    return this.billing.createCheckout(user.userId, dto, checkoutOrigin);
   }
 
   @Post('vouchers/validate')

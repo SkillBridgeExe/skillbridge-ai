@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
@@ -12,6 +12,7 @@ import {
   UpdateMeetingUrlDto,
 } from './dto/mentor-booking.dto';
 import { MentorBookingsService } from './mentor-bookings.service';
+import { CheckoutOriginService } from '../billing/services/checkout-origin.service';
 
 @ApiTags('Mentor Bookings')
 @Public()
@@ -19,12 +20,21 @@ import { MentorBookingsService } from './mentor-bookings.service';
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/mentor-bookings')
 export class MentorBookingsController {
-  constructor(private readonly bookings: MentorBookingsService) {}
+  constructor(
+    private readonly bookings: MentorBookingsService,
+    private readonly checkoutOrigins: CheckoutOriginService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Hold a mentor slot and create the full mentor booking checkout' })
-  create(@CurrentUser() user: JwtUser, @Body() dto: CreateMentorBookingDto) {
-    return this.bookings.createBooking(user.userId, dto);
+  create(
+    @CurrentUser() user: JwtUser,
+    @Body() dto: CreateMentorBookingDto,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
+  ) {
+    const checkoutOrigin = this.checkoutOrigins.resolve(origin, referer);
+    return this.bookings.createBooking(user.userId, dto, checkoutOrigin);
   }
 
   @Get('me')
@@ -41,8 +51,14 @@ export class MentorBookingsController {
 
   @Post(':bookingId/pay')
   @ApiOperation({ summary: 'Create or resume the mentor booking payment checkout' })
-  pay(@CurrentUser() user: JwtUser, @Param('bookingId') bookingId: string) {
-    return this.bookings.pay(user.userId, bookingId);
+  pay(
+    @CurrentUser() user: JwtUser,
+    @Param('bookingId') bookingId: string,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
+  ) {
+    const checkoutOrigin = this.checkoutOrigins.resolve(origin, referer);
+    return this.bookings.pay(user.userId, bookingId, checkoutOrigin);
   }
 
   @Post(':bookingId/cancel')
