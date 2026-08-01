@@ -16,7 +16,11 @@ import { BillingSettlementService } from './services/billing-settlement.service'
 import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
 
-type RepoMock<T extends object> = Pick<Repository<T>, 'find' | 'findOne' | 'save'> & {
+type RepoMock<T extends object> = Pick<
+  Repository<T>,
+  'createQueryBuilder' | 'find' | 'findOne' | 'save'
+> & {
+  createQueryBuilder: jest.Mock;
   find: jest.Mock;
   findOne: jest.Mock;
   save: jest.Mock;
@@ -24,6 +28,7 @@ type RepoMock<T extends object> = Pick<Repository<T>, 'find' | 'findOne' | 'save
 
 function repo<T extends object>(): RepoMock<T> {
   return {
+    createQueryBuilder: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn((input) => Promise.resolve(input)),
@@ -35,6 +40,15 @@ describe('BillingService reconcileOrder', () => {
     const plans = repo<BillingPlanEntity>();
     const features = repo<PlanFeatureEntity>();
     const orders = repo<PaymentOrderEntity>();
+    const execute = jest.fn().mockResolvedValue({ affected: 1 });
+    const queryBuilder = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute,
+    };
+    orders.createQueryBuilder.mockReturnValue(queryBuilder);
     const entitlements = {
       getCurrentEntitlements: jest.fn(),
       listUsage: jest.fn(),
@@ -67,7 +81,16 @@ describe('BillingService reconcileOrder', () => {
       settlement,
       vouchers,
     ) as BillingService;
-    return { service, plans, features, orders, provider, settlement, vouchers };
+    return {
+      service,
+      plans,
+      features,
+      orders,
+      provider,
+      settlement,
+      vouchers,
+      execute,
+    };
   }
 
   it('hides internal billing plans from the public plan list', async () => {
@@ -198,7 +221,10 @@ describe('BillingService reconcileOrder', () => {
       targetId: null,
       paidAt: null,
       createdAt: new Date('2026-06-09T00:00:00.000Z'),
-    } as PaymentOrderEntity;
+      returnUrl: 'https://app.test/billing/checkout/123',
+      cancelUrl: 'https://app.test/billing/checkout/123',
+      lastProviderCheckAt: null,
+    } as unknown as PaymentOrderEntity;
     const paidOrder = { ...pendingOrder, status: 'PAID', paidAt: new Date() } as PaymentOrderEntity;
     orders.findOne.mockResolvedValueOnce(pendingOrder).mockResolvedValueOnce(paidOrder);
     provider.getPaymentStatus.mockResolvedValue({
@@ -223,7 +249,13 @@ describe('BillingService reconcileOrder', () => {
         amountVnd: 99000,
       }),
     );
-    expect(result).toEqual(expect.objectContaining({ orderCode: 123, status: 'PAID' }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        orderCode: 123,
+        status: 'PAID',
+        returnUrl: 'https://app.test/billing/checkout/123',
+      }),
+    );
   });
 
   it('does not settle when PayOS still reports a non-paid status', async () => {
@@ -243,7 +275,7 @@ describe('BillingService reconcileOrder', () => {
       targetId: null,
       paidAt: null,
       createdAt: new Date('2026-06-09T00:00:00.000Z'),
-    } as PaymentOrderEntity;
+    } as unknown as PaymentOrderEntity;
     orders.findOne.mockResolvedValue(pendingOrder);
     provider.getPaymentStatus.mockResolvedValue({
       provider: 'PAYOS',
@@ -260,6 +292,54 @@ describe('BillingService reconcileOrder', () => {
 
     expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({ orderCode: 123, status: 'PENDING' }));
+  });
+
+  it('coalesces concurrent reconciliations behind one provider status check', async () => {
+    const { service, orders, provider, execute } = setup();
+    const pendingOrder = {
+      id: 'order-1',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '123',
+      amountVnd: 99000,
+      originalAmountVnd: 99000,
+      discountPercent: 0,
+      discountAmountVnd: 0,
+      voucherCode: null,
+      currency: 'VND',
+      purpose: 'SUBSCRIPTION',
+      status: 'PENDING',
+      checkoutUrl: 'https://pay.test',
+      paymentLinkId: 'plink-1',
+      returnUrl: 'https://app.test/billing/checkout/123',
+      cancelUrl: 'https://app.test/billing/checkout/123',
+      lastProviderCheckAt: null,
+      targetType: 'SUBSCRIPTION',
+      targetId: null,
+      paidAt: null,
+      createdAt: new Date('2026-06-09T00:00:00.000Z'),
+    } as unknown as PaymentOrderEntity;
+    orders.findOne.mockResolvedValue(pendingOrder);
+    execute.mockResolvedValueOnce({ affected: 1 }).mockResolvedValueOnce({ affected: 0 });
+    provider.getPaymentStatus.mockResolvedValue({
+      provider: 'PAYOS',
+      orderCode: 123,
+      paymentLinkId: 'plink-1',
+      reference: null,
+      status: 'PENDING',
+      amountVnd: 99000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    const [first, second] = await Promise.all([
+      service.reconcileOrder('user-1', 123),
+      service.reconcileOrder('user-1', 123),
+    ]);
+
+    expect(provider.getPaymentStatus).toHaveBeenCalledTimes(1);
+    expect(first.status).toBe('PENDING');
+    expect(second.status).toBe('PENDING');
   });
 
   it('syncs a provider cancelled status without granting entitlements', async () => {

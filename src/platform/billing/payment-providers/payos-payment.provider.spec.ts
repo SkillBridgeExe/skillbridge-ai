@@ -1,0 +1,46 @@
+import { ConfigService } from '@nestjs/config';
+import { PayosPaymentProvider } from './payos-payment.provider';
+
+describe('PayosPaymentProvider', () => {
+  it('uses the order-specific checkout page as the embedded return and cancel URLs', async () => {
+    const provider = new PayosPaymentProvider(
+      new ConfigService({
+        PAYOS_CLIENT_ID: 'client-id',
+        PAYOS_API_KEY: 'api-key',
+        PAYOS_CHECKSUM_KEY: 'checksum-key',
+        PAYOS_RETURN_URL: 'https://skillbridgebuilder.com/billing/checkout/',
+        PAYOS_CANCEL_URL: 'https://skillbridgebuilder.com/billing/checkout',
+      }),
+    );
+    const create = jest.fn().mockResolvedValue({
+      checkoutUrl: 'https://pay.payos.vn/web/payment-link-1',
+      paymentLinkId: 'payment-link-1',
+      qrCode: 'qr-code',
+      expiredAt: 1_800_000_000,
+    });
+    Object.defineProperty(provider, 'client', {
+      value: { paymentRequests: { create } },
+    });
+
+    const result = await provider.createPaymentLink({
+      orderCode: 1781624341196493,
+      amountVnd: 199000,
+      description: 'SB1781624341196493',
+      itemName: 'Premium',
+      expiresAt: new Date('2027-01-15T08:00:00.000Z'),
+    });
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        returnUrl: 'https://skillbridgebuilder.com/billing/checkout/1781624341196493',
+        cancelUrl: 'https://skillbridgebuilder.com/billing/checkout/1781624341196493',
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        returnUrl: 'https://skillbridgebuilder.com/billing/checkout/1781624341196493',
+        cancelUrl: 'https://skillbridgebuilder.com/billing/checkout/1781624341196493',
+      }),
+    );
+  });
+});

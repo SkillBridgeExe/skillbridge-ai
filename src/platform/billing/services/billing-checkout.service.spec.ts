@@ -33,6 +33,8 @@ describe('BillingCheckoutService', () => {
         paymentLinkId: 'plink-1',
         qrCode: 'qr',
         providerPayload: { ok: true },
+        returnUrl: 'https://app.test/billing/checkout/123',
+        cancelUrl: 'https://app.test/billing/checkout/123',
         expiresAt: new Date('2026-06-01T00:00:00.000Z'),
       }),
       verifyWebhook: jest.fn(),
@@ -85,7 +87,17 @@ describe('BillingCheckoutService', () => {
       expect.objectContaining({ amountVnd: 129000, itemName: 'Pro' }),
     );
     expect(result).toEqual(
-      expect.objectContaining({ orderId: 'order-1', checkoutUrl: 'https://pay.test/checkout' }),
+      expect.objectContaining({
+        orderId: 'order-1',
+        checkoutUrl: 'https://pay.test/checkout',
+        returnUrl: 'https://app.test/billing/checkout/123',
+      }),
+    );
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        returnUrl: 'https://app.test/billing/checkout/123',
+        cancelUrl: 'https://app.test/billing/checkout/123',
+      }),
     );
   });
 

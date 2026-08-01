@@ -15,6 +15,8 @@ export interface PaymentCheckoutResult {
   checkoutUrl: string | null;
   paymentLinkId: string | null;
   qrCode: string | null;
+  returnUrl: string | null;
+  cancelUrl: string | null;
   providerPayload: unknown;
   expiresAt: Date | null;
 }

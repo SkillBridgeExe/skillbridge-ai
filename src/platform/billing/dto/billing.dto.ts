@@ -54,6 +54,7 @@ export interface CheckoutResponseDto {
   orderCode: number;
   status: string;
   checkoutUrl: string | null;
+  returnUrl: string | null;
   qrCode: string | null;
   paymentLinkId: string | null;
   expiresAt: string | null;
@@ -77,6 +78,7 @@ export interface OrderStatusResponseDto {
   amountVnd: number;
   currency: string;
   checkoutUrl: string | null;
+  returnUrl: string | null;
   paymentLinkId: string | null;
   targetType: string;
   targetId: string | null;

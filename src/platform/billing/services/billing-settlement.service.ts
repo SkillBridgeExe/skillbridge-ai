@@ -80,22 +80,21 @@ export class BillingSettlementService {
     order: PaymentOrderEntity,
     payment: VerifiedPaymentWebhook,
   ): void {
-    if (payment.amountVnd !== null && order.amountVnd !== payment.amountVnd) {
+    if (payment.amountVnd === null || order.amountVnd !== payment.amountVnd) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
         message: 'Payment amount does not match the local order',
       });
     }
-    if (payment.currency && order.currency !== payment.currency) {
+    if (!payment.currency || order.currency !== payment.currency) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
         message: 'Payment currency does not match the local order',
       });
     }
     if (
-      order.paymentLinkId &&
-      payment.paymentLinkId &&
-      order.paymentLinkId !== payment.paymentLinkId
+      !payment.paymentLinkId ||
+      (order.paymentLinkId !== null && order.paymentLinkId !== payment.paymentLinkId)
     ) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
