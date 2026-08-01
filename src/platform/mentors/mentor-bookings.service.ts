@@ -50,6 +50,7 @@ export class MentorBookingsService {
   async createBooking(
     studentId: string,
     dto: CreateMentorBookingDto,
+    checkoutOrigin?: string,
   ): Promise<{
     booking: ReturnType<MentorBookingsService['toBookingDto']>;
     checkout: CheckoutResponseDto;
@@ -131,6 +132,7 @@ export class MentorBookingsService {
         bookingId: booking.id,
         amountVnd: booking.totalAmountVnd,
         currency: String((booking.packageSnapshot as { currency?: string })?.currency ?? 'VND'),
+        checkoutOrigin,
       });
     } catch (error) {
       await this.expireFailedPaymentBooking(booking.id);
@@ -141,7 +143,11 @@ export class MentorBookingsService {
     return { booking: this.toBookingDto(booking), checkout: payment };
   }
 
-  async pay(studentId: string, bookingId: string): Promise<CheckoutResponseDto> {
+  async pay(
+    studentId: string,
+    bookingId: string,
+    checkoutOrigin?: string,
+  ): Promise<CheckoutResponseDto> {
     const booking = await this.requireBooking(bookingId);
     if (booking.studentId !== studentId)
       throw new ForbiddenException('Booking does not belong to user');
@@ -156,6 +162,7 @@ export class MentorBookingsService {
       bookingId: booking.id,
       amountVnd: booking.totalAmountVnd,
       currency: String((booking.packageSnapshot as { currency?: string })?.currency ?? 'VND'),
+      checkoutOrigin,
     });
     booking.paymentOrderId = payment.orderId;
     await this.bookings.save(booking);

@@ -9,6 +9,7 @@ export interface PaymentCheckoutRequest {
   description: string;
   itemName: string;
   expiresAt: Date;
+  checkoutOrigin?: string;
 }
 
 export interface PaymentCheckoutResult {

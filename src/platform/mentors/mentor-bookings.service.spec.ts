@@ -111,11 +111,15 @@ describe('MentorBookingsService', () => {
     });
     bookings.save.mockImplementation(async (booking) => ({ id: 'booking-1', ...booking }));
 
-    const result = await service.createBooking('student-1', {
-      mentorProfileId: 'profile-1',
-      slotId: 'slot-1',
-      studentGoal: '  Review my backend architecture plan before launch.  ',
-    });
+    const result = await service.createBooking(
+      'student-1',
+      {
+        mentorProfileId: 'profile-1',
+        slotId: 'slot-1',
+        studentGoal: '  Review my backend architecture plan before launch.  ',
+      },
+      'https://www.skillbridgebuilder.com',
+    );
 
     expect(bookings.save).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -135,7 +139,11 @@ describe('MentorBookingsService', () => {
       }),
     );
     expect(checkout.createMentorBookingCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 500000 }),
+      expect.objectContaining({
+        bookingId: 'booking-1',
+        amountVnd: 500000,
+        checkoutOrigin: 'https://www.skillbridgebuilder.com',
+      }),
     );
     expect(result).toEqual(
       expect.objectContaining({
@@ -188,10 +196,14 @@ describe('MentorBookingsService', () => {
       updatedAt: null,
     });
 
-    const result = await service.pay('student-1', 'booking-1');
+    const result = await service.pay('student-1', 'booking-1', 'https://skillbridgebuilder.com');
 
     expect(checkout.createMentorBookingCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ bookingId: 'booking-1', amountVnd: 500000 }),
+      expect.objectContaining({
+        bookingId: 'booking-1',
+        amountVnd: 500000,
+        checkoutOrigin: 'https://skillbridgebuilder.com',
+      }),
     );
     expect(bookings.save).toHaveBeenCalledWith(
       expect.objectContaining({ paymentOrderId: 'mentor-payment-order-1' }),

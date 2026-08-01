@@ -77,14 +77,22 @@ describe('BillingCheckoutService', () => {
     });
     orders.save.mockImplementation((input) => Promise.resolve({ id: 'order-1', ...input }));
 
-    const result = await service.createCheckout('user-1', {
-      purpose: 'SUBSCRIPTION',
-      planCode: 'PRO',
-    });
+    const result = await service.createCheckout(
+      'user-1',
+      {
+        purpose: 'SUBSCRIPTION',
+        planCode: 'PRO',
+      },
+      'https://skillbridgebuilder.com',
+    );
 
     expect(orders.save).toHaveBeenCalledWith(expect.objectContaining({ provider: 'PAYOS' }));
     expect(provider.createPaymentLink).toHaveBeenCalledWith(
-      expect.objectContaining({ amountVnd: 129000, itemName: 'Pro' }),
+      expect.objectContaining({
+        amountVnd: 129000,
+        itemName: 'Pro',
+        checkoutOrigin: 'https://skillbridgebuilder.com',
+      }),
     );
     expect(result).toEqual(
       expect.objectContaining({
@@ -170,6 +178,7 @@ describe('BillingCheckoutService', () => {
       bookingId: 'booking-1',
       amountVnd: 500000,
       currency: 'VND',
+      checkoutOrigin: 'https://www.skillbridgebuilder.com',
     });
 
     expect(orders.save).toHaveBeenCalledWith(
@@ -181,7 +190,11 @@ describe('BillingCheckoutService', () => {
       }),
     );
     expect(provider.createPaymentLink).toHaveBeenCalledWith(
-      expect.objectContaining({ amountVnd: 500000, itemName: 'Mentor session' }),
+      expect.objectContaining({
+        amountVnd: 500000,
+        itemName: 'Mentor session',
+        checkoutOrigin: 'https://www.skillbridgebuilder.com',
+      }),
     );
     expect(result).toEqual(expect.objectContaining({ orderId: 'order-1' }));
   });

@@ -25,6 +25,7 @@ import { BillingSettlementService } from './services/billing-settlement.service'
 import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
 import { AdminVoucherService } from './admin-voucher.service';
+import { CheckoutOriginService } from './services/checkout-origin.service';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AdminVoucherService } from './admin-voucher.service';
     BillingService,
     AdminBillingService,
     BillingCheckoutService,
+    CheckoutOriginService,
     BillingSettlementService,
     PaymentWebhookService,
     PayosPaymentProvider,
@@ -61,6 +63,6 @@ import { AdminVoucherService } from './admin-voucher.service';
     VoucherService,
     AdminVoucherService,
   ],
-  exports: [EntitlementsService, BillingCheckoutService],
+  exports: [EntitlementsService, BillingCheckoutService, CheckoutOriginService],
 })
 export class BillingModule {}
