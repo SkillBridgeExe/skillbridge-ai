@@ -93,9 +93,8 @@ export class BillingSettlementService {
       });
     }
     if (
-      !order.paymentLinkId ||
       !payment.paymentLinkId ||
-      order.paymentLinkId !== payment.paymentLinkId
+      (order.paymentLinkId !== null && order.paymentLinkId !== payment.paymentLinkId)
     ) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,

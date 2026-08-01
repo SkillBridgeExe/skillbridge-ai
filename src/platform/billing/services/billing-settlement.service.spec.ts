@@ -116,6 +116,45 @@ describe('BillingSettlementService', () => {
     );
   });
 
+  it('backfills a verified provider payment link when the pending local order has none', async () => {
+    const { service, orders, subscriptions } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-without-link',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '127',
+      amountVnd: 99000,
+      currency: 'VND',
+      purpose: 'SUBSCRIPTION',
+      targetType: 'SUBSCRIPTION',
+      targetId: null,
+      planCode: 'PRO',
+      status: 'PENDING',
+      paymentLinkId: null,
+      paidAt: null,
+    } as PaymentOrderEntity);
+    subscriptions.findOne.mockResolvedValue(null);
+
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 127,
+      paymentLinkId: 'plink-from-verified-provider',
+      reference: 'ref-127',
+      status: 'PAID',
+      amountVnd: 99000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'order-without-link',
+        paymentLinkId: 'plink-from-verified-provider',
+        status: 'PAID',
+      }),
+    );
+  });
+
   it('redeems a voucher when a valid paid webhook arrives after its reservation was released', async () => {
     const { service, orders, subscriptions, voucherRedemptions } = setup();
     orders.findOne.mockResolvedValue({
