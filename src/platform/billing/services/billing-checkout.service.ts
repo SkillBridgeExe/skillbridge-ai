@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../../common/constants/error-codes';
@@ -13,6 +13,8 @@ const CHECKOUT_TTL_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class BillingCheckoutService {
+  private readonly logger = new Logger(BillingCheckoutService.name);
+
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     @InjectRepository(PaymentOrderEntity) private readonly orders: Repository<PaymentOrderEntity>,
@@ -162,9 +164,18 @@ export class BillingCheckoutService {
       .catch(async (error) => {
         order.status = 'FAILED';
         await this.orders.save(order);
+        this.logger.warn({
+          event: 'payment_link_creation_failed',
+          orderId: order.id,
+          orderCode: order.orderCode,
+          provider: order.provider,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        });
         throw error;
       });
     order.checkoutUrl = link.checkoutUrl;
+    order.returnUrl = link.returnUrl;
+    order.cancelUrl = link.cancelUrl;
     order.paymentLinkId = link.paymentLinkId;
     order.qrCode = link.qrCode;
     order.providerPayload = link.providerPayload;
@@ -175,6 +186,7 @@ export class BillingCheckoutService {
       orderCode: Number(saved.orderCode),
       status: saved.status,
       checkoutUrl: saved.checkoutUrl,
+      returnUrl: saved.returnUrl,
       qrCode: saved.qrCode,
       paymentLinkId: saved.paymentLinkId,
       expiresAt: saved.expiresAt?.toISOString() ?? null,

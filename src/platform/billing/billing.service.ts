@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
@@ -24,6 +24,8 @@ import { VoucherService } from './voucher.service';
 
 @Injectable()
 export class BillingService {
+  private readonly logger = new Logger(BillingService.name);
+
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     @InjectRepository(PlanFeatureEntity) private readonly features: Repository<PlanFeatureEntity>,
@@ -93,8 +95,24 @@ export class BillingService {
     if (order.status !== 'PENDING') {
       return this.toOrderResponse(order);
     }
+    const claimed = await this.claimProviderCheck(order.id);
+    if (!claimed) {
+      return this.toOrderResponse(await this.findOrderForUser(userId, orderCode));
+    }
     const provider = this.providers.get(order.provider);
-    const snapshot = await provider.getPaymentStatus({ orderCode: Number(order.orderCode) });
+    let snapshot;
+    try {
+      snapshot = await provider.getPaymentStatus({ orderCode: Number(order.orderCode) });
+    } catch (error) {
+      this.logger.warn({
+        event: 'payment_reconcile_failed',
+        orderId: order.id,
+        orderCode: order.orderCode,
+        provider: order.provider,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+      throw error;
+    }
     if (snapshot.status === 'PAID') {
       await this.settlement.settlePaidPayment(snapshot);
     } else if (isTerminalNonPaidStatus(snapshot.status)) {
@@ -137,6 +155,21 @@ export class BillingService {
     return order;
   }
 
+  private async claimProviderCheck(orderId: string): Promise<boolean> {
+    const cooldownBoundary = new Date(Date.now() - 10_000);
+    const result = await this.orders
+      .createQueryBuilder()
+      .update(PaymentOrderEntity)
+      .set({ lastProviderCheckAt: () => 'CURRENT_TIMESTAMP' })
+      .where('id = :orderId', { orderId })
+      .andWhere('status = :status', { status: 'PENDING' })
+      .andWhere('(last_provider_check_at IS NULL OR last_provider_check_at <= :cooldownBoundary)', {
+        cooldownBoundary,
+      })
+      .execute();
+    return (result.affected ?? 0) === 1;
+  }
+
   private toOrderResponse(order: PaymentOrderEntity): OrderStatusResponseDto {
     return {
       orderId: order.id,
@@ -146,6 +179,7 @@ export class BillingService {
       amountVnd: order.amountVnd,
       currency: order.currency,
       checkoutUrl: order.checkoutUrl,
+      returnUrl: order.returnUrl ?? null,
       paymentLinkId: order.paymentLinkId,
       targetType: order.targetType,
       targetId: order.targetId,

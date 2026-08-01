@@ -224,6 +224,44 @@ describe('BillingSettlementService', () => {
     expect(orders.save).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['currency', { amountVnd: 99000, currency: 'USD', paymentLinkId: 'plink-1' }],
+    ['payment link', { amountVnd: 99000, currency: 'VND', paymentLinkId: 'plink-other' }],
+    ['missing amount', { amountVnd: null, currency: 'VND', paymentLinkId: 'plink-1' }],
+    ['missing currency', { amountVnd: 99000, currency: null, paymentLinkId: 'plink-1' }],
+    ['missing payment link', { amountVnd: 99000, currency: 'VND', paymentLinkId: null }],
+  ])('rejects paid settlement when the provider %s is invalid', async (_case, providerData) => {
+    const { service, orders, subscriptions } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-1',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '123',
+      amountVnd: 99000,
+      currency: 'VND',
+      purpose: 'SUBSCRIPTION',
+      targetType: 'SUBSCRIPTION',
+      planCode: 'PRO',
+      status: 'PENDING',
+      paymentLinkId: 'plink-1',
+      paidAt: null,
+    } as PaymentOrderEntity);
+
+    await expect(
+      service.settlePaidPayment({
+        provider: 'PAYOS',
+        orderCode: 123,
+        reference: 'ref-1',
+        status: 'PAID',
+        raw: {},
+        ...providerData,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(subscriptions.save).not.toHaveBeenCalled();
+    expect(orders.save).not.toHaveBeenCalled();
+  });
+
   it('confirms the booking and books the held slot after the mentor booking payment settles', async () => {
     const { service, orders, mentorBookings, mentorSlots } = setup();
     orders.findOne.mockResolvedValue({

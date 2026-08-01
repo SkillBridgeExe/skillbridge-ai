@@ -32,12 +32,14 @@ export class PayosPaymentProvider implements PaymentProviderPort {
   }
 
   async createPaymentLink(input: PaymentCheckoutRequest): Promise<PaymentCheckoutResult> {
+    const returnUrl = buildOrderCheckoutUrl(this.requiredEnv('PAYOS_RETURN_URL'), input.orderCode);
+    const cancelUrl = buildOrderCheckoutUrl(this.requiredEnv('PAYOS_CANCEL_URL'), input.orderCode);
     const link = await this.requireClient().paymentRequests.create({
       orderCode: input.orderCode,
       amount: input.amountVnd,
       description: input.description,
-      returnUrl: this.requiredEnv('PAYOS_RETURN_URL'),
-      cancelUrl: this.requiredEnv('PAYOS_CANCEL_URL'),
+      returnUrl,
+      cancelUrl,
       items: [{ name: input.itemName.slice(0, 64), quantity: 1, price: input.amountVnd }],
       expiredAt: Math.floor(input.expiresAt.getTime() / 1000),
     });
@@ -46,6 +48,8 @@ export class PayosPaymentProvider implements PaymentProviderPort {
       checkoutUrl: link.checkoutUrl,
       paymentLinkId: link.paymentLinkId,
       qrCode: link.qrCode,
+      returnUrl,
+      cancelUrl,
       providerPayload: link,
       expiresAt: link.expiredAt ? new Date(link.expiredAt * 1000) : null,
     };
@@ -93,6 +97,14 @@ export class PayosPaymentProvider implements PaymentProviderPort {
     if (!value) throw new ServiceUnavailableException(`${key} is not configured`);
     return value;
   }
+}
+
+export function buildOrderCheckoutUrl(baseUrl: string, orderCode: number): string {
+  const url = new URL(baseUrl);
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${orderCode}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
 }
 
 function toVerifiedStatus(webhook: Webhook, data: WebhookData): VerifiedPaymentStatus {

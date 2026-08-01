@@ -78,6 +78,12 @@ export class PaymentOrderEntity {
   @Column({ type: 'text', name: 'checkout_url', nullable: true })
   checkoutUrl!: string | null;
 
+  @Column({ type: 'text', name: 'return_url', nullable: true })
+  returnUrl!: string | null;
+
+  @Column({ type: 'text', name: 'cancel_url', nullable: true })
+  cancelUrl!: string | null;
+
   @Column({ type: 'varchar', name: 'payment_link_id', nullable: true })
   paymentLinkId!: string | null;
 
@@ -92,6 +98,9 @@ export class PaymentOrderEntity {
 
   @Column({ type: 'timestamptz', name: 'expires_at', nullable: true })
   expiresAt!: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'last_provider_check_at', nullable: true })
+  lastProviderCheckAt!: Date | null;
 
   @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
   createdAt!: Date;

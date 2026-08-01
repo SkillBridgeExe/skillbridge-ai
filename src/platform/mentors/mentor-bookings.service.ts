@@ -471,6 +471,7 @@ export class MentorBookingsService {
       orderCode: Number(order.orderCode),
       status: order.status,
       checkoutUrl: order.checkoutUrl,
+      returnUrl: order.returnUrl ?? null,
       qrCode: order.qrCode,
       paymentLinkId: order.paymentLinkId,
       expiresAt: order.expiresAt?.toISOString() ?? null,

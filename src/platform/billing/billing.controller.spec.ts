@@ -1,4 +1,15 @@
-import { MeEntitlementsController } from './billing.controller';
+import { BillingController, MeEntitlementsController } from './billing.controller';
+
+describe('BillingController', () => {
+  it('prevents browser caching on the dynamic order status endpoint', () => {
+    const headers = Reflect.getMetadata('__headers__', BillingController.prototype.order);
+
+    expect(headers).toContainEqual({
+      name: 'Cache-Control',
+      value: 'private, no-store, max-age=0',
+    });
+  });
+});
 
 describe('MeEntitlementsController', () => {
   it('returns a flat entitlement list for the current user', async () => {
