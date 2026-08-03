@@ -59,6 +59,7 @@ describe('JobsController quota enforcement', () => {
         limit: undefined,
         offset: undefined,
         roleCode: undefined,
+        snapshotToken: undefined,
         salaryOnly: false,
         sort: 'RECOMMENDED',
         workModes: [],
@@ -151,6 +152,7 @@ describe('JobsController quota enforcement', () => {
       fit: 'safe_apply,stretch',
       salaryOnly: 'true',
       sort: 'NEWEST',
+      snapshotToken: '11111111-1111-4111-8111-111111111111',
     });
 
     expect(reco.recommendForCv).toHaveBeenCalledWith(
@@ -160,6 +162,7 @@ describe('JobsController quota enforcement', () => {
         limit: 10,
         offset: 20,
         roleCode: 'all',
+        snapshotToken: '11111111-1111-4111-8111-111111111111',
         cityCodes: ['HCM', 'HAN'],
         workModes: ['REMOTE', 'HYBRID'],
         employmentTypes: ['FULL_TIME', 'INTERNSHIP'],
@@ -170,6 +173,33 @@ describe('JobsController quota enforcement', () => {
       },
       expect.any(Object),
     );
+  });
+
+  it('refunds a reserved generation when another lease wins and the response becomes a cache hit', async () => {
+    const { controller, reco, reservation } = build([{ job_id: 'job-1' }]);
+    reco.recommendForCv.mockImplementation(
+      async (
+        _userId: string,
+        _cvId: string,
+        _options: unknown,
+        hooks: { beforeGenerate?: () => Promise<void> },
+      ) => {
+        await hooks.beforeGenerate?.();
+        return {
+          cv_id: 'cv-1',
+          pool_size: 1,
+          total: 1,
+          limit: 5,
+          offset: 0,
+          generation: { cache_hit: true, snapshot_size: 1 },
+          recommendations: [{ job_id: 'job-1' }],
+        };
+      },
+    );
+
+    await controller.recommend({ userId: 'user-1' } as never, 'cv-1');
+
+    expect(reservation.refund).toHaveBeenCalledTimes(1);
   });
 
   it('rejects unsupported filter values before running the recommendation pipeline', async () => {

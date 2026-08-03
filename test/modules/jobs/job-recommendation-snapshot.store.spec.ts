@@ -11,8 +11,29 @@ describe('JobRecommendationSnapshotStore', () => {
       'user-1',
       'cv-1',
       'fingerprint',
-      'explorer-v1',
+      'explorer-v2',
     ]);
+  });
+
+  it('loads a live snapshot by opaque token scoped to the owning user and CV', async () => {
+    const payload = {
+      snapshot_token: '11111111-1111-4111-8111-111111111111',
+      cv_target_role: 'backend_developer',
+      recommendations: [],
+    };
+    const db = { query: jest.fn().mockResolvedValue([{ payload }]) };
+    const store = new JobRecommendationSnapshotStore(db as never, { get: jest.fn() } as never);
+
+    await expect(store.findByToken('user-1', 'cv-1', payload.snapshot_token)).resolves.toEqual(
+      payload,
+    );
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('claim_token = $3::uuid'), [
+      'user-1',
+      'cv-1',
+      payload.snapshot_token,
+      'explorer-v2',
+    ]);
+    expect(db.query.mock.calls[0][0]).toContain('expires_at > now()');
   });
 
   it('claims a cold snapshot without holding a pooled connection', async () => {
@@ -42,7 +63,7 @@ describe('JobRecommendationSnapshotStore', () => {
       'user-1',
       'cv-1',
       'fingerprint',
-      'explorer-v1',
+      'explorer-v2',
       'claim-1',
     ]);
     expect(db.query.mock.calls[0][0]).toContain('claim_token = $5::uuid');
@@ -73,5 +94,34 @@ describe('JobRecommendationSnapshotStore', () => {
     expect(client.query.mock.calls[0][0]).toContain('claim_token = $7::uuid');
     expect(client.query.mock.calls[0][1]).toContain('stale-claim');
     expect(client.query.mock.calls[0][0]).not.toContain('DELETE FROM');
+  });
+
+  it('keeps other live snapshots so active pagination tokens remain valid', async () => {
+    const client = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 'snapshot-1' }] })
+        .mockResolvedValueOnce({ rowCount: 0, rows: [] }),
+    };
+    const db = {
+      transaction: jest.fn(async (callback: (value: typeof client) => Promise<boolean>) =>
+        callback(client),
+      ),
+    };
+    const store = new JobRecommendationSnapshotStore(db as never, { get: jest.fn() } as never);
+
+    await expect(
+      store.save(
+        'user-1',
+        'cv-1',
+        'fingerprint',
+        { cv_target_role: 'backend_developer', recommendations: [] },
+        'active-claim',
+      ),
+    ).resolves.toBe(true);
+
+    const cleanupSql = client.query.mock.calls[1][0] as string;
+    expect(cleanupSql).toContain('WHERE expires_at <= now()');
+    expect(cleanupSql).not.toContain('OR (user_id = $1 AND cv_id = $2)');
   });
 });

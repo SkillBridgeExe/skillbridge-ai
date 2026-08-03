@@ -63,7 +63,10 @@ export class JobsController {
             : null;
         },
       });
-      if (quota.usage && response.generation.snapshot_size === 0) {
+      if (
+        quota.usage &&
+        (response.generation.snapshot_size === 0 || response.generation.cache_hit)
+      ) {
         await quota.usage.refund();
       }
       return response;

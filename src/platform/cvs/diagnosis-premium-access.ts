@@ -18,7 +18,7 @@ export function diagnosisPremiumView(
   review: CvReviewParsedResponse,
   unlocked: boolean,
 ): DiagnosisPremiumView {
-  const lockedIssueCount = review.sections.reduce(
+  const lockedIssueCount = (review.sections ?? []).reduce(
     (total, section) => total + section.issues.length,
     0,
   );
@@ -33,7 +33,17 @@ export function diagnosisPremiumView(
   return {
     review: {
       ...review,
-      sections: review.sections.map((section) => ({
+      rationale: {
+        action_verbs: '',
+        skills_relevance: '',
+        experience: '',
+        education: '',
+      },
+      top_summary: { headline: '', prioritized_actions: [] },
+      bullet_feedback: [],
+      buzzwords_detected: [],
+      skills_relevance_breakdown: null,
+      sections: (review.sections ?? []).map((section) => ({
         ...section,
         // Preserve the structural count/location so the FE can render the correct locked cards.
         // Paid text and hints never cross the API boundary.

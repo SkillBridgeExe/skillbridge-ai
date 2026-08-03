@@ -4,11 +4,15 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
 import type { JobRecommendation } from './job-recommendation.service';
 
-export const JOB_RECOMMENDATION_RANKING_VERSION = 'explorer-v1';
+export const JOB_RECOMMENDATION_RANKING_VERSION = 'explorer-v2';
 
 export interface JobRecommendationSnapshot {
+  /** Opaque lease id exposed only through an ownership-scoped lookup. Keeps paging/filtering stable. */
+  snapshot_token?: string;
   cv_target_role: string | null;
   recommendations: JobRecommendation[];
+  /** Independently fused/ranked ids. Keeps role isolation without duplicating full cards in JSONB. */
+  recommendation_ids_by_role?: Record<string, string[]>;
 }
 
 interface SnapshotRow {
@@ -38,6 +42,26 @@ export class JobRecommendationSnapshotStore {
           AND expires_at > now()
         LIMIT 1`,
       [userId, cvId, inputFingerprint, JOB_RECOMMENDATION_RANKING_VERSION],
+    );
+    return rows[0]?.payload ?? null;
+  }
+
+  async findByToken(
+    userId: string,
+    cvId: string,
+    snapshotToken: string,
+  ): Promise<JobRecommendationSnapshot | null> {
+    const rows = await this.db.query<SnapshotRow>(
+      `SELECT payload
+         FROM public.job_recommendation_snapshots
+        WHERE user_id = $1
+          AND cv_id = $2
+          AND claim_token = $3::uuid
+          AND ranking_version = $4
+          AND payload IS NOT NULL
+          AND expires_at > now()
+        LIMIT 1`,
+      [userId, cvId, snapshotToken, JOB_RECOMMENDATION_RANKING_VERSION],
     );
     return rows[0]?.payload ?? null;
   }
@@ -145,11 +169,17 @@ export class JobRecommendationSnapshotStore {
 
       await client.query(
         `DELETE FROM public.job_recommendation_snapshots
-          WHERE (expires_at <= now() OR (user_id = $1 AND cv_id = $2))
-            AND NOT (
-              user_id = $1 AND cv_id = $2
-              AND input_fingerprint = $3 AND ranking_version = $4
-            )`,
+          WHERE id IN (
+            SELECT id
+              FROM public.job_recommendation_snapshots
+             WHERE expires_at <= now()
+               AND NOT (
+                 user_id = $1 AND cv_id = $2
+                 AND input_fingerprint = $3 AND ranking_version = $4
+               )
+             ORDER BY expires_at ASC
+             LIMIT 500
+          )`,
         [userId, cvId, inputFingerprint, JOB_RECOMMENDATION_RANKING_VERSION],
       );
       return true;

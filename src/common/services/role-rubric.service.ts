@@ -135,6 +135,10 @@ export class RoleRubricService implements OnModuleInit {
     return banded;
   }
 
+  hasRubric(roleCode: string): boolean {
+    return this.rubrics.has(roleCode);
+  }
+
   listRoleCodes(): string[] {
     return [...this.rubrics.keys()];
   }

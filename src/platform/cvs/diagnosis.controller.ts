@@ -6,6 +6,7 @@ import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator'
 import { CvListQueryDto } from './dto/cv-list-query.dto';
 import { PlatformCvReviewRequestDto } from './dto/cv-review-request.dto';
 import { CvsService } from './cvs.service';
+import { RoleRubricService } from '../../common/services/role-rubric.service';
 
 @ApiTags('Diagnosis')
 @ApiBearerAuth()
@@ -13,7 +14,24 @@ import { CvsService } from './cvs.service';
 @UseGuards(AuthGuard('jwt'))
 @Controller('api/diagnosis')
 export class DiagnosisController {
-  constructor(private readonly cvs: CvsService) {}
+  constructor(
+    private readonly cvs: CvsService,
+    private readonly roleRubrics: RoleRubricService,
+  ) {}
+
+  @Get('roles')
+  @ApiOperation({
+    summary: 'List supported diagnosis target roles',
+    description:
+      'Returns the authoritative role registry backed by scoring rubrics. This is intentionally separate from the smaller job-marketplace classifier taxonomy.',
+  })
+  roles() {
+    return this.roleRubrics.listRubrics().map((rubric) => ({
+      code: rubric.role_code,
+      label_vi: rubric.display_name_vi,
+      label_en: rubric.display_name_en,
+    }));
+  }
 
   @Post('cv-review')
   @ApiOperation({
