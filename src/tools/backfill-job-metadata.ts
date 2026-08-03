@@ -82,18 +82,27 @@ export async function applyJobMetadataBackfill(
 async function main(): Promise<void> {
   dotenv.config();
   const apply = process.argv.includes('--apply');
+  const { Client } = await import('pg');
+  const client = new Client({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    database: process.env.DB_DATABASE || 'skillbridge',
+  });
+
   try {
-    const { NestFactory } = await import('@nestjs/core');
-    const { AppModule } = await import('../app.module');
-    const { getDataSourceToken } = await import('@nestjs/typeorm');
-    const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error'] });
-    const ds = app.get(getDataSourceToken());
-    const jobs: JobMetadataBackfillRow[] = await ds.query(
+    await client.connect();
+
+    // Guard: Prevent accidentally running migrations by NOT booting AppModule
+    const result = await client.query(
       `SELECT id, title, location, primary_city_code, location_city_codes, work_mode
          FROM jobs
         WHERE status = 'active' AND canonical_job_id IS NULL
         ORDER BY id`,
     );
+    const jobs: JobMetadataBackfillRow[] = result.rows;
+
     const changes = computeJobMetadataBackfill(jobs);
     const withLocation = changes.filter((change) => change.cityCodes).length;
     const withWorkMode = changes.filter((change) => change.workMode).length;
@@ -113,21 +122,26 @@ async function main(): Promise<void> {
     }
 
     if (apply && changes.length > 0) {
-      await ds.transaction(
-        async (manager: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => {
-          await applyJobMetadataBackfill(manager, changes);
-        },
-      );
-      console.log(`\nAPPLIED ${changes.length} rows in one transaction.`);
+      await client.query('BEGIN');
+      try {
+        await applyJobMetadataBackfill(client, changes);
+        await client.query('COMMIT');
+        console.log(`\nAPPLIED ${changes.length} rows in one transaction.`);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      }
     } else if (apply) {
       console.log('\nNothing to apply.');
     } else {
       console.log('\nDRY-RUN only. Re-run with `-- --apply` after explicit approval.');
     }
-    await app.close();
   } catch (error) {
     console.log(`\nbackfill: DB not available (${(error as Error).message}).`);
     process.exitCode = 1;
+  } finally {
+    // Best-effort cleanup to prevent connection pool leaks
+    await client.end().catch(() => {});
   }
 }
 
