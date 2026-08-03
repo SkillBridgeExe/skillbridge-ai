@@ -32,14 +32,9 @@ async function main(): Promise<void> {
   const dotenvParsed = dotenv.config().parsed ?? {};
   if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENAI_API_KEY;
   const apply = process.argv.includes('--apply');
-  const { Client } = await import('pg');
-  const client = new Client({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: process.env.DB_DATABASE || 'skillbridge',
-  });
+
+  const { createToolDbClient } = await import('./tool-db-client');
+  const client = createToolDbClient();
 
   try {
     await client.connect();
