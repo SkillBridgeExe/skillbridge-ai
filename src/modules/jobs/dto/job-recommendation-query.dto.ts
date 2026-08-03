@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 import { RoleCode } from '../ingest/ingest-normalizers';
 import {
   EmploymentType,
@@ -46,6 +46,10 @@ const SORTS: readonly JobRecommendationSort[] = [
 ];
 
 export class JobRecommendationQueryDto {
+  @IsOptional()
+  @IsUUID()
+  snapshotToken?: string;
+
   @IsOptional()
   @IsString()
   limit?: string;
@@ -152,6 +156,7 @@ export function toJobRecommendationOptions(
   }
 
   return {
+    snapshotToken: query.snapshotToken,
     limit: parseInteger(query.limit, 'limit'),
     offset: parseInteger(query.offset, 'offset'),
     roleCode: role || undefined,

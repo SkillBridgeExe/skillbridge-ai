@@ -90,6 +90,7 @@ function makeService(overrides?: {
   conversationDelete?: jest.Mock;
   messagesFind?: jest.Mock;
   messagesDelete?: jest.Mock;
+  hasActivePlan?: jest.Mock;
 }) {
   const saved: SavedMessage[] = [];
 
@@ -143,6 +144,10 @@ function makeService(overrides?: {
     markFailed: jest.fn().mockResolvedValue(undefined),
   };
 
+  const entitlements = {
+    hasActivePlan: overrides?.hasActivePlan ?? jest.fn().mockResolvedValue(true),
+  };
+
   const service = new DiagnosisChatPlatformService(
     conversations as never,
     messages as never,
@@ -150,10 +155,38 @@ function makeService(overrides?: {
     cvMatches as never,
     cvs as never,
     tracing as never,
+    entitlements as never,
   );
 
-  return { service, saved, conversations, messages, chat, cvMatches, cvs, tracing };
+  return { service, saved, conversations, messages, chat, cvMatches, cvs, tracing, entitlements };
 }
+
+describe('DiagnosisChatPlatformService — premium fact boundary', () => {
+  it('does not send paid CV-review rationale or prioritized actions to chat for a free user', async () => {
+    const { service, chat, entitlements } = makeService({
+      hasActivePlan: jest.fn().mockResolvedValue(false),
+    });
+
+    await service.turnCvOnly(USER_ID, CV_ID, { question: 'Tôi nên sửa gì trước?' });
+
+    expect(entitlements.hasActivePlan).toHaveBeenCalledWith(USER_ID, 'PREMIUM');
+    const facts = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(facts.dimensions).toEqual([{ key: 'skills_relevance', score20: 12, rationale: '' }]);
+    expect(facts.top_summary.prioritized_actions).toEqual([]);
+  });
+
+  it('keeps complete review facts for a premium user', async () => {
+    const { service, chat } = makeService({
+      hasActivePlan: jest.fn().mockResolvedValue(true),
+    });
+
+    await service.turnCvOnly(USER_ID, CV_ID, { question: 'Tôi nên sửa gì trước?' });
+
+    const facts = (chat.turn as jest.Mock).mock.calls[0][0].facts;
+    expect(facts.dimensions[0].rationale).toBe('Some JD skills missing.');
+    expect(facts.top_summary.prioritized_actions).toEqual(['Add Docker evidence']);
+  });
+});
 
 describe('DiagnosisChatPlatformService.turn — PII (D1)', () => {
   it('persists the user message MASKED (no raw email/phone in chat_messages content)', async () => {

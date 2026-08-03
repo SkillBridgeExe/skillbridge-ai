@@ -3,6 +3,7 @@ import {
   JobRecommendationService,
   buildJobRecommendation,
   normalizeLocationCityCodes,
+  projectJobRecommendationSnapshot,
   sortJobRecommendations,
 } from '../../../src/modules/jobs/reco/job-recommendation.service';
 
@@ -397,5 +398,35 @@ describe('Job Explorer role scope, metadata filters, and facets', () => {
     });
     expect(response.pool_size).toBe(0);
     expect(response.recommendations).toEqual([]);
+  });
+
+  it('uses the independently ranked role view and returns a stable snapshot token', () => {
+    const backend = recommendation('backend', {
+      role_code: 'backend_developer',
+      rank: 2,
+    });
+    const backendScoped = recommendation('backend', {
+      role_code: 'backend_developer',
+      rank: 1,
+    });
+    const frontend = recommendation('frontend', {
+      role_code: 'frontend_developer',
+      rank: 1,
+    });
+
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      {
+        snapshot_token: '11111111-1111-4111-8111-111111111111',
+        cv_target_role: 'backend_developer',
+        recommendations: [frontend, backend],
+        recommendation_ids_by_role: { backend_developer: [backendScoped.job_id] },
+      },
+      {},
+      true,
+    );
+
+    expect(response.recommendations.map((row) => [row.job_id, row.rank])).toEqual([['backend', 1]]);
+    expect(response.generation.snapshot_token).toBe('11111111-1111-4111-8111-111111111111');
   });
 });

@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { BillingPlanCode } from '../../common/constants/billing.constants';
 import { maskPii } from '../../common/services/pii-mask';
 import { ChatConversationEntity } from '../../database/entities/chat-conversation.entity';
 import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
@@ -16,7 +17,9 @@ import { extractConversationState } from '../../modules/diagnosis-chat/conversat
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.service';
+import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
+import { diagnosisPremiumView } from '../cvs/diagnosis-premium-access';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
 /** The domain service still shows only its last-10 window to the LLM; it receives this WIDER slice
@@ -74,6 +77,7 @@ export class DiagnosisChatPlatformService {
     private readonly cvMatches: CvMatchesService,
     private readonly cvs: CvsService,
     private readonly tracing: TracingService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   /**
@@ -151,7 +155,8 @@ export class DiagnosisChatPlatformService {
       // Non-owned cv OR a cv with no completed review → honest 404, no cross-user data, no crash.
       throw new NotFoundException('CV diagnosis not found');
     }
-    const facts = buildDiagnosisFacts(review, null);
+    const unlocked = await this.entitlements.hasActivePlan(userId, BillingPlanCode.PREMIUM);
+    const facts = buildDiagnosisFacts(diagnosisPremiumView(review, unlocked).review, null);
     const conversation = await this.resolveCvConversation(userId, cvId);
     return this.runTurn(userId, conversation, facts, dto, { cv_id: cvId });
   }
@@ -254,6 +259,8 @@ export class DiagnosisChatPlatformService {
   ): Promise<{ facts: DiagnosisFacts; otherMatches: OtherMatchSummary[] }> {
     const report = await this.cvMatches.getGapReport(userId, matchId);
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
+    const unlocked = await this.entitlements.hasActivePlan(userId, BillingPlanCode.PREMIUM);
+    const accessibleReview = review ? diagnosisPremiumView(review, unlocked).review : null;
     // Best-effort: a progress-lookup failure must never break the chat itself, but a silently
     // dropped fact should still surface somewhere (T5 — no more silent facts degradation).
     const progress = await this.cvMatches.getProgress(userId, matchId).catch((err: unknown) => {
@@ -273,7 +280,10 @@ export class DiagnosisChatPlatformService {
         );
         return [];
       });
-    return { facts: buildDiagnosisFacts(review, report, progress, otherMatches), otherMatches };
+    return {
+      facts: buildDiagnosisFacts(accessibleReview, report, progress, otherMatches),
+      otherMatches,
+    };
   }
 
   private async assertQuota(userId: string): Promise<void> {
