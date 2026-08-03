@@ -102,7 +102,7 @@ async function main(): Promise<void> {
                         WHEN primary_city_code IS NULL
                          AND COALESCE(cardinality(location_city_codes), 0) = 0
                         THEN $2 ELSE location_city_codes END,
-                      work_mode = COALESCE(work_mode, $3),
+                      work_mode = COALESCE(NULLIF(BTRIM(work_mode), ''), $3),
                       updated_at = now()
                 WHERE id = $4`,
               [
