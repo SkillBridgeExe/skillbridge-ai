@@ -195,6 +195,9 @@ describe('CvsService R1 completion behavior', () => {
     const skillDiff = {
       diff: jest.fn(),
     };
+    const roleRubrics = {
+      hasRubric: jest.fn((role: string) => role !== 'invented_role'),
+    };
 
     const service = new CvsService(
       cvsRepo as never,
@@ -216,6 +219,12 @@ describe('CvsService R1 completion behavior', () => {
       skillDiff as never,
       interviewPlan as never,
       githubEvidence as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      roleRubrics as never,
     );
 
     return {
@@ -241,6 +250,7 @@ describe('CvsService R1 completion behavior', () => {
       skillDiff,
       interviewPlan,
       githubEvidence,
+      roleRubrics,
     };
   }
 
@@ -872,6 +882,27 @@ describe('CvsService R1 completion behavior', () => {
     expect(params).toContain('fullstack_developer');
   });
 
+  it('rejects an unsupported role before generated-PDF cache lookup or CV mutation', async () => {
+    const { service, cvsRepo, pdfRenderer, aiResults, cvReview } = build();
+    pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
+
+    await expect(
+      service.create(
+        'u1',
+        { consentAccepted: true, targetRole: 'invented_role' },
+        { ...file, buffer: Buffer.from('%PDF-1.7 generated') },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'UNSUPPORTED_TARGET_ROLE' }),
+    });
+
+    expect(cvsRepo.findOne).not.toHaveBeenCalled();
+    expect(pdfRenderer.extractSkillbridgeFingerprint).not.toHaveBeenCalled();
+    expect(aiResults.manager.query).not.toHaveBeenCalled();
+    expect(cvsRepo.update).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
+  });
+
   it('re-grades an owned generated PDF when the requested role has no matching review', async () => {
     const { service, cvsRepo, pdfRenderer, analysisQuota, cvReview, aiResults, storage } = build();
     pdfRenderer.extractSkillbridgeFingerprint.mockResolvedValue('original-cv');
@@ -1003,6 +1034,28 @@ describe('CvsService R1 completion behavior', () => {
       'u1',
       expect.objectContaining({ target_role: 'data_analyst' }),
     );
+  });
+
+  it('rejects an unsupported rerun role before cache lookup or CV mutation', async () => {
+    const { service, cvsRepo, aiResults, cvReview } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'cv-1',
+      userId: 'u1',
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      targetRole: 'backend_developer',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await expect(service.rerunReview('u1', 'cv-1', 'invented_role')).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'UNSUPPORTED_TARGET_ROLE' }),
+    });
+
+    expect(aiResults.manager.query).not.toHaveBeenCalled();
+    expect(cvsRepo.update).not.toHaveBeenCalled();
+    expect(cvReview.review).not.toHaveBeenCalled();
   });
 
   it('returns a matching persisted review without consuming analysis quota or calling the model', async () => {
