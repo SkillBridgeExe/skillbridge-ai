@@ -163,7 +163,7 @@ function makeService(overrides?: {
 
 describe('DiagnosisChatPlatformService — premium fact boundary', () => {
   it('does not send paid CV-review rationale or prioritized actions to chat for a free user', async () => {
-    const { service, chat, entitlements } = makeService({
+    const { service, chat, entitlements, saved } = makeService({
       hasActivePlan: jest.fn().mockResolvedValue(false),
     });
 
@@ -173,10 +173,13 @@ describe('DiagnosisChatPlatformService — premium fact boundary', () => {
     const facts = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(facts.dimensions).toEqual([{ key: 'skills_relevance', score20: 12, rationale: '' }]);
     expect(facts.top_summary.prioritized_actions).toEqual([]);
+    expect(saved.find((message) => message.role === 'assistant')?.metadata).toEqual(
+      expect.objectContaining({ diagnosis_access_level: 'free' }),
+    );
   });
 
   it('keeps complete review facts for a premium user', async () => {
-    const { service, chat } = makeService({
+    const { service, chat, saved } = makeService({
       hasActivePlan: jest.fn().mockResolvedValue(true),
     });
 
@@ -185,6 +188,9 @@ describe('DiagnosisChatPlatformService — premium fact boundary', () => {
     const facts = (chat.turn as jest.Mock).mock.calls[0][0].facts;
     expect(facts.dimensions[0].rationale).toBe('Some JD skills missing.');
     expect(facts.top_summary.prioritized_actions).toEqual(['Add Docker evidence']);
+    expect(saved.find((message) => message.role === 'assistant')?.metadata).toEqual(
+      expect.objectContaining({ diagnosis_access_level: 'premium' }),
+    );
   });
 });
 
@@ -560,6 +566,72 @@ describe('DiagnosisChatPlatformService — visible trust wire (Wave 2)', () => {
 });
 
 describe('DiagnosisChatPlatformService thread endpoints (MB1)', () => {
+  it('hides premium and unclassified assistant history after a user downgrades', async () => {
+    const rows = [
+      {
+        role: 'user',
+        content: 'Tôi nên sửa gì?',
+        metadata: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Premium rationale',
+        metadata: { diagnosis_access_level: 'premium' },
+        createdAt: new Date('2026-01-01T00:01:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Legacy unclassified answer',
+        metadata: null,
+        createdAt: new Date('2026-01-01T00:02:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Free-safe answer',
+        metadata: { diagnosis_access_level: 'free' },
+        createdAt: new Date('2026-01-01T00:03:00.000Z'),
+      },
+    ];
+    const { service } = makeService({
+      messagesFind: jest.fn().mockResolvedValue(rows),
+      hasActivePlan: jest.fn().mockResolvedValue(false),
+    });
+
+    const result = await service.getThread(USER_ID, MATCH_ID);
+
+    expect(result.turns.map((turn) => turn.text)).toEqual(['Tôi nên sửa gì?', 'Free-safe answer']);
+  });
+
+  it('does not send premium assistant history to the model after downgrade', async () => {
+    const rows = [
+      {
+        role: 'assistant',
+        content: 'Premium rationale',
+        metadata: { diagnosis_access_level: 'premium' },
+        createdAt: new Date('2026-01-01T00:01:00.000Z'),
+      },
+      {
+        role: 'assistant',
+        content: 'Free-safe answer',
+        metadata: { diagnosis_access_level: 'free' },
+        createdAt: new Date('2026-01-01T00:02:00.000Z'),
+      },
+    ];
+    const turn = jest.fn().mockResolvedValue({ answer: 'ok', answer_kind: 'grounded' });
+    const { service } = makeService({
+      messagesFind: jest.fn().mockResolvedValue(rows),
+      hasActivePlan: jest.fn().mockResolvedValue(false),
+      turn,
+    });
+
+    await service.turn(USER_ID, MATCH_ID, { question: 'Tiếp tục' });
+
+    expect(turn.mock.calls[0][0].history).toEqual([
+      expect.objectContaining({ role: 'assistant', content: 'Free-safe answer' }),
+    ]);
+  });
+
   it('returns persisted turns ASC for owned conversation', async () => {
     const rows = Array.from({ length: 42 }, (_, i) => ({
       role: i % 2 === 0 ? 'user' : 'assistant',

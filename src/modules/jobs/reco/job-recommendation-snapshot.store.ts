@@ -169,11 +169,17 @@ export class JobRecommendationSnapshotStore {
 
       await client.query(
         `DELETE FROM public.job_recommendation_snapshots
-          WHERE expires_at <= now()
-            AND NOT (
-              user_id = $1 AND cv_id = $2
-              AND input_fingerprint = $3 AND ranking_version = $4
-            )`,
+          WHERE id IN (
+            SELECT id
+              FROM public.job_recommendation_snapshots
+             WHERE expires_at <= now()
+               AND NOT (
+                 user_id = $1 AND cv_id = $2
+                 AND input_fingerprint = $3 AND ranking_version = $4
+               )
+             ORDER BY expires_at ASC
+             LIMIT 500
+          )`,
         [userId, cvId, inputFingerprint, JOB_RECOMMENDATION_RANKING_VERSION],
       );
       return true;

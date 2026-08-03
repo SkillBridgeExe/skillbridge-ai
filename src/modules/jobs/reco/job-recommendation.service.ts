@@ -821,15 +821,17 @@ export class JobRecommendationService {
       ]),
     );
     const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-    const rankScope = (scopeCandidates: CandidateJobRow[]): JobRecommendation[] => {
+    const rankIds = (scopeCandidates: CandidateJobRow[]): string[] => {
       const scopeIds = new Set(scopeCandidates.map((candidate) => candidate.id));
       const scopeRankA = rankA.filter((id) => scopeIds.has(id));
       const scopeRankB = rankB.filter((id) => scopeIds.has(id));
-      const ranked = rerankByExperience(
+      return rerankByExperience(
         rrfFuse(scopeRankB.length > 0 ? [scopeRankA, scopeRankB] : [scopeRankA]),
         fitByJob,
-      );
-      return ranked.map(([jobId], index) =>
+      ).map(([jobId]) => jobId);
+    };
+    const buildRankedRecommendations = (rankedIds: string[]): JobRecommendation[] =>
+      rankedIds.map((jobId, index) =>
         buildJobRecommendation(
           byId.get(jobId)!,
           diffByJob.get(jobId)!,
@@ -839,7 +841,6 @@ export class JobRecommendationService {
           interviewSignals,
         ),
       );
-    };
 
     const candidatesByRole = new Map<string, CandidateJobRow[]>();
     for (const candidate of candidates) {
@@ -849,15 +850,13 @@ export class JobRecommendationService {
       candidatesByRole.set(candidate.role_code, group);
     }
     const recommendationIdsByRole = Object.fromEntries(
-      [...candidatesByRole.entries()].map(([role, rows]) => [
-        role,
-        rankScope(rows).map((recommendation) => recommendation.job_id),
-      ]),
+      [...candidatesByRole.entries()].map(([role, rows]) => [role, rankIds(rows)]),
     );
+    const rankedIds = rankIds(candidates);
 
     return {
       cv_target_role: cvTargetRole,
-      recommendations: rankScope(candidates),
+      recommendations: buildRankedRecommendations(rankedIds),
       recommendation_ids_by_role: recommendationIdsByRole,
     };
   }
