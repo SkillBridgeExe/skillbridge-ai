@@ -49,6 +49,30 @@ export function computeJobMetadataBackfill(
   return changes;
 }
 
+/** Execute the UPDATE in the DB safely without destroying existing metadata. */
+export async function applyJobMetadataBackfill(
+  manager: { query: (sql: string, params: unknown[]) => Promise<unknown> },
+  changes: JobMetadataBackfillChange[],
+): Promise<void> {
+  for (const change of changes) {
+    await manager.query(
+      `UPDATE jobs
+          SET primary_city_code = CASE
+                WHEN primary_city_code IS NULL
+                 AND COALESCE(cardinality(location_city_codes), 0) = 0
+                THEN $1 ELSE primary_city_code END,
+              location_city_codes = CASE
+                WHEN primary_city_code IS NULL
+                 AND COALESCE(cardinality(location_city_codes), 0) = 0
+                THEN $2 ELSE location_city_codes END,
+              work_mode = COALESCE(NULLIF(BTRIM(work_mode), ''), $3),
+              updated_at = now()
+        WHERE id = $4`,
+      [change.primaryCityCode ?? null, change.cityCodes ?? [], change.workMode ?? null, change.id],
+    );
+  }
+}
+
 /**
  * Default is read-only. `--apply` updates only currently-empty metadata in one transaction.
  *
@@ -91,28 +115,7 @@ async function main(): Promise<void> {
     if (apply && changes.length > 0) {
       await ds.transaction(
         async (manager: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => {
-          for (const change of changes) {
-            await manager.query(
-              `UPDATE jobs
-                  SET primary_city_code = CASE
-                        WHEN primary_city_code IS NULL
-                         AND COALESCE(cardinality(location_city_codes), 0) = 0
-                        THEN $1 ELSE primary_city_code END,
-                      location_city_codes = CASE
-                        WHEN primary_city_code IS NULL
-                         AND COALESCE(cardinality(location_city_codes), 0) = 0
-                        THEN $2 ELSE location_city_codes END,
-                      work_mode = COALESCE(NULLIF(BTRIM(work_mode), ''), $3),
-                      updated_at = now()
-                WHERE id = $4`,
-              [
-                change.primaryCityCode ?? null,
-                change.cityCodes ?? [],
-                change.workMode ?? null,
-                change.id,
-              ],
-            );
-          }
+          await applyJobMetadataBackfill(manager, changes);
         },
       );
       console.log(`\nAPPLIED ${changes.length} rows in one transaction.`);

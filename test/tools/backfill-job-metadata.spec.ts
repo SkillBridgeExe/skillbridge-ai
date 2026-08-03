@@ -1,4 +1,7 @@
-import { computeJobMetadataBackfill } from '../../src/tools/backfill-job-metadata';
+import {
+  applyJobMetadataBackfill,
+  computeJobMetadataBackfill,
+} from '../../src/tools/backfill-job-metadata';
 
 describe('computeJobMetadataBackfill', () => {
   it('fills only missing city/work-mode metadata', () => {
@@ -73,5 +76,31 @@ describe('computeJobMetadataBackfill', () => {
         },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe('applyJobMetadataBackfill', () => {
+  it('executes UPDATE safely mapping empty strings with NULLIF', async () => {
+    const manager = { query: jest.fn().mockResolvedValue(true) };
+
+    const changes = [
+      {
+        id: 'job-1',
+        title: 'A',
+        primaryCityCode: 'HCM',
+        cityCodes: ['HCM'],
+        workMode: 'REMOTE' as const,
+      },
+    ];
+
+    await applyJobMetadataBackfill(manager, changes);
+
+    expect(manager.query).toHaveBeenCalledTimes(1);
+    const sql = manager.query.mock.calls[0][0];
+    const params = manager.query.mock.calls[0][1];
+
+    // Verifies the user requirement: test SQL empty-string apply
+    expect(sql).toContain("work_mode = COALESCE(NULLIF(BTRIM(work_mode), ''), $3)");
+    expect(params).toEqual(['HCM', ['HCM'], 'REMOTE', 'job-1']);
   });
 });

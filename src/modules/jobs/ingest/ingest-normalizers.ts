@@ -191,8 +191,15 @@ export type JobWorkMode = 'ONSITE' | 'HYBRID' | 'REMOTE';
 
 /** Conservative work-mode extraction from source location/metadata text. */
 export function classifyWorkMode(raw: string): JobWorkMode | null {
-  const text = normalizeForHash(raw);
+  let text = (raw ?? '').toLowerCase();
   if (!text) return null;
+
+  // Erase tech-domain false positives so they don't trigger work-mode classification
+  text = text.replace(
+    /\b(?:hybrid\s+(?:cloud|mobile|app|application|infrastructure)|remote\s+(?:sensing|control|desktop|support|access|administration))\b/g,
+    '',
+  );
+
   if (/\bhybrid\b|kết\s*hợp|linh\s*hoạt.*(?:office|văn\s*phòng)/i.test(text)) return 'HYBRID';
   if (/\bremote\b|work\s*from\s*home|\bwfh\b|từ\s*xa|làm\s*việc\s*online/i.test(text))
     return 'REMOTE';
