@@ -138,6 +138,17 @@ export class CvReviewService {
   async review(userId: string, input: CvReviewRequestDto): Promise<CvReviewResponseDto> {
     const startedAt = Date.now();
 
+    // An explicit role is a scoring contract, not free-form prompt text. Reject unknown
+    // values before parsing or calling the LLM so the UI cannot silently receive a score
+    // based on the model's invented interpretation of a role.
+    const targetRole = input.target_role?.trim();
+    if (targetRole && !this.roleRubric.hasRubric(targetRole)) {
+      throw new BadRequestException({
+        code: 'UNSUPPORTED_TARGET_ROLE',
+        message: `Unsupported target role "${targetRole}". Choose a role from /api/diagnosis/roles.`,
+      });
+    }
+
     // ─── Step 0: content gate — a file with no readable CV content (blank scan, OCR noise,
     // junk upload) must never reach the TWO LLM stages below: it would burn cost, consume the
     // user's daily quota, and return nonsense scores. Thresholds are deliberately extreme
@@ -186,7 +197,7 @@ export class CvReviewService {
     const targetBand = input.target_band ?? 'fresher';
     // #7: feed the authoritative role rubric (seeded skills + required level + weight) so
     // skills_relevance is scored against ground truth, not the model's own idea of the role.
-    const rubricText = this.buildRubricText(input.target_role, targetBand);
+    const rubricText = this.buildRubricText(targetRole, targetBand);
     const userPrompt = this.prompts.render(input.prompt_template_code, {
       // Gap fix (deterministic-first): feed the STRUCTURED document as the primary CV
       // representation so the rubric scores from pre-extracted fields (lower variance),
@@ -194,7 +205,7 @@ export class CvReviewService {
       // Raw text is kept only as a secondary reference.
       cv: JSON.stringify(document, null, 2),
       cv_text: input.parsed_text,
-      target_role: input.target_role ?? '(none)',
+      target_role: targetRole ?? '(none)',
       language: feedbackLang,
       rubric: rubricText,
     });
@@ -208,7 +219,7 @@ export class CvReviewService {
       requestPayload: {
         cv_id: input.cv_id,
         prompt_template_code: input.prompt_template_code,
-        target_role: input.target_role,
+        target_role: targetRole,
         // Persist the REQUESTED feedback locale (null when omitted) so the platform review cache
         // only reuses a review whose language matches — a UI toggle re-generates instead of
         // serving the previous language. Null bucket keeps pre-lang rows reusable.
@@ -248,7 +259,7 @@ export class CvReviewService {
       // skills_relevance number is discarded), mirroring the Dim-1 override above.
       const skillBreakdown = this.buildSkillBreakdown(
         routed1.ats_extracted.skills_extracted,
-        input.target_role,
+        targetRole,
         targetBand,
       );
       const routed2 = skillBreakdown

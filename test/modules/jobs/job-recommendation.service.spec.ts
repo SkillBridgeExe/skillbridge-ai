@@ -228,7 +228,7 @@ describe('JobRecommendationService — stable explorer snapshots', () => {
     const query = jest
       .fn()
       .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend_developer' }])
-      .mockResolvedValueOnce([{ canonical_name: 'sql' }])
+      .mockResolvedValueOnce([{ job_id: 'backend' }])
       .mockResolvedValueOnce([row]);
     const stored = {
       snapshot_token: '11111111-1111-4111-8111-111111111111',
@@ -280,6 +280,13 @@ describe('JobRecommendationService — stable explorer snapshots', () => {
     expect(snapshots.findByToken).toHaveBeenCalledWith(USER_ID, CV_ID, stored.snapshot_token);
     expect(beforeGenerate).not.toHaveBeenCalled();
     expect(response.generation.snapshot_token).toBe(stored.snapshot_token);
+    expect(response.recommendations[0]?.saved).toBe(true);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(String(query.mock.calls[0][0])).toContain('FROM public.cvs');
+    expect(String(query.mock.calls[1][0])).toContain('FROM public.saved_jobs');
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('FROM public.jobs j'))).toBe(
+      false,
+    );
   });
 });
 

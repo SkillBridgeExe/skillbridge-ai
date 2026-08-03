@@ -560,6 +560,25 @@ export class JobRecommendationService {
     const cvSeniority: CvSeniority | null = cvRows[0].parsed_json
       ? deriveCvSeniority(cvRows[0].parsed_json)
       : null;
+    const cvTargetRole = cvRows[0].target_role?.trim() || null;
+
+    // A stable explorer page does not need to rebuild or reload the recommendation pool.
+    // Keep the ownership check above, then hydrate only mutable saved-state for the jobs
+    // present in the stored page. This makes snapshot pagination proportional to page size.
+    if (options.snapshotToken) {
+      const stableSnapshot = await this.snapshots.findByToken(userId, cvId, options.snapshotToken);
+      if (!stableSnapshot) {
+        throw new GoneException({
+          code: 'JOB_RECOMMENDATION_SNAPSHOT_EXPIRED',
+          message: 'This recommendation snapshot expired. Refresh to load a new result set.',
+        });
+      }
+      return this.withPersistedSavedState(
+        userId,
+        projectJobRecommendationSnapshot(cvId, stableSnapshot, options, true),
+      );
+    }
+
     const cvSkillRows = await this.db.query<{ canonical_name: string }>(
       `SELECT s.canonical_name
          FROM public.cv_skills cs JOIN public.skills s ON s.id = cs.skill_id
@@ -604,20 +623,6 @@ export class JobRecommendationService {
       [userId],
     );
 
-    const cvTargetRole = cvRows[0].target_role?.trim() || null;
-    if (options.snapshotToken) {
-      const stableSnapshot = await this.snapshots.findByToken(userId, cvId, options.snapshotToken);
-      if (!stableSnapshot) {
-        throw new GoneException({
-          code: 'JOB_RECOMMENDATION_SNAPSHOT_EXPIRED',
-          message: 'This recommendation snapshot expired. Refresh to load a new result set.',
-        });
-      }
-      return this.withCurrentSavedState(
-        projectJobRecommendationSnapshot(cvId, stableSnapshot, options, true),
-        allCandidates,
-      );
-    }
     const requestedRole =
       options.roleCode && options.roleCode !== 'all' ? options.roleCode : cvTargetRole;
     if (
@@ -739,6 +744,29 @@ export class JobRecommendationService {
       recommendations: projected.recommendations.map((recommendation) => ({
         ...recommendation,
         saved: currentSavedByJob.get(recommendation.job_id) ?? recommendation.saved,
+      })),
+    };
+  }
+
+  private async withPersistedSavedState(
+    userId: string,
+    projected: JobRecommendationResponse,
+  ): Promise<JobRecommendationResponse> {
+    const jobIds = projected.recommendations.map((recommendation) => recommendation.job_id);
+    if (jobIds.length === 0) return projected;
+
+    const savedRows = await this.db.query<{ job_id: string }>(
+      `SELECT job_id
+         FROM public.saved_jobs
+        WHERE user_id = $1 AND job_id = ANY($2::uuid[])`,
+      [userId, jobIds],
+    );
+    const savedJobIds = new Set(savedRows.map((row) => row.job_id));
+    return {
+      ...projected,
+      recommendations: projected.recommendations.map((recommendation) => ({
+        ...recommendation,
+        saved: savedJobIds.has(recommendation.job_id),
       })),
     };
   }
