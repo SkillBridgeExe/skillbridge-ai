@@ -178,6 +178,7 @@ describe('CvsService R1 completion behavior', () => {
       assertFeatureIncluded: jest.fn().mockResolvedValue(undefined),
       // Quota-bearing flows use an atomic reservation and confirm/refund it around delivered value.
       reserveUsage: jest.fn().mockResolvedValue(reservation),
+      hasActivePlan: jest.fn().mockResolvedValue(true),
     };
     const interviewPlan = {
       generatePlan: jest.fn().mockResolvedValue({
