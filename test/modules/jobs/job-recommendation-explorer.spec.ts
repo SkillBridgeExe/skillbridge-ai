@@ -17,6 +17,7 @@ function recommendation(id: string, over: Partial<JobRecommendation> = {}): JobR
     company_name: 'SkillBridge',
     location: null,
     city_codes: [],
+    locations: [],
     role_code: 'backend_developer',
     experience_level: 'JUNIOR',
     work_mode: null,
@@ -428,5 +429,19 @@ describe('Job Explorer role scope, metadata filters, and facets', () => {
 
     expect(response.recommendations.map((row) => [row.job_id, row.rank])).toEqual([['backend', 1]]);
     expect(response.generation.snapshot_token).toBe('11111111-1111-4111-8111-111111111111');
+  });
+
+  it('upgrades legacy snapshots without structured locations to an empty list', () => {
+    const legacy = recommendation('legacy');
+    delete (legacy as Partial<JobRecommendation>).locations;
+
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      { cv_target_role: 'backend_developer', recommendations: [legacy] },
+      {},
+      true,
+    );
+
+    expect(response.recommendations[0].locations).toEqual([]);
   });
 });

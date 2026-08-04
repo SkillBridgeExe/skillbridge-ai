@@ -78,7 +78,7 @@ function makeService(options: { reviewRows: Array<{ parsed_response: unknown }> 
 
 describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
   it('feeds SkillDiffService with the proficiency_hint from the latest CV review', async () => {
-    const { service, diff } = makeService({
+    const { service, diff, query } = makeService({
       reviewRows: [
         {
           parsed_response: {
@@ -99,6 +99,9 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
         cv_skills_raw: [{ name: 'React', proficiency_hint: 'beginner' }],
       }),
     );
+    const candidateSql = String(query.mock.calls[2][0]).replace(/\s+/g, ' ');
+    expect(candidateSql).toContain("jpv.job_id = j.id AND jpv.status = 'PUBLISHED'");
+    expect(candidateSql).toContain('AS published_locations');
   });
 
   it('honors employer min_level as required_level_hint (null min_level → no hint, engine default)', async () => {

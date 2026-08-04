@@ -12,6 +12,8 @@ export type JobPostVersionStatus = 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
 export interface JobLocationSnapshot {
   cityCode: string;
   countryCode: string;
+  districtCode?: string;
+  districtName?: string;
   addressLine: string;
   isPrimary: boolean;
 }

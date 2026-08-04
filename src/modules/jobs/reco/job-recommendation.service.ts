@@ -70,6 +70,7 @@ export interface JobRecommendation {
   company_name: string;
   location: string | null;
   city_codes: string[];
+  locations: JobRecommendationLocation[];
   role_code: string | null;
   experience_level: string | null;
   work_mode: WorkMode | null;
@@ -137,6 +138,16 @@ export interface JobRecommendation {
   }>;
 }
 
+export interface JobRecommendationLocation {
+  country_code: string | null;
+  city_code: string | null;
+  district_code: string | null;
+  district_name: string | null;
+  address_line: string | null;
+  is_primary: boolean;
+  granularity: 'exact' | 'district' | 'city' | 'unknown';
+}
+
 export interface JobRecommendationResponse {
   cv_id: string;
   /** Size of the candidate pool considered (active/canonical, role-filtered). */
@@ -202,6 +213,14 @@ interface CandidateJobRow {
   location: string | null;
   primary_city_code?: string | null;
   location_city_codes?: string[];
+  published_locations?: Array<{
+    countryCode?: unknown;
+    cityCode?: unknown;
+    districtCode?: unknown;
+    districtName?: unknown;
+    addressLine?: unknown;
+    isPrimary?: unknown;
+  }>;
   role_code: string | null;
   experience_level: string | null;
   work_mode?: WorkMode | null;
@@ -267,10 +286,60 @@ function jobCityCodes(job: CandidateJobRow): string[] {
     ...new Set(
       [job.primary_city_code, ...(job.location_city_codes ?? [])]
         .filter((value): value is string => Boolean(value))
-        .map((value) => value.toUpperCase()),
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean),
     ),
   ];
   return structured.length > 0 ? structured : normalizeLocationCityCodes(job.location);
+}
+
+function cleanLocationText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+export function buildRecommendationLocations(job: CandidateJobRow): JobRecommendationLocation[] {
+  const published = Array.isArray(job.published_locations) ? job.published_locations : [];
+  const structured = published
+    .map((location): JobRecommendationLocation | null => {
+      const countryCode = cleanLocationText(location.countryCode)?.toUpperCase() ?? null;
+      const cityCode = cleanLocationText(location.cityCode)?.toUpperCase() ?? null;
+      const districtCode = cleanLocationText(location.districtCode)?.toUpperCase() ?? null;
+      const districtName = cleanLocationText(location.districtName);
+      const addressLine = cleanLocationText(location.addressLine);
+
+      if (!countryCode && !cityCode && !districtCode && !districtName && !addressLine) return null;
+
+      return {
+        country_code: countryCode,
+        city_code: cityCode,
+        district_code: districtCode,
+        district_name: districtName,
+        address_line: addressLine,
+        is_primary: location.isPrimary === true,
+        granularity: addressLine
+          ? 'exact'
+          : districtCode || districtName
+            ? 'district'
+            : cityCode
+              ? 'city'
+              : 'unknown',
+      };
+    })
+    .filter((location): location is JobRecommendationLocation => location !== null);
+
+  if (structured.length > 0) return structured;
+
+  // External/crawled jobs often expose only a city. Never promote their free-form
+  // location label to an exact address because its provenance is not strong enough.
+  return jobCityCodes(job).map((cityCode, index) => ({
+    country_code: null,
+    city_code: cityCode,
+    district_code: null,
+    district_name: null,
+    address_line: null,
+    is_primary: index === 0,
+    granularity: 'city',
+  }));
 }
 
 function compareNullableDateDesc(a: string | null, b: string | null): number {
@@ -414,6 +483,9 @@ export function projectJobRecommendationSnapshot(
     roleScope = { role_code: null, source: 'cv_target_missing' };
     scoped = [];
   }
+
+  // Snapshots created before structured locations were introduced remain readable.
+  scoped = scoped.map((row) => ({ ...row, locations: row.locations ?? [] }));
 
   const filtersApplied: JobRecommendationResponse['filters_applied'] = {
     city_codes: options.cityCodes ?? [],
@@ -592,7 +664,9 @@ export class JobRecommendationService {
       `SELECT j.id, j.slug, j.application_mode,
               EXISTS (SELECT 1 FROM public.saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1) AS saved,
               j.title, c.name AS company_name, j.location, j.primary_city_code,
-              j.location_city_codes, j.role_code, j.experience_level, j.work_mode,
+              j.location_city_codes,
+              COALESCE(jpv.locations, '[]'::jsonb) AS published_locations,
+              j.role_code, j.experience_level, j.work_mode,
               j.employment_type, j.salary_min, j.salary_max, j.salary_visible, j.salary_period,
               j.currency, j.source_url,
               j.posted_at::text AS posted_at,
@@ -606,6 +680,10 @@ export class JobRecommendationService {
               ) AS skills
          FROM public.jobs j
          JOIN public.companies c ON c.id = j.company_id
+         LEFT JOIN public.job_post_versions jpv
+           ON jpv.id = j.current_published_version_id
+          AND jpv.job_id = j.id
+          AND jpv.status = 'PUBLISHED'
          LEFT JOIN public.job_skills js ON js.job_id = j.id
          LEFT JOIN public.skills s ON s.id = js.skill_id
         WHERE j.status = 'active'
@@ -618,7 +696,7 @@ export class JobRecommendationService {
                WHERE bp.company_id = j.company_id AND bp.status = 'VERIFIED'
             )
           )
-        GROUP BY j.id, c.name
+        GROUP BY j.id, c.name, jpv.locations
         ORDER BY j.id`, // deterministic source order → reproducible RRF for tied scores
       [userId],
     );
@@ -663,6 +741,7 @@ export class JobRecommendationService {
             location: job.location,
             primary_city_code: job.primary_city_code,
             location_city_codes: job.location_city_codes,
+            published_locations: job.published_locations,
             role_code: job.role_code,
             experience_level: job.experience_level,
             work_mode: job.work_mode,
@@ -939,6 +1018,7 @@ export function buildJobRecommendation(
     company_name: job.company_name,
     location: job.location,
     city_codes: jobCityCodes(job),
+    locations: buildRecommendationLocations(job),
     role_code: job.role_code,
     experience_level: job.experience_level as ExperienceLevel | null,
     work_mode: job.work_mode ?? null,
