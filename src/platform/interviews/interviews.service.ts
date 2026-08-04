@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThan, Not, Repository } from 'typeorm';
+import { EntityManager, IsNull, LessThan, Not, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { maskPii } from '../../common/services/pii-mask';
@@ -79,6 +80,7 @@ import { InterviewCoaching } from '../../modules/interview/interview-coaching';
 import { InterviewCoachingService } from '../../modules/interview/interview-coaching.service';
 import { classifySeniority, SeniorityLevel } from '../../modules/jobs/ingest/ingest-normalizers';
 import { EntitlementsService } from '../billing/entitlements.service';
+import { CreditAwareUsageService } from '../billing/credit-aware-usage.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
 import {
   AnswerInterviewResponseDto,
@@ -269,12 +271,18 @@ export class InterviewsService {
     private readonly config?: ConfigService,
     @Optional()
     private readonly prompts?: PromptsService,
+    @Optional()
+    private readonly creditAwareUsage?: CreditAwareUsageService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
     await this.sweepStaleSessions(userId);
     const context = await this.resolveContext(userId, dto);
-    const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.INTERVIEW_SESSION);
+    const usage = this.creditAwareUsage
+      ? await this.creditAwareUsage.reservePlanFirst(userId, BillingFeatureKey.INTERVIEW_SESSION)
+      : await this.entitlements.reserveUsage(userId, BillingFeatureKey.INTERVIEW_SESSION);
+    let session: InterviewSessionEntity | null = null;
+    let sessionPersisted = false;
     try {
       const entitlements = await this.entitlements.getCurrentEntitlements(userId);
       const maxDurationSeconds = this.maxDurationSecondsForPlan(entitlements.planCode);
@@ -313,32 +321,6 @@ export class InterviewsService {
         context.contextMode,
       );
       const interviewState = this.initialInterviewState(agenda);
-
-      let session = await this.sessions.save(
-        this.sessions.create({
-          userId,
-          cvId: context.cv?.id ?? null,
-          jobDescriptionId: context.jd?.id ?? null,
-          cvMatchId: context.match?.id ?? null,
-          targetRole: context.targetRole,
-          language,
-          mode,
-          interviewType,
-          voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
-          speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
-          status: 'IN_PROGRESS',
-          maxDurationSeconds,
-          startedAt,
-          expiresAt,
-          contextSnapshot: context.snapshot,
-          agenda,
-          interviewState,
-        }),
-      );
-
-      let firstMessage = '';
-      let firstQuestion = '';
-      let phase: StartInterviewResponseDto['phase'] = null;
       const firstTopic = agenda.topics[0];
       if (!firstTopic) {
         throw new BadRequestException({
@@ -347,6 +329,40 @@ export class InterviewsService {
         });
       }
 
+      const sessionDraft = this.sessions.create({
+        userId,
+        cvId: context.cv?.id ?? null,
+        jobDescriptionId: context.jd?.id ?? null,
+        cvMatchId: context.match?.id ?? null,
+        targetRole: context.targetRole,
+        language,
+        mode,
+        interviewType,
+        voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
+        speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
+        status: 'IN_PROGRESS',
+        maxDurationSeconds,
+        startedAt,
+        expiresAt,
+        contextSnapshot: context.snapshot,
+        agenda,
+        interviewState,
+        totalQuestionsPlanned: agenda.turn_budget,
+      });
+      const transactionalManager = (
+        this.sessions as Repository<InterviewSessionEntity> & { manager?: EntityManager }
+      ).manager;
+      if (transactionalManager) {
+        sessionDraft.id = randomUUID();
+        session = sessionDraft;
+      } else {
+        session = await this.sessions.save(sessionDraft);
+        sessionPersisted = true;
+      }
+
+      let firstMessage = '';
+      let firstQuestion = '';
+      let phase: StartInterviewResponseDto['phase'] = null;
       firstMessage = this.openingInterviewerMessage(language);
       firstQuestion = firstTopic.seed_question;
       let openerAiRequestId: string | null = null;
@@ -379,37 +395,57 @@ export class InterviewsService {
           );
         }
       }
-      await this.turns.save(
-        this.turns.create({
-          sessionId: session.id,
-          turnOrder: 1,
-          phase: firstTopic.phase,
-          topicPhase: firstTopic.phase,
-          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          aiRequestId: openerAiRequestId,
-          interviewerMessage: firstMessage,
-          interviewerQuestion: firstQuestion,
-          currentThread: firstTopic.what_to_probe,
-          skillCanonical: firstTopic.skill_canonical,
-          questionBankItemId: firstTopic.question_bank_item_id ?? null,
-          questionBankKey: firstTopic.question_bank_key ?? null,
-          // the first question is always a fresh one — the opening budget, by definition.
-          timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
-        }),
-      );
+      const firstTurn = this.turns.create({
+        sessionId: session.id,
+        turnOrder: 1,
+        phase: firstTopic.phase,
+        topicPhase: firstTopic.phase,
+        modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+        aiRequestId: openerAiRequestId,
+        interviewerMessage: firstMessage,
+        interviewerQuestion: firstQuestion,
+        currentThread: firstTopic.what_to_probe,
+        skillCanonical: firstTopic.skill_canonical,
+        questionBankItemId: firstTopic.question_bank_item_id ?? null,
+        questionBankKey: firstTopic.question_bank_key ?? null,
+        // the first question is always a fresh one — the opening budget, by definition.
+        timeBudgetSeconds: answerTimeBudgetSeconds('opening'),
+      });
+      if (transactionalManager) {
+        await transactionalManager.transaction(async (manager) => {
+          session = await manager.getRepository(InterviewSessionEntity).save(session!);
+          await manager.getRepository(InterviewTurnEntity).save(firstTurn);
+        });
+        sessionPersisted = true;
+      } else {
+        await this.turns.save(firstTurn);
+      }
 
       phase = firstTopic.phase;
-      session.totalQuestionsPlanned = agenda.turn_budget;
-      const realtime = await this.createRealtimeIfNeeded(
-        userId,
-        session,
-        this.compactRealtimeContext(session),
-      );
-      session = await this.sessions.save(session);
       await usage.confirm({
         sourceType: 'interview_session',
         sourceId: session.id,
       });
+      let realtime: RealtimeClientSecretDto;
+      try {
+        realtime = await this.createRealtimeIfNeeded(
+          userId,
+          session,
+          this.compactRealtimeContext(session),
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Realtime setup failed for session ${session.id}: ${(error as Error).message}`,
+        );
+        realtime = {
+          enabled: false,
+          provider: 'openai',
+          model: null,
+          clientSecret: null,
+          expiresAt: null,
+          reason: 'Realtime setup is temporarily unavailable',
+        };
+      }
 
       return {
         ...this.toSessionDto(session),
@@ -420,7 +456,16 @@ export class InterviewsService {
         answerBudgetSeconds: answerTimeBudgetSeconds('opening'),
       };
     } catch (error) {
-      await usage.refund();
+      if (!sessionPersisted) {
+        await usage.refund();
+      } else if (session) {
+        session.status = 'FAILED';
+        await this.sessions.save(session).catch((saveError) => {
+          this.logger.warn(
+            `Could not mark failed interview session ${session!.id}: ${(saveError as Error).message}`,
+          );
+        });
+      }
       throw error;
     }
   }
@@ -2106,12 +2151,13 @@ export class InterviewsService {
   private async sweepStaleSessions(userId: string): Promise<void> {
     try {
       const expired = LessThan(new Date());
-      const stale = await this.sessions.find({
-        where: [
-          { userId, status: 'IN_PROGRESS', expiresAt: expired },
-          { userId, status: 'COMPLETED', overallScore: IsNull(), expiresAt: expired },
-        ],
-      });
+      const stale =
+        (await this.sessions.find({
+          where: [
+            { userId, status: 'IN_PROGRESS', expiresAt: expired },
+            { userId, status: 'COMPLETED', overallScore: IsNull(), expiresAt: expired },
+          ],
+        })) ?? [];
       for (const session of stale) {
         try {
           await this.end(userId, { sessionId: session.id });

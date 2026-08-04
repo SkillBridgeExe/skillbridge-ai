@@ -165,8 +165,14 @@ describe('CvsService R1 completion behavior', () => {
       confirm: jest.fn().mockResolvedValue(undefined),
       refund: jest.fn().mockResolvedValue(undefined),
     };
+    const reserveAnalysis = jest.fn().mockResolvedValue(analysisReservation);
     const analysisQuota = {
-      reserveAnalysis: jest.fn().mockResolvedValue(analysisReservation),
+      reserveAnalysis,
+      reserveForUpload: jest.fn(async (userId: string) => ({
+        upload: await entitlements.reserveUsage(userId, BillingFeatureKey.CV_UPLOAD),
+        analysis: await reserveAnalysis(userId),
+        creditCoversUpload: false,
+      })),
     };
     const reservation = {
       eventId: 'usage-evt-1',

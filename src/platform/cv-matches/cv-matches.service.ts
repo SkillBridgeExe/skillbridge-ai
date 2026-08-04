@@ -53,6 +53,7 @@ import { InterviewPlanResponseDto } from '../../modules/interview/dto/interview-
 import { GithubEvidenceService } from '../../modules/github-evidence/github-evidence.service';
 import { fetchInterviewSignals } from '../interviews/interview-signals';
 import { EntitlementsService } from '../billing/entitlements.service';
+import { CreditAwareUsageService } from '../billing/credit-aware-usage.service';
 import { masteredSkillCanonicals } from '../learning/mastered-skills';
 import { CvsService } from '../cvs/cvs.service';
 import { CreateCvMatchDto } from './dto/create-cv-match.dto';
@@ -143,6 +144,9 @@ export class CvMatchesService {
     // used ONLY by getProgress's mastered-learning pre-pass (fetchMasteredCanonicals).
     @InjectRepository(LearningSessionProgressEntity)
     private readonly learningProgress?: Repository<LearningSessionProgressEntity>,
+    // Kept optional so the existing positional service tests remain focused on matching logic.
+    // Production DI always provides it through BillingModule.
+    private readonly creditAwareUsage?: CreditAwareUsageService,
   ) {}
 
   async createMatch(
@@ -150,6 +154,29 @@ export class CvMatchesService {
     cvId: string,
     dto: CreateCvMatchDto,
     file?: Express.Multer.File,
+  ): Promise<CvMatchResponseDto> {
+    return this.createMatchInternal(userId, cvId, dto, file, false);
+  }
+
+  /**
+   * Used only by the combined CV analysis endpoint after its single CV-analysis
+   * reservation is owned by the orchestration flow. It intentionally does not create a second
+   * CV/CV-JD usage reservation.
+   */
+  async createMatchWithoutUsageForOrchestration(
+    userId: string,
+    cvId: string,
+    dto: CreateCvMatchDto,
+  ): Promise<CvMatchResponseDto> {
+    return this.createMatchInternal(userId, cvId, dto, undefined, true);
+  }
+
+  private async createMatchInternal(
+    userId: string,
+    cvId: string,
+    dto: CreateCvMatchDto,
+    file: Express.Multer.File | undefined,
+    alreadyCharged: boolean,
   ): Promise<CvMatchResponseDto> {
     const cv = await this.findOwnedCv(userId, cvId);
     if (!cv.parsedText) {
@@ -168,7 +195,11 @@ export class CvMatchesService {
       planCode === 'FREE' || planCode === 'PREMIUM'
         ? BillingFeatureKey.CV_REVIEW
         : BillingFeatureKey.CV_JD_MATCH;
-    const usage = await this.entitlements.reserveUsage(userId, matchFeature);
+    const usage = alreadyCharged
+      ? null
+      : this.creditAwareUsage
+        ? await this.creditAwareUsage.reservePlanFirst(userId, matchFeature)
+        : await this.entitlements.reserveUsage(userId, matchFeature);
     try {
       const targetRole = this.trimOrNull(dto.targetRole) ?? this.trimOrNull(cv.targetRole);
       const jd = await this.jobDescriptions.save(
@@ -222,10 +253,10 @@ export class CvMatchesService {
       );
 
       await this.scores.save(this.buildScoreRows(match.id, parsed));
-      await usage.confirm({ sourceType: 'cv_match', sourceId: match.id });
+      await usage?.confirm({ sourceType: 'cv_match', sourceId: match.id });
       return this.toResponse(match, jd, parsed);
     } catch (error) {
-      await usage.refund();
+      await usage?.refund();
       throw error;
     }
   }

@@ -8,8 +8,11 @@ function voucher(overrides: Partial<VoucherEntity> = {}): VoucherEntity {
   return {
     id: 'voucher-1',
     code: 'SKILLBRIDGE10',
+    benefitType: 'PERCENT_DISCOUNT',
     discountPercent: 10,
     applicablePlanCode: 'PREMIUM',
+    creditType: null,
+    creditUnits: null,
     startsAt: new Date('2026-07-01T00:00:00.000Z'),
     endsAt: new Date('2026-08-31T00:00:00.000Z'),
     maxRedemptions: 100,
@@ -119,6 +122,51 @@ describe('AdminVoucherService', () => {
       where: { id: 'voucher-1' },
       lock: { mode: 'pessimistic_write' },
     });
+    expect(vouchers.save).not.toHaveBeenCalled();
+  });
+
+  it('creates a credit voucher with no Premium discount fields', async () => {
+    const { service, vouchers } = setup();
+    vouchers.exist.mockResolvedValue(false);
+
+    const result = await service.create({
+      code: 'freecv3',
+      benefitType: 'CREDIT_GRANT',
+      creditType: 'CV_ANALYSIS',
+      creditUnits: 3,
+      startsAt: new Date('2026-07-01T00:00:00.000Z'),
+      endsAt: new Date('2026-08-31T00:00:00.000Z'),
+      maxRedemptions: 100,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        code: 'FREECV3',
+        benefitType: 'CREDIT_GRANT',
+        discountPercent: null,
+        applicablePlanCode: null,
+        creditType: 'CV_ANALYSIS',
+        creditUnits: 3,
+      }),
+    );
+  });
+
+  it('does not allow changing a credit reward after the first redemption', async () => {
+    const { service, vouchers, redemptions } = setup();
+    vouchers.findOne.mockResolvedValue(
+      voucher({
+        benefitType: 'CREDIT_GRANT',
+        discountPercent: null,
+        applicablePlanCode: null,
+        creditType: 'INTERVIEW_SESSION',
+        creditUnits: 1,
+      }),
+    );
+    redemptions.exist.mockResolvedValue(true);
+
+    await expect(service.update('voucher-1', { creditUnits: 2 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(vouchers.save).not.toHaveBeenCalled();
   });
 });

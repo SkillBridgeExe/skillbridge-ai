@@ -5,6 +5,7 @@ import {
   BillingPlanCode,
 } from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
+import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
@@ -15,6 +16,7 @@ import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
+import { CreditBalanceService } from './credit-balance.service';
 
 type RepoMock<T extends object> = Pick<
   Repository<T>,
@@ -38,6 +40,7 @@ function repo<T extends object>(): RepoMock<T> {
 describe('BillingService reconcileOrder', () => {
   function setup() {
     const plans = repo<BillingPlanEntity>();
+    const creditPackages = repo<BillingCreditPackageEntity>();
     const features = repo<PlanFeatureEntity>();
     const orders = repo<PaymentOrderEntity>();
     const execute = jest.fn().mockResolvedValue({ affected: 1 });
@@ -70,8 +73,12 @@ describe('BillingService reconcileOrder', () => {
     const vouchers = {
       releaseByOrder: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<VoucherService>;
+    const credits = {
+      list: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<CreditBalanceService>;
     const service = new BillingService(
       plans as unknown as Repository<BillingPlanEntity>,
+      creditPackages as unknown as Repository<BillingCreditPackageEntity>,
       features as unknown as Repository<PlanFeatureEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
       entitlements,
@@ -80,10 +87,12 @@ describe('BillingService reconcileOrder', () => {
       providers,
       settlement,
       vouchers,
+      credits,
     ) as BillingService;
     return {
       service,
       plans,
+      creditPackages,
       features,
       orders,
       provider,

@@ -11,6 +11,9 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
 import { VoucherEntity } from '../../database/entities/voucher.entity';
 import { VoucherRedemptionEntity } from '../../database/entities/voucher-redemption.entity';
+import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
+import { UserCreditBalanceEntity } from '../../database/entities/user-credit-balance.entity';
+import { CreditUsageReservationEntity } from '../../database/entities/credit-usage-reservation.entity';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from './admin-billing.service';
@@ -26,6 +29,8 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
 import { AdminVoucherService } from './admin-voucher.service';
 import { CheckoutOriginService } from './services/checkout-origin.service';
+import { CreditBalanceService } from './credit-balance.service';
+import { CreditAwareUsageService } from './credit-aware-usage.service';
 
 @Module({
   imports: [
@@ -41,6 +46,9 @@ import { CheckoutOriginService } from './services/checkout-origin.service';
       UserEntity,
       VoucherEntity,
       VoucherRedemptionEntity,
+      BillingCreditPackageEntity,
+      UserCreditBalanceEntity,
+      CreditUsageReservationEntity,
     ]),
   ],
   controllers: [BillingController, AdminBillingController, MeEntitlementsController],
@@ -62,7 +70,15 @@ import { CheckoutOriginService } from './services/checkout-origin.service';
     RolesGuard,
     VoucherService,
     AdminVoucherService,
+    CreditBalanceService,
+    CreditAwareUsageService,
   ],
-  exports: [EntitlementsService, BillingCheckoutService, CheckoutOriginService],
+  exports: [
+    EntitlementsService,
+    BillingCheckoutService,
+    CheckoutOriginService,
+    CreditBalanceService,
+    CreditAwareUsageService,
+  ],
 })
 export class BillingModule {}

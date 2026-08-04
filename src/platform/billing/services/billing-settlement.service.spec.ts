@@ -5,6 +5,7 @@ import { MentorAvailabilitySlotEntity } from '../../../database/entities/mentor-
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { UserSubscriptionEntity } from '../../../database/entities/user-subscription.entity';
 import { VoucherRedemptionEntity } from '../../../database/entities/voucher-redemption.entity';
+import { CreditBalanceService } from '../credit-balance.service';
 import { BillingSettlementService } from './billing-settlement.service';
 
 type RepoMock<T extends object> = Pick<Repository<T>, 'create' | 'findOne' | 'save' | 'update'> & {
@@ -29,6 +30,9 @@ function setup() {
   const mentorBookings = repo<MentorBookingEntity>();
   const mentorSlots = repo<MentorAvailabilitySlotEntity>();
   const voucherRedemptions = repo<VoucherRedemptionEntity>();
+  const creditBalances = {
+    grantInTransaction: jest.fn().mockResolvedValue(undefined),
+  } as unknown as jest.Mocked<CreditBalanceService>;
   const repos = new Map<EntityTarget<unknown>, unknown>([
     [PaymentOrderEntity, orders],
     [UserSubscriptionEntity, subscriptions],
@@ -38,7 +42,11 @@ function setup() {
   ]);
   const manager = {
     getRepository: jest.fn((entity: EntityTarget<unknown>) => repos.get(entity)),
+    query: jest.fn().mockResolvedValue(undefined),
   } as unknown as EntityManager;
+  Object.values({ orders, subscriptions, mentorBookings, mentorSlots, voucherRedemptions }).forEach(
+    (repository) => Object.assign(repository, { manager }),
+  );
   const dataSource = {
     transaction: jest.fn(
       async <T>(work: (manager: EntityManager) => Promise<T>): Promise<T> => work(manager),
@@ -50,6 +58,7 @@ function setup() {
     mentorBookings as unknown as Repository<MentorBookingEntity>,
     mentorSlots as unknown as Repository<MentorAvailabilitySlotEntity>,
     dataSource,
+    creditBalances,
   );
   return {
     service,
@@ -58,11 +67,51 @@ function setup() {
     mentorBookings,
     mentorSlots,
     voucherRedemptions,
+    creditBalances,
     dataSource,
   };
 }
 
 describe('BillingSettlementService', () => {
+  it('grants the snapshotted credit units once when a paid credit-package webhook settles', async () => {
+    const { service, orders, creditBalances } = setup();
+    orders.findOne.mockResolvedValue({
+      id: 'order-credit-1',
+      userId: 'user-1',
+      provider: 'PAYOS',
+      orderCode: '124',
+      amountVnd: 20000,
+      currency: 'VND',
+      purpose: 'CREDIT_PACKAGE',
+      targetType: 'CREDIT_PACKAGE',
+      targetId: 'package-cv',
+      planCode: 'CV_ANALYSIS_PACK',
+      creditType: 'CV_ANALYSIS',
+      creditUnits: 2,
+      status: 'PENDING',
+      paymentLinkId: 'plink-credit-1',
+      paidAt: null,
+    } as PaymentOrderEntity);
+    await service.settlePaidPayment({
+      provider: 'PAYOS',
+      orderCode: 124,
+      paymentLinkId: 'plink-credit-1',
+      reference: 'ref-credit-1',
+      status: 'PAID',
+      amountVnd: 20000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    expect(creditBalances.grantInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      'user-1',
+      'CV_ANALYSIS',
+      2,
+    );
+    expect(orders.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'PAID' }));
+  });
+
   it('settles a paid subscription inside a transaction after validating amount and payment link', async () => {
     const { service, orders, subscriptions, voucherRedemptions, dataSource } = setup();
     const order = {

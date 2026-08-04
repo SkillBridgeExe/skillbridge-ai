@@ -345,6 +345,69 @@ describe('InterviewsService', () => {
     );
   });
 
+  it('refunds the reserved usage when session persistence fails before a session exists', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const reservation = usageReservation();
+    sessions.save.mockRejectedValue(new Error('session insert failed'));
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        reserveUsage: jest.fn(async () => reservation),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+
+    await expect(
+      service.start(userId, {
+        targetRole: 'backend_developer',
+        language: 'en',
+        mode: 'TEXT',
+        interviewType: 'TECHNICAL',
+      }),
+    ).rejects.toThrow('session insert failed');
+
+    expect(reservation.refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refund usage when confirmation fails after the session and first turn exist', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const reservation = usageReservation();
+    reservation.confirm.mockRejectedValue(new Error('usage confirmation failed'));
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      { start: jest.fn() } as never,
+      {
+        reserveUsage: jest.fn(async () => reservation),
+        getCurrentEntitlements: jest.fn(async () => ({ planCode: 'PRO' })),
+      } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+
+    await expect(
+      service.start(userId, {
+        targetRole: 'backend_developer',
+        language: 'en',
+        mode: 'TEXT',
+        interviewType: 'TECHNICAL',
+      }),
+    ).rejects.toThrow('usage confirmation failed');
+
+    expect(reservation.refund).not.toHaveBeenCalled();
+    expect(sessions.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'FAILED' }));
+  });
+
   it('uses a DB question bank item for the first guided interview turn', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();

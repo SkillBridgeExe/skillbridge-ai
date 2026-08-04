@@ -5,10 +5,11 @@ import {
   BillingFeaturePeriod,
 } from '../../../common/constants/billing.constants';
 import { PaymentOrderPurpose } from '../../../database/entities/payment-order.entity';
+import { CreditType } from '../../../database/entities/billing-credit-package.entity';
 
 export class CreateCheckoutDto {
-  @IsIn(['SUBSCRIPTION'])
-  purpose!: Extract<PaymentOrderPurpose, 'SUBSCRIPTION'>;
+  @IsIn(['SUBSCRIPTION', 'CREDIT_PACKAGE'])
+  purpose!: Extract<PaymentOrderPurpose, 'SUBSCRIPTION' | 'CREDIT_PACKAGE'>;
 
   @IsOptional()
   @IsString()
@@ -32,6 +33,13 @@ export class ValidateVoucherDto {
   voucherCode!: string;
 }
 
+export class ClaimVoucherDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,64}$/)
+  voucherCode!: string;
+}
+
 export interface PlanFeatureDto {
   featureKey: BillingFeatureKey;
   limit: number;
@@ -49,6 +57,21 @@ export interface BillingPlanDto {
   features: PlanFeatureDto[];
 }
 
+export interface CreditPackageDto {
+  code: string;
+  name: string;
+  description: string | null;
+  priceVnd: number;
+  currency: string;
+  creditType: CreditType;
+  units: number;
+}
+
+export interface CreditBalanceDto {
+  creditType: CreditType;
+  balance: number;
+}
+
 export interface CheckoutResponseDto {
   orderId: string;
   orderCode: number;
@@ -59,6 +82,7 @@ export interface CheckoutResponseDto {
   paymentLinkId: string | null;
   expiresAt: string | null;
   pricing: CheckoutPricingDto;
+  creditPackage?: { creditType: CreditType; units: number } | null;
 }
 
 export interface CheckoutPricingDto {
@@ -85,6 +109,7 @@ export interface OrderStatusResponseDto {
   paidAt: string | null;
   createdAt: string;
   pricing: CheckoutPricingDto;
+  creditPackage?: { creditType: CreditType; units: number } | null;
 }
 
 export interface EntitlementFeatureDto {

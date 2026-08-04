@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,9 +21,10 @@ import { CvVersionEntity, CvVersionOrigin } from '../../database/entities/cv-ver
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
-import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { RoleRubricService } from '../../common/services/role-rubric.service';
-import { EntitlementsService, UsageReservation } from '../billing/entitlements.service';
+import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
+import { EntitlementsService } from '../billing/entitlements.service';
+import { CreditAwareReservation } from '../billing/credit-aware-usage.service';
 import {
   CvAssistantRewriteService,
   CvAssistantRewriteResult,
@@ -108,6 +108,14 @@ const SUPPORTED_MIME_TYPES = new Set([
   'image/webp',
 ]);
 
+export type CvReviewState = 'CACHED' | 'CREATED' | 'NONE';
+
+export interface PreparedCvAnalysis {
+  cv: CvResponseDto;
+  reviewState: CvReviewState;
+  reservation: CreditAwareReservation | null;
+}
+
 @Injectable()
 export class CvsService {
   private readonly logger = new Logger(CvsService.name);
@@ -169,6 +177,16 @@ export class CvsService {
     dto: CreateCvDto,
     file: Express.Multer.File,
   ): Promise<CvResponseDto> {
+    const result = await this.createForAnalysis(userId, dto, file);
+    await result.reservation?.confirm({ sourceType: 'cv', sourceId: result.cv.id });
+    return result.cv;
+  }
+
+  async createForAnalysis(
+    userId: string,
+    dto: CreateCvDto,
+    file: Express.Multer.File,
+  ): Promise<PreparedCvAnalysis> {
     this.validateFile(file);
     if (dto.consentAccepted !== true) {
       throw new BadRequestException({
@@ -188,11 +206,15 @@ export class CvsService {
       this.assertSupportedTargetRole(role);
       const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role, dto.lang);
       if (cached) {
-        return this.toResponse(
-          generatedSource,
-          await this.getPersistedSkills(generatedSource.id),
-          cached,
-        );
+        return {
+          cv: await this.toResponse(
+            generatedSource,
+            await this.getPersistedSkills(generatedSource.id),
+            cached,
+          ),
+          reviewState: 'CACHED',
+          reservation: null,
+        };
       }
 
       const parsedText = this.reviewableText(generatedSource);
@@ -212,8 +234,11 @@ export class CvsService {
       const usage = await this.analysisQuota.reserveAnalysis(userId);
       try {
         const review = await this.reviewCv(userId, generatedSource, role ?? undefined, dto.lang);
-        await usage?.confirm({ sourceType: 'cv', sourceId: generatedSource.id });
-        return this.toResponse(review.cv, review.skills, review.parsed);
+        return {
+          cv: await this.toResponse(review.cv, review.skills, review.parsed),
+          reviewState: 'CREATED',
+          reservation: usage,
+        };
       } catch (error) {
         await usage?.refund();
         throw error;
@@ -235,11 +260,15 @@ export class CvsService {
         dto.lang,
       );
       if (cachedForRole) {
-        return this.toResponse(
-          duplicate,
-          await this.getPersistedSkills(duplicate.id),
-          cachedForRole,
-        );
+        return {
+          cv: await this.toResponse(
+            duplicate,
+            await this.getPersistedSkills(duplicate.id),
+            cachedForRole,
+          ),
+          reviewState: 'CACHED',
+          reservation: null,
+        };
       }
       const usage = await this.analysisQuota.reserveAnalysis(userId);
       try {
@@ -249,30 +278,27 @@ export class CvsService {
           await this.cvs.update(duplicate.id, { targetRole: requestedRole });
         }
         const review = await this.reviewCv(userId, duplicate, requestedRole ?? undefined, dto.lang);
-        await usage?.confirm({ sourceType: 'cv', sourceId: duplicate.id });
-        return this.toResponse(review.cv, review.skills, review.parsed);
+        return {
+          cv: await this.toResponse(review.cv, review.skills, review.parsed),
+          reviewState: 'CREATED',
+          reservation: usage,
+        };
       } catch (error) {
         await usage?.refund();
         throw error;
       }
     }
 
-    const uploadUsage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_UPLOAD);
-    // Shared cv_review budget for a real upload. Generated PDFs enforce this in their branch only
-    // on a cache miss; the reserve stays before storage/row writes so a reject leaves no orphan.
-    // Charge-first: refunded in the catch below if extract/review fails.
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
     const targetRole = requestedRole;
     let cvSaved = false;
-    let usage: UsageReservation | null = null;
+    let uploadCommitted = false;
+    const reservations = await this.analysisQuota.reserveForUpload(userId);
+    const usage = reservations.analysis;
+    const uploadUsage = reservations.upload;
 
     try {
-      try {
-        usage = await this.analysisQuota.reserveAnalysis(userId);
-      } catch (error) {
-        if (!this.isReviewQuotaUnavailable(error)) throw error;
-      }
       await this.storage.upload({
         key: objectKey,
         body: file.buffer,
@@ -297,22 +323,31 @@ export class CvsService {
       );
       cvSaved = true;
       await this.recordConsentAudit(userId, cv.id);
+      await uploadUsage?.confirm({ sourceType: 'cv', sourceId: cv.id });
+      uploadCommitted = Boolean(uploadUsage);
 
       if (!usage) {
-        await uploadUsage.confirm({ sourceType: 'cv', sourceId: cv.id });
-        return this.toResponse(cv, [], null);
+        return {
+          cv: await this.toResponse(cv, [], null),
+          reviewState: 'NONE',
+          reservation: null,
+        };
       }
 
       const review = await this.reviewCv(userId, cv, targetRole ?? undefined, dto.lang);
       cv = review.cv;
-      await usage.confirm({ sourceType: 'cv', sourceId: cv.id });
-      await uploadUsage.confirm({ sourceType: 'cv', sourceId: cv.id });
-
-      return this.toResponse(cv, review.skills, review.parsed);
+      return {
+        cv: await this.toResponse(cv, review.skills, review.parsed),
+        reviewState: 'CREATED',
+        reservation: usage,
+      };
     } catch (error) {
       await usage?.refund();
-      await uploadUsage.refund();
-      if (!cvSaved) await this.storage.delete(objectKey).catch(() => undefined);
+      if (!uploadCommitted) {
+        await uploadUsage?.refund();
+        if (cvSaved) await this.cvs.delete(cvId).catch(() => undefined);
+        await this.storage.delete(objectKey).catch(() => undefined);
+      }
       throw error;
     }
   }
@@ -1073,6 +1108,17 @@ export class CvsService {
     requestedRole?: string,
     lang?: 'vi' | 'en',
   ): Promise<CvResponseDto> {
+    const result = await this.rerunReviewForAnalysis(userId, cvId, requestedRole, lang);
+    await result.reservation?.confirm({ sourceType: 'cv', sourceId: result.cv.id });
+    return result.cv;
+  }
+
+  async rerunReviewForAnalysis(
+    userId: string,
+    cvId: string,
+    requestedRole?: string,
+    lang?: 'vi' | 'en',
+  ): Promise<PreparedCvAnalysis> {
     const cv = await this.findOwnedCv(userId, cvId);
     const parsedText = this.reviewableText(cv);
     if (!parsedText) {
@@ -1092,7 +1138,11 @@ export class CvsService {
     // old behavior (matches the null-lang bucket).
     const cached = await this.getLatestMatchingReview(userId, cv.id, role, lang);
     if (cached) {
-      return this.toResponse(cv, await this.getPersistedSkills(cv.id), cached);
+      return {
+        cv: await this.toResponse(cv, await this.getPersistedSkills(cv.id), cached),
+        reviewState: 'CACHED',
+        reservation: null,
+      };
     }
 
     cv.parsedText = parsedText;
@@ -1105,8 +1155,11 @@ export class CvsService {
     const usage = await this.analysisQuota.reserveAnalysis(userId);
     try {
       const review = await this.reviewCv(userId, cv, role ?? undefined, lang);
-      await usage?.confirm({ sourceType: 'cv', sourceId: cv.id });
-      return this.toResponse(review.cv, review.skills, review.parsed);
+      return {
+        cv: await this.toResponse(review.cv, review.skills, review.parsed),
+        reviewState: 'CREATED',
+        reservation: usage,
+      };
     } catch (error) {
       await usage?.refund();
       throw error;
@@ -1361,18 +1414,6 @@ export class CvsService {
       message: `Unsupported target role: ${role}`,
     });
   }
-
-  private isReviewQuotaUnavailable(error: unknown): boolean {
-    if (!(error instanceof HttpException)) return false;
-    const response = error.getResponse();
-    if (!response || typeof response !== 'object') return false;
-    const errorCode = (response as { errorCode?: unknown }).errorCode;
-    return (
-      errorCode === ERROR_CODES.FEATURE_NOT_INCLUDED ||
-      errorCode === ERROR_CODES.FEATURE_USAGE_LIMIT_REACHED
-    );
-  }
-
   private async findGeneratedPdfSource(
     userId: string,
     file: Express.Multer.File,

@@ -5,7 +5,11 @@ import {
   BillingFeatureKey,
   BillingFeaturePeriod,
 } from '../../../common/constants/billing.constants';
-import { AdminBillingPlanFeatureInputDto, UpdateAdminPlanFeatureDto } from './admin-billing.dto';
+import {
+  AdminBillingPlanFeatureInputDto,
+  CreateAdminVoucherDto,
+  UpdateAdminPlanFeatureDto,
+} from './admin-billing.dto';
 
 describe('AdminBillingPlanFeatureInputDto', () => {
   it('accepts daily feature periods', async () => {
@@ -38,5 +42,38 @@ describe('UpdateAdminPlanFeatureDto', () => {
     const errors = await validate(dto);
 
     expect(errors).toEqual([expect.objectContaining({ property: 'limitValue' })]);
+  });
+});
+
+describe('CreateAdminVoucherDto', () => {
+  const period = {
+    startsAt: '2026-08-01T00:00:00.000Z',
+    endsAt: '2026-09-01T00:00:00.000Z',
+    maxRedemptions: 100,
+  };
+
+  it('accepts a configured credit reward without discount fields', async () => {
+    const dto = plainToInstance(CreateAdminVoucherDto, {
+      code: 'FREECV3',
+      benefitType: 'CREDIT_GRANT',
+      creditType: 'CV_ANALYSIS',
+      creditUnits: 3,
+      ...period,
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it('rejects a credit voucher without a positive credit unit count', async () => {
+    const dto = plainToInstance(CreateAdminVoucherDto, {
+      code: 'FREECV',
+      benefitType: 'CREDIT_GRANT',
+      creditType: 'CV_ANALYSIS',
+      ...period,
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([expect.objectContaining({ property: 'creditUnits' })]);
   });
 });

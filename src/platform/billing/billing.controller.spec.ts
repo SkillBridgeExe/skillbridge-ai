@@ -35,6 +35,23 @@ describe('BillingController', () => {
       value: 'private, no-store, max-age=0',
     });
   });
+
+  it('claims a credit voucher for the authenticated user', async () => {
+    const vouchers = {
+      claim: jest.fn().mockResolvedValue({
+        voucherCode: 'FREECV3',
+        creditType: 'CV_ANALYSIS',
+        creditUnits: 3,
+      }),
+    };
+    const controller = new BillingController({} as never, vouchers as never, {} as never);
+
+    await controller.claimVoucher({ userId: 'user-1' } as never, {
+      voucherCode: 'FREECV3',
+    });
+
+    expect(vouchers.claim).toHaveBeenCalledWith('user-1', 'FREECV3');
+  });
 });
 
 describe('MeEntitlementsController', () => {

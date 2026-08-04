@@ -70,6 +70,6 @@ import { CvIntakeService } from '../../modules/cv-intake/cv-intake.service';
     // Tracing via the TracingModule import above).
     CvQuestionGeneratorService,
   ],
-  exports: [CvsRetentionService, CvsService, CvPdfRendererService],
+  exports: [CvsRetentionService, CvsService, CvPdfRendererService, CvAnalysisQuotaService],
 })
 export class CvsModule {}

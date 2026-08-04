@@ -9,6 +9,7 @@ import { UserSubscriptionEntity } from '../../../database/entities/user-subscrip
 import { VoucherRedemptionEntity } from '../../../database/entities/voucher-redemption.entity';
 import { addMonths } from '../entitlements.service';
 import { VerifiedPaymentWebhook } from '../payment-providers/payment-provider.port';
+import { CreditBalanceService } from '../credit-balance.service';
 
 @Injectable()
 export class BillingSettlementService {
@@ -21,6 +22,7 @@ export class BillingSettlementService {
     @InjectRepository(MentorAvailabilitySlotEntity)
     private readonly mentorSlots: Repository<MentorAvailabilitySlotEntity>,
     private readonly dataSource: DataSource,
+    private readonly creditBalances: CreditBalanceService,
   ) {}
 
   async settlePaidPayment(payment: VerifiedPaymentWebhook): Promise<{ processed: boolean }> {
@@ -43,6 +45,7 @@ export class BillingSettlementService {
         mentorBookings,
         mentorSlots,
         voucherRedemptions,
+        manager,
       );
       return { processed: true };
     });
@@ -56,6 +59,7 @@ export class BillingSettlementService {
     mentorBookings: Repository<MentorBookingEntity>,
     mentorSlots: Repository<MentorAvailabilitySlotEntity>,
     voucherRedemptions: Repository<VoucherRedemptionEntity>,
+    manager: import('typeorm').EntityManager,
   ): Promise<void> {
     if (order.status === 'PAID') return;
     this.assertPaymentMatchesOrder(order, payment);
@@ -68,12 +72,32 @@ export class BillingSettlementService {
         { paymentOrderId: order.id },
         { status: 'REDEEMED', redeemedAt: new Date() },
       );
+    } else if (order.purpose === 'CREDIT_PACKAGE') {
+      await this.grantCredits(order, manager);
     } else if (order.targetType === 'MENTOR_BOOKING' && order.targetId) {
       await this.updateMentorBookingAfterPayment(order, mentorBookings, mentorSlots);
     }
 
     order.status = 'PAID';
     await orders.save(order);
+  }
+
+  private async grantCredits(
+    order: PaymentOrderEntity,
+    manager: import('typeorm').EntityManager,
+  ): Promise<void> {
+    if (!order.creditType || !order.creditUnits || order.creditUnits < 1) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.PAYMENT_PROVIDER_ERROR,
+        message: 'Credit package snapshot is invalid',
+      });
+    }
+    await this.creditBalances.grantInTransaction(
+      manager,
+      order.userId,
+      order.creditType,
+      order.creditUnits,
+    );
   }
 
   private assertPaymentMatchesOrder(

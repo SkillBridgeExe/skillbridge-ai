@@ -5,7 +5,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
-import { CreateCheckoutDto, ValidateVoucherDto } from './dto/billing.dto';
+import { ClaimVoucherDto, CreateCheckoutDto, ValidateVoucherDto } from './dto/billing.dto';
 import { VoucherService } from './voucher.service';
 import { CheckoutOriginService } from './services/checkout-origin.service';
 
@@ -23,6 +23,12 @@ export class BillingController {
   @ApiOperation({ summary: 'List active billing plans and feature limits' })
   plans() {
     return this.billing.listPlans();
+  }
+
+  @Get('credit-packages')
+  @ApiOperation({ summary: 'List active one-time credit packages' })
+  creditPackages() {
+    return this.billing.listCreditPackages();
   }
 
   @Post('checkout')
@@ -46,6 +52,15 @@ export class BillingController {
   @ApiOperation({ summary: 'Validate a voucher and return a server-priced quote' })
   validateVoucher(@CurrentUser() user: JwtUser, @Body() dto: ValidateVoucherDto) {
     return this.vouchers.quote(user.userId, dto);
+  }
+
+  @Post('vouchers/claim')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Claim a voucher that grants purchased credits' })
+  claimVoucher(@CurrentUser() user: JwtUser, @Body() dto: ClaimVoucherDto) {
+    return this.vouchers.claim(user.userId, dto.voucherCode);
   }
 
   @Post('payos/webhook')
@@ -94,6 +109,14 @@ export class BillingController {
   @ApiOperation({ summary: 'Get current user feature usage for the active period' })
   usage(@CurrentUser() user: JwtUser) {
     return this.billing.getUsage(user.userId);
+  }
+
+  @Get('me/credits')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({ summary: 'Get purchased credit balances' })
+  credits(@CurrentUser() user: JwtUser) {
+    return this.billing.getCredits(user.userId);
   }
 }
 

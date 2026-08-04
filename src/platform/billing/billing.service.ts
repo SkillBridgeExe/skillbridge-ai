@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
+import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import {
   PaymentOrderEntity,
   PaymentOrderStatus,
@@ -11,6 +12,8 @@ import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
 import {
   BillingPlanDto,
+  CreditBalanceDto,
+  CreditPackageDto,
   CreateCheckoutDto,
   OrderStatusResponseDto,
   SubscriptionResponseDto,
@@ -21,6 +24,7 @@ import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
+import { CreditBalanceService } from './credit-balance.service';
 
 @Injectable()
 export class BillingService {
@@ -28,6 +32,8 @@ export class BillingService {
 
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
+    @InjectRepository(BillingCreditPackageEntity)
+    private readonly creditPackages: Repository<BillingCreditPackageEntity>,
     @InjectRepository(PlanFeatureEntity) private readonly features: Repository<PlanFeatureEntity>,
     @InjectRepository(PaymentOrderEntity) private readonly orders: Repository<PaymentOrderEntity>,
     private readonly entitlements: EntitlementsService,
@@ -36,6 +42,7 @@ export class BillingService {
     private readonly providers: PaymentProviderRegistry,
     private readonly settlement: BillingSettlementService,
     private readonly vouchers: VoucherService,
+    private readonly credits: CreditBalanceService,
   ) {}
 
   async listPlans(): Promise<BillingPlanDto[]> {
@@ -77,6 +84,28 @@ export class BillingService {
 
   createCheckout(userId: string, dto: CreateCheckoutDto, checkoutOrigin?: string) {
     return this.checkout.createCheckout(userId, dto, checkoutOrigin);
+  }
+
+  async listCreditPackages(): Promise<CreditPackageDto[]> {
+    const rows = await this.creditPackages
+      .createQueryBuilder('creditPackage')
+      .innerJoinAndSelect('creditPackage.plan', 'plan')
+      .where('plan.is_active = true')
+      .orderBy('plan.sort_order', 'ASC')
+      .getMany();
+    return rows.map((row) => ({
+      code: row.plan.code,
+      name: row.plan.name,
+      description: row.plan.description,
+      priceVnd: row.plan.priceVnd,
+      currency: row.plan.currency,
+      creditType: row.creditType,
+      units: row.units,
+    }));
+  }
+
+  getCredits(userId: string): Promise<CreditBalanceDto[]> {
+    return this.credits.list(userId);
   }
 
   async getOrder(userId: string, orderCode: number): Promise<OrderStatusResponseDto> {
@@ -193,6 +222,10 @@ export class BillingService {
         voucherCode: order.voucherCode ?? null,
         currency: order.currency,
       },
+      creditPackage:
+        order.creditType && order.creditUnits
+          ? { creditType: order.creditType, units: order.creditUnits }
+          : null,
     };
   }
 }

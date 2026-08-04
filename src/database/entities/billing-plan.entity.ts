@@ -7,7 +7,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type BillingPlanCategory = 'SUBSCRIPTION' | 'MENTOR_PACKAGE';
+export type BillingPlanCategory = 'SUBSCRIPTION' | 'MENTOR_PACKAGE' | 'CREDIT_PACKAGE';
 export type BillingPlanInterval = 'MONTHLY' | 'ONE_TIME';
 
 @Entity('billing_plans')

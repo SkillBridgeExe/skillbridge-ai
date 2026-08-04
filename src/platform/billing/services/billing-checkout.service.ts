@@ -3,6 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../../database/entities/billing-plan.entity';
+import {
+  BillingCreditPackageEntity,
+  CreditType,
+} from '../../../database/entities/billing-credit-package.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { CheckoutResponseDto, CreateCheckoutDto } from '../dto/billing.dto';
 import { generatePayosOrderCode } from '../order-code.util';
@@ -17,6 +21,8 @@ export class BillingCheckoutService {
 
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
+    @InjectRepository(BillingCreditPackageEntity)
+    private readonly creditPackages: Repository<BillingCreditPackageEntity>,
     @InjectRepository(PaymentOrderEntity) private readonly orders: Repository<PaymentOrderEntity>,
     private readonly providers: PaymentProviderRegistry,
     private readonly vouchers: VoucherService,
@@ -30,12 +36,69 @@ export class BillingCheckoutService {
     switch (dto.purpose) {
       case 'SUBSCRIPTION':
         return this.createSubscriptionCheckout(userId, dto, checkoutOrigin);
+      case 'CREDIT_PACKAGE':
+        return this.createCreditPackageCheckout(userId, dto, checkoutOrigin);
       default:
         throw new BadRequestException({
           errorCode: ERROR_CODES.VALIDATION_ERROR,
           message: 'Mentor payments must be created through the mentor booking API',
         });
     }
+  }
+
+  private async createCreditPackageCheckout(
+    userId: string,
+    dto: CreateCheckoutDto,
+    checkoutOrigin?: string,
+  ): Promise<CheckoutResponseDto> {
+    if (dto.voucherCode) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'Vouchers cannot be applied to credit packages',
+      });
+    }
+    if (!dto.planCode) {
+      throw new BadRequestException({
+        errorCode: ERROR_CODES.VALIDATION_ERROR,
+        message: 'planCode is required',
+      });
+    }
+    // Load the package and its editable commercial fields in one statement so a concurrent admin
+    // update cannot produce a mixed snapshot (for example, old price with new units).
+    const creditPackage = await this.creditPackages.findOne({
+      where: { planCode: dto.planCode },
+      relations: { plan: true },
+    });
+    const plan = creditPackage?.plan;
+    if (
+      !creditPackage ||
+      !plan ||
+      plan.category !== 'CREDIT_PACKAGE' ||
+      plan.interval !== 'ONE_TIME' ||
+      !plan.isActive ||
+      plan.priceVnd <= 0
+    ) {
+      throw new NotFoundException('Credit package not found');
+    }
+    const expiresAt = new Date(Date.now() + CHECKOUT_TTL_MS);
+    const order = await this.createPendingOrder({
+      userId,
+      amountVnd: plan.priceVnd,
+      originalAmountVnd: plan.priceVnd,
+      discountPercent: 0,
+      discountAmountVnd: 0,
+      voucherId: null,
+      voucherCode: null,
+      purpose: 'CREDIT_PACKAGE',
+      targetType: 'CREDIT_PACKAGE',
+      targetId: creditPackage.id,
+      planCode: plan.code,
+      creditType: creditPackage.creditType,
+      creditUnits: creditPackage.units,
+      currency: plan.currency,
+      expiresAt,
+    });
+    return this.createProviderLink(order, plan.name, expiresAt, checkoutOrigin);
   }
 
   private async createSubscriptionCheckout(
@@ -129,6 +192,8 @@ export class BillingCheckoutService {
     targetType: PaymentOrderEntity['targetType'];
     targetId: string | null;
     planCode: string | null;
+    creditType?: CreditType | null;
+    creditUnits?: number | null;
     currency?: string;
     expiresAt: Date;
   }): Promise<PaymentOrderEntity> {
@@ -205,6 +270,10 @@ export class BillingCheckoutService {
         voucherCode: saved.voucherCode,
         currency: saved.currency,
       },
+      creditPackage:
+        saved.creditType && saved.creditUnits
+          ? { creditType: saved.creditType, units: saved.creditUnits }
+          : null,
     };
   }
 }

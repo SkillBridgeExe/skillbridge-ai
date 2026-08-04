@@ -12,6 +12,7 @@ import { MentorBookingEntity } from '../../database/entities/mentor-booking.enti
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
+import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import {
   AdminListMentorBookingsQueryDto,
   AdminListOrdersQueryDto,
@@ -41,6 +42,8 @@ export class AdminBillingService {
     @InjectRepository(MentorBookingEntity)
     private readonly mentorBookings: Repository<MentorBookingEntity>,
     private readonly dataSource: DataSource,
+    @InjectRepository(BillingCreditPackageEntity)
+    private readonly creditPackages: Repository<BillingCreditPackageEntity>,
   ) {}
 
   async listPlans(query: AdminListPlansQueryDto = {}) {
@@ -88,18 +91,52 @@ export class AdminBillingService {
   }
 
   async updatePlan(code: string, dto: UpdateAdminBillingPlanDto) {
-    const plan = await this.requirePlan(code);
-    if (dto.name !== undefined) plan.name = dto.name;
-    if (dto.description !== undefined) plan.description = dto.description;
-    if (dto.category !== undefined) plan.category = dto.category;
-    if (dto.interval !== undefined) plan.interval = dto.interval;
-    if (dto.priceVnd !== undefined) plan.priceVnd = dto.priceVnd;
-    if (dto.currency !== undefined) plan.currency = dto.currency;
-    if (dto.isActive !== undefined) plan.isActive = dto.isActive;
-    if (dto.sortOrder !== undefined) plan.sortOrder = dto.sortOrder;
-    if (dto.metadata !== undefined) plan.metadata = dto.metadata;
-
-    const saved = await this.plans.save(plan);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const plan = await manager.getRepository(BillingPlanEntity).findOne({
+        where: { code: normalizePlanCode(code) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!plan) throw new NotFoundException('Billing plan not found');
+      const isCreditPackage = plan.category === 'CREDIT_PACKAGE';
+      if (!isCreditPackage && dto.category === 'CREDIT_PACKAGE') {
+        throw new BadRequestException('Existing plans cannot be converted to credit packages');
+      }
+      if (isCreditPackage) {
+        if (dto.category !== undefined && dto.category !== 'CREDIT_PACKAGE') {
+          throw new BadRequestException('Credit package category cannot be changed');
+        }
+        if (dto.interval !== undefined && dto.interval !== 'ONE_TIME') {
+          throw new BadRequestException('Credit packages must use the ONE_TIME interval');
+        }
+        if (dto.currency !== undefined && dto.currency !== plan.currency) {
+          throw new BadRequestException('Credit package currency cannot be changed');
+        }
+        if (dto.metadata !== undefined) {
+          throw new BadRequestException('Credit package metadata cannot be changed');
+        }
+      } else if (dto.creditUnits !== undefined) {
+        throw new BadRequestException('creditUnits is only valid for credit packages');
+      }
+      if (dto.name !== undefined) plan.name = dto.name;
+      if (dto.description !== undefined) plan.description = dto.description;
+      if (dto.category !== undefined) plan.category = dto.category;
+      if (dto.interval !== undefined) plan.interval = dto.interval;
+      if (dto.priceVnd !== undefined) plan.priceVnd = dto.priceVnd;
+      if (dto.currency !== undefined) plan.currency = dto.currency;
+      if (dto.isActive !== undefined) plan.isActive = dto.isActive;
+      if (dto.sortOrder !== undefined) plan.sortOrder = dto.sortOrder;
+      if (dto.metadata !== undefined && !isCreditPackage) plan.metadata = dto.metadata;
+      const next = await manager.getRepository(BillingPlanEntity).save(plan);
+      if (dto.creditUnits !== undefined && isCreditPackage) {
+        const result = await manager
+          .getRepository(BillingCreditPackageEntity)
+          .update({ planCode: next.code }, { units: dto.creditUnits });
+        if ((result.affected ?? 0) !== 1) {
+          throw new NotFoundException('Credit package definition not found');
+        }
+      }
+      return next;
+    });
     return (await this.mapPlansWithFeatures([saved]))[0];
   }
 
@@ -308,8 +345,14 @@ export class AdminBillingService {
   private async mapPlansWithFeatures(plans: BillingPlanEntity[]) {
     if (plans.length === 0) return [];
     const planCodes = new Set(plans.map((plan) => plan.code));
-    const allFeatures = await this.features.find();
+    const [allFeatures, allCreditPackages] = await Promise.all([
+      this.features.find(),
+      this.creditPackages.find(),
+    ]);
     const featuresByPlan = new Map<string, PlanFeatureEntity[]>();
+    const creditPackageByPlan = new Map(
+      allCreditPackages.map((creditPackage) => [creditPackage.planCode, creditPackage]),
+    );
     for (const feature of allFeatures) {
       if (!planCodes.has(feature.planCode)) continue;
       const current = featuresByPlan.get(feature.planCode) ?? [];
@@ -317,27 +360,33 @@ export class AdminBillingService {
       featuresByPlan.set(feature.planCode, current);
     }
 
-    return plans.map((plan) => ({
-      id: plan.id,
-      code: plan.code,
-      name: plan.name,
-      description: plan.description,
-      category: plan.category,
-      interval: plan.interval,
-      priceVnd: plan.priceVnd,
-      currency: plan.currency,
-      isActive: plan.isActive,
-      sortOrder: plan.sortOrder,
-      metadata: plan.metadata,
-      features: (featuresByPlan.get(plan.code) ?? []).map((feature) => ({
-        id: feature.id,
-        featureKey: feature.featureKey,
-        limitValue: feature.limitValue,
-        period: feature.period,
-      })),
-      createdAt: plan.createdAt?.toISOString?.() ?? null,
-      updatedAt: plan.updatedAt?.toISOString?.() ?? null,
-    }));
+    return plans.map((plan) => {
+      const creditPackage = creditPackageByPlan.get(plan.code);
+      return {
+        id: plan.id,
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        category: plan.category,
+        interval: plan.interval,
+        priceVnd: plan.priceVnd,
+        currency: plan.currency,
+        isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
+        metadata: plan.metadata,
+        creditPackage: creditPackage
+          ? { creditType: creditPackage.creditType, units: creditPackage.units }
+          : null,
+        features: (featuresByPlan.get(plan.code) ?? []).map((feature) => ({
+          id: feature.id,
+          featureKey: feature.featureKey,
+          limitValue: feature.limitValue,
+          period: feature.period,
+        })),
+        createdAt: plan.createdAt?.toISOString?.() ?? null,
+        updatedAt: plan.updatedAt?.toISOString?.() ?? null,
+      };
+    });
   }
 }
 

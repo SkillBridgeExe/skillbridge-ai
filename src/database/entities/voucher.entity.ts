@@ -6,6 +6,9 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CreditType } from './billing-credit-package.entity';
+
+export type VoucherBenefitType = 'PERCENT_DISCOUNT' | 'CREDIT_GRANT';
 
 @Entity('vouchers')
 export class VoucherEntity {
@@ -16,12 +19,21 @@ export class VoucherEntity {
   @Column({ type: 'varchar', length: 64 })
   code!: string;
 
-  @Column({ type: 'smallint', name: 'discount_percent' })
-  discountPercent!: number;
+  @Column({ type: 'varchar', name: 'benefit_type', default: 'PERCENT_DISCOUNT' })
+  benefitType!: VoucherBenefitType;
+
+  @Column({ type: 'smallint', name: 'discount_percent', nullable: true })
+  discountPercent!: number | null;
 
   @Index()
-  @Column({ type: 'varchar', name: 'applicable_plan_code' })
-  applicablePlanCode!: string;
+  @Column({ type: 'varchar', name: 'applicable_plan_code', nullable: true })
+  applicablePlanCode!: string | null;
+
+  @Column({ type: 'varchar', name: 'credit_type', nullable: true })
+  creditType!: CreditType | null;
+
+  @Column({ type: 'integer', name: 'credit_units', nullable: true })
+  creditUnits!: number | null;
 
   @Column({ type: 'timestamptz', name: 'starts_at' })
   startsAt!: Date;

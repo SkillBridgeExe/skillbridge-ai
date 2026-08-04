@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { BillingFeatureKey, BillingFeaturePeriod } from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
+import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
@@ -18,16 +19,18 @@ type RepositoryMock<T extends object> = Pick<
   findAndCount: jest.Mock;
   findOne: jest.Mock;
   save: jest.Mock;
+  update: jest.Mock;
 };
 
 function createRepositoryMock<T extends object>(): RepositoryMock<T> {
   return {
     create: jest.fn((input) => input),
     delete: jest.fn().mockResolvedValue({ affected: 1 }),
-    find: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
     findAndCount: jest.fn(),
     findOne: jest.fn(),
     save: jest.fn((input) => Promise.resolve(input)),
+    update: jest.fn().mockResolvedValue({ affected: 1 }),
   } as unknown as RepositoryMock<T>;
 }
 
@@ -38,6 +41,7 @@ describe('AdminBillingService', () => {
     const orders = createRepositoryMock<PaymentOrderEntity>();
     const subscriptions = createRepositoryMock<UserSubscriptionEntity>();
     const mentorBookings = createRepositoryMock<MentorBookingEntity>();
+    const creditPackages = createRepositoryMock<BillingCreditPackageEntity>();
     const manager = {
       getRepository: jest.fn((entity) => {
         if (entity === BillingPlanEntity) return plans;
@@ -45,6 +49,7 @@ describe('AdminBillingService', () => {
         if (entity === PaymentOrderEntity) return orders;
         if (entity === UserSubscriptionEntity) return subscriptions;
         if (entity === MentorBookingEntity) return mentorBookings;
+        if (entity === BillingCreditPackageEntity) return creditPackages;
         throw new Error(`Unexpected repository: ${String(entity)}`);
       }),
     };
@@ -58,8 +63,18 @@ describe('AdminBillingService', () => {
       subscriptions as unknown as Repository<UserSubscriptionEntity>,
       mentorBookings as unknown as Repository<MentorBookingEntity>,
       dataSource,
+      creditPackages as unknown as Repository<BillingCreditPackageEntity>,
     );
-    return { service, plans, features, orders, subscriptions, mentorBookings, dataSource };
+    return {
+      service,
+      plans,
+      features,
+      orders,
+      subscriptions,
+      mentorBookings,
+      creditPackages,
+      dataSource,
+    };
   }
 
   it('lists feature catalog metadata for FE quota forms', () => {
@@ -74,17 +89,17 @@ describe('AdminBillingService', () => {
           label: 'CV diagnosis',
           allowedPeriods: [BillingFeaturePeriod.MONTHLY],
           recommendedLimits: expect.objectContaining({
-            FREE: 3,
+            FREE: 1,
             PRO: 30,
-            PREMIUM: 100,
+            PREMIUM: 80,
           }),
         }),
         expect.objectContaining({
           featureKey: BillingFeatureKey.ROADMAP_GENERATE,
           recommendedLimits: expect.objectContaining({
-            FREE: 1,
+            FREE: 0,
             PRO: 10,
-            PREMIUM: 30,
+            PREMIUM: 10,
           }),
         }),
       ]),
@@ -352,6 +367,81 @@ describe('AdminBillingService', () => {
     expect(result).toEqual(
       expect.objectContaining({ code: 'PRO', priceVnd: 129000, isActive: false }),
     );
+  });
+
+  it('rejects converting an existing plan into a credit package', async () => {
+    const { service, plans } = setup();
+    plans.findOne.mockResolvedValue({
+      code: 'PREMIUM',
+      category: 'SUBSCRIPTION',
+      interval: 'MONTHLY',
+    });
+
+    await expect(
+      service.updatePlan('PREMIUM', { category: 'CREDIT_PACKAGE' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('locks credit package category and one-time interval', async () => {
+    const { service, plans } = setup();
+    plans.findOne.mockResolvedValue({
+      code: 'CV_ANALYSIS_PACK',
+      category: 'CREDIT_PACKAGE',
+      interval: 'ONE_TIME',
+    });
+
+    await expect(
+      service.updatePlan('CV_ANALYSIS_PACK', { interval: 'MONTHLY' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects credit units for a non-credit plan', async () => {
+    const { service, plans } = setup();
+    plans.findOne.mockResolvedValue({
+      code: 'PREMIUM',
+      category: 'SUBSCRIPTION',
+      interval: 'MONTHLY',
+    });
+
+    await expect(service.updatePlan('PREMIUM', { creditUnits: 2 })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('updates the editable price and units of a fixed credit package', async () => {
+    const { service, plans, features, creditPackages } = setup();
+    plans.findOne.mockResolvedValue({
+      code: 'CV_ANALYSIS_PACK',
+      name: 'CV analyses',
+      description: null,
+      category: 'CREDIT_PACKAGE',
+      interval: 'ONE_TIME',
+      priceVnd: 20000,
+      currency: 'VND',
+      isActive: true,
+      sortOrder: 100,
+      metadata: null,
+    });
+    plans.save.mockImplementation((input) => Promise.resolve(input));
+    features.find.mockResolvedValue([]);
+    creditPackages.find.mockResolvedValue([
+      {
+        planCode: 'CV_ANALYSIS_PACK',
+        creditType: 'CV_ANALYSIS',
+        units: 2,
+      },
+    ]);
+
+    const result = await service.updatePlan('CV_ANALYSIS_PACK', {
+      priceVnd: 20000,
+      creditUnits: 2,
+    });
+
+    expect(creditPackages.update).toHaveBeenCalledWith(
+      { planCode: 'CV_ANALYSIS_PACK' },
+      { units: 2 },
+    );
+    expect(result.creditPackage).toEqual({ creditType: 'CV_ANALYSIS', units: 2 });
   });
 
   it('throws when updating an unknown plan', async () => {
