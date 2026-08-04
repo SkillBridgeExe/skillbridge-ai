@@ -186,3 +186,51 @@ export function isAdvantageLine(line: string): boolean {
 export function normalizeForHash(s: string): string {
   return (s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
+
+export type JobWorkMode = 'ONSITE' | 'HYBRID' | 'REMOTE';
+
+/** Conservative work-mode extraction from source location/metadata text. */
+export function classifyWorkMode(raw: string): JobWorkMode | null {
+  let text = (raw ?? '').toLowerCase();
+  if (!text) return null;
+
+  // Erase tech-domain false positives so they don't trigger work-mode classification
+  text = text.replace(
+    /\b(?:hybrid\s+(?:cloud|mobile|app|application|infrastructure)|remote\s+(?:sensing|control|desktop|support|access|administration))\b/g,
+    '',
+  );
+
+  if (/\bhybrid\b|kết\s*hợp|linh\s*hoạt.*(?:office|văn\s*phòng)/i.test(text)) return 'HYBRID';
+  if (/\bremote\b|work\s*from\s*home|\bwfh\b|từ\s*xa|làm\s*việc\s*online/i.test(text))
+    return 'REMOTE';
+  if (/\bonsite\b|on[\s-]?site|tại\s*(?:văn\s*phòng|công\s*ty)/i.test(text)) return 'ONSITE';
+  return null;
+}
+
+export interface NormalizedJobLocation {
+  primaryCityCode: string | null;
+  cityCodes: string[];
+}
+
+/**
+ * Thin deterministic normalization for the cities represented in the Vietnam pool.
+ * Unknown locations remain honest-null instead of being coerced into a nearby city.
+ */
+export function normalizeJobLocation(raw: string): NormalizedJobLocation {
+  const text = normalizeForHash(raw);
+  const codes: string[] = [];
+  const add = (code: string) => {
+    if (!codes.includes(code)) codes.push(code);
+  };
+
+  if (/\bhcmc?\b|ho\s*chi\s*minh|hồ\s*chí\s*minh|tp\.?\s*hcm|sai\s*gon|sài\s*gòn/.test(text))
+    add('HCM');
+  if (/\bha\s*noi\b|hà\s*nội|\bhanoi\b|gia\s*lâm|gia\s*lam/.test(text)) add('HAN');
+  if (/\bda\s*nang\b|đà\s*nẵng/.test(text)) add('DAD');
+  if (/\bhai\s*phong\b|hải\s*phòng/.test(text)) add('HPH');
+  if (/\bcan\s*tho\b|cần\s*thơ/.test(text)) add('CTO');
+  if (/\bbinh\s*duong\b|bình\s*dương/.test(text)) add('BDG');
+  if (/\bdong\s*nai\b|đồng\s*nai|\bbien\s*hoa\b|biên\s*hòa/.test(text)) add('DNI');
+
+  return { primaryCityCode: codes[0] ?? null, cityCodes: codes };
+}

@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  GoneException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import { DatabaseService } from '../../../infrastructure/database/database.service';
@@ -37,6 +43,7 @@ export type ExperienceLevel = 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENI
 export type JobRecommendationSort = 'RECOMMENDED' | 'SKILL_MATCH' | 'NEWEST' | 'SALARY_DESC';
 
 export interface JobRecommendationOptions {
+  snapshotToken?: string;
   limit?: number;
   offset?: number;
   /** Omitted = CV target role; "all" = explicitly browse every role. */
@@ -180,6 +187,7 @@ export interface JobRecommendationResponse {
   generation: {
     cache_hit: boolean;
     snapshot_size: number;
+    snapshot_token?: string;
   };
   recommendations: JobRecommendation[];
 }
@@ -381,18 +389,27 @@ export function projectJobRecommendationSnapshot(
   const limit = Math.min(Math.max(Number(options.limit) || 5, 1), 50);
   const offset = Math.max(Number(options.offset) || 0, 0);
   const explicitRole = options.roleCode && options.roleCode !== 'all' ? options.roleCode : null;
+  const scopedRole = (roleCode: string): JobRecommendation[] => {
+    const ids = snapshot.recommendation_ids_by_role?.[roleCode];
+    if (!ids) return snapshot.recommendations.filter((row) => row.role_code === roleCode);
+    const byId = new Map(snapshot.recommendations.map((row) => [row.job_id, row]));
+    return ids.flatMap((id, index) => {
+      const row = byId.get(id);
+      return row ? [{ ...row, rank: index + 1 }] : [];
+    });
+  };
 
   let roleScope: JobRecommendationResponse['role_scope'];
   let scoped: JobRecommendation[];
   if (explicitRole) {
     roleScope = { role_code: explicitRole, source: 'explicit' };
-    scoped = snapshot.recommendations.filter((row) => row.role_code === explicitRole);
+    scoped = scopedRole(explicitRole);
   } else if (options.roleCode === 'all') {
     roleScope = { role_code: null, source: 'all' };
     scoped = snapshot.recommendations;
   } else if (snapshot.cv_target_role) {
     roleScope = { role_code: snapshot.cv_target_role, source: 'cv_target' };
-    scoped = snapshot.recommendations.filter((row) => row.role_code === snapshot.cv_target_role);
+    scoped = scopedRole(snapshot.cv_target_role);
   } else {
     roleScope = { role_code: null, source: 'cv_target_missing' };
     scoped = [];
@@ -464,7 +481,11 @@ export function projectJobRecommendationSnapshot(
         currencies.size === 1 &&
         salaryRows.every((row) => row.salary_period != null),
     },
-    generation: { cache_hit: cacheHit, snapshot_size: snapshot.recommendations.length },
+    generation: {
+      cache_hit: cacheHit,
+      snapshot_size: snapshot.recommendations.length,
+      ...(snapshot.snapshot_token ? { snapshot_token: snapshot.snapshot_token } : {}),
+    },
     recommendations: sorted.slice(offset, offset + limit),
   };
 }
@@ -539,6 +560,25 @@ export class JobRecommendationService {
     const cvSeniority: CvSeniority | null = cvRows[0].parsed_json
       ? deriveCvSeniority(cvRows[0].parsed_json)
       : null;
+    const cvTargetRole = cvRows[0].target_role?.trim() || null;
+
+    // A stable explorer page does not need to rebuild or reload the recommendation pool.
+    // Keep the ownership check above, then hydrate only mutable saved-state for the jobs
+    // present in the stored page. This makes snapshot pagination proportional to page size.
+    if (options.snapshotToken) {
+      const stableSnapshot = await this.snapshots.findByToken(userId, cvId, options.snapshotToken);
+      if (!stableSnapshot) {
+        throw new GoneException({
+          code: 'JOB_RECOMMENDATION_SNAPSHOT_EXPIRED',
+          message: 'This recommendation snapshot expired. Refresh to load a new result set.',
+        });
+      }
+      return this.withPersistedSavedState(
+        userId,
+        projectJobRecommendationSnapshot(cvId, stableSnapshot, options, true),
+      );
+    }
+
     const cvSkillRows = await this.db.query<{ canonical_name: string }>(
       `SELECT s.canonical_name
          FROM public.cv_skills cs JOIN public.skills s ON s.id = cs.skill_id
@@ -583,7 +623,6 @@ export class JobRecommendationService {
       [userId],
     );
 
-    const cvTargetRole = cvRows[0].target_role?.trim() || null;
     const requestedRole =
       options.roleCode && options.roleCode !== 'all' ? options.roleCode : cvTargetRole;
     if (
@@ -658,6 +697,7 @@ export class JobRecommendationService {
             allCandidates,
             interviewSignals,
           );
+          snapshot.snapshot_token = claimToken;
           const saved = await this.snapshots.save(
             userId,
             cvId,
@@ -691,12 +731,42 @@ export class JobRecommendationService {
     }
 
     const projected = projectJobRecommendationSnapshot(cvId, snapshot, options, cacheHit);
+    return this.withCurrentSavedState(projected, allCandidates);
+  }
+
+  private withCurrentSavedState(
+    projected: JobRecommendationResponse,
+    allCandidates: CandidateJobRow[],
+  ): JobRecommendationResponse {
     const currentSavedByJob = new Map(allCandidates.map((job) => [job.id, job.saved]));
     return {
       ...projected,
       recommendations: projected.recommendations.map((recommendation) => ({
         ...recommendation,
         saved: currentSavedByJob.get(recommendation.job_id) ?? recommendation.saved,
+      })),
+    };
+  }
+
+  private async withPersistedSavedState(
+    userId: string,
+    projected: JobRecommendationResponse,
+  ): Promise<JobRecommendationResponse> {
+    const jobIds = projected.recommendations.map((recommendation) => recommendation.job_id);
+    if (jobIds.length === 0) return projected;
+
+    const savedRows = await this.db.query<{ job_id: string }>(
+      `SELECT job_id
+         FROM public.saved_jobs
+        WHERE user_id = $1 AND job_id = ANY($2::uuid[])`,
+      [userId, jobIds],
+    );
+    const savedJobIds = new Set(savedRows.map((row) => row.job_id));
+    return {
+      ...projected,
+      recommendations: projected.recommendations.map((recommendation) => ({
+        ...recommendation,
+        saved: savedJobIds.has(recommendation.job_id),
       })),
     };
   }
@@ -778,14 +848,18 @@ export class JobRecommendationService {
         computeExperienceFit(cvSeniority, candidate.experience_level),
       ]),
     );
-    const ranked = rerankByExperience(
-      rrfFuse(rankB.length > 0 ? [rankA, rankB] : [rankA]),
-      fitByJob,
-    );
     const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-    return {
-      cv_target_role: cvTargetRole,
-      recommendations: ranked.map(([jobId], index) =>
+    const rankIds = (scopeCandidates: CandidateJobRow[]): string[] => {
+      const scopeIds = new Set(scopeCandidates.map((candidate) => candidate.id));
+      const scopeRankA = rankA.filter((id) => scopeIds.has(id));
+      const scopeRankB = rankB.filter((id) => scopeIds.has(id));
+      return rerankByExperience(
+        rrfFuse(scopeRankB.length > 0 ? [scopeRankA, scopeRankB] : [scopeRankA]),
+        fitByJob,
+      ).map(([jobId]) => jobId);
+    };
+    const buildRankedRecommendations = (rankedIds: string[]): JobRecommendation[] =>
+      rankedIds.map((jobId, index) =>
         buildJobRecommendation(
           byId.get(jobId)!,
           diffByJob.get(jobId)!,
@@ -794,7 +868,24 @@ export class JobRecommendationService {
           fitByJob.get(jobId)!,
           interviewSignals,
         ),
-      ),
+      );
+
+    const candidatesByRole = new Map<string, CandidateJobRow[]>();
+    for (const candidate of candidates) {
+      if (!candidate.role_code) continue;
+      const group = candidatesByRole.get(candidate.role_code) ?? [];
+      group.push(candidate);
+      candidatesByRole.set(candidate.role_code, group);
+    }
+    const recommendationIdsByRole = Object.fromEntries(
+      [...candidatesByRole.entries()].map(([role, rows]) => [role, rankIds(rows)]),
+    );
+    const rankedIds = rankIds(candidates);
+
+    return {
+      cv_target_role: cvTargetRole,
+      recommendations: buildRankedRecommendations(rankedIds),
+      recommendation_ids_by_role: recommendationIdsByRole,
     };
   }
 }

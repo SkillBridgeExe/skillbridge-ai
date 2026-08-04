@@ -70,7 +70,10 @@ describe('CvReviewService', () => {
       completeAiRequest: jest.fn().mockResolvedValue(undefined),
       saveAiResult: jest.fn().mockResolvedValue('res-1'),
     };
-    const roleRubric = { getRubric: jest.fn().mockReturnValue(null) };
+    const roleRubric = {
+      getRubric: jest.fn().mockReturnValue(null),
+      hasRubric: jest.fn().mockReturnValue(true),
+    };
     // Deterministic Dim-1: default analyzer returns the SAME score the LLM stub emits (15),
     // so the composite math below stays focused on the weighting, not the routing.
     const bulletAnalyzer = {
@@ -144,6 +147,22 @@ describe('CvReviewService', () => {
     ).rejects.toMatchObject({ response: { code: 'CV_CONTENT_INSUFFICIENT' } });
     expect(cvParser.parse).not.toHaveBeenCalled(); // Stage-1 LLM never reached
     expect(llm.complete).not.toHaveBeenCalled(); // Stage-3 LLM never reached
+  });
+
+  it('rejects an explicitly unsupported target role before parsing or calling the LLM', async () => {
+    const { service, roleRubric, cvParser, llm } = build();
+    roleRubric.hasRubric.mockReturnValue(false);
+
+    await expect(
+      service.review('u1', {
+        ...(input as Record<string, unknown>),
+        target_role: 'invented_role',
+      } as never),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'UNSUPPORTED_TARGET_ROLE' }),
+    });
+    expect(cvParser.parse).not.toHaveBeenCalled();
+    expect(llm.complete).not.toHaveBeenCalled();
   });
 
   it('composes overall = ats×0.4 + (llm_total/80×100)×0.6', async () => {
@@ -541,7 +560,10 @@ describe('CvReviewService', () => {
       sections: [],
       ats_extracted: { name: null, email: null, phone: null, skills_raw: [] },
     });
-    const res = await service.review('u1', input);
+    const res = await service.review('u1', {
+      ...(input as Record<string, unknown>),
+      target_role: undefined,
+    } as never);
     // Default parser stub scores skills_relevance=15 — untouched (no rubric to override it).
     expect(res.parsed_response.llm_score_dimensions.skills_relevance).toBe(15);
     expect(res.parsed_response.dimension_provenance?.skills_relevance?.source).toBe('llm');

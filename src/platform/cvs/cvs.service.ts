@@ -21,6 +21,7 @@ import { CvVersionEntity, CvVersionOrigin } from '../../database/entities/cv-ver
 import { SkillEntity } from '../../database/entities/skill.entity';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { documentToPlainText } from '../../common/services/cv-document-text';
+import { RoleRubricService } from '../../common/services/role-rubric.service';
 import { SkillNormalizerService } from '../../common/services/skill-normalizer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { CreditAwareReservation } from '../billing/credit-aware-usage.service';
@@ -165,6 +166,10 @@ export class CvsService {
     // optionals above so existing unit tests that omit it still compile. Access via `this.versions`.
     @InjectRepository(CvVersionEntity)
     private readonly cvVersions?: Repository<CvVersionEntity>,
+    // Role rubrics are the authoritative public diagnosis-role contract. The `?` only preserves
+    // direct unit-test construction; Nest still resolves this parameter and fails boot if the
+    // globally exported provider is missing (there is deliberately no @Optional decorator).
+    private readonly roleRubrics?: RoleRubricService,
   ) {}
 
   async create(
@@ -190,9 +195,15 @@ export class CvsService {
       });
     }
 
+    // Reject an unsupported explicit role before fingerprint lookup, cache reuse, quota, storage,
+    // or any CV mutation. A deep guard in CvReviewService is too late for these orchestration paths.
+    const requestedRole = this.normalizeTargetRole(dto.targetRole);
+    this.assertSupportedTargetRole(requestedRole);
+
     const generatedSource = await this.findGeneratedPdfSource(userId, file);
     if (generatedSource) {
-      const role = this.normalizeTargetRole(dto.targetRole) ?? generatedSource.targetRole ?? null;
+      const role = requestedRole ?? generatedSource.targetRole ?? null;
+      this.assertSupportedTargetRole(role);
       const cached = await this.getLatestMatchingReview(userId, generatedSource.id, role, dto.lang);
       if (cached) {
         return {
@@ -242,7 +253,6 @@ export class CvsService {
       // exists for the requested role. Re-uploading the same file under a NEW role must
       // re-grade — otherwise the user sees the previous role's analysis on a fast-but-wrong
       // scan. A request without a role (null) matches the latest analysis of any role.
-      const requestedRole = this.normalizeTargetRole(dto.targetRole);
       const cachedForRole = await this.getLatestMatchingReview(
         userId,
         duplicate.id,
@@ -281,7 +291,7 @@ export class CvsService {
 
     const cvId = uuidv4();
     const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
-    const targetRole = this.normalizeTargetRole(dto.targetRole);
+    const targetRole = requestedRole;
     let cvSaved = false;
     let uploadCommitted = false;
     const reservations = await this.analysisQuota.reserveForUpload(userId);
@@ -522,6 +532,9 @@ export class CvsService {
       });
     }
 
+    const targetRole = this.normalizeTargetRole(dto.targetRole ?? source?.targetRole ?? undefined);
+    this.assertSupportedTargetRole(targetRole);
+
     const usage = await this.entitlements.reserveUsage(userId, BillingFeatureKey.CV_BUILDER_CREATE);
     try {
       const language = dto.language ?? source?.language ?? source?.parsedJson?.language ?? 'en';
@@ -541,7 +554,7 @@ export class CvsService {
           parsedJson,
           cvKind: 'BUILT',
           language,
-          targetRole: this.normalizeTargetRole(dto.targetRole ?? source?.targetRole ?? undefined),
+          targetRole,
           isOcrOnly: false,
         }),
       );
@@ -571,7 +584,11 @@ export class CvsService {
       parsedJson: this.cloneDocument(dto.parsedJson),
       language: dto.language ?? dto.parsedJson.language ?? cv.language,
     };
-    if (dto.targetRole !== undefined) patch.targetRole = this.normalizeTargetRole(dto.targetRole);
+    if (dto.targetRole !== undefined) {
+      const targetRole = this.normalizeTargetRole(dto.targetRole);
+      this.assertSupportedTargetRole(targetRole);
+      patch.targetRole = targetRole;
+    }
     await this.cvs.update(cv.id, patch); // bumps updated_at via @UpdateDateColumn
 
     // Re-sync cv_skills from the edited document: job-recommendation reads cv_skills, so a builder
@@ -1115,6 +1132,7 @@ export class CvsService {
     // stored role when none is given. Reuse a cached analysis only for THAT role — a different
     // role re-grades against its own rubric instead of returning the stored role's review.
     const role = this.normalizeTargetRole(requestedRole) ?? cv.targetRole ?? null;
+    this.assertSupportedTargetRole(role);
     // Reuse a cached review ONLY when its feedback language matches what the caller asked for
     // (a UI-locale toggle must re-generate, not serve the previous language). `lang` undefined =
     // old behavior (matches the null-lang bucket).
@@ -1387,6 +1405,15 @@ export class CvsService {
     return trimmed ? trimmed : null;
   }
 
+  private assertSupportedTargetRole(role: string | null): void {
+    // At runtime Nest always injects RoleRubricService. The undefined branch exists only for old
+    // direct-constructor tests that do not exercise role-bearing paths.
+    if (!role || !this.roleRubrics || this.roleRubrics.hasRubric(role)) return;
+    throw new BadRequestException({
+      errorCode: 'UNSUPPORTED_TARGET_ROLE',
+      message: `Unsupported target role: ${role}`,
+    });
+  }
   private async findGeneratedPdfSource(
     userId: string,
     file: Express.Multer.File,

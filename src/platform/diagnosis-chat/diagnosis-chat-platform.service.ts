@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger, NotFoundException } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
+import { BillingPlanCode } from '../../common/constants/billing.constants';
 import { maskPii } from '../../common/services/pii-mask';
 import { ChatConversationEntity } from '../../database/entities/chat-conversation.entity';
 import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
@@ -16,7 +17,9 @@ import { extractConversationState } from '../../modules/diagnosis-chat/conversat
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService, OtherMatchSummary } from '../cv-matches/cv-matches.service';
+import { EntitlementsService } from '../billing/entitlements.service';
 import { CvsService } from '../cvs/cvs.service';
+import { diagnosisPremiumView } from '../cvs/diagnosis-premium-access';
 import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/diagnosis-chat.dto';
 
 /** The domain service still shows only its last-10 window to the LLM; it receives this WIDER slice
@@ -25,6 +28,7 @@ import { DiagnosisChatCvOnlyRequestDto, DiagnosisChatRequestDto } from './dto/di
 const STATE_WINDOW = 40;
 const DIAGNOSIS_CHAT_REQUEST_TYPE = 'diagnosis_chat';
 const DAILY_CHAT_LIMIT = 50;
+type DiagnosisAccessLevel = 'free' | 'premium';
 
 export interface DiagnosisChatTurnResponse {
   answer: string;
@@ -74,6 +78,7 @@ export class DiagnosisChatPlatformService {
     private readonly cvMatches: CvMatchesService,
     private readonly cvs: CvsService,
     private readonly tracing: TracingService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   /**
@@ -86,9 +91,17 @@ export class DiagnosisChatPlatformService {
     matchId: string,
     dto: DiagnosisChatRequestDto,
   ): Promise<DiagnosisChatTurnResponse> {
-    const { facts, otherMatches } = await this.buildFactsForMatch(userId, matchId);
+    const { facts, otherMatches, accessLevel } = await this.buildFactsForMatch(userId, matchId);
     const conversation = await this.resolveConversation(userId, matchId);
-    return this.runTurn(userId, conversation, facts, dto, { match_id: matchId }, otherMatches);
+    return this.runTurn(
+      userId,
+      conversation,
+      facts,
+      dto,
+      { match_id: matchId },
+      otherMatches,
+      accessLevel,
+    );
   }
 
   async getThread(userId: string, matchId: string): Promise<DiagnosisChatThreadResponse> {
@@ -99,8 +112,10 @@ export class DiagnosisChatPlatformService {
       where: { conversationId: conversation.id },
       order: { createdAt: 'ASC' },
     });
+    const unlocked = await this.entitlements.hasActivePlan(userId, BillingPlanCode.PREMIUM);
+    const accessibleRows = rows.filter((message) => this.canReadMessage(message, unlocked));
 
-    const windowRows = rows.slice(-40);
+    const windowRows = accessibleRows.slice(-40);
     // Deterministic mirror on restore: the SAME extractor the live turn uses, over the SAME
     // window — question is '' because there is no current turn. covered_gaps needs facts,
     // which this path never loads → honestly empty rather than a stale guess.
@@ -151,9 +166,18 @@ export class DiagnosisChatPlatformService {
       // Non-owned cv OR a cv with no completed review → honest 404, no cross-user data, no crash.
       throw new NotFoundException('CV diagnosis not found');
     }
-    const facts = buildDiagnosisFacts(review, null);
+    const unlocked = await this.entitlements.hasActivePlan(userId, BillingPlanCode.PREMIUM);
+    const facts = buildDiagnosisFacts(diagnosisPremiumView(review, unlocked).review, null);
     const conversation = await this.resolveCvConversation(userId, cvId);
-    return this.runTurn(userId, conversation, facts, dto, { cv_id: cvId });
+    return this.runTurn(
+      userId,
+      conversation,
+      facts,
+      dto,
+      { cv_id: cvId },
+      [],
+      unlocked ? 'premium' : 'free',
+    );
   }
 
   /**
@@ -170,9 +194,10 @@ export class DiagnosisChatPlatformService {
     // Only the JD-match route has other-match summaries to map cited_other_match_index back to real
     // ids; the CV-only route has none, so it defaults to an empty list (cited_match never appears there).
     otherMatches: OtherMatchSummary[] = [],
+    accessLevel: DiagnosisAccessLevel = 'free',
   ): Promise<DiagnosisChatTurnResponse> {
     await this.assertQuota(userId);
-    const history = await this.loadHistory(conversation.id);
+    const history = await this.loadHistory(conversation.id, accessLevel === 'premium');
 
     const aiRequestId = await this.tracing.startAiRequest({
       userId,
@@ -220,6 +245,7 @@ export class DiagnosisChatPlatformService {
             cited_dimension: answer.cited_dimension ?? null,
             cited_gap_id: answer.cited_gap_id ?? null,
             suggested_next_step: answer.suggested_next_step ?? null,
+            diagnosis_access_level: accessLevel,
           },
         }),
       );
@@ -251,9 +277,15 @@ export class DiagnosisChatPlatformService {
   private async buildFactsForMatch(
     userId: string,
     matchId: string,
-  ): Promise<{ facts: DiagnosisFacts; otherMatches: OtherMatchSummary[] }> {
+  ): Promise<{
+    facts: DiagnosisFacts;
+    otherMatches: OtherMatchSummary[];
+    accessLevel: DiagnosisAccessLevel;
+  }> {
     const report = await this.cvMatches.getGapReport(userId, matchId);
     const review = await this.cvMatches.getReviewForMatch(userId, matchId);
+    const unlocked = await this.entitlements.hasActivePlan(userId, BillingPlanCode.PREMIUM);
+    const accessibleReview = review ? diagnosisPremiumView(review, unlocked).review : null;
     // Best-effort: a progress-lookup failure must never break the chat itself, but a silently
     // dropped fact should still surface somewhere (T5 — no more silent facts degradation).
     const progress = await this.cvMatches.getProgress(userId, matchId).catch((err: unknown) => {
@@ -273,7 +305,11 @@ export class DiagnosisChatPlatformService {
         );
         return [];
       });
-    return { facts: buildDiagnosisFacts(review, report, progress, otherMatches), otherMatches };
+    return {
+      facts: buildDiagnosisFacts(accessibleReview, report, progress, otherMatches),
+      otherMatches,
+      accessLevel: unlocked ? 'premium' : 'free',
+    };
   }
 
   private async assertQuota(userId: string): Promise<void> {
@@ -324,7 +360,7 @@ export class DiagnosisChatPlatformService {
     );
   }
 
-  private async loadHistory(conversationId: string) {
+  private async loadHistory(conversationId: string, unlocked: boolean) {
     const rows = await this.messages.find({
       where: { conversationId },
       order: { createdAt: 'DESC' },
@@ -332,11 +368,20 @@ export class DiagnosisChatPlatformService {
     });
     // `at` feeds ONLY the deterministic deadline-expiry rule (Wave 3) — the transcript the model
     // sees stays timestamp-free.
-    return rows.reverse().map((message) => ({
-      role: message.role,
-      content: message.content,
-      at: message.createdAt.toISOString(),
-    }));
+    return rows
+      .reverse()
+      .filter((message) => this.canReadMessage(message, unlocked))
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        at: message.createdAt.toISOString(),
+      }));
+  }
+
+  /** Assistant answers may embed paid facts. Unlabelled legacy assistant rows fail closed. */
+  private canReadMessage(message: ChatMessageEntity, unlocked: boolean): boolean {
+    if (unlocked || message.role === 'user') return true;
+    return message.metadata?.diagnosis_access_level === 'free';
   }
 
   private toResponse(

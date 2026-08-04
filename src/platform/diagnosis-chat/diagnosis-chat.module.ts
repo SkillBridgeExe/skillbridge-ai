@@ -5,6 +5,7 @@ import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
 import { DiagnosisChatService } from '../../modules/diagnosis-chat/diagnosis-chat.service';
 import { CvMatchesModule } from '../cv-matches/cv-matches.module';
 import { CvsModule } from '../cvs/cvs.module';
+import { BillingModule } from '../billing/billing.module';
 import { DiagnosisChatCvController } from './diagnosis-chat-cv.controller';
 import { DiagnosisChatController } from './diagnosis-chat.controller';
 import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service';
@@ -17,6 +18,7 @@ import { DiagnosisChatPlatformService } from './diagnosis-chat-platform.service'
     TypeOrmModule.forFeature([ChatConversationEntity, ChatMessageEntity]),
     forwardRef(() => CvMatchesModule),
     CvsModule,
+    BillingModule,
   ],
   controllers: [DiagnosisChatController, DiagnosisChatCvController],
   providers: [DiagnosisChatService, DiagnosisChatPlatformService],

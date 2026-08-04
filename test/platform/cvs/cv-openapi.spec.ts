@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { getMetadataArgsStorage } from 'typeorm';
 import { CvConsentAuditEntity } from '../../../src/database/entities/cv-consent-audit.entity';
+import { RoleRubricService } from '../../../src/common/services/role-rubric.service';
 import { IS_PUBLIC_KEY } from '../../../src/platform/auth/decorators/public.decorator';
 import { CvsController } from '../../../src/platform/cvs/cvs.controller';
 import { DiagnosisController } from '../../../src/platform/cvs/diagnosis.controller';
@@ -32,6 +33,10 @@ describe('CV OpenAPI docs', () => {
             getInterviewPlan: jest.fn(),
             getGithubEvidence: jest.fn(),
           },
+        },
+        {
+          provide: RoleRubricService,
+          useValue: { listRubrics: jest.fn().mockReturnValue([]) },
         },
       ],
     }).compile();

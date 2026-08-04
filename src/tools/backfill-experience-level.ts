@@ -27,7 +27,7 @@ export function computeSeniorityBackfill(
 }
 
 /**
- * CLI. Default = DRY-RUN (counts + id|title|→level, NO writes). `--apply` writes experience_level
+ * CLI. Default = DRY-RUN (counts + id|title|->level, NO writes). `--apply` writes experience_level
  * (only) for the computed changes in one transaction. Idempotent; fills NULLs only.
  * Usage:  pnpm backfill:experience-level              (dry-run)
  *         pnpm backfill:experience-level -- --apply   (write, after explicit approval)
@@ -36,19 +36,22 @@ async function main(): Promise<void> {
   const dotenvParsed = dotenv.config().parsed ?? {};
   if (dotenvParsed.OPENAI_API_KEY) process.env.OPENAI_API_KEY = dotenvParsed.OPENAI_API_KEY;
   const apply = process.argv.includes('--apply');
-  try {
-    const { NestFactory } = await import('@nestjs/core');
-    const { AppModule } = await import('../app.module');
-    const { getDataSourceToken } = await import('@nestjs/typeorm');
-    const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error'] });
-    const ds = app.get(getDataSourceToken());
 
+  const { createToolDbClient } = await import('./tool-db-client');
+  const client = createToolDbClient();
+
+  try {
+    await client.connect();
+
+    // Guard: Prevent accidentally running migrations by NOT booting AppModule
     // Active, canonical representatives (the pool the job-rec guard actually reads), missing the field.
+    const result = await client.query(
+      `SELECT id, title, experience_level FROM jobs
+        WHERE status = 'active' AND canonical_job_id IS NULL AND experience_level IS NULL`,
+    );
     const jobs: Array<{ id: string; title: string | null; experience_level: string | null }> =
-      await ds.query(
-        `SELECT id, title, experience_level FROM jobs
-          WHERE status = 'active' AND canonical_job_id IS NULL AND experience_level IS NULL`,
-      );
+      result.rows;
+
     const changes = computeSeniorityBackfill(jobs);
 
     const counts = new Map<string, number>();
@@ -65,26 +68,31 @@ async function main(): Promise<void> {
     for (const c of changes) console.log(`  ${c.id} | ${c.title} | -> ${c.to}`);
 
     if (apply && changes.length) {
-      await ds.transaction(
-        async (mgr: { query: (q: string, p: unknown[]) => Promise<unknown> }) => {
-          for (const c of changes) {
-            await mgr.query('UPDATE jobs SET experience_level = $1 WHERE id = $2', [c.to, c.id]);
-          }
-        },
-      );
-      console.log(
-        `\nAPPLIED ${changes.length} updates in one transaction (experience_level only).`,
-      );
+      await client.query('BEGIN');
+      try {
+        for (const c of changes) {
+          await client.query('UPDATE jobs SET experience_level = $1 WHERE id = $2', [c.to, c.id]);
+        }
+        await client.query('COMMIT');
+        console.log(
+          `\nAPPLIED ${changes.length} updates in one transaction (experience_level only).`,
+        );
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      }
     } else if (apply) {
       console.log('\nNothing to apply (0 changes).');
     } else {
       console.log('\nDRY-RUN only. Re-run with `-- --apply` to write (after explicit approval).');
     }
-    await app.close();
   } catch (e) {
     console.log(
       `\nbackfill: DB not available (${(e as Error).message}). Needs a reachable jobs DB.`,
     );
+  } finally {
+    // Best-effort cleanup to prevent connection pool leaks
+    await client.end().catch(() => {});
   }
 }
 

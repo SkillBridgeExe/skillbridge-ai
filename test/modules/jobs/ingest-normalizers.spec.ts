@@ -1,6 +1,7 @@
 import {
   classifyRole,
   classifySeniority,
+  classifyWorkMode,
   isAdvantageLine,
   normalizeCompanyName,
   scrubPii,
@@ -119,6 +120,30 @@ describe('JD ingest normalizers (pure)', () => {
     it('does not flag normal requirement lines', () => {
       expect(isAdvantageLine('Nắm vững JavaScript, HTML, CSS')).toBe(false);
       expect(isAdvantageLine('Build REST API with NestJS')).toBe(false);
+    });
+  });
+
+  describe('classifyWorkMode', () => {
+    it.each([
+      ['Backend Developer (Remote)', 'REMOTE'],
+      ['Java Developer - Remote', 'REMOTE'],
+      ['Frontend Developer WFH', 'REMOTE'],
+      ['Làm việc online', 'REMOTE'],
+      ['Hybrid Project Manager', 'HYBRID'],
+      ['Kết hợp lên văn phòng', 'HYBRID'],
+      ['Onsite tại công ty', 'ONSITE'],
+      ['Backend Developer', null],
+    ])('"%s" → %s', (raw, expected) => {
+      expect(classifyWorkMode(raw)).toBe(expected);
+    });
+
+    it('ignores tech-domain false positives', () => {
+      expect(classifyWorkMode('Remote Sensing Engineer')).toBe(null);
+      expect(classifyWorkMode('Hybrid Cloud Engineer')).toBe(null);
+      expect(classifyWorkMode('Hybrid Mobile App Developer')).toBe(null);
+      expect(classifyWorkMode('IT Support (Remote Desktop)')).toBe(null);
+      // but if both are present, true marker wins
+      expect(classifyWorkMode('Hybrid Cloud Engineer (Remote)')).toBe('REMOTE');
     });
   });
 });

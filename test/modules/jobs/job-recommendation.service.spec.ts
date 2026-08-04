@@ -1,4 +1,7 @@
-import { JobRecommendationService } from '../../../src/modules/jobs/reco/job-recommendation.service';
+import {
+  buildJobRecommendation,
+  JobRecommendationService,
+} from '../../../src/modules/jobs/reco/job-recommendation.service';
 
 const USER_ID = 'user-1';
 const CV_ID = 'cv-1';
@@ -144,6 +147,145 @@ describe('JobRecommendationService — TRUST (B1) real proficiency', () => {
       expect.objectContaining({
         cv_skills_raw: [{ name: 'react' }],
       }),
+    );
+  });
+});
+
+describe('JobRecommendationService — stable explorer snapshots', () => {
+  const candidate = (id: string, role: string, skill: string) => ({
+    ...CANDIDATE_ROW,
+    id,
+    slug: id,
+    title: id,
+    role_code: role,
+    experience_level: 'JUNIOR',
+    skills: [{ canonical: skill, importance: 'REQUIRED', min_level: 2 }],
+  });
+
+  it('ranks each role independently and returns the persisted snapshot token', async () => {
+    const rows = [
+      candidate('frontend-high', 'frontend_developer', 'react'),
+      candidate('backend-mid', 'backend_developer', 'sql'),
+      candidate('backend-low', 'backend_developer', 'java'),
+    ];
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend_developer' }])
+      .mockResolvedValueOnce([{ canonical_name: 'sql' }])
+      .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const snapshots = snapshotStore();
+    const service = new JobRecommendationService(
+      { query } as never,
+      { get: jest.fn().mockReturnValue(undefined) } as never,
+      { embed: jest.fn().mockRejectedValue(new Error('no vectors in test')) } as never,
+      {
+        diff: jest.fn(({ jd_requirements_raw }) => ({
+          matched_skills: [],
+          partial_skills: [],
+          missing_skills: [],
+          scoring_breakdown: {},
+          overall_score:
+            jd_requirements_raw[0].name === 'react'
+              ? 100
+              : jd_requirements_raw[0].name === 'sql'
+                ? 80
+                : 60,
+          required_coverage: 1,
+        })),
+      } as never,
+      { getByCanonical: jest.fn().mockReturnValue(undefined) } as never,
+      snapshots as never,
+    );
+
+    const response = await service.recommendForCv(USER_ID, CV_ID);
+
+    expect(response.recommendations.map((row) => [row.job_id, row.rank])).toEqual([
+      ['backend-mid', 1],
+      ['backend-low', 2],
+    ]);
+    expect(response.generation.snapshot_token).toBe('claim-1');
+    const persisted = snapshots.save.mock.calls[0][3];
+    expect(
+      persisted.recommendations.map((row: { job_id: string; rank: number }) => [
+        row.job_id,
+        row.rank,
+      ]),
+    ).toEqual([
+      ['frontend-high', 1],
+      ['backend-mid', 2],
+      ['backend-low', 3],
+    ]);
+    expect(persisted.recommendation_ids_by_role.backend_developer).toEqual([
+      'backend-mid',
+      'backend-low',
+    ]);
+  });
+
+  it('uses an ownership-scoped snapshot token without generating or consuming quota', async () => {
+    const row = candidate('backend', 'backend_developer', 'sql');
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: CV_ID, parsed_json: null, target_role: 'backend_developer' }])
+      .mockResolvedValueOnce([{ job_id: 'backend' }])
+      .mockResolvedValueOnce([row]);
+    const stored = {
+      snapshot_token: '11111111-1111-4111-8111-111111111111',
+      cv_target_role: 'backend_developer',
+      recommendations: [
+        buildJobRecommendation(
+          row,
+          {
+            matched_skills: [],
+            partial_skills: [],
+            missing_skills: [],
+            overall_score: 80,
+            required_coverage: 1,
+            scoring_breakdown: {},
+          } as never,
+          1,
+          null,
+          {
+            cv_seniority: 'junior',
+            job_level: 'JUNIOR',
+            verdict: 'fits',
+            confidence: 'high',
+          },
+        ),
+      ],
+      recommendation_ids_by_role: { backend_developer: ['backend'] },
+    };
+    const snapshots = {
+      ...snapshotStore(),
+      findByToken: jest.fn().mockResolvedValue(stored),
+    };
+    const beforeGenerate = jest.fn();
+    const service = new JobRecommendationService(
+      { query } as never,
+      { get: jest.fn() } as never,
+      { embed: jest.fn() } as never,
+      { diff: jest.fn() } as never,
+      { getByCanonical: jest.fn() } as never,
+      snapshots as never,
+    );
+
+    const response = await service.recommendForCv(
+      USER_ID,
+      CV_ID,
+      { snapshotToken: stored.snapshot_token },
+      { beforeGenerate },
+    );
+
+    expect(snapshots.findByToken).toHaveBeenCalledWith(USER_ID, CV_ID, stored.snapshot_token);
+    expect(beforeGenerate).not.toHaveBeenCalled();
+    expect(response.generation.snapshot_token).toBe(stored.snapshot_token);
+    expect(response.recommendations[0]?.saved).toBe(true);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(String(query.mock.calls[0][0])).toContain('FROM public.cvs');
+    expect(String(query.mock.calls[1][0])).toContain('FROM public.saved_jobs');
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('FROM public.jobs j'))).toBe(
+      false,
     );
   });
 });
