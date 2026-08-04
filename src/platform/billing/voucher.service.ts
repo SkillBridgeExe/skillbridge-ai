@@ -4,7 +4,8 @@ import { DataSource, LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { VoucherRedemptionEntity } from '../../database/entities/voucher-redemption.entity';
-import { VoucherEntity } from '../../database/entities/voucher.entity';
+import { VoucherBenefitType, VoucherEntity } from '../../database/entities/voucher.entity';
+import { CreditBalanceService } from './credit-balance.service';
 import { calculateVoucherPricing, normalizeVoucherCode, VoucherPricing } from './voucher-pricing';
 
 export interface VoucherInput {
@@ -25,6 +26,13 @@ export interface VoucherReservation extends VoucherPricing {
   voucherCode: string;
 }
 
+export interface CreditVoucherClaim {
+  voucherCode: string;
+  creditType: NonNullable<VoucherEntity['creditType']>;
+  creditUnits: number;
+  redeemedAt: string;
+}
+
 @Injectable()
 export class VoucherService {
   constructor(
@@ -33,6 +41,7 @@ export class VoucherService {
     private readonly redemptions: Repository<VoucherRedemptionEntity>,
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     private readonly dataSource: DataSource,
+    private readonly creditBalances: CreditBalanceService,
   ) {}
 
   async quote(userId: string, input: VoucherInput, now = new Date()): Promise<VoucherQuote> {
@@ -40,12 +49,20 @@ export class VoucherService {
     const voucher = await this.vouchers.findOne({ where: { code } });
     const plan = await this.requirePurchasablePlan(input.planCode);
     await this.releaseExpired(this.redemptions, now);
-    await this.assertVoucherAvailable(this.redemptions, voucher, userId, plan.code, now);
+    await this.assertVoucherAvailable(
+      this.redemptions,
+      voucher,
+      userId,
+      'PERCENT_DISCOUNT',
+      now,
+      plan.code,
+    );
+    const discountPercent = requireDiscountPercent(voucher!);
     return {
       valid: true,
       voucherCode: voucher!.code,
       currency: plan.currency,
-      ...calculateVoucherPricing(plan.priceVnd, voucher!.discountPercent),
+      ...calculateVoucherPricing(plan.priceVnd, discountPercent),
       endsAt: voucher!.endsAt.toISOString(),
     };
   }
@@ -67,7 +84,15 @@ export class VoucherService {
       });
       const plan = await this.requirePurchasablePlan(input.planCode, plans);
       await this.releaseExpired(redemptions, now);
-      await this.assertVoucherAvailable(redemptions, voucher, userId, plan.code, now);
+      await this.assertVoucherAvailable(
+        redemptions,
+        voucher,
+        userId,
+        'PERCENT_DISCOUNT',
+        now,
+        plan.code,
+      );
+      const discountPercent = requireDiscountPercent(voucher!);
       const redemption = await redemptions.save(
         redemptions.create({
           voucherId: voucher!.id,
@@ -82,7 +107,39 @@ export class VoucherService {
         redemptionId: redemption.id,
         voucherId: voucher!.id,
         voucherCode: voucher!.code,
-        ...calculateVoucherPricing(plan.priceVnd, voucher!.discountPercent),
+        ...calculateVoucherPricing(plan.priceVnd, discountPercent),
+      };
+    });
+  }
+
+  async claim(userId: string, voucherCode: string, now = new Date()): Promise<CreditVoucherClaim> {
+    const code = normalizeVoucherCode(voucherCode);
+    return this.dataSource.transaction(async (manager) => {
+      const vouchers = manager.getRepository(VoucherEntity);
+      const redemptions = manager.getRepository(VoucherRedemptionEntity);
+      const voucher = await vouchers.findOne({
+        where: { code },
+        lock: { mode: 'pessimistic_write' },
+      });
+      await this.releaseExpired(redemptions, now);
+      await this.assertVoucherAvailable(redemptions, voucher, userId, 'CREDIT_GRANT', now);
+      const { creditType, creditUnits } = requireCreditReward(voucher!);
+      await redemptions.save(
+        redemptions.create({
+          voucherId: voucher!.id,
+          userId,
+          paymentOrderId: null,
+          status: 'REDEEMED',
+          reservedUntil: null,
+          redeemedAt: now,
+        }),
+      );
+      await this.creditBalances.grantInTransaction(manager, userId, creditType, creditUnits);
+      return {
+        voucherCode: voucher!.code,
+        creditType,
+        creditUnits,
+        redeemedAt: now.toISOString(),
       };
     });
   }
@@ -133,10 +190,22 @@ export class VoucherService {
     redemptions: Repository<VoucherRedemptionEntity>,
     voucher: VoucherEntity | null,
     userId: string,
-    planCode: string,
+    benefitType: VoucherBenefitType,
     now: Date,
+    planCode?: string,
   ): Promise<void> {
-    if (!voucher || !voucher.isActive || voucher.applicablePlanCode !== planCode) {
+    if (!voucher || !voucher.isActive) {
+      throwVoucher(ERROR_CODES.VOUCHER_INVALID, 'Voucher is invalid');
+    }
+    if (voucher.benefitType !== benefitType) {
+      throwVoucher(
+        ERROR_CODES.VOUCHER_TYPE_MISMATCH,
+        benefitType === 'CREDIT_GRANT'
+          ? 'This voucher can only be used for a Premium checkout'
+          : 'This voucher grants credits and must be claimed from Billing',
+      );
+    }
+    if (benefitType === 'PERCENT_DISCOUNT' && voucher.applicablePlanCode !== planCode) {
       throwVoucher(ERROR_CODES.VOUCHER_INVALID, 'Voucher is invalid');
     }
     if (voucher.startsAt > now) {
@@ -168,6 +237,23 @@ export class VoucherService {
       );
     }
   }
+}
+
+function requireDiscountPercent(voucher: VoucherEntity): number {
+  if (voucher.discountPercent === null) {
+    throwVoucher(ERROR_CODES.VOUCHER_INVALID, 'Voucher discount is not configured');
+  }
+  return voucher.discountPercent;
+}
+
+function requireCreditReward(voucher: VoucherEntity): {
+  creditType: NonNullable<VoucherEntity['creditType']>;
+  creditUnits: number;
+} {
+  if (!voucher.creditType || voucher.creditUnits === null || voucher.creditUnits <= 0) {
+    throwVoucher(ERROR_CODES.VOUCHER_INVALID, 'Voucher credit reward is not configured');
+  }
+  return { creditType: voucher.creditType, creditUnits: voucher.creditUnits };
 }
 
 function throwVoucher(errorCode: string, message: string, conflict = false): never {

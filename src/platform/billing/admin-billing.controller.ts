@@ -78,7 +78,7 @@ export class AdminBillingController {
   }
 
   @Post('vouchers')
-  @ApiOperation({ summary: 'Admin create a Premium voucher' })
+  @ApiOperation({ summary: 'Admin create a Premium discount or credit voucher' })
   createVoucher(@Body() dto: CreateAdminVoucherDto) {
     return this.vouchers.create(dto);
   }

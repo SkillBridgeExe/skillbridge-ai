@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { BillingPlanEntity } from '../../../database/entities/billing-plan.entity';
+import { BillingCreditPackageEntity } from '../../../database/entities/billing-credit-package.entity';
 import { PaymentOrderEntity } from '../../../database/entities/payment-order.entity';
 import { PaymentProviderRegistry } from '../payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './billing-checkout.service';
@@ -25,6 +26,7 @@ function repo<T extends object>(): RepoMock<T> {
 describe('BillingCheckoutService', () => {
   function setup() {
     const plans = repo<BillingPlanEntity>();
+    const creditPackages = repo<BillingCreditPackageEntity>();
     const orders = repo<PaymentOrderEntity>();
     const provider = {
       code: 'PAYOS',
@@ -59,11 +61,12 @@ describe('BillingCheckoutService', () => {
 
     const service = new BillingCheckoutService(
       plans as unknown as Repository<BillingPlanEntity>,
+      creditPackages as unknown as Repository<BillingCreditPackageEntity>,
       orders as unknown as Repository<PaymentOrderEntity>,
       registry,
       vouchers,
     );
-    return { service, plans, orders, provider, registry, vouchers };
+    return { service, plans, creditPackages, orders, provider, registry, vouchers };
   }
 
   it('creates a subscription checkout through the active provider abstraction', async () => {
@@ -122,6 +125,64 @@ describe('BillingCheckoutService', () => {
       service.createCheckout('user-1', { purpose: 'SUBSCRIPTION', planCode: 'FREE' }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(provider.createPaymentLink).not.toHaveBeenCalled();
+  });
+
+  it('creates a credit-package checkout from the server-owned product price and unit snapshot', async () => {
+    const { service, creditPackages, orders, provider, vouchers } = setup();
+    creditPackages.findOne.mockResolvedValue({
+      id: 'package-cv',
+      planCode: 'CV_ANALYSIS_PACK',
+      creditType: 'CV_ANALYSIS',
+      units: 2,
+      plan: {
+        id: 'plan-cv',
+        code: 'CV_ANALYSIS_PACK',
+        name: 'CV analyses',
+        category: 'CREDIT_PACKAGE',
+        interval: 'ONE_TIME',
+        priceVnd: 20000,
+        currency: 'VND',
+        isActive: true,
+      },
+    });
+    orders.save.mockImplementation((input) => Promise.resolve({ id: 'order-1', ...input }));
+
+    const result = await service.createCheckout('user-1', {
+      purpose: 'CREDIT_PACKAGE',
+      planCode: 'CV_ANALYSIS_PACK',
+    });
+
+    expect(vouchers.reserve).not.toHaveBeenCalled();
+    expect(creditPackages.findOne).toHaveBeenCalledWith({
+      where: { planCode: 'CV_ANALYSIS_PACK' },
+      relations: { plan: true },
+    });
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountVnd: 20000,
+        purpose: 'CREDIT_PACKAGE',
+        targetType: 'CREDIT_PACKAGE',
+        planCode: 'CV_ANALYSIS_PACK',
+        creditType: 'CV_ANALYSIS',
+        creditUnits: 2,
+      }),
+    );
+    expect(provider.createPaymentLink).toHaveBeenCalledWith(
+      expect.objectContaining({ amountVnd: 20000, itemName: 'CV analyses' }),
+    );
+    expect(result.creditPackage).toEqual({ creditType: 'CV_ANALYSIS', units: 2 });
+  });
+
+  it('rejects voucher input for a credit-package checkout', async () => {
+    const { service } = setup();
+
+    await expect(
+      service.createCheckout('user-1', {
+        purpose: 'CREDIT_PACKAGE',
+        planCode: 'CV_ANALYSIS_PACK',
+        voucherCode: 'SKILLBRIDGE10',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('reserves a voucher and sends the discounted amount to the provider', async () => {

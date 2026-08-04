@@ -29,8 +29,8 @@ export class VoucherRedemptionEntity {
   @Column({ type: 'varchar' })
   status!: VoucherRedemptionStatus;
 
-  @Column({ type: 'timestamptz', name: 'reserved_until' })
-  reservedUntil!: Date;
+  @Column({ type: 'timestamptz', name: 'reserved_until', nullable: true })
+  reservedUntil!: Date | null;
 
   @Column({ type: 'timestamptz', name: 'redeemed_at', nullable: true })
   redeemedAt!: Date | null;

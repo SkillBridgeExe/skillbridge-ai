@@ -6,14 +6,16 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CreditType } from './billing-credit-package.entity';
 
 export type PaymentOrderPurpose =
   | 'SUBSCRIPTION'
+  | 'CREDIT_PACKAGE'
   | 'MENTOR_BOOKING'
   | 'MENTOR_DEPOSIT'
   | 'MENTOR_REMAINING';
 export type PaymentOrderStatus = 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
-export type PaymentOrderTargetType = 'SUBSCRIPTION' | 'MENTOR_BOOKING';
+export type PaymentOrderTargetType = 'SUBSCRIPTION' | 'CREDIT_PACKAGE' | 'MENTOR_BOOKING';
 
 @Entity('payment_orders')
 export class PaymentOrderEntity {
@@ -67,6 +69,12 @@ export class PaymentOrderEntity {
 
   @Column({ type: 'varchar', name: 'plan_code', nullable: true })
   planCode!: string | null;
+
+  @Column({ type: 'varchar', name: 'credit_type', nullable: true })
+  creditType!: CreditType | null;
+
+  @Column({ type: 'integer', name: 'credit_units', nullable: true })
+  creditUnits!: number | null;
 
   @Index()
   @Column({ type: 'varchar' })

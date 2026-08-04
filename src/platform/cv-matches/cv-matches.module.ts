@@ -19,6 +19,8 @@ import { BillingModule } from '../billing/billing.module';
 import { CvsModule } from '../cvs/cvs.module';
 import { InterviewsModule } from '../interviews/interviews.module';
 import { CvMatchReportsController, CvMatchesController } from './cv-matches.controller';
+import { CvAnalysisController } from './cv-analysis.controller';
+import { CvAnalysisOrchestrationService } from './cv-analysis-orchestration.service';
 import { CvMatchesService } from './cv-matches.service';
 import { JdTextExtractorService } from './jd-text-extractor.service';
 import { UnifiedPlanService } from './unified-plan.service';
@@ -54,8 +56,13 @@ import { UnifiedPlanService } from './unified-plan.service';
     // already depends on it directly), so importing it here too is cycle-free.
     GithubEvidenceModule,
   ],
-  controllers: [CvMatchesController, CvMatchReportsController],
-  providers: [CvMatchesService, JdTextExtractorService, UnifiedPlanService],
+  controllers: [CvMatchesController, CvMatchReportsController, CvAnalysisController],
+  providers: [
+    CvMatchesService,
+    CvAnalysisOrchestrationService,
+    JdTextExtractorService,
+    UnifiedPlanService,
+  ],
   exports: [CvMatchesService],
 })
 export class CvMatchesModule {}

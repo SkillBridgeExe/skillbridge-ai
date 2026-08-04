@@ -3,6 +3,7 @@ import { DataSource, Repository } from 'typeorm';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { VoucherRedemptionEntity } from '../../database/entities/voucher-redemption.entity';
 import { VoucherEntity } from '../../database/entities/voucher.entity';
+import { CreditBalanceService } from './credit-balance.service';
 import { VoucherService } from './voucher.service';
 
 function repo<T extends object>(overrides: Partial<Repository<T>> = {}): Repository<T> {
@@ -21,13 +22,19 @@ describe('VoucherService', () => {
   const voucher = {
     id: 'voucher-1',
     code: 'SKILLBRIDGE10',
+    benefitType: 'PERCENT_DISCOUNT',
     discountPercent: 10,
     applicablePlanCode: 'PREMIUM',
+    creditType: null,
+    creditUnits: null,
     startsAt: new Date('2026-07-01T00:00:00.000Z'),
     endsAt: new Date('2026-08-01T00:00:00.000Z'),
     maxRedemptions: 100,
     perUserLimit: 1,
     isActive: true,
+    internalNote: null,
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    updatedAt: null,
   } as VoucherEntity;
 
   function setup() {
@@ -54,10 +61,14 @@ describe('VoucherService', () => {
     const dataSource = {
       transaction: jest.fn(async (callback) => callback(manager)),
     } as unknown as DataSource;
+    const creditBalances = {
+      grantInTransaction: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CreditBalanceService;
     return {
-      service: new VoucherService(vouchers, redemptions, plans, dataSource),
+      service: new VoucherService(vouchers, redemptions, plans, dataSource, creditBalances),
       vouchers,
       redemptions,
+      creditBalances,
       dataSource,
       manager,
     };
@@ -136,6 +147,120 @@ describe('VoucherService', () => {
       );
     } finally {
       voucher.maxRedemptions = originalLimit;
+    }
+  });
+
+  it('claims a credit voucher and grants its configured reward in the same transaction', async () => {
+    const { service, redemptions, creditBalances, manager } = setup();
+    Object.assign(voucher, {
+      benefitType: 'CREDIT_GRANT',
+      discountPercent: null,
+      applicablePlanCode: null,
+      creditType: 'CV_ANALYSIS',
+      creditUnits: 3,
+    });
+
+    try {
+      await expect(service.claim('user-1', voucher.code, now)).resolves.toEqual({
+        voucherCode: 'SKILLBRIDGE10',
+        creditType: 'CV_ANALYSIS',
+        creditUnits: 3,
+        redeemedAt: now.toISOString(),
+      });
+      expect(redemptions.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voucherId: 'voucher-1',
+          userId: 'user-1',
+          paymentOrderId: null,
+          status: 'REDEEMED',
+          reservedUntil: null,
+          redeemedAt: now,
+        }),
+      );
+      expect(creditBalances.grantInTransaction).toHaveBeenCalledWith(
+        manager,
+        'user-1',
+        'CV_ANALYSIS',
+        3,
+      );
+    } finally {
+      Object.assign(voucher, {
+        benefitType: 'PERCENT_DISCOUNT',
+        discountPercent: 10,
+        applicablePlanCode: 'PREMIUM',
+        creditType: null,
+        creditUnits: null,
+      });
+    }
+  });
+
+  it('rejects credit vouchers in the Premium pricing flow', async () => {
+    const { service } = setup();
+    Object.assign(voucher, {
+      benefitType: 'CREDIT_GRANT',
+      discountPercent: null,
+      applicablePlanCode: null,
+      creditType: 'INTERVIEW_SESSION',
+      creditUnits: 1,
+    });
+
+    try {
+      await expect(
+        service.quote('user-1', { planCode: 'PREMIUM', voucherCode: voucher.code }, now),
+      ).rejects.toBeInstanceOf(HttpException);
+    } finally {
+      Object.assign(voucher, {
+        benefitType: 'PERCENT_DISCOUNT',
+        discountPercent: 10,
+        applicablePlanCode: 'PREMIUM',
+        creditType: null,
+        creditUnits: null,
+      });
+    }
+  });
+
+  it('serializes simultaneous claims and enforces the per-user limit', async () => {
+    const { service, redemptions, creditBalances, dataSource, manager } = setup();
+    let redeemed = 0;
+    let queue = Promise.resolve();
+    Object.assign(voucher, {
+      benefitType: 'CREDIT_GRANT',
+      discountPercent: null,
+      applicablePlanCode: null,
+      creditType: 'INTERVIEW_SESSION',
+      creditUnits: 1,
+    });
+    (dataSource.transaction as jest.Mock).mockImplementation((callback) => {
+      const result = queue.then(() => callback(manager));
+      queue = result.then(
+        () => undefined,
+        () => undefined,
+      );
+      return result;
+    });
+    (redemptions.count as jest.Mock).mockImplementation(async () => redeemed);
+    (redemptions.save as jest.Mock).mockImplementation(async (input) => {
+      redeemed += 1;
+      return { id: `redemption-${redeemed}`, ...input };
+    });
+
+    try {
+      const results = await Promise.allSettled([
+        service.claim('user-1', voucher.code, now),
+        service.claim('user-1', voucher.code, now),
+      ]);
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(creditBalances.grantInTransaction).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.assign(voucher, {
+        benefitType: 'PERCENT_DISCOUNT',
+        discountPercent: 10,
+        applicablePlanCode: 'PREMIUM',
+        creditType: null,
+        creditUnits: null,
+      });
     }
   });
 });

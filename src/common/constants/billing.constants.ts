@@ -5,6 +5,11 @@ export enum BillingPlanCode {
   INTERNAL_QA = 'INTERNAL_QA',
 }
 
+export enum BillingCreditPackageCode {
+  CV_ANALYSIS = 'CV_ANALYSIS_PACK',
+  INTERVIEW = 'INTERVIEW_PACK',
+}
+
 export enum BillingFeatureKey {
   CV_REVIEW = 'cv_review',
   CV_UPLOAD = 'cv_upload',
@@ -45,9 +50,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'AI CV analysis, ATS checks, scoring and feedback.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 3,
+      [BillingPlanCode.FREE]: 1,
       [BillingPlanCode.PRO]: 30,
-      [BillingPlanCode.PREMIUM]: 100,
+      [BillingPlanCode.PREMIUM]: 80,
     },
   },
   {
@@ -56,9 +61,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Stored CV uploads and parsed CV documents.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 10,
+      [BillingPlanCode.FREE]: 5,
       [BillingPlanCode.PRO]: 50,
-      [BillingPlanCode.PREMIUM]: 150,
+      [BillingPlanCode.PREMIUM]: UNLIMITED_BILLING_LIMIT,
     },
   },
   {
@@ -67,9 +72,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Create structured CV builder drafts.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 3,
+      [BillingPlanCode.FREE]: 0,
       [BillingPlanCode.PRO]: 20,
-      [BillingPlanCode.PREMIUM]: 60,
+      [BillingPlanCode.PREMIUM]: 30,
     },
   },
   {
@@ -78,9 +83,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'AI rewrite, intake extraction, and tailor rewrite actions.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 5,
+      [BillingPlanCode.FREE]: 0,
       [BillingPlanCode.PRO]: 100,
-      [BillingPlanCode.PREMIUM]: 300,
+      [BillingPlanCode.PREMIUM]: 30,
     },
   },
   {
@@ -89,9 +94,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Render built CV drafts to PDF.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 3,
+      [BillingPlanCode.FREE]: 0,
       [BillingPlanCode.PRO]: 50,
-      [BillingPlanCode.PREMIUM]: 150,
+      [BillingPlanCode.PREMIUM]: UNLIMITED_BILLING_LIMIT,
     },
   },
   {
@@ -100,9 +105,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Match a CV against a job description and generate gap signals.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 3,
+      [BillingPlanCode.FREE]: 1,
       [BillingPlanCode.PRO]: 30,
-      [BillingPlanCode.PREMIUM]: 100,
+      [BillingPlanCode.PREMIUM]: 80,
     },
   },
   {
@@ -111,20 +116,20 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Recommended jobs for a CV.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 10,
+      [BillingPlanCode.FREE]: 0,
       [BillingPlanCode.PRO]: 100,
-      [BillingPlanCode.PREMIUM]: 300,
+      [BillingPlanCode.PREMIUM]: UNLIMITED_BILLING_LIMIT,
     },
   },
   {
     featureKey: BillingFeatureKey.INTERVIEW_SESSION,
     label: 'Interview sessions',
-    description: 'AI interview practice sessions and interview plans.',
+    description: 'Started AI interview practice sessions. Creating a plan is free.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 0,
+      [BillingPlanCode.FREE]: 1,
       [BillingPlanCode.PRO]: 5,
-      [BillingPlanCode.PREMIUM]: 25,
+      [BillingPlanCode.PREMIUM]: 20,
     },
   },
   {
@@ -133,9 +138,9 @@ export const BILLING_FEATURE_CATALOG: BillingFeatureCatalogItem[] = [
     description: 'Generate a learning roadmap from a match gap report.',
     allowedPeriods: [BillingFeaturePeriod.MONTHLY],
     recommendedLimits: {
-      [BillingPlanCode.FREE]: 1,
+      [BillingPlanCode.FREE]: 0,
       [BillingPlanCode.PRO]: 10,
-      [BillingPlanCode.PREMIUM]: 30,
+      [BillingPlanCode.PREMIUM]: 10,
     },
   },
 ];

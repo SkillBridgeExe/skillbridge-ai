@@ -74,19 +74,22 @@ export class AdminVoucherService {
       throw new BadRequestException('Voucher code already exists');
     }
     assertPeriod(dto.startsAt, dto.endsAt);
-    const saved = await this.vouchers.save(
-      this.vouchers.create({
-        code,
-        discountPercent: dto.discountPercent,
-        applicablePlanCode: 'PREMIUM',
-        startsAt: dto.startsAt,
-        endsAt: dto.endsAt,
-        maxRedemptions: dto.maxRedemptions,
-        perUserLimit: dto.perUserLimit ?? 1,
-        isActive: dto.isActive ?? true,
-        internalNote: dto.internalNote?.trim() || null,
-      }),
-    );
+    const voucher = this.vouchers.create({
+      code,
+      benefitType: dto.benefitType,
+      discountPercent: dto.benefitType === 'PERCENT_DISCOUNT' ? dto.discountPercent! : null,
+      applicablePlanCode: dto.benefitType === 'PERCENT_DISCOUNT' ? 'PREMIUM' : null,
+      creditType: dto.benefitType === 'CREDIT_GRANT' ? dto.creditType! : null,
+      creditUnits: dto.benefitType === 'CREDIT_GRANT' ? dto.creditUnits! : null,
+      startsAt: dto.startsAt,
+      endsAt: dto.endsAt,
+      maxRedemptions: dto.maxRedemptions,
+      perUserLimit: dto.perUserLimit ?? 1,
+      isActive: dto.isActive ?? true,
+      internalNote: dto.internalNote?.trim() || null,
+    });
+    assertVoucherReward(voucher);
+    const saved = await this.vouchers.save(voucher);
     return this.toAdminDto(saved, new Date());
   }
 
@@ -103,11 +106,14 @@ export class AdminVoucherService {
       if (
         hasUsage &&
         ((dto.code !== undefined && normalizeVoucherCode(dto.code) !== voucher.code) ||
-          (dto.discountPercent !== undefined && dto.discountPercent !== voucher.discountPercent))
+          (dto.benefitType !== undefined && dto.benefitType !== voucher.benefitType) ||
+          (dto.discountPercent !== undefined && dto.discountPercent !== voucher.discountPercent) ||
+          (dto.creditType !== undefined && dto.creditType !== voucher.creditType) ||
+          (dto.creditUnits !== undefined && dto.creditUnits !== voucher.creditUnits))
       ) {
         throw new BadRequestException({
           errorCode: ERROR_CODES.VOUCHER_IMMUTABLE,
-          message: 'Voucher code and discount cannot change after first use',
+          message: 'Voucher code and reward cannot change after first use',
         });
       }
       if (dto.code !== undefined) {
@@ -117,7 +123,20 @@ export class AdminVoucherService {
           throw new BadRequestException('Voucher code already exists');
         voucher.code = code;
       }
+      if (dto.benefitType !== undefined && dto.benefitType !== voucher.benefitType) {
+        voucher.benefitType = dto.benefitType;
+        if (dto.benefitType === 'PERCENT_DISCOUNT') {
+          voucher.applicablePlanCode = 'PREMIUM';
+          voucher.creditType = null;
+          voucher.creditUnits = null;
+        } else {
+          voucher.applicablePlanCode = null;
+          voucher.discountPercent = null;
+        }
+      }
       if (dto.discountPercent !== undefined) voucher.discountPercent = dto.discountPercent;
+      if (dto.creditType !== undefined) voucher.creditType = dto.creditType;
+      if (dto.creditUnits !== undefined) voucher.creditUnits = dto.creditUnits;
       if (dto.startsAt !== undefined) voucher.startsAt = dto.startsAt;
       if (dto.endsAt !== undefined) voucher.endsAt = dto.endsAt;
       if (dto.maxRedemptions !== undefined) voucher.maxRedemptions = dto.maxRedemptions;
@@ -125,6 +144,7 @@ export class AdminVoucherService {
       if (dto.isActive !== undefined) voucher.isActive = dto.isActive;
       if (dto.internalNote !== undefined) voucher.internalNote = dto.internalNote?.trim() || null;
       assertPeriod(voucher.startsAt, voucher.endsAt);
+      assertVoucherReward(voucher);
       const saved = await vouchers.save(voucher);
       const usage = await this.loadUsageStats([saved.id], new Date(), redemptions);
       return this.toAdminDto(saved, new Date(), usage.get(saved.id));
@@ -183,8 +203,11 @@ export class AdminVoucherService {
     return {
       id: voucher.id,
       code: voucher.code,
+      benefitType: voucher.benefitType,
       discountPercent: voucher.discountPercent,
       applicablePlanCode: voucher.applicablePlanCode,
+      creditType: voucher.creditType,
+      creditUnits: voucher.creditUnits,
       startsAt: voucher.startsAt.toISOString(),
       endsAt: voucher.endsAt.toISOString(),
       maxRedemptions: voucher.maxRedemptions,
@@ -233,6 +256,27 @@ function voucherListWhere(
 
 function assertPeriod(startsAt: Date, endsAt: Date): void {
   if (startsAt >= endsAt) throw new BadRequestException('Voucher startsAt must be before endsAt');
+}
+
+function assertVoucherReward(voucher: VoucherEntity): void {
+  const validDiscount =
+    voucher.benefitType === 'PERCENT_DISCOUNT' &&
+    voucher.discountPercent !== null &&
+    voucher.discountPercent >= 1 &&
+    voucher.discountPercent <= 99 &&
+    voucher.applicablePlanCode === 'PREMIUM' &&
+    voucher.creditType === null &&
+    voucher.creditUnits === null;
+  const validCredit =
+    voucher.benefitType === 'CREDIT_GRANT' &&
+    voucher.discountPercent === null &&
+    voucher.applicablePlanCode === null &&
+    voucher.creditType !== null &&
+    voucher.creditUnits !== null &&
+    voucher.creditUnits > 0;
+  if (!validDiscount && !validCredit) {
+    throw new BadRequestException('Voucher reward configuration is invalid');
+  }
 }
 
 function voucherStatus(voucher: VoucherEntity, now: Date): VoucherStatus {
