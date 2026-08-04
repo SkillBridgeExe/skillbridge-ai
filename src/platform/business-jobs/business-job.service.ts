@@ -618,17 +618,43 @@ function applyPublishedVersion(job: JobEntity, version: JobPostVersionEntity): v
   job.salaryPeriod = version.salaryPeriod;
   job.salaryVisible = version.salaryVisible;
   job.salaryNegotiable = version.salaryNegotiable;
-  job.primaryCityCode =
+  job.primaryCityCode = normalizePublishedCityCode(
     version.locations.find((location) => location.isPrimary)?.cityCode ??
-    version.locations[0]?.cityCode ??
-    null;
-  job.locationCityCodes = [...new Set(version.locations.map((location) => location.cityCode))];
-  job.location = version.locations.map((location) => location.cityCode).join(', ');
+      version.locations[0]?.cityCode,
+  );
+  job.locationCityCodes = publishedLocationCityCodes(version.locations);
+  job.location = version.locations.map(publishedLocationLabel).filter(Boolean).join(', ');
   job.status = 'active';
   job.postedAt = version.publishedAt;
   job.lastSeenAt = version.publishedAt;
   job.expiresAt = version.applicationDeadline;
   job.closedAt = null;
+}
+
+/** Preserve the most precise employer-provided label without inferring missing geography. */
+export function publishedLocationLabel(location: JobLocationSnapshot): string {
+  return (
+    location.addressLine?.trim() ||
+    location.districtName?.trim() ||
+    location.districtCode?.trim() ||
+    location.cityCode?.trim() ||
+    ''
+  );
+}
+
+function normalizePublishedCityCode(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase();
+  return normalized || null;
+}
+
+export function publishedLocationCityCodes(locations: JobLocationSnapshot[]): string[] {
+  return [
+    ...new Set(
+      locations
+        .map((location) => normalizePublishedCityCode(location.cityCode))
+        .filter((cityCode): cityCode is string => cityCode !== null),
+    ),
+  ];
 }
 
 function numeric(value: number | null | undefined): string | null {

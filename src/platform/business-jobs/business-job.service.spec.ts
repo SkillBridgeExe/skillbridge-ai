@@ -3,7 +3,11 @@ import { BusinessProfileEntity } from '../../database/entities/business-profile.
 import { JobPostVersionEntity } from '../../database/entities/job-post-version.entity';
 import { JobEntity } from '../../database/entities/job.entity';
 import { SkillEntity } from '../../database/entities/skill.entity';
-import { BusinessJobService } from './business-job.service';
+import {
+  BusinessJobService,
+  publishedLocationCityCodes,
+  publishedLocationLabel,
+} from './business-job.service';
 
 function repo<T extends ObjectLiteral>() {
   return {
@@ -17,6 +21,46 @@ function repo<T extends ObjectLiteral>() {
 }
 
 describe('BusinessJobService', () => {
+  it('preserves the most precise truthful location label when publishing', () => {
+    expect(
+      publishedLocationLabel({
+        cityCode: 'HCM',
+        countryCode: 'VN',
+        districtCode: 'THU_DUC',
+        districtName: 'Thành phố Thủ Đức',
+        addressLine: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
+        isPrimary: true,
+      }),
+    ).toBe('Khu Công nghệ cao, phường Tăng Nhơn Phú');
+    expect(
+      publishedLocationLabel({
+        cityCode: 'HCM',
+        countryCode: 'VN',
+        districtName: 'Quận 3',
+        addressLine: '   ',
+        isPrimary: false,
+      }),
+    ).toBe('Quận 3');
+    expect(
+      publishedLocationLabel({
+        cityCode: 'HAN',
+        countryCode: 'VN',
+        addressLine: '',
+        isPrimary: false,
+      }),
+    ).toBe('HAN');
+  });
+
+  it('normalizes and deduplicates published city codes for filtering', () => {
+    expect(
+      publishedLocationCityCodes([
+        { cityCode: ' hcm ', countryCode: 'VN', addressLine: '', isPrimary: true },
+        { cityCode: 'HCM', countryCode: 'VN', addressLine: '', isPrimary: false },
+        { cityCode: ' han ', countryCode: 'VN', addressLine: '', isPrimary: false },
+      ]),
+    ).toEqual(['HCM', 'HAN']);
+  });
+
   it('searches and paginates only the current company jobs on the server', async () => {
     const jobs = repo<JobEntity>();
     const versions = repo<JobPostVersionEntity>();
@@ -212,6 +256,93 @@ describe('BusinessJobService', () => {
     expect(jobs.save).not.toHaveBeenCalled();
     expect(jobs.findOne).toHaveBeenCalledWith(
       expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+    );
+  });
+
+  it('publishes detailed locations into normalized job-card mirror fields', async () => {
+    const jobs = repo<JobEntity>();
+    const versions = repo<JobPostVersionEntity>();
+    const profiles = repo<BusinessProfileEntity>();
+    const job = {
+      id: 'job-1',
+      companyId: 'company-1',
+      sourceType: 'employer',
+      status: 'draft',
+      currentPublishedVersionId: null,
+    } as JobEntity;
+    const draft = {
+      id: 'version-1',
+      jobId: 'job-1',
+      versionNo: 1,
+      status: 'DRAFT',
+      revision: 1,
+      title: 'Backend Developer',
+      roleCode: 'backend_developer',
+      summary: 'Build reliable APIs',
+      responsibilities: ['Build and operate APIs'],
+      requirements: ['Node.js'],
+      locations: [
+        {
+          cityCode: ' hcm ',
+          countryCode: 'VN',
+          districtCode: 'THU_DUC',
+          districtName: 'Thành phố Thủ Đức',
+          addressLine: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
+          isPrimary: true,
+        },
+        {
+          cityCode: 'HAN',
+          countryCode: 'VN',
+          addressLine: '',
+          isPrimary: false,
+        },
+      ],
+      skills: [
+        {
+          skillId: 'skill-1',
+          canonicalName: 'nodejs',
+          importance: 'REQUIRED',
+          minLevel: 2,
+          confidence: 1,
+          rawText: 'Node.js',
+        },
+      ],
+      skillsConfirmedAt: new Date(),
+      applicationDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    } as unknown as JobPostVersionEntity;
+    profiles.findOne.mockResolvedValue({
+      id: 'profile-1',
+      userId: 'business-1',
+      companyId: 'company-1',
+      status: 'VERIFIED',
+    } as BusinessProfileEntity);
+    jobs.findOne.mockResolvedValue(job);
+    versions.findOne.mockResolvedValue(draft);
+    const manager = {
+      getRepository: jest.fn((target) => {
+        if (target === JobEntity) return jobs;
+        if (target === BusinessProfileEntity) return profiles;
+        return versions;
+      }),
+      query: jest.fn().mockResolvedValue([]),
+    };
+    const service = new BusinessJobService(
+      jobs,
+      versions,
+      profiles,
+      { transaction: jest.fn(async (work) => work(manager)) } as never,
+      { scan: jest.fn(() => []) } as never,
+      { refreshEmployerJobEmbedding: jest.fn().mockResolvedValue(undefined) } as never,
+    );
+
+    await service.publish('business-1', 'job-1', 1);
+
+    expect(jobs.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: 'Khu Công nghệ cao, phường Tăng Nhơn Phú, HAN',
+        primaryCityCode: 'HCM',
+        locationCityCodes: ['HCM', 'HAN'],
+      }),
     );
   });
 

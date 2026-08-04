@@ -9,6 +9,102 @@ import {
 import { ExperienceFit } from '../../../src/common/services/seniority';
 
 describe('buildJobRecommendation', () => {
+  it('projects native structured locations without fabricating missing fields', async () => {
+    const taxonomy = new SkillTaxonomyService();
+    await taxonomy.onModuleInit();
+    const normalizer = new SkillNormalizerService(taxonomy);
+    const rubrics = new RoleRubricService();
+    await rubrics.onModuleInit();
+    const diffSvc = new SkillDiffService(normalizer, rubrics);
+    const diff = diffSvc.diff({
+      cv_skills_raw: [{ name: 'React' }],
+      jd_requirements_raw: [{ name: 'React', importance_hint: 'REQUIRED' }],
+    });
+    const baseJob = {
+      id: 'job-location',
+      slug: 'job-location',
+      application_mode: 'NATIVE' as const,
+      saved: false,
+      title: 'Frontend Developer',
+      company_name: 'Acme',
+      location: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
+      primary_city_code: 'HCM',
+      location_city_codes: ['HCM'],
+      role_code: 'frontend_developer',
+      experience_level: 'JUNIOR',
+      salary_min: null,
+      salary_max: null,
+      salary_visible: false,
+      currency: 'VND',
+      source_url: null,
+      posted_at: null,
+      skills: [],
+    };
+    const fit = {
+      cv_seniority: 'junior' as const,
+      job_level: 'JUNIOR',
+      verdict: 'fits' as const,
+      confidence: 'high' as const,
+    };
+
+    const exact = buildJobRecommendation(
+      {
+        ...baseJob,
+        published_locations: [
+          {
+            cityCode: ' HCM ',
+            countryCode: ' vn ',
+            districtCode: ' THU_DUC ',
+            districtName: ' Thành phố Thủ Đức ',
+            addressLine: ' Khu Công nghệ cao, phường Tăng Nhơn Phú ',
+            isPrimary: true,
+          },
+        ],
+      },
+      diff,
+      1,
+      null,
+      fit,
+    );
+    expect(exact.locations).toEqual([
+      {
+        country_code: 'VN',
+        city_code: 'HCM',
+        district_code: 'THU_DUC',
+        district_name: 'Thành phố Thủ Đức',
+        address_line: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
+        is_primary: true,
+        granularity: 'exact',
+      },
+    ]);
+
+    const external = buildJobRecommendation(
+      {
+        ...baseJob,
+        application_mode: 'EXTERNAL',
+        location: 'Hà Nội',
+        primary_city_code: 'HAN',
+        location_city_codes: ['HAN'],
+        published_locations: [],
+      },
+      diff,
+      1,
+      null,
+      fit,
+    );
+    expect(external.locations).toEqual([
+      {
+        country_code: null,
+        city_code: 'HAN',
+        district_code: null,
+        district_name: null,
+        address_line: null,
+        is_primary: true,
+        granularity: 'city',
+      },
+    ]);
+  });
+
   it('exposes partial_skills + scoring_breakdown and copies the diff score', async () => {
     const taxonomy = new SkillTaxonomyService();
     await taxonomy.onModuleInit();

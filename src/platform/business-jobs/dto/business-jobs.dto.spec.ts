@@ -40,6 +40,19 @@ describe('business jobs DTO validation', () => {
     expect(await validate(dto)).toEqual([]);
   });
 
+  it('accepts optional district metadata for a precise workplace location', async () => {
+    const dto = plainToInstance(JobLocationDto, {
+      cityCode: 'HCM',
+      countryCode: 'VN',
+      districtCode: 'THU_DUC',
+      districtName: 'Thành phố Thủ Đức',
+      addressLine: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
+      isPrimary: true,
+    });
+
+    expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
+  });
+
   it('validates the business job list status, query text, and pagination', async () => {
     const valid = plainToInstance(BusinessJobsQueryDto, {
       status: 'active',

@@ -95,6 +95,8 @@ export class AdminBusinessStatusDto {
 export class JobLocationDto implements JobLocationSnapshot {
   @IsString() @MaxLength(64) cityCode!: string;
   @IsString() @Length(2, 2) countryCode!: string;
+  @IsOptional() @IsString() @MaxLength(64) districtCode?: string;
+  @IsOptional() @IsString() @MaxLength(255) districtName?: string;
   @IsOptional() @IsString() @MaxLength(1000) addressLine!: string;
   @IsBoolean() isPrimary!: boolean;
 }
