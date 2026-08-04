@@ -2,27 +2,32 @@ import { CvAnalysisQuotaService } from '../../../src/platform/cvs/cv-analysis-qu
 
 function build() {
   const reservation = {
+    source: 'PLAN' as const,
     eventId: 'evt-1',
     confirm: jest.fn().mockResolvedValue(undefined),
     refund: jest.fn().mockResolvedValue(undefined),
   };
-  const entitlements = {
-    reserveUsage: jest.fn().mockResolvedValue(reservation),
+  const usage = {
+    reservePlanFirst: jest.fn().mockResolvedValue(reservation),
   };
-  const svc = new CvAnalysisQuotaService(entitlements as never);
-  return { svc, entitlements, reservation };
+  const entitlements = {
+    getPlanCode: jest.fn(),
+    reserveUsage: jest.fn(),
+  };
+  const svc = new CvAnalysisQuotaService(usage as never, entitlements as never);
+  return { svc, usage, reservation };
 }
 
 describe('CvAnalysisQuotaService', () => {
   it('delegates the CV review charge to the atomic billing reserve', async () => {
-    const { svc, entitlements, reservation } = build();
+    const { svc, usage, reservation } = build();
     await expect(svc.reserveAnalysis('u1')).resolves.toBe(reservation);
-    expect(entitlements.reserveUsage).toHaveBeenCalledWith('u1', 'cv_review');
+    expect(usage.reservePlanFirst).toHaveBeenCalledWith('u1', 'cv_review');
   });
 
   it('does not meter when userId is empty', async () => {
-    const { svc, entitlements } = build();
+    const { svc, usage } = build();
     await expect(svc.reserveAnalysis('')).resolves.toBeNull();
-    expect(entitlements.reserveUsage).not.toHaveBeenCalled();
+    expect(usage.reservePlanFirst).not.toHaveBeenCalled();
   });
 });
