@@ -96,11 +96,14 @@ describe('JdIngestService (integration/unit)', () => {
     expect(sql).toContain('work_mode = COALESCE(EXCLUDED.work_mode, jobs.work_mode)');
 
     // Verify params mapping
-    // $2=title, $4=location, $5=primary_city_code, $6=location_city_codes, $7=work_mode
+    // $2=title, $4=location, $5=locations, $6=primary_city_code, $7=location_city_codes, $8=work_mode
     expect(params[1]).toBe('Backend Developer (Remote)');
     expect(params[3]).toBe('Ho Chi Minh City');
-    expect(params[4]).toBe('HCM');
-    expect(params[5]).toEqual(['HCM']);
-    expect(params[6]).toBe('REMOTE');
+    expect(JSON.parse(params[4] as string)).toEqual([
+      expect.objectContaining({ cityCode: 'HCM', granularity: 'city', isPrimary: true }),
+    ]);
+    expect(params[5]).toBe('HCM');
+    expect(params[6]).toEqual(['HCM']);
+    expect(params[7]).toBe('REMOTE');
   });
 });

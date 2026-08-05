@@ -100,7 +100,8 @@ function normalizeRecord(input: RawJobLocationInput): Omit<JobLocationRecord, 'i
   const districtCode = inferDistrictCode(input);
   const addressLine = cleanText(input.addressLine);
   const cityName = cleanText(input.cityName);
-  const countryCode = normalizeCode(input.countryCode) ?? (hasVietnameseCityCode(cityCode) ? 'VN' : null);
+  const countryCode =
+    normalizeCode(input.countryCode) ?? (hasVietnameseCityCode(cityCode) ? 'VN' : null);
 
   if (!countryCode && !cityCode && !districtCode && !districtName && !addressLine && !cityName) {
     return null;
@@ -176,7 +177,11 @@ export function normalizeJobLocationRecords(
 
   return {
     primaryCityCode: records[primaryIndex]?.cityCode ?? null,
-    cityCodes: [...new Set(records.map((record) => record.cityCode).filter((code): code is string => Boolean(code)))],
+    cityCodes: [
+      ...new Set(
+        records.map((record) => record.cityCode).filter((code): code is string => Boolean(code)),
+      ),
+    ],
     districtCodes: [
       ...new Set(
         records

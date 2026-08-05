@@ -159,6 +159,7 @@ export class ItviecCrawlerService {
         title: p.title,
         company_name: p.companyName,
         location: p.location ?? undefined,
+        locations: p.locations,
         salary_min: p.salaryMin ?? undefined,
         salary_max: p.salaryMax ?? undefined,
         currency: p.currency ?? undefined,

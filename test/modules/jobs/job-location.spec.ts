@@ -94,7 +94,12 @@ describe('normalizeJobLocationRecords', () => {
     const result = normalizeJobLocationRecords(
       [
         { cityCode: 'HCM', districtName: 'Quận 1', addressLine: '123 Nguyễn Huệ' },
-        { cityCode: ' hcm ', districtName: ' Quận 1 ', addressLine: ' 123 Nguyễn Huệ ', isPrimary: true },
+        {
+          cityCode: ' hcm ',
+          districtName: ' Quận 1 ',
+          addressLine: ' 123 Nguyễn Huệ ',
+          isPrimary: true,
+        },
       ],
       null,
     );

@@ -106,8 +106,67 @@ describe('itviec-parser (pure)', () => {
       expect(p).not.toBeNull();
       expect(p!.companyName).toBe('Acme Corp');
       expect(p!.location).toBe('Hồ Chí Minh');
+      expect(p!.locations).toEqual([
+        {
+          countryCode: null,
+          cityCode: null,
+          cityName: 'Quan 7',
+          districtCode: null,
+          districtName: null,
+          addressLine: null,
+          isPrimary: true,
+        },
+      ]);
       expect(p!.salaryMin).toBeNull(); // ITviec placeholder baseSalary must not be trusted
       expect(p!.descriptionText).toContain('Node.js');
+    });
+
+    it('captures every JSON-LD jobLocation with address provenance', () => {
+      const p = parseDetailPage(
+        's-5555',
+        'u',
+        page({
+          jobLocation: [
+            {
+              address: {
+                addressCountry: 'VN',
+                addressLocality: 'Quận 1',
+                addressRegion: 'Hồ Chí Minh',
+                streetAddress: '123 Nguyễn Huệ',
+              },
+            },
+            {
+              address: {
+                addressCountry: 'VN',
+                addressLocality: 'Hải Châu',
+                addressRegion: 'Đà Nẵng',
+                streetAddress: '456 Bạch Đằng',
+              },
+            },
+          ],
+        }),
+      );
+
+      expect(p!.locations).toEqual([
+        {
+          countryCode: 'VN',
+          cityCode: null,
+          cityName: 'Hồ Chí Minh',
+          districtCode: null,
+          districtName: 'Quận 1',
+          addressLine: '123 Nguyễn Huệ',
+          isPrimary: true,
+        },
+        {
+          countryCode: 'VN',
+          cityCode: null,
+          cityName: 'Đà Nẵng',
+          districtCode: null,
+          districtName: 'Hải Châu',
+          addressLine: '456 Bạch Đằng',
+          isPrimary: false,
+        },
+      ]);
     });
 
     it('rejects pages whose validThrough is in the past', () => {
