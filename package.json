@@ -70,6 +70,7 @@
     "calibration:report": "ts-node -r tsconfig-paths/register src/tools/report-impact-calibration.ts",
     "trends:refresh": "ts-node -r tsconfig-paths/register src/tools/refresh-trends.ts",
     "jobs:crawl": "ts-node -r tsconfig-paths/register src/tools/crawl-jobs.ts",
+    "jobs:refresh-locations": "ts-node -r tsconfig-paths/register src/tools/refresh-itviec-locations.ts",
     "curate:resources": "ts-node -r tsconfig-paths/register src/tools/curate-resources.ts",
     "ingest:learning-datasources": "ts-node -r tsconfig-paths/register src/tools/ingest-learning-datasources.ts",
     "revalidate:links": "ts-node -r tsconfig-paths/register src/tools/revalidate-links.ts",

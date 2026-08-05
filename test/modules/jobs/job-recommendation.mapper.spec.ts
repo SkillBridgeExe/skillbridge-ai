@@ -70,6 +70,7 @@ describe('buildJobRecommendation', () => {
       {
         country_code: 'VN',
         city_code: 'HCM',
+        city_name: null,
         district_code: 'THU_DUC',
         district_name: 'Thành phố Thủ Đức',
         address_line: 'Khu Công nghệ cao, phường Tăng Nhơn Phú',
@@ -96,6 +97,7 @@ describe('buildJobRecommendation', () => {
       {
         country_code: null,
         city_code: 'HAN',
+        city_name: null,
         district_code: null,
         district_name: null,
         address_line: null,

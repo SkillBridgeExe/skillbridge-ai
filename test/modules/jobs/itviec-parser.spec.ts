@@ -110,9 +110,9 @@ describe('itviec-parser (pure)', () => {
         {
           countryCode: null,
           cityCode: null,
-          cityName: 'Quan 7',
+          cityName: null,
           districtCode: null,
-          districtName: null,
+          districtName: 'Quan 7',
           addressLine: null,
           isPrimary: true,
         },
@@ -165,6 +165,34 @@ describe('itviec-parser (pure)', () => {
           districtName: 'Hải Châu',
           addressLine: '456 Bạch Đằng',
           isPrimary: false,
+        },
+      ]);
+    });
+
+    it('does not treat a country name as a district', () => {
+      const p = parseDetailPage(
+        's-country-5555',
+        'u',
+        page({
+          jobLocation: {
+            address: {
+              addressCountry: 'VN',
+              addressLocality: 'Đà Nẵng',
+              addressRegion: 'Vietnam',
+            },
+          },
+        }),
+      );
+
+      expect(p!.locations).toEqual([
+        {
+          countryCode: 'VN',
+          cityCode: null,
+          cityName: 'Đà Nẵng',
+          districtCode: null,
+          districtName: null,
+          addressLine: null,
+          isPrimary: true,
         },
       ]);
     });

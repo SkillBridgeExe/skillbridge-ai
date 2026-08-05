@@ -26,6 +26,7 @@ describe('normalizeJobLocationRecords', () => {
         {
           countryCode: 'VN',
           cityCode: 'HCM',
+          cityName: null,
           districtCode: 'QUAN_1',
           districtName: 'Quận 1',
           addressLine: '123 Nguyễn Huệ',
@@ -60,6 +61,7 @@ describe('normalizeJobLocationRecords', () => {
       {
         countryCode: 'VN',
         cityCode: 'DAD',
+        cityName: null,
         districtCode: null,
         districtName: null,
         addressLine: null,
@@ -67,6 +69,37 @@ describe('normalizeJobLocationRecords', () => {
         granularity: 'city',
       },
     ]);
+  });
+
+  it('keeps a locality-only district as a district while deriving its city facet', () => {
+    const result = normalizeJobLocationRecords([{ cityName: 'Quận 7', isPrimary: true }], null);
+
+    expect(result).toEqual({
+      primaryCityCode: 'HCM',
+      cityCodes: ['HCM'],
+      districtCodes: ['QUAN_7'],
+      records: [
+        {
+          countryCode: 'VN',
+          cityCode: 'HCM',
+          cityName: null,
+          districtCode: 'QUAN_7',
+          districtName: 'Quận 7',
+          addressLine: null,
+          isPrimary: true,
+          granularity: 'district',
+        },
+      ],
+    });
+  });
+
+  it('normalizes country names to a stable code when the source does not provide ISO code', () => {
+    const result = normalizeJobLocationRecords(
+      [{ countryCode: 'Việt Nam', cityName: 'Đà Nẵng', isPrimary: true }],
+      null,
+    );
+
+    expect(result.records[0]).toMatchObject({ countryCode: 'VN', cityCode: 'DAD' });
   });
 
   it('preserves unknown source text as unknown and never guesses a nearby city', () => {
@@ -82,7 +115,8 @@ describe('normalizeJobLocationRecords', () => {
           cityCode: null,
           districtCode: null,
           districtName: null,
-          addressLine: 'Remote - flexible location',
+          cityName: 'Remote - flexible location',
+          addressLine: null,
           isPrimary: true,
           granularity: 'unknown',
         },

@@ -12,7 +12,16 @@
  *    min/max) — only trust it when min/max are actually populated.
  */
 
-import { RawJobLocationInput } from '../ingest/job-location';
+import { isDistrictLikeName, RawJobLocationInput } from '../ingest/job-location';
+import { normalizeJobLocation } from '../ingest/ingest-normalizers';
+
+function isCountryLikeAddress(value: string | null, countryCode: string | null): boolean {
+  const normalizedValue = value?.trim().toLocaleLowerCase('en-US');
+  const normalizedCode = countryCode?.trim().toLocaleLowerCase('en-US');
+  if (!normalizedValue) return false;
+  if (normalizedCode && normalizedValue === normalizedCode) return true;
+  return /^(?:vn|vietnam|viet\s+nam|việt\s+nam)$/.test(normalizedValue);
+}
 
 export interface ItviecPosting {
   slug: string;
@@ -204,8 +213,31 @@ export function parseDetailPage(slug: string, url: string, html: string): Itviec
       typeof addr.addressCountry === 'string'
         ? addr.addressCountry
         : (addr.addressCountry?.name ?? null);
-    const cityName = addr.addressRegion ?? addr.addressLocality ?? null;
-    const districtName = addr.addressRegion ? (addr.addressLocality ?? null) : null;
+    const region = addr.addressRegion ?? null;
+    const locality = addr.addressLocality ?? null;
+    const regionIsCity = normalizeJobLocation(region ?? '').cityCodes.length > 0;
+    const localityIsCity = normalizeJobLocation(locality ?? '').cityCodes.length > 0;
+    const localityIsDistrict = isDistrictLikeName(locality);
+    const regionIsCountry = isCountryLikeAddress(region, countryCode);
+    const localityIsCountry = isCountryLikeAddress(locality, countryCode);
+    const cityName = regionIsCity
+      ? region
+      : localityIsDistrict
+        ? null
+        : !localityIsCountry
+          ? locality
+          : !regionIsCountry
+            ? region
+            : null;
+    const districtName = regionIsCity
+      ? localityIsCountry
+        ? null
+        : locality
+      : localityIsDistrict
+        ? locality
+        : localityIsCity && !regionIsCountry
+          ? region
+          : null;
     if (!countryCode && !cityName && !districtName && !addr.streetAddress) return [];
     return [
       {

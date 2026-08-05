@@ -36,6 +36,7 @@ import {
   JobRecommendationSnapshot,
   JobRecommendationSnapshotStore,
 } from './job-recommendation-snapshot.store';
+import type { JobLocationRecord } from '../ingest/job-location';
 
 export type WorkMode = 'ONSITE' | 'HYBRID' | 'REMOTE';
 export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'FREELANCE';
@@ -48,11 +49,23 @@ export interface JobRecommendationOptions {
   offset?: number;
   /** Omitted = CV target role; "all" = explicitly browse every role. */
   roleCode?: string;
+  /** Case-insensitive title/company search, applied after the stable snapshot is built. */
+  query?: string;
   cityCodes?: string[];
+  /** Source-provided city labels for locations that do not have a canonical city code yet. */
+  cityNames?: string[];
+  districtCodes?: string[];
+  sourceNames?: string[];
   workModes?: WorkMode[];
   employmentTypes?: EmploymentType[];
   experienceLevels?: ExperienceLevel[];
   fit?: FitVerdict['verdict'][];
+  postedFrom?: string;
+  postedTo?: string;
+  /** Monthly range; requires an explicit ISO-4217 currency to avoid cross-currency comparisons. */
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
   sort?: JobRecommendationSort;
   salaryOnly?: boolean;
 }
@@ -69,6 +82,8 @@ export interface JobRecommendation {
   title: string;
   company_name: string;
   location: string | null;
+  /** Source/catalog identifier used by the explorer filter. */
+  source_name?: string | null;
   city_codes: string[];
   locations: JobRecommendationLocation[];
   role_code: string | null;
@@ -141,6 +156,7 @@ export interface JobRecommendation {
 export interface JobRecommendationLocation {
   country_code: string | null;
   city_code: string | null;
+  city_name: string | null;
   district_code: string | null;
   district_name: string | null;
   address_line: string | null;
@@ -165,16 +181,28 @@ export interface JobRecommendationResponse {
     source: 'explicit' | 'cv_target' | 'all' | 'cv_target_missing';
   };
   filters_applied: {
+    query: string | null;
     city_codes: string[];
+    city_names: string[];
+    district_codes: string[];
+    source_names: string[];
     work_modes: WorkMode[];
     employment_types: EmploymentType[];
     experience_levels: ExperienceLevel[];
     fit: FitVerdict['verdict'][];
+    posted_from: string | null;
+    posted_to: string | null;
+    salary_min: number | null;
+    salary_max: number | null;
+    salary_currency: string | null;
     salary_only: boolean;
     sort: JobRecommendationSort;
   };
   facets: {
     city_codes: Array<{ value: string; count: number }>;
+    city_names: Array<{ value: string; count: number }>;
+    district_codes: Array<{ value: string; count: number }>;
+    source_names: Array<{ value: string; count: number }>;
     work_modes: Array<{ value: WorkMode; count: number }>;
     employment_types: Array<{ value: EmploymentType; count: number }>;
     experience_levels: Array<{ value: ExperienceLevel; count: number }>;
@@ -185,10 +213,17 @@ export interface JobRecommendationResponse {
     missing_experience_level: number;
     missing_location: number;
     missing_city_code: number;
+    missing_city_name: number;
+    missing_district_code: number;
+    missing_source_name: number;
+    missing_posted_at: number;
     missing_work_mode: number;
     missing_employment_type: number;
     facet_coverage: {
       city_codes: number;
+      city_names: number;
+      district_codes: number;
+      source_names: number;
       work_modes: number;
       employment_types: number;
       experience_levels: number;
@@ -213,14 +248,9 @@ interface CandidateJobRow {
   location: string | null;
   primary_city_code?: string | null;
   location_city_codes?: string[];
-  published_locations?: Array<{
-    countryCode?: unknown;
-    cityCode?: unknown;
-    districtCode?: unknown;
-    districtName?: unknown;
-    addressLine?: unknown;
-    isPrimary?: unknown;
-  }>;
+  source_name?: string | null;
+  published_locations?: CandidateLocation[];
+  job_locations?: JobLocationRecord[];
   role_code: string | null;
   experience_level: string | null;
   work_mode?: WorkMode | null;
@@ -233,6 +263,16 @@ interface CandidateJobRow {
   source_url: string | null;
   posted_at: string | null;
   skills: Array<{ canonical: string; importance: string; min_level: number | null }>;
+}
+
+interface CandidateLocation {
+  countryCode?: unknown;
+  cityCode?: unknown;
+  cityName?: unknown;
+  districtCode?: unknown;
+  districtName?: unknown;
+  addressLine?: unknown;
+  isPrimary?: unknown;
 }
 
 interface CvRecommendationRow {
@@ -262,8 +302,8 @@ const LOCATION_CITY_PATTERNS: Array<[RegExp, string]> = [
   [/\b(?:da nang|danang)\b/i, 'DAD'],
   [/\b(?:hai phong|haiphong)\b/i, 'HPH'],
   [/\b(?:can tho|cantho)\b/i, 'CTO'],
-  [/\b(?:binh duong)\b/i, 'BDU'],
-  [/\b(?:dong nai)\b/i, 'DNA'],
+  [/\b(?:binh duong)\b/i, 'BDG'],
+  [/\b(?:dong nai)\b/i, 'DNI'],
   [/\b(?:ba ria|vung tau)\b/i, 'VTU'],
   [/\b(?:da lat|lam dong)\b/i, 'DLI'],
 ];
@@ -284,7 +324,12 @@ export function normalizeLocationCityCodes(location: string | null | undefined):
 function jobCityCodes(job: CandidateJobRow): string[] {
   const structured = [
     ...new Set(
-      [job.primary_city_code, ...(job.location_city_codes ?? [])]
+      [
+        job.primary_city_code,
+        ...(job.location_city_codes ?? []),
+        ...(job.published_locations ?? []).map((location) => location.cityCode),
+        ...(job.job_locations ?? []).map((location) => location.cityCode),
+      ]
         .filter((value): value is string => Boolean(value))
         .map((value) => value.trim().toUpperCase())
         .filter(Boolean),
@@ -298,20 +343,28 @@ function cleanLocationText(value: unknown): string | null {
 }
 
 export function buildRecommendationLocations(job: CandidateJobRow): JobRecommendationLocation[] {
-  const published = Array.isArray(job.published_locations) ? job.published_locations : [];
+  const published =
+    Array.isArray(job.published_locations) && job.published_locations.length > 0
+      ? job.published_locations
+      : Array.isArray(job.job_locations)
+        ? job.job_locations
+        : [];
   const structured = published
     .map((location): JobRecommendationLocation | null => {
       const countryCode = cleanLocationText(location.countryCode)?.toUpperCase() ?? null;
       const cityCode = cleanLocationText(location.cityCode)?.toUpperCase() ?? null;
+      const cityName = cleanLocationText(location.cityName);
       const districtCode = cleanLocationText(location.districtCode)?.toUpperCase() ?? null;
       const districtName = cleanLocationText(location.districtName);
       const addressLine = cleanLocationText(location.addressLine);
 
-      if (!countryCode && !cityCode && !districtCode && !districtName && !addressLine) return null;
+      if (!countryCode && !cityCode && !cityName && !districtCode && !districtName && !addressLine)
+        return null;
 
       return {
         country_code: countryCode,
         city_code: cityCode,
+        city_name: cityName,
         district_code: districtCode,
         district_name: districtName,
         address_line: addressLine,
@@ -331,9 +384,29 @@ export function buildRecommendationLocations(job: CandidateJobRow): JobRecommend
 
   // External/crawled jobs often expose only a city. Never promote their free-form
   // location label to an exact address because its provenance is not strong enough.
-  return jobCityCodes(job).map((cityCode, index) => ({
+  const cityCodes = jobCityCodes(job);
+  if (cityCodes.length === 0) {
+    const rawLocation = cleanLocationText(job.location);
+    return rawLocation
+      ? [
+          {
+            country_code: null,
+            city_code: null,
+            city_name: rawLocation,
+            district_code: null,
+            district_name: null,
+            address_line: null,
+            is_primary: true,
+            granularity: 'unknown',
+          },
+        ]
+      : [];
+  }
+
+  return cityCodes.map((cityCode, index) => ({
     country_code: null,
     city_code: cityCode,
+    city_name: null,
     district_code: null,
     district_name: null,
     address_line: null,
@@ -395,7 +468,131 @@ export function sortJobRecommendations(
   });
 }
 
-type MetadataDimension = 'city' | 'work_mode' | 'employment_type' | 'experience_level' | 'fit';
+type MetadataDimension =
+  | 'city'
+  | 'city_name'
+  | 'district'
+  | 'source'
+  | 'work_mode'
+  | 'employment_type'
+  | 'experience_level'
+  | 'fit';
+
+function normalizedSearchText(value: string | null | undefined): string {
+  return foldLocation(value ?? '')
+    .toLocaleLowerCase('en-US')
+    .trim();
+}
+
+function rowDistrictCodes(row: JobRecommendation): string[] {
+  return [
+    ...new Set(
+      row.locations
+        .map((location) => location.district_code)
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.toUpperCase()),
+    ),
+  ];
+}
+
+function rowCityNames(row: JobRecommendation): string[] {
+  return [
+    ...new Set(
+      row.locations
+        .map((location) => location.city_name?.trim() || null)
+        .filter((value): value is string => value != null),
+    ),
+  ];
+}
+
+function rowSourceName(row: JobRecommendation): string | null {
+  const source = row.source_name?.trim().toLocaleLowerCase('en-US');
+  return source || null;
+}
+
+function normalizeRecommendationSourceName(
+  sourceName: string | null | undefined,
+  applicationMode: CandidateJobRow['application_mode'],
+): string | null {
+  // Employer rows contain an internal company identifier in source_name. Do not expose that
+  // identifier as a user-facing filter value; the explorer contract uses a stable catalog name.
+  if (applicationMode === 'NATIVE') return 'business';
+  const source = sourceName?.trim().toLocaleLowerCase('en-US');
+  return source || null;
+}
+
+function normalizeSnapshotLocation(
+  location: Partial<JobRecommendationLocation>,
+): JobRecommendationLocation {
+  return {
+    country_code: location.country_code ?? null,
+    city_code: location.city_code ?? null,
+    city_name: location.city_name ?? null,
+    district_code: location.district_code ?? null,
+    district_name: location.district_name ?? null,
+    address_line: location.address_line ?? null,
+    is_primary: location.is_primary === true,
+    granularity: location.granularity ?? 'unknown',
+  };
+}
+
+function normalizeSnapshotRecommendation(row: JobRecommendation): JobRecommendation {
+  const sourceName = normalizeRecommendationSourceName(row.source_name, row.application_mode);
+  return {
+    ...row,
+    ...(sourceName ? { source_name: sourceName } : { source_name: null }),
+    locations: (row.locations ?? []).map((location) => normalizeSnapshotLocation(location)),
+  };
+}
+
+function rowSearchText(row: JobRecommendation): string[] {
+  return [
+    row.title,
+    row.company_name,
+    row.location,
+    row.source_name,
+    ...row.city_codes,
+    ...row.locations.flatMap((location) => [
+      location.city_name,
+      location.city_code,
+      location.district_name,
+      location.district_code,
+      location.address_line,
+    ]),
+  ].filter((value): value is string => Boolean(value));
+}
+
+function isPostedInRange(row: JobRecommendation, options: JobRecommendationOptions): boolean {
+  if (!options.postedFrom && !options.postedTo) return true;
+  if (!row.posted_at) return false;
+  const postedAt = Date.parse(row.posted_at);
+  if (!Number.isFinite(postedAt)) return false;
+  if (options.postedFrom && postedAt < Date.parse(options.postedFrom)) return false;
+  if (options.postedTo && postedAt > Date.parse(options.postedTo)) return false;
+  return true;
+}
+
+function salaryRangeInMonthlyUnits(row: JobRecommendation): [number | null, number | null] {
+  const min = row.salary_min == null ? null : Number(row.salary_min);
+  const max = row.salary_max == null ? null : Number(row.salary_max);
+  if ((min != null && !Number.isFinite(min)) || (max != null && !Number.isFinite(max))) {
+    return [null, null];
+  }
+  const divisor = row.salary_period === 'YEAR' ? 12 : 1;
+  return [min == null ? null : min / divisor, max == null ? null : max / divisor];
+}
+
+function isSalaryInRange(row: JobRecommendation, options: JobRecommendationOptions): boolean {
+  if (options.salaryMin == null && options.salaryMax == null) return true;
+  if (!hasVisibleRecommendationSalary(row) || !options.salaryCurrency) return false;
+  if (row.currency.toUpperCase() !== options.salaryCurrency.toUpperCase()) return false;
+  const [rowMin, rowMax] = salaryRangeInMonthlyUnits(row);
+  const requestedMin = options.salaryMin ?? 0;
+  const requestedMax = options.salaryMax ?? Number.POSITIVE_INFINITY;
+  const comparableMin = rowMin ?? 0;
+  const comparableMax = rowMax ?? Number.POSITIVE_INFINITY;
+  return comparableMin <= requestedMax && comparableMax >= requestedMin;
+}
 
 function applyRecommendationFilters(
   rows: JobRecommendation[],
@@ -403,13 +600,45 @@ function applyRecommendationFilters(
   omit?: MetadataDimension,
 ): JobRecommendation[] {
   const cityCodes = new Set(options.cityCodes ?? []);
+  const cityNames = new Set((options.cityNames ?? []).map((value) => normalizedSearchText(value)));
+  const districtCodes = new Set(options.districtCodes ?? []);
+  const sourceNames = new Set((options.sourceNames ?? []).map((value) => value.toLowerCase()));
   const workModes = new Set(options.workModes ?? []);
   const employmentTypes = new Set(options.employmentTypes ?? []);
   const experienceLevels = new Set(options.experienceLevels ?? []);
   const fit = new Set(options.fit ?? []);
 
   return rows.filter((row) => {
+    if (
+      options.query &&
+      !rowSearchText(row).some((value) =>
+        normalizedSearchText(value).includes(normalizedSearchText(options.query)),
+      )
+    ) {
+      return false;
+    }
     if (omit !== 'city' && cityCodes.size > 0 && !row.city_codes.some((x) => cityCodes.has(x))) {
+      return false;
+    }
+    if (
+      omit !== 'city_name' &&
+      cityNames.size > 0 &&
+      !rowCityNames(row).some((name) => cityNames.has(normalizedSearchText(name)))
+    ) {
+      return false;
+    }
+    if (
+      omit !== 'district' &&
+      districtCodes.size > 0 &&
+      !rowDistrictCodes(row).some((code) => districtCodes.has(code))
+    ) {
+      return false;
+    }
+    if (
+      omit !== 'source' &&
+      sourceNames.size > 0 &&
+      (!rowSourceName(row) || !sourceNames.has(rowSourceName(row)!))
+    ) {
       return false;
     }
     if (
@@ -436,6 +665,8 @@ function applyRecommendationFilters(
     if (omit !== 'fit' && fit.size > 0 && (!row.fit?.verdict || !fit.has(row.fit.verdict))) {
       return false;
     }
+    if (!isPostedInRange(row, options)) return false;
+    if (!isSalaryInRange(row, options)) return false;
     if (options.salaryOnly && !hasVisibleRecommendationSalary(row)) return false;
     return true;
   });
@@ -485,14 +716,23 @@ export function projectJobRecommendationSnapshot(
   }
 
   // Snapshots created before structured locations were introduced remain readable.
-  scoped = scoped.map((row) => ({ ...row, locations: row.locations ?? [] }));
+  scoped = scoped.map(normalizeSnapshotRecommendation);
 
   const filtersApplied: JobRecommendationResponse['filters_applied'] = {
+    query: options.query?.trim() || null,
     city_codes: options.cityCodes ?? [],
+    city_names: options.cityNames ?? [],
+    district_codes: options.districtCodes ?? [],
+    source_names: options.sourceNames ?? [],
     work_modes: options.workModes ?? [],
     employment_types: options.employmentTypes ?? [],
     experience_levels: options.experienceLevels ?? [],
     fit: options.fit ?? [],
+    posted_from: options.postedFrom ?? null,
+    posted_to: options.postedTo ?? null,
+    salary_min: options.salaryMin ?? null,
+    salary_max: options.salaryMax ?? null,
+    salary_currency: options.salaryCurrency ?? null,
     salary_only: options.salaryOnly ?? false,
     sort: options.sort ?? 'RECOMMENDED',
   };
@@ -504,6 +744,12 @@ export function projectJobRecommendationSnapshot(
   const salaryRows = filtered.filter(hasVisibleRecommendationSalary);
   const facetCoverage = {
     city_codes: ratio(scoped.filter((row) => row.city_codes.length > 0).length, scoped.length),
+    city_names: ratio(scoped.filter((row) => rowCityNames(row).length > 0).length, scoped.length),
+    district_codes: ratio(
+      scoped.filter((row) => rowDistrictCodes(row).length > 0).length,
+      scoped.length,
+    ),
+    source_names: ratio(scoped.filter((row) => rowSourceName(row) != null).length, scoped.length),
     work_modes: ratio(scoped.filter((row) => row.work_mode).length, scoped.length),
     employment_types: ratio(scoped.filter((row) => row.employment_type).length, scoped.length),
     experience_levels: ratio(scoped.filter((row) => row.experience_level).length, scoped.length),
@@ -522,6 +768,21 @@ export function projectJobRecommendationSnapshot(
     facets: {
       city_codes: countFacets(
         applyRecommendationFilters(scoped, options, 'city').flatMap((row) => row.city_codes),
+      ),
+      city_names: countFacets(
+        applyRecommendationFilters(scoped, options, 'city_name').flatMap((row) =>
+          rowCityNames(row),
+        ),
+      ),
+      district_codes: countFacets(
+        applyRecommendationFilters(scoped, options, 'district').flatMap((row) =>
+          rowDistrictCodes(row),
+        ),
+      ),
+      source_names: countFacets(
+        applyRecommendationFilters(scoped, options, 'source')
+          .map((row) => rowSourceName(row))
+          .filter((value): value is string => value != null),
       ),
       work_modes: countFacets(
         applyRecommendationFilters(scoped, options, 'work_mode').map((row) => row.work_mode),
@@ -543,8 +804,12 @@ export function projectJobRecommendationSnapshot(
     data_quality: {
       missing_role: scoped.filter((row) => !row.role_code).length,
       missing_experience_level: scoped.filter((row) => !row.experience_level).length,
-      missing_location: scoped.filter((row) => !row.location).length,
+      missing_location: scoped.filter((row) => !row.location && row.locations.length === 0).length,
       missing_city_code: scoped.filter((row) => row.city_codes.length === 0).length,
+      missing_city_name: scoped.filter((row) => rowCityNames(row).length === 0).length,
+      missing_district_code: scoped.filter((row) => rowDistrictCodes(row).length === 0).length,
+      missing_source_name: scoped.filter((row) => rowSourceName(row) == null).length,
+      missing_posted_at: scoped.filter((row) => !row.posted_at).length,
       missing_work_mode: scoped.filter((row) => !row.work_mode).length,
       missing_employment_type: scoped.filter((row) => !row.employment_type).length,
       facet_coverage: facetCoverage,
@@ -665,6 +930,8 @@ export class JobRecommendationService {
               EXISTS (SELECT 1 FROM public.saved_jobs sj WHERE sj.job_id = j.id AND sj.user_id = $1) AS saved,
               j.title, c.name AS company_name, j.location, j.primary_city_code,
               j.location_city_codes,
+              j.source_name,
+              COALESCE(j.locations, '[]'::jsonb) AS job_locations,
               COALESCE(jpv.locations, '[]'::jsonb) AS published_locations,
               j.role_code, j.experience_level, j.work_mode,
               j.employment_type, j.salary_min, j.salary_max, j.salary_visible, j.salary_period,
@@ -732,7 +999,7 @@ export class JobRecommendationService {
             dimension: this.config.get<number>('vector.dimension') ?? null,
             version: this.config.get<string>('vector.embeddingVersion') ?? 'v1',
           },
-          recommendation_projection_version: 2,
+          recommendation_projection_version: 3,
           jobs: allCandidates.map((job) => ({
             id: job.id,
             slug: job.slug,
@@ -741,6 +1008,8 @@ export class JobRecommendationService {
             location: job.location,
             primary_city_code: job.primary_city_code,
             location_city_codes: job.location_city_codes,
+            source_name: job.source_name,
+            job_locations: job.job_locations,
             published_locations: job.published_locations,
             role_code: job.role_code,
             experience_level: job.experience_level,
@@ -994,6 +1263,7 @@ export function buildJobRecommendation(
         })
     : [];
   const policy = recommendationSeniorityPolicy(experienceFit);
+  const sourceName = normalizeRecommendationSourceName(job.source_name, job.application_mode);
   // ponytail: null overall_score (job with no scorable requirements) coerces to 0 — byte-identical
   // to pre-TRUST-prime behavior for such jobs. Honest-null on job cards = RECOMMENDATION wave.
   const recommendation_score = Math.round((diff.overall_score ?? 0) * policy.factor);
@@ -1017,6 +1287,7 @@ export function buildJobRecommendation(
     title: job.title,
     company_name: job.company_name,
     location: job.location,
+    ...(sourceName ? { source_name: sourceName } : {}),
     city_codes: jobCityCodes(job),
     locations: buildRecommendationLocations(job),
     role_code: job.role_code,

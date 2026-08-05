@@ -15,6 +15,7 @@ export interface RawJobLocationInput {
 export interface JobLocationRecord {
   countryCode: string | null;
   cityCode: string | null;
+  cityName: string | null;
   districtCode: string | null;
   districtName: string | null;
   addressLine: string | null;
@@ -47,6 +48,35 @@ function normalizeCode(value: string | null | undefined): string | null {
   return code || null;
 }
 
+function normalizeCountryCode(value: string | null | undefined): string | null {
+  const cleaned = cleanText(value);
+  if (!cleaned) return null;
+  const folded = cleaned
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  if (/^(?:VN|VNM|VIETNAM|VIET NAM)$/.test(folded)) return 'VN';
+  if (/^[A-Z]{2,3}$/.test(folded)) return folded;
+  // Keep unknown country provenance as a normalized token rather than silently dropping it.
+  return normalizeCode(cleaned);
+}
+
+/**
+ * A locality-only JSON-LD value can be a district (for example, "Quận 7")
+ * rather than a city. Keep that distinction explicit instead of displaying a
+ * district as the city name or pretending we know an exact address.
+ */
+export function isDistrictLikeName(value: string | null | undefined): boolean {
+  const text = cleanText(value);
+  if (!text) return false;
+  return /^(?:q\.?\s*\d+|qu[aậ]n\b|quan\b|district\b|huy[eệ]n\b|huyen\b|th[aà]nh\s*ph[oố]\s+th[uủ]\s+đ[ứu]c\b|thu\s+duc\b)/i.test(
+    text,
+  );
+}
+
 function inferCityCode(input: RawJobLocationInput): string | null {
   const explicit = normalizeCode(input.cityCode);
   if (explicit) return explicit;
@@ -56,14 +86,6 @@ function inferCityCode(input: RawJobLocationInput): string | null {
     .filter((value): value is string => value !== null)
     .join(', ');
   return normalizeJobLocation(sourceText).primaryCityCode;
-}
-
-function inferDistrictCode(input: RawJobLocationInput): string | null {
-  const explicit = normalizeCode(input.districtCode);
-  if (explicit) return explicit;
-  const name = cleanText(input.districtName);
-  if (!name) return null;
-  return normalizeCode(name);
 }
 
 function hasVietnameseCityCode(cityCode: string | null): boolean {
@@ -86,6 +108,7 @@ function recordKey(record: Omit<JobLocationRecord, 'isPrimary'>): string {
   return [
     record.countryCode ?? '',
     record.cityCode ?? '',
+    record.cityName ?? '',
     record.districtCode ?? '',
     record.districtName ?? '',
     record.addressLine ?? '',
@@ -96,12 +119,15 @@ function recordKey(record: Omit<JobLocationRecord, 'isPrimary'>): string {
 
 function normalizeRecord(input: RawJobLocationInput): Omit<JobLocationRecord, 'isPrimary'> | null {
   const cityCode = inferCityCode(input);
-  const districtName = cleanText(input.districtName);
-  const districtCode = inferDistrictCode(input);
+  const rawCityName = cleanText(input.cityName);
+  const districtName =
+    cleanText(input.districtName) ?? (isDistrictLikeName(rawCityName) ? rawCityName : null);
+  const districtCode =
+    normalizeCode(input.districtCode) ?? (districtName ? normalizeCode(districtName) : null);
   const addressLine = cleanText(input.addressLine);
-  const cityName = cleanText(input.cityName);
+  const cityName = isDistrictLikeName(rawCityName) ? null : rawCityName;
   const countryCode =
-    normalizeCode(input.countryCode) ?? (hasVietnameseCityCode(cityCode) ? 'VN' : null);
+    normalizeCountryCode(input.countryCode) ?? (hasVietnameseCityCode(cityCode) ? 'VN' : null);
 
   if (!countryCode && !cityCode && !districtCode && !districtName && !addressLine && !cityName) {
     return null;
@@ -110,9 +136,10 @@ function normalizeRecord(input: RawJobLocationInput): Omit<JobLocationRecord, 'i
   return {
     countryCode,
     cityCode,
+    cityName,
     districtCode,
     districtName,
-    addressLine: addressLine ?? cityName,
+    addressLine,
     granularity: recordGranularity(addressLine, districtCode, districtName, cityCode),
   };
 }
@@ -146,6 +173,7 @@ export function normalizeJobLocationRecords(
         ...inferredCodes.map((cityCode) => ({
           countryCode: 'VN',
           cityCode,
+          cityName: null,
           districtCode: null,
           districtName: null,
           addressLine: null,
@@ -157,9 +185,10 @@ export function normalizeJobLocationRecords(
       deduped.push({
         countryCode: null,
         cityCode: null,
+        cityName: fallback,
         districtCode: null,
         districtName: null,
-        addressLine: fallback,
+        addressLine: null,
         granularity: 'unknown',
         requestedPrimary: false,
       });

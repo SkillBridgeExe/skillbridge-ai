@@ -8,6 +8,8 @@ import {
   ItviecPosting,
   parseDetailPage,
 } from './itviec-parser';
+import { computeJobLocationBackfill } from '../ingest/job-location-backfill';
+import type { JobLocationRecord } from '../ingest/job-location';
 
 export interface CrawlSummary {
   /** 'sitemap' (preferred — official URL inventory) or 'listing' (fallback sweep). */
@@ -19,6 +21,16 @@ export interface CrawlSummary {
   parsed: number;
   ingested: { inserted: number; updated: number; skipped: number; errors: number };
   expired: number;
+}
+
+export interface LocationRefreshSummary {
+  candidates: number;
+  detailsFetched: number;
+  parsed: number;
+  changes: number;
+  applied: number;
+  skipped: number;
+  errors: Array<{ id: string; title: string; error: string }>;
 }
 
 /**
@@ -207,6 +219,113 @@ export class ItviecCrawlerService {
         `${summary.parsed}/${summary.detailsFetched} new parsed → +${summary.ingested.inserted} ` +
         `(expired ${summary.expired})`,
     );
+    return summary;
+  }
+
+  /**
+   * Enrich existing ITviec rows that predate structured locations. The normal crawler only
+   * fetches new/reappearing slugs, so this bounded operator action fills the historical gap
+   * without re-running skill extraction or changing ranking inputs.
+   *
+   * Dry-run is the default. `apply=true` performs guarded updates only while `locations` is
+   * still empty, inside one transaction. It never stores the fetched JD body.
+   */
+  async refreshStructuredLocations(maxJobs = 40, apply = false): Promise<LocationRefreshSummary> {
+    await this.assertRobotsAllows();
+    const rows = await this.db.query<{
+      id: string;
+      external_id: string | null;
+      source_url: string | null;
+      title: string | null;
+      location: string | null;
+      locations: JobLocationRecord[] | null;
+    }>(
+      `SELECT id, external_id, source_url, title, location, COALESCE(locations, '[]'::jsonb) AS locations
+         FROM public.jobs
+        WHERE source_name = 'itviec'
+          AND status = 'active'
+          AND canonical_job_id IS NULL
+          AND COALESCE(jsonb_array_length(locations), 0) = 0
+        ORDER BY id
+        LIMIT $1`,
+      [Math.min(Math.max(Math.trunc(maxJobs) || 40, 1), 500)],
+    );
+    const summary: LocationRefreshSummary = {
+      candidates: rows.length,
+      detailsFetched: 0,
+      parsed: 0,
+      changes: 0,
+      applied: 0,
+      skipped: 0,
+      errors: [],
+    };
+    const changes = [] as ReturnType<typeof computeJobLocationBackfill>;
+
+    for (const row of rows) {
+      const slug = row.external_id?.trim();
+      if (!slug) {
+        summary.skipped++;
+        continue;
+      }
+      const url = row.source_url ?? `${ItviecCrawlerService.BASE}/it-jobs/${slug}`;
+      try {
+        const response = await this.politeFetch(url);
+        summary.detailsFetched++;
+        if (!response.ok) {
+          summary.skipped++;
+          continue;
+        }
+        const posting = parseDetailPage(slug, url, await response.text());
+        if (!posting) {
+          summary.skipped++;
+          continue;
+        }
+        summary.parsed++;
+        changes.push(
+          ...computeJobLocationBackfill([
+            {
+              id: row.id,
+              title: row.title,
+              location: row.location,
+              existingLocations: row.locations,
+              sourceLocations: posting.locations,
+            },
+          ]),
+        );
+      } catch (error) {
+        summary.errors.push({
+          id: row.id,
+          title: row.title ?? '',
+          error: (error as Error).message,
+        });
+      }
+    }
+
+    summary.changes = changes.length;
+    if (!apply || changes.length === 0) return summary;
+
+    summary.applied = await this.db.transaction(async (client) => {
+      let applied = 0;
+      for (const change of changes) {
+        const result = await client.query(
+          `UPDATE public.jobs
+              SET locations = $1::jsonb,
+                  primary_city_code = COALESCE(primary_city_code, $2),
+                  location_city_codes = CASE
+                    WHEN COALESCE(cardinality(location_city_codes), 0) = 0 THEN $3
+                    ELSE location_city_codes
+                  END,
+                  updated_at = now()
+            WHERE id = $4
+              AND source_name = 'itviec'
+              AND status = 'active'
+              AND COALESCE(jsonb_array_length(locations), 0) = 0`,
+          [JSON.stringify(change.records), change.primaryCityCode, change.cityCodes, change.id],
+        );
+        applied += result.rowCount ?? 0;
+      }
+      return applied;
+    });
     return summary;
   }
 
