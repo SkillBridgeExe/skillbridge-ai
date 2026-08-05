@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { JobLocationRecord } from '../../modules/jobs/ingest/job-location';
 
 export type JobPoolStatus = 'draft' | 'active' | 'closed' | 'expired' | 'removed';
 export type JobApplicationMode = 'NATIVE' | 'EXTERNAL';
@@ -26,6 +27,7 @@ export class JobEntity {
     | string
     | null;
   @Column({ type: 'varchar', length: 255, nullable: true }) location!: string | null;
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" }) locations!: JobLocationRecord[];
   @Column({ type: 'varchar', name: 'employment_type', length: 32, nullable: true })
   employmentType!: string | null;
   @Column({ type: 'varchar', name: 'experience_level', length: 32, nullable: true })
