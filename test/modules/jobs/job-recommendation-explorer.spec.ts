@@ -147,7 +147,7 @@ describe('Job Explorer location normalization', () => {
     ['TP.HCM', ['HCM']],
     ['Hà Nội', ['HAN']],
     ['Đà Nẵng', ['DAD']],
-    ['Bình Dương', ['BDU']],
+    ['Bình Dương', ['BDG']],
   ])('derives a stable city facet from legacy location text: %s', (location, expected) => {
     expect(normalizeLocationCityCodes(location)).toEqual(expected);
   });
@@ -196,6 +196,75 @@ describe('Job Explorer location normalization', () => {
     );
 
     expect(mapped.city_codes).toEqual(['HCM']);
+  });
+
+  it('keeps source city names without mislabeling them as exact addresses', () => {
+    const mapped = buildJobRecommendation(
+      {
+        id: 'district-location',
+        slug: 'district-location',
+        application_mode: 'EXTERNAL',
+        saved: false,
+        title: 'Backend Developer',
+        company_name: 'SkillBridge',
+        location: 'Hải Châu, Đà Nẵng',
+        primary_city_code: 'DAD',
+        location_city_codes: ['DAD'],
+        job_locations: [
+          {
+            countryCode: 'VN',
+            cityCode: 'DAD',
+            cityName: 'Đà Nẵng',
+            districtCode: 'HAI_CHAU',
+            districtName: 'Hải Châu',
+            addressLine: null,
+            isPrimary: true,
+            granularity: 'district',
+          },
+        ],
+        role_code: 'backend_developer',
+        experience_level: 'JUNIOR',
+        work_mode: 'REMOTE',
+        employment_type: 'FULL_TIME',
+        salary_min: null,
+        salary_max: null,
+        salary_visible: false,
+        salary_period: null,
+        currency: 'VND',
+        source_url: 'https://example.test/job',
+        posted_at: null,
+        skills: [],
+      },
+      {
+        overall_score: 50,
+        matched_skills: [],
+        partial_skills: [],
+        missing_skills: [],
+        required_coverage: 0.5,
+        scoring_breakdown: {},
+      } as never,
+      1,
+      null,
+      {
+        cv_seniority: 'junior',
+        job_level: 'JUNIOR',
+        verdict: 'fits',
+        confidence: 'high',
+      },
+    );
+
+    expect(mapped.locations).toEqual([
+      {
+        country_code: 'VN',
+        city_code: 'DAD',
+        city_name: 'Đà Nẵng',
+        district_code: 'HAI_CHAU',
+        district_name: 'Hải Châu',
+        address_line: null,
+        is_primary: true,
+        granularity: 'district',
+      },
+    ]);
   });
 });
 
@@ -443,5 +512,200 @@ describe('Job Explorer role scope, metadata filters, and facets', () => {
     );
 
     expect(response.recommendations[0].locations).toEqual([]);
+  });
+
+  it('normalizes legacy location fields and hides internal native source identifiers', () => {
+    const legacy = recommendation('legacy-native', {
+      application_mode: 'NATIVE',
+      source_name: 'employer:internal-company-id',
+      locations: [
+        {
+          country_code: 'VN',
+          city_code: null,
+          district_code: 'QUAN_7',
+          district_name: 'Quận 7',
+          address_line: null,
+          is_primary: true,
+          granularity: 'district',
+        } as never,
+      ],
+    });
+
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      { cv_target_role: 'backend_developer', recommendations: [legacy] },
+      {},
+      true,
+    );
+
+    expect(response.recommendations[0].source_name).toBe('business');
+    expect(response.recommendations[0].locations[0].city_name).toBeNull();
+  });
+
+  it('filters a stable snapshot by search, district, source, date, salary, and paginates', () => {
+    const hcm = recommendation('hcm', {
+      application_mode: 'EXTERNAL',
+      title: 'Backend Node Engineer',
+      company_name: 'Acme Labs',
+      source_name: 'itviec',
+      city_codes: ['HCM'],
+      locations: [
+        {
+          country_code: 'VN',
+          city_code: 'HCM',
+          city_name: 'Hồ Chí Minh',
+          district_code: 'QUAN_1',
+          district_name: 'Quận 1',
+          address_line: null,
+          is_primary: true,
+          granularity: 'district',
+        },
+      ],
+      posted_at: '2026-08-02T12:00:00.000Z',
+      salary_min: 20_000_000,
+      salary_max: 30_000_000,
+      salary_visible: true,
+      salary_period: 'MONTH',
+      currency: 'VND',
+    });
+    const excluded = recommendation('excluded', {
+      title: 'Frontend Engineer',
+      company_name: 'Other Co',
+      source_name: 'other-source',
+      city_codes: ['HAN'],
+      locations: [
+        {
+          country_code: 'VN',
+          city_code: 'HAN',
+          city_name: 'Hà Nội',
+          district_code: 'CAU_GIAY',
+          district_name: 'Cầu Giấy',
+          address_line: null,
+          is_primary: true,
+          granularity: 'district',
+        },
+      ],
+      posted_at: '2026-07-01T12:00:00.000Z',
+      salary_min: 10_000_000,
+      salary_max: 15_000_000,
+      salary_visible: true,
+      salary_period: 'MONTH',
+      currency: 'VND',
+    });
+
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      { cv_target_role: 'backend_developer', recommendations: [hcm, excluded] },
+      {
+        roleCode: 'all',
+        query: 'node',
+        cityNames: ['Hồ Chí Minh'],
+        districtCodes: ['QUAN_1'],
+        sourceNames: ['itviec'],
+        postedFrom: '2026-08-01T00:00:00.000Z',
+        postedTo: '2026-08-02T23:59:59.999Z',
+        salaryMin: 25_000_000,
+        salaryMax: 35_000_000,
+        salaryCurrency: 'VND',
+        limit: 1,
+        offset: 0,
+      },
+      true,
+    );
+
+    expect(response.total).toBe(1);
+    expect(response.recommendations.map((row) => row.job_id)).toEqual(['hcm']);
+    expect(response.filters_applied.query).toBe('node');
+    expect(response.filters_applied.city_names).toEqual(['Hồ Chí Minh']);
+    expect(response.data_quality.facet_coverage.district_codes).toBe(1);
+  });
+
+  it('builds district and source facets while keeping the selected facet available', () => {
+    const rows = [
+      recommendation('q1', {
+        application_mode: 'EXTERNAL',
+        source_name: 'itviec',
+        city_codes: ['HCM'],
+        locations: [
+          {
+            country_code: 'VN',
+            city_code: 'HCM',
+            city_name: 'Hồ Chí Minh',
+            district_code: 'QUAN_1',
+            district_name: 'Quận 1',
+            address_line: null,
+            is_primary: true,
+            granularity: 'district',
+          },
+        ],
+      }),
+      recommendation('q3', {
+        source_name: 'business',
+        city_codes: ['DAD'],
+        locations: [
+          {
+            country_code: 'VN',
+            city_code: 'DAD',
+            city_name: 'Đà Nẵng',
+            district_code: 'HAI_CHAU',
+            district_name: 'Hải Châu',
+            address_line: null,
+            is_primary: true,
+            granularity: 'district',
+          },
+        ],
+      }),
+    ];
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      { cv_target_role: 'backend_developer', recommendations: rows },
+      { roleCode: 'all' },
+      true,
+    );
+
+    expect(response.facets.district_codes).toEqual([
+      { value: 'HAI_CHAU', count: 1 },
+      { value: 'QUAN_1', count: 1 },
+    ]);
+    expect(response.facets.source_names).toEqual([
+      { value: 'business', count: 1 },
+      { value: 'itviec', count: 1 },
+    ]);
+    expect(response.facets.city_names).toEqual([
+      { value: 'Đà Nẵng', count: 1 },
+      { value: 'Hồ Chí Minh', count: 1 },
+    ]);
+  });
+
+  it('lets the free-text explorer search find a structured district', () => {
+    const response = projectJobRecommendationSnapshot(
+      'cv-1',
+      {
+        cv_target_role: 'backend_developer',
+        recommendations: [
+          recommendation('job-district', {
+            title: 'Backend Engineer',
+            city_codes: ['HCM'],
+            locations: [
+              {
+                country_code: 'VN',
+                city_code: 'HCM',
+                city_name: 'Hồ Chí Minh',
+                district_code: 'QUAN_7',
+                district_name: 'Quận 7',
+                address_line: null,
+                is_primary: true,
+                granularity: 'district',
+              },
+            ],
+          }),
+        ],
+      },
+      { roleCode: 'all', query: 'quận 7', limit: 5 },
+      false,
+    );
+
+    expect(response.total).toBe(1);
+    expect(response.recommendations[0].locations[0].district_name).toBe('Quận 7');
   });
 });

@@ -12,12 +12,24 @@
  *    min/max) — only trust it when min/max are actually populated.
  */
 
+import { isDistrictLikeName, RawJobLocationInput } from '../ingest/job-location';
+import { normalizeJobLocation } from '../ingest/ingest-normalizers';
+
+function isCountryLikeAddress(value: string | null, countryCode: string | null): boolean {
+  const normalizedValue = value?.trim().toLocaleLowerCase('en-US');
+  const normalizedCode = countryCode?.trim().toLocaleLowerCase('en-US');
+  if (!normalizedValue) return false;
+  if (normalizedCode && normalizedValue === normalizedCode) return true;
+  return /^(?:vn|vietnam|viet\s+nam|việt\s+nam)$/.test(normalizedValue);
+}
+
 export interface ItviecPosting {
   slug: string;
   url: string;
   title: string;
   companyName: string;
   location: string | null;
+  locations: RawJobLocationInput[];
   postedAt: string | null;
   expiresAt: string | null;
   salaryMin: number | null;
@@ -172,11 +184,78 @@ export function parseDetailPage(slug: string, url: string, html: string): Itviec
   }
 
   const jobLocation = posting.jobLocation as
-    | { address?: { addressLocality?: string; addressRegion?: string } }
-    | Array<{ address?: { addressLocality?: string; addressRegion?: string } }>
+    | {
+        address?: {
+          addressCountry?: string | { name?: string };
+          addressLocality?: string;
+          addressRegion?: string;
+          streetAddress?: string;
+        };
+      }
+    | Array<{
+        address?: {
+          addressCountry?: string | { name?: string };
+          addressLocality?: string;
+          addressRegion?: string;
+          streetAddress?: string;
+        };
+      }>
     | undefined;
-  const addr = Array.isArray(jobLocation) ? jobLocation[0]?.address : jobLocation?.address;
-  const location = normalizeLocation(addr?.addressLocality ?? addr?.addressRegion ?? null);
+  const locationEntries = Array.isArray(jobLocation)
+    ? jobLocation
+    : jobLocation
+      ? [jobLocation]
+      : [];
+  const locations = locationEntries.flatMap<RawJobLocationInput>((entry, index) => {
+    const addr = entry.address;
+    if (!addr) return [];
+    const countryCode =
+      typeof addr.addressCountry === 'string'
+        ? addr.addressCountry
+        : (addr.addressCountry?.name ?? null);
+    const region = addr.addressRegion ?? null;
+    const locality = addr.addressLocality ?? null;
+    const regionIsCity = normalizeJobLocation(region ?? '').cityCodes.length > 0;
+    const localityIsCity = normalizeJobLocation(locality ?? '').cityCodes.length > 0;
+    const localityIsDistrict = isDistrictLikeName(locality);
+    const regionIsCountry = isCountryLikeAddress(region, countryCode);
+    const localityIsCountry = isCountryLikeAddress(locality, countryCode);
+    const cityName = regionIsCity
+      ? region
+      : localityIsDistrict
+        ? null
+        : !localityIsCountry
+          ? locality
+          : !regionIsCountry
+            ? region
+            : null;
+    const districtName = regionIsCity
+      ? localityIsCountry
+        ? null
+        : locality
+      : localityIsDistrict
+        ? locality
+        : localityIsCity && !regionIsCountry
+          ? region
+          : null;
+    if (!countryCode && !cityName && !districtName && !addr.streetAddress) return [];
+    return [
+      {
+        countryCode,
+        cityCode: null,
+        cityName,
+        districtCode: null,
+        districtName,
+        addressLine: addr.streetAddress ?? null,
+        isPrimary: index === 0,
+      },
+    ];
+  });
+  const firstAddress = locationEntries[0]?.address;
+  const legacyLocationText = [firstAddress?.addressLocality, firstAddress?.addressRegion]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(', ');
+  const location = normalizeLocation(legacyLocationText || null);
 
   // baseSalary: trust ONLY when min/max are populated (placeholder otherwise — intel note).
   const baseSalary = posting.baseSalary as
@@ -193,6 +272,7 @@ export function parseDetailPage(slug: string, url: string, html: string): Itviec
     title,
     companyName,
     location,
+    locations,
     postedAt: posting.datePosted ? String(posting.datePosted) : null,
     expiresAt: validThrough,
     salaryMin: hasSalary && typeof minV === 'number' && minV > 0 ? minV : null,

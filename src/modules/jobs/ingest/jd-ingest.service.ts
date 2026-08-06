@@ -13,9 +13,9 @@ import {
   isAdvantageLine,
   normalizeCompanyName,
   normalizeForHash,
-  normalizeJobLocation,
   scrubPii,
 } from './ingest-normalizers';
+import { normalizeJobLocationRecords, RawJobLocationInput } from './job-location';
 
 export type JobSourceType = 'employer' | 'scraped' | 'imported' | 'feed';
 
@@ -29,6 +29,7 @@ export interface RawJobInput {
   title: string;
   company_name: string;
   location?: string;
+  locations?: RawJobLocationInput[];
   employment_type?: 'FULL_TIME' | 'PART_TIME' | 'INTERNSHIP' | 'CONTRACT' | 'FREELANCE';
   experience_level?: 'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD';
   salary_min?: number;
@@ -198,7 +199,10 @@ export class JdIngestService {
     // (crawl sources almost never set it → the job-rec seniority guard had no data to act on).
     const experienceLevel = item.experience_level ?? classifySeniority(item.title) ?? null;
 
-    const normalizedLocation = normalizeJobLocation(item.location ?? '');
+    const normalizedLocations = normalizeJobLocationRecords(
+      item.locations ?? [],
+      item.location ?? '',
+    );
     const workMode =
       item.work_mode ?? classifyWorkMode(`${item.title} ${item.location ?? ''}`) ?? null;
 
@@ -209,14 +213,15 @@ export class JdIngestService {
     const { jobId, isNew } = await this.db.transaction(async (client) => {
       const jobRows = await client.query<{ id: string; is_new: boolean }>(
         `INSERT INTO public.jobs
-           (company_id, title, role_code, location, primary_city_code, location_city_codes, work_mode, employment_type, experience_level,
+           (company_id, title, role_code, location, locations, primary_city_code, location_city_codes, work_mode, employment_type, experience_level,
             salary_min, salary_max, currency, status, source_type, source_name, source_url,
             external_id, content_hash, posted_at, last_seen_at, expires_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12,'VND'),'active',$13,$14,$15,$16,$17,$18,now(),$19)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13,'VND'),'active',$14,$15,$16,$17,$18,$19,now(),$20)
          ON CONFLICT (source_name, external_id) DO UPDATE SET
            title = EXCLUDED.title,
            role_code = EXCLUDED.role_code,
            location = EXCLUDED.location,
+           locations = CASE WHEN jsonb_array_length(EXCLUDED.locations) > 0 THEN EXCLUDED.locations ELSE jobs.locations END,
            primary_city_code = COALESCE(EXCLUDED.primary_city_code, jobs.primary_city_code),
            location_city_codes = CASE WHEN COALESCE(cardinality(EXCLUDED.location_city_codes), 0) > 0 THEN EXCLUDED.location_city_codes ELSE jobs.location_city_codes END,
            work_mode = COALESCE(EXCLUDED.work_mode, jobs.work_mode),
@@ -237,8 +242,9 @@ export class JdIngestService {
           item.title.slice(0, 255),
           roleCode,
           item.location?.slice(0, 255) ?? null,
-          normalizedLocation.primaryCityCode ?? null,
-          normalizedLocation.cityCodes,
+          JSON.stringify(normalizedLocations.records),
+          normalizedLocations.primaryCityCode ?? null,
+          normalizedLocations.cityCodes,
           workMode,
           item.employment_type ?? null,
           experienceLevel,

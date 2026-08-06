@@ -73,17 +73,20 @@ export function normalizeCompanyName(raw: string): string {
   return tokens.slice(start, end).join(' ').trim();
 }
 
-/** The 9 pilot role codes (role-rubrics-pilot.json) — keep in sync with RoleRubricService. */
-export type RoleCode =
-  | 'frontend_developer'
-  | 'backend_developer'
-  | 'fullstack_developer'
-  | 'data_analyst'
-  | 'mobile_developer'
-  | 'devops_engineer'
-  | 'qa_tester'
-  | 'ai_ml_engineer'
-  | 'ai_app_engineer';
+/** Marketplace roles supported by job classification, filtering, and per-role trends. */
+export const JOB_ROLE_CODES = [
+  'frontend_developer',
+  'backend_developer',
+  'fullstack_developer',
+  'data_analyst',
+  'mobile_developer',
+  'devops_engineer',
+  'qa_tester',
+  'ai_ml_engineer',
+  'ai_app_engineer',
+] as const;
+
+export type RoleCode = (typeof JOB_ROLE_CODES)[number];
 
 /**
  * Ordered: more specific patterns FIRST. AI/ML + QA + DevOps + Data are checked BEFORE the
@@ -225,8 +228,24 @@ export function normalizeJobLocation(raw: string): NormalizedJobLocation {
 
   if (/\bhcmc?\b|ho\s*chi\s*minh|hồ\s*chí\s*minh|tp\.?\s*hcm|sai\s*gon|sài\s*gòn/.test(text))
     add('HCM');
+  // ITviec JSON-LD sometimes exposes only a district in addressLocality. These
+  // are intentionally city facets only; they do not create an exact address.
+  if (
+    /\b(?:quận|quan)\s*(?:[1-9]|1[0-2])\b|thủ\s*đức|thu\s*duc|tân\s*bình|tan\s*binh|bình\s*thạnh|binh\s*thanh|phú\s*nhuận|phu\s*nhuan|gò\s*vấp|go\s*vap/.test(
+      text,
+    )
+  )
+    add('HCM');
   if (/\bha\s*noi\b|hà\s*nội|\bhanoi\b|gia\s*lâm|gia\s*lam/.test(text)) add('HAN');
+  if (
+    /cầu\s*giấy|cau\s*giay|hoàn\s*kiếm|hoan\s*kiem|nam\s*từ\s*liêm|nam\s*tu\s*liem|ba\s*đình|ba\s*dinh|tây\s*hồ|tay\s*ho|đống\s*đa|dong\s*da|thanh\s*xuân|thanh\s*xuan/.test(
+      text,
+    )
+  )
+    add('HAN');
   if (/\bda\s*nang\b|đà\s*nẵng/.test(text)) add('DAD');
+  if (/hải\s*châu|hai\s*chau|sơn\s*trà|son\s*tra|ngũ\s*hành\s*sơn|ngu\s*hanh\s*son/.test(text))
+    add('DAD');
   if (/\bhai\s*phong\b|hải\s*phòng/.test(text)) add('HPH');
   if (/\bcan\s*tho\b|cần\s*thơ/.test(text)) add('CTO');
   if (/\bbinh\s*duong\b|bình\s*dương/.test(text)) add('BDG');
