@@ -73,17 +73,20 @@ export function normalizeCompanyName(raw: string): string {
   return tokens.slice(start, end).join(' ').trim();
 }
 
-/** The 9 pilot role codes (role-rubrics-pilot.json) — keep in sync with RoleRubricService. */
-export type RoleCode =
-  | 'frontend_developer'
-  | 'backend_developer'
-  | 'fullstack_developer'
-  | 'data_analyst'
-  | 'mobile_developer'
-  | 'devops_engineer'
-  | 'qa_tester'
-  | 'ai_ml_engineer'
-  | 'ai_app_engineer';
+/** Marketplace roles supported by job classification, filtering, and per-role trends. */
+export const JOB_ROLE_CODES = [
+  'frontend_developer',
+  'backend_developer',
+  'fullstack_developer',
+  'data_analyst',
+  'mobile_developer',
+  'devops_engineer',
+  'qa_tester',
+  'ai_ml_engineer',
+  'ai_app_engineer',
+] as const;
+
+export type RoleCode = (typeof JOB_ROLE_CODES)[number];
 
 /**
  * Ordered: more specific patterns FIRST. AI/ML + QA + DevOps + Data are checked BEFORE the

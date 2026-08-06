@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
-import { RoleCode } from '../ingest/ingest-normalizers';
+import { JOB_ROLE_CODES, RoleCode } from '../ingest/ingest-normalizers';
 import {
   EmploymentType,
   ExperienceLevel,
@@ -10,17 +10,6 @@ import {
 } from '../reco/job-recommendation.service';
 import { FitVerdict } from '../../gap-engine/fit-strategy';
 
-const ROLE_CODES: readonly RoleCode[] = [
-  'frontend_developer',
-  'backend_developer',
-  'fullstack_developer',
-  'data_analyst',
-  'mobile_developer',
-  'devops_engineer',
-  'qa_tester',
-  'ai_ml_engineer',
-  'ai_app_engineer',
-];
 const WORK_MODES: readonly WorkMode[] = ['ONSITE', 'HYBRID', 'REMOTE'];
 const EMPLOYMENT_TYPES: readonly EmploymentType[] = [
   'FULL_TIME',
@@ -249,7 +238,7 @@ export function toJobRecommendationOptions(
   query: JobRecommendationQueryDto,
 ): JobRecommendationOptions {
   const role = query.role?.trim();
-  if (role && role !== 'all' && !ROLE_CODES.includes(role as RoleCode)) {
+  if (role && role !== 'all' && !JOB_ROLE_CODES.includes(role as RoleCode)) {
     throw new BadRequestException(`role contains unsupported value: ${role}`);
   }
   const sort = query.sort?.trim() || 'RECOMMENDED';
