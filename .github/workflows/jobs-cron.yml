@@ -27,6 +27,9 @@ env:
   # development (not production) → relax prod-only required env (RESEND/GCS) the CLI doesn't need.
   NODE_ENV: development
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  # Every job in this workflow is a deliberate, audited production-DB operation.
+  # Keep the runtime guard enabled everywhere else; opt in only for this scheduler.
+  ALLOW_PROD_DB: '1'
   DB_SSL: 'true'
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   INTERNAL_AUTH_SECRET: ci-cron-secret-not-used-by-this-path
