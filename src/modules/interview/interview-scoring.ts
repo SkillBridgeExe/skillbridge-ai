@@ -18,6 +18,90 @@ export type RoleFamily =
 
 export type ScoreBand = 'poor' | 'borderline' | 'solid' | 'outstanding';
 
+export const INTERVIEW_CRITERION_KEYS = [
+  'correctness',
+  'depth',
+  'application',
+  'relevance',
+  'diagnosis',
+  'reasoning',
+  'tradeoffs',
+  'structure',
+  'clarity',
+  'concision',
+  'evidence',
+  'specificity',
+  'consistency',
+  'ownership',
+  'scope',
+  'seniority_fit',
+] as const;
+
+export type InterviewCriterionKey = (typeof INTERVIEW_CRITERION_KEYS)[number];
+
+export interface InterviewCriterionScore {
+  key: InterviewCriterionKey;
+  /** 0..4 rubric level. The model never emits the final 0..100 score. */
+  score: number;
+  /** Short answer-grounded reason, never raw CV/JD content. */
+  evidence?: string;
+}
+
+export type InterviewScoreSource = 'criterion_rubric' | 'legacy_llm' | 'unscored';
+export type CriterionCoverage = 'complete' | 'partial' | 'missing';
+export type InterviewScoreBasis = 'criterion_rubric' | 'legacy_fallback' | 'mixed' | 'unscored';
+
+type CriterionWeight = Readonly<{
+  key: InterviewCriterionKey;
+  weight: number;
+}>;
+
+const DIMENSION_CRITERIA: Record<Dimension, readonly CriterionWeight[]> = {
+  technical_depth: [
+    { key: 'correctness', weight: 0.45 },
+    { key: 'depth', weight: 0.3 },
+    { key: 'application', weight: 0.15 },
+    { key: 'relevance', weight: 0.1 },
+  ],
+  problem_solving: [
+    { key: 'diagnosis', weight: 0.3 },
+    { key: 'reasoning', weight: 0.3 },
+    { key: 'tradeoffs', weight: 0.25 },
+    { key: 'application', weight: 0.15 },
+  ],
+  communication: [
+    { key: 'structure', weight: 0.4 },
+    { key: 'clarity', weight: 0.35 },
+    { key: 'concision', weight: 0.25 },
+  ],
+  evidence_credibility: [
+    { key: 'evidence', weight: 0.5 },
+    { key: 'specificity', weight: 0.3 },
+    { key: 'consistency', weight: 0.2 },
+  ],
+  role_fit: [
+    { key: 'ownership', weight: 0.35 },
+    { key: 'scope', weight: 0.3 },
+    { key: 'seniority_fit', weight: 0.35 },
+  ],
+};
+
+export function criterionKeysForDimension(dimension: Dimension): InterviewCriterionKey[] {
+  return DIMENSION_CRITERIA[dimension].map(({ key }) => key);
+}
+
+export interface CalibratedAnswerScore {
+  score: number | null;
+  source: InterviewScoreSource;
+  criteriaCoverage: CriterionCoverage;
+  confidence: ScoreUncertainty;
+  missingCriteria: InterviewCriterionKey[];
+  reasons: string[];
+  criteria: InterviewCriterionScore[];
+}
+
+export type CalibratedAnswerScores = Partial<Record<Dimension, CalibratedAnswerScore>>;
+
 /**
  * Role-weighted rubric (spec §2, approved 06-19). Each row sums to 100; HELD IN CODE, never the LLM.
  * Resolved from the CV-JD match's target role-family + seniority band.
@@ -92,11 +176,15 @@ export function resolveRoleFamily(role: string, seniority: string): RoleFamily {
   return 'ic_eng';
 }
 
-/** One LLM-scored answer (Call A output) tagged with the topic phase it was asked under. */
+/** One calibrated answer tagged with the topic phase it was asked under. */
 export interface AnswerScore {
   topic_phase: InterviewPhase;
-  score: number; // 0..100, BARS-calibrated by Call A
+  score: number; // 0..100, derived by code or explicit legacy fallback
   depth_signal: DepthSignal;
+  score_source?: InterviewScoreSource;
+  /** Per-dimension scores for topics that intentionally measure more than one dimension. */
+  dimension_scores?: Partial<Record<Dimension, number | null>>;
+  dimension_score_sources?: Partial<Record<Dimension, InterviewScoreSource>>;
 }
 
 export interface DimensionResult {
@@ -112,6 +200,8 @@ export interface InterviewScore {
   dimensions: DimensionResult[]; // only dimensions with >=1 answer
   role_family: RoleFamily;
   scored_answers: number; // answers that mapped to >=1 dimension (excludes SCREENING/WRAP)
+  /** Present when answer-level provenance was available; omitted for legacy pure-function callers. */
+  score_basis?: InterviewScoreBasis;
 }
 
 const TOPIC_DIMENSIONS: Record<InterviewPhase, Dimension[]> = {
@@ -130,6 +220,131 @@ const DEPTH_WEIGHT: Record<DepthSignal, number> = {
   shallow: 0.5,
   evasive: 0.3,
 };
+
+function validCriterionScore(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 4
+  );
+}
+
+/**
+ * Calibrate one answer from the dimension rubric. The final 0..100 number is code-owned:
+ * criterion scores are weighted by the dimension rubric, then passed through the existing
+ * consistency caps. An incomplete rubric is deliberately unscored instead of being filled with
+ * a plausible-looking number. Legacy sessions may use the explicit low-confidence fallback.
+ */
+export function calibrateInterviewAnswerScore(input: {
+  dimension: Dimension;
+  criteria: InterviewCriterionScore[];
+  legacyScore?: number | null;
+  depthSignal: DepthSignal;
+  offTopic: boolean;
+  claimStatus?: 'ok' | 'partial' | 'wrong';
+}): CalibratedAnswerScore {
+  const required = DIMENSION_CRITERIA[input.dimension];
+  const normalized = input.criteria.filter(
+    (criterion): criterion is InterviewCriterionScore =>
+      required.some(({ key }) => key === criterion.key) && validCriterionScore(criterion.score),
+  );
+  const byKey = new Map(normalized.map((criterion) => [criterion.key, criterion]));
+  const missingCriteria = required.filter(({ key }) => !byKey.has(key)).map(({ key }) => key);
+
+  if (missingCriteria.length > 0) {
+    const criteriaCoverage: CriterionCoverage = byKey.size > 0 ? 'partial' : 'missing';
+    if (
+      byKey.size === 0 &&
+      typeof input.legacyScore === 'number' &&
+      Number.isFinite(input.legacyScore)
+    ) {
+      const reconciled = reconcileAnswerScore({
+        score: Math.max(0, Math.min(100, Math.round(input.legacyScore))),
+        depth_signal: input.depthSignal,
+        off_topic: input.offTopic,
+      });
+      return {
+        score: reconciled.score,
+        source: 'legacy_llm',
+        criteriaCoverage: 'missing',
+        confidence: 'low',
+        missingCriteria,
+        reasons: ['legacy_score_fallback', ...reconciled.reasons],
+        criteria: [],
+      };
+    }
+
+    return {
+      score: null,
+      source: 'unscored',
+      criteriaCoverage,
+      confidence: 'low',
+      missingCriteria,
+      reasons: ['criteria_incomplete'],
+      criteria: normalized,
+    };
+  }
+
+  const weightedScore = required.reduce(
+    (sum, { key, weight }) => sum + (byKey.get(key)?.score ?? 0) * weight,
+    0,
+  );
+  const rawScore = Math.round((weightedScore / 4) * 100);
+  const reconciled = reconcileAnswerScore({
+    score: rawScore,
+    depth_signal: input.depthSignal,
+    off_topic: input.offTopic,
+  });
+  const reasons = [...reconciled.reasons];
+  let score = reconciled.score;
+  if (input.claimStatus === 'wrong' && score > 40) {
+    score = 40;
+    reasons.push('score_capped_wrong_claim');
+  }
+
+  return {
+    score,
+    source: 'criterion_rubric',
+    criteriaCoverage: 'complete',
+    confidence: normalized.every((criterion) => Boolean(criterion.evidence?.trim()))
+      ? 'high'
+      : 'medium',
+    missingCriteria: [],
+    reasons,
+    criteria: normalized,
+  };
+}
+
+/**
+ * Calibrate every dimension attached to a topic independently. A SKILL_PROBE, for example,
+ * measures both technical depth and evidence credibility; reusing the first dimension's score for
+ * both would make the second dimension look assessed when it was never judged.
+ */
+export function calibrateInterviewAnswerScores(input: {
+  dimensions: Dimension[];
+  criteria: InterviewCriterionScore[];
+  legacyScore?: number | null;
+  depthSignal: DepthSignal;
+  offTopic: boolean;
+  claimStatus?: 'ok' | 'partial' | 'wrong';
+}): CalibratedAnswerScores {
+  const uniqueDimensions = [...new Set(input.dimensions)];
+  return Object.fromEntries(
+    uniqueDimensions.map((dimension) => [
+      dimension,
+      calibrateInterviewAnswerScore({
+        dimension,
+        criteria: input.criteria,
+        legacyScore: input.legacyScore,
+        depthSignal: input.depthSignal,
+        offTopic: input.offTopic,
+        claimStatus: input.claimStatus,
+      }),
+    ]),
+  ) as CalibratedAnswerScores;
+}
 
 /** Dimensions a topic phase contributes to (spec §4). SCREENING/WRAP → none. */
 export function topicDimensions(phase: InterviewPhase): Dimension[] {
@@ -167,18 +382,25 @@ export function aggregateInterviewScore(input: {
   const weights = ROLE_RUBRIC_WEIGHTS[role_family];
 
   const acc = new Map<Dimension, { wsum: number; wscore: number }>();
+  const scoreSources = new Set<InterviewScoreSource>();
   let scored_answers = 0;
   for (const a of input.answers) {
     const dims = topicDimensions(a.topic_phase);
     if (dims.length === 0) continue;
-    scored_answers += 1;
     const w = DEPTH_WEIGHT[a.depth_signal] ?? 0.5;
+    let answerWasScored = false;
     for (const d of dims) {
+      const dimensionScore = a.dimension_scores?.[d] ?? a.score;
+      if (typeof dimensionScore !== 'number' || !Number.isFinite(dimensionScore)) continue;
+      answerWasScored = true;
+      const source = a.dimension_score_sources?.[d] ?? a.score_source;
+      if (source) scoreSources.add(source);
       const e = acc.get(d) ?? { wsum: 0, wscore: 0 };
       e.wsum += w;
-      e.wscore += w * a.score;
+      e.wscore += w * dimensionScore;
       acc.set(d, e);
     }
+    if (answerWasScored) scored_answers += 1;
   }
 
   const dimensions: DimensionResult[] = DIMS.filter((d) => acc.has(d) && acc.get(d)!.wsum > 0).map(
@@ -198,7 +420,24 @@ export function aggregateInterviewScore(input: {
     dimensions.reduce((s, d) => s + d.score * d.weight, 0) / (totalWeight || 1),
   );
 
-  return { overall, overall_band: band(overall), dimensions, role_family, scored_answers };
+  const score_basis = scoreSources.size
+    ? scoreSources.has('criterion_rubric') && scoreSources.has('legacy_llm')
+      ? 'mixed'
+      : scoreSources.has('criterion_rubric')
+        ? 'criterion_rubric'
+        : scoreSources.has('legacy_llm')
+          ? 'legacy_fallback'
+          : 'unscored'
+    : undefined;
+
+  return {
+    overall,
+    overall_band: band(overall),
+    dimensions,
+    role_family,
+    scored_answers,
+    ...(score_basis ? { score_basis } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

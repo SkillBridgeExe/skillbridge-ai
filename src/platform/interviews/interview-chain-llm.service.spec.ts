@@ -81,6 +81,42 @@ describe('InterviewChainLlmService.assess', () => {
     );
   });
 
+  it('returns criterion scores as the authoritative scoring source', async () => {
+    const { service } = build({
+      criterion_scores: [
+        { key: 'correctness', score: 3, evidence: 'Explained the cache invalidation path.' },
+        { key: 'depth', score: 2, evidence: 'Named one limitation.' },
+        { key: 'application', score: 3, evidence: 'Connected it to the project.' },
+        { key: 'relevance', score: 4, evidence: 'Stayed on the requested topic.' },
+      ],
+      score: 1,
+      recognized_concepts: ['cache'],
+      depth_signal: 'adequate',
+      claim_status: 'ok',
+      current_thread: 'cache invalidation',
+      gaps_revealed: [],
+      note: '',
+    });
+
+    const output = await service.assess('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 2,
+      language: 'en',
+      seniorityTarget: 'mid',
+      currentTopic: { id: 'topic-cache', display_name: 'Cache' },
+      targetDimension: 'technical_depth',
+      currentThread: 'cache invalidation',
+      drillDepth: 1,
+      recentQa: [],
+    });
+
+    expect(output.scoreSource).toBe('criterion_rubric');
+    expect(output.criterionScores).toHaveLength(4);
+    expect(output.criterionScores[0]).toEqual(
+      expect.objectContaining({ key: 'correctness', score: 3 }),
+    );
+  });
+
   // Speech-delivery counts (filler rate, WPM, pauses, response delay) must never reach the model
   // that produces the BARS score. They are ASR-derived, and ASR word error is highest for accented
   // and non-native speakers — scoring them penalises our candidates for the transcriber's failure.
@@ -182,6 +218,33 @@ describe('InterviewChainLlmService.ask', () => {
       aiMessage: 'Thanks, let us go one level deeper.',
       question: 'What invalidation trade-off did you choose?',
     });
+  });
+
+  it('passes bounded CV/JD context and the no-repeat list to the ask prompt', async () => {
+    const { service, prompts } = build({
+      ai_message: 'Let us go one level deeper.',
+      question: 'What trade-off did you make?',
+    });
+
+    await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'drill',
+      language: 'en',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-react', display_name: 'React' },
+      currentThread: 'React state',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+      interviewContext:
+        'Candidate name: Nguyen An\nEmployer explicitly identified by the JD: FPT Software',
+      avoidQuestions: ['How do you manage state in React?'],
+    });
+
+    const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
+    expect(vars.interview_context).toContain('FPT Software');
+    expect(JSON.parse(String(vars.avoid_questions))).toEqual(['How do you manage state in React?']);
   });
 
   it('passes the drill-ladder focus into the prompt for the given rung', async () => {

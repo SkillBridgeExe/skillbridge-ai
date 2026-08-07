@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { maskPiiDeep } from '../../common/services/pii-mask';
+import { maskPii, maskPiiDeep } from '../../common/services/pii-mask';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../../modules/prompts/prompts.service';
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { DepthSignal, DrillLadderRung, TurnAction } from '../../modules/interview/interview-agenda';
+import {
+  INTERVIEW_CRITERION_KEYS,
+  InterviewCriterionScore,
+  InterviewScoreSource,
+} from '../../modules/interview/interview-scoring';
 
 const PROMPT_ASSESS = 'interview_assess_v1';
 const PROMPT_ASK = 'interview_ask_v1';
@@ -132,6 +137,7 @@ export const INTERVIEW_ASSESS_SCHEMA: Record<string, unknown> = {
   type: 'object',
   additionalProperties: false,
   required: [
+    'criterion_scores',
     'score',
     'recognized_concepts',
     'depth_signal',
@@ -141,7 +147,26 @@ export const INTERVIEW_ASSESS_SCHEMA: Record<string, unknown> = {
     'note',
   ],
   properties: {
-    score: { type: 'number', minimum: 0, maximum: 100 },
+    criterion_scores: {
+      type: 'array',
+      minItems: 1,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['key', 'score', 'evidence'],
+        properties: {
+          key: { type: 'string', enum: [...INTERVIEW_CRITERION_KEYS] },
+          score: { type: 'integer', minimum: 0, maximum: 4 },
+          evidence: { type: 'string', maxLength: 240 },
+        },
+      },
+    },
+    // Compatibility only. Production score is derived from criterion_scores in code.
+    // Strict structured output requires every property to be required, so legacy
+    // callers/models use null when they do not emit a legacy score.
+    score: {
+      anyOf: [{ type: 'number', minimum: 0, maximum: 100 }, { type: 'null' }],
+    },
     recognized_concepts: STRING_ARRAY,
     depth_signal: { type: 'string', enum: ['shallow', 'adequate', 'deep', 'evasive'] },
     claim_status: { type: 'string', enum: ['ok', 'partial', 'wrong'] },
@@ -169,15 +194,22 @@ export interface InterviewAssessInput {
   language: 'vi' | 'en';
   seniorityTarget: string;
   currentTopic: unknown;
-  targetDimension: string;
+  /** All dimensions measured by the current topic. Kept plural so multi-dimensional topics are explicit. */
+  targetDimensions?: string[];
+  /** Legacy compatibility for callers that still provide one dimension. */
+  targetDimension?: string;
   currentThread: string;
   drillDepth: number;
   recentQa: unknown;
+  /** Bounded, PII-masked CV/JD context. The model uses it silently for grounding. */
+  interviewContext?: string;
 }
 
 export interface InterviewAssessOutput {
   aiRequestId: string;
-  score: number;
+  score: number | null;
+  criterionScores: InterviewCriterionScore[];
+  scoreSource: InterviewScoreSource;
   recognizedConcepts: string[];
   depthSignal: DepthSignal;
   claimStatus: ClaimStatus;
@@ -207,6 +239,10 @@ export interface InterviewAskInput {
   demandExample?: boolean;
   /** I-OWN: the last answer described work without measuring it — demand the number. */
   demandMetric?: boolean;
+  /** Bounded, PII-masked CV/JD context. The model uses it silently for grounding. */
+  interviewContext?: string;
+  /** Questions already shown in this session; the platform still verifies the model output. */
+  avoidQuestions?: string[];
 }
 
 /** rung → what the next drill/push question must target (CODE-owned, mirrors the ladder). */
@@ -282,10 +318,15 @@ export class InterviewChainLlmService {
         language: input.language,
         seniority_target: input.seniorityTarget,
         current_topic: JSON.stringify(input.currentTopic),
-        target_dimension: input.targetDimension,
+        target_dimensions: (input.targetDimensions ?? [input.targetDimension].filter(Boolean)).join(
+          ', ',
+        ),
+        // Keep the singular variable for older prompt fixtures/custom templates.
+        target_dimension: input.targetDimension ?? input.targetDimensions?.[0] ?? '',
         current_thread: input.currentThread,
         drill_depth: input.drillDepth,
         recent_qa: JSON.stringify(input.recentQa),
+        interview_context: input.interviewContext ?? '',
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASSESS, promptVars);
@@ -312,7 +353,10 @@ export class InterviewChainLlmService {
         resultType: 'interview_assess',
         rawResponse: maskPiiDeep(llmResult.rawResponse),
         parsedResponse: maskPiiDeep(output),
-        totalScore: output.score,
+        // A criterion rubric is not a final 0..100 score; the platform calibrates it after
+        // combining the independent answer-insight signals. Only legacy payloads have a
+        // trustworthy totalScore at this point in the chain.
+        totalScore: output.scoreSource === 'legacy_llm' ? (output.score ?? undefined) : undefined,
         tokenUsage: llmResult.tokenUsage.totalTokens,
       });
       await this.tracing.completeAiRequest(aiRequestId, {
@@ -367,6 +411,8 @@ export class InterviewChainLlmService {
           : '',
         example_demand_instruction: input.demandExample ? EXAMPLE_DEMAND_INSTRUCTION : '',
         metric_demand_instruction: input.demandMetric ? METRIC_DEMAND_INSTRUCTION : '',
+        interview_context: input.interviewContext ?? '',
+        avoid_questions: JSON.stringify(input.avoidQuestions ?? []),
       });
 
       const userPrompt = this.prompts.render(PROMPT_ASK, promptVars);
@@ -415,9 +461,17 @@ function coerceAssessOutput(aiRequestId: string, parsed: unknown): InterviewAsse
   const raw = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
   const depthSignal = pickDepthSignal(raw.depth_signal);
   const claimStatus = pickClaimStatus(raw.claim_status);
+  const criterionScores = parseCriterionScores(raw.criterion_scores);
   return {
     aiRequestId,
     score: clampScore(raw.score),
+    criterionScores,
+    scoreSource:
+      criterionScores.length > 0
+        ? 'criterion_rubric'
+        : hasNumericScore(raw.score)
+          ? 'legacy_llm'
+          : 'unscored',
     recognizedConcepts: stringArray(raw.recognized_concepts),
     depthSignal,
     claimStatus,
@@ -441,10 +495,42 @@ function coerceAskOutput(
   return sanitizeAskOutput(output, language);
 }
 
-function clampScore(value: unknown): number {
+function clampScore(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
   const number = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(number)) return 0;
+  if (!Number.isFinite(number)) return null;
   return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function hasNumericScore(value: unknown): boolean {
+  return (
+    (typeof value === 'number' || typeof value === 'string') &&
+    String(value).trim().length > 0 &&
+    Number.isFinite(Number(value))
+  );
+}
+
+function parseCriterionScores(value: unknown): InterviewCriterionScore[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>(INTERVIEW_CRITERION_KEYS);
+  const seen = new Set<string>();
+  const result: InterviewCriterionScore[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const key = typeof raw.key === 'string' ? raw.key : '';
+    const score = typeof raw.score === 'number' ? raw.score : Number(raw.score);
+    if (!allowed.has(key) || seen.has(key) || !Number.isInteger(score) || score < 0 || score > 4) {
+      continue;
+    }
+    seen.add(key);
+    result.push({
+      key: key as InterviewCriterionScore['key'],
+      score,
+      evidence: typeof raw.evidence === 'string' ? maskPii(raw.evidence.trim()).slice(0, 240) : '',
+    });
+  }
+  return result;
 }
 
 function pickDepthSignal(value: unknown): DepthSignal {
