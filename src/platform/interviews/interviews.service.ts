@@ -546,6 +546,19 @@ export class InterviewsService {
       jd_terms: this.topicTerms(topic),
       language: this.language(session.language),
     });
+
+    // Persist the candidate's answer before any LLM work. If structured output is truncated,
+    // the finalizer can still recover this turn through ensureTurnAnalysis instead of losing it.
+    const answeredAt = new Date();
+    current.userAnswerText = userAnswer;
+    current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
+    current.modality = dto.modality ?? current.modality;
+    current.answeredAt = answeredAt;
+    current.durationSeconds = dto.durationSeconds ?? null;
+    current.responseDelayMs = dto.responseDelayMs ?? null;
+    current.transcriptSegments = dto.transcriptSegments ?? null;
+    await this.turns.save(current);
+
     const assessmentPromise = this.interviewChain!.assess(userId, {
       sessionId: session.id,
       turnOrder: current.turnOrder,
@@ -916,10 +929,7 @@ export class InterviewsService {
     current.insight = insight;
     current.currentThread = assessment.currentThread || updatedState.current_thread;
     current.skillCanonical = topic.skill_canonical;
-    current.answeredAt = new Date();
-    current.durationSeconds = dto.durationSeconds ?? null;
-    current.responseDelayMs = dto.responseDelayMs ?? null;
-    current.transcriptSegments = dto.transcriptSegments ?? null;
+    current.answeredAt = answeredAt;
     await this.turns.save(current);
 
     let nextTurn: InterviewTurnEntity | null = null;

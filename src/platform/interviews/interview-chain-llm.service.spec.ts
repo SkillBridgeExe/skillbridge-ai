@@ -177,6 +177,38 @@ describe('InterviewChainLlmService.assess', () => {
     expect(traceWrites).not.toContain('candidate@example.com');
     expect(traceWrites).not.toContain('0987');
   });
+
+  it('degrades to an unscored assessment when the structured response is truncated', async () => {
+    const { service, llm, tracing } = build({});
+    llm.complete.mockRejectedValueOnce(
+      new Error('OpenAI returned truncated (finish_reason=length) JSON output'),
+    );
+
+    const output = await service.assess('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 2,
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: { id: 'topic-react', display_name: 'React' },
+      targetDimension: 'technical_depth',
+      currentThread: 'React state',
+      drillDepth: 0,
+      recentQa: [],
+    });
+
+    expect(output).toMatchObject({
+      score: null,
+      scoreSource: 'unscored',
+      recognizedConcepts: [],
+      depthSignal: 'shallow',
+      currentThread: 'React state',
+    });
+    expect(tracing.markFailed).toHaveBeenCalledWith(
+      'ai-request-1',
+      expect.any(Number),
+      expect.objectContaining({ message: expect.stringContaining('truncated') }),
+    );
+  });
 });
 
 describe('InterviewChainLlmService.ask', () => {
@@ -245,6 +277,40 @@ describe('InterviewChainLlmService.ask', () => {
     const vars = prompts.render.mock.calls[0][1] as Record<string, unknown>;
     expect(vars.interview_context).toContain('FPT Software');
     expect(JSON.parse(String(vars.avoid_questions))).toEqual(['How do you manage state in React?']);
+  });
+
+  it('falls back to the code-owned seed question when the structured response is truncated', async () => {
+    const { service, llm, tracing } = build({});
+    llm.complete.mockRejectedValueOnce(
+      new Error('OpenAI returned truncated (finish_reason=length) JSON output'),
+    );
+
+    const output = await service.ask('user-1', {
+      sessionId: 'session-1',
+      turnOrder: 3,
+      decision: 'drill',
+      language: 'vi',
+      seniorityTarget: 'junior',
+      currentTopic: {
+        id: 'topic-react',
+        display_name: 'React',
+        seed_question: 'Bạn quản lý state trong React như thế nào?',
+      },
+      currentThread: 'React state',
+      recentQa: [],
+      runningNotes: [],
+      prevTopicOutcome: '',
+    });
+
+    expect(output).toMatchObject({
+      question: 'Bạn quản lý state trong React như thế nào?',
+      aiMessage: expect.any(String),
+    });
+    expect(tracing.markFailed).toHaveBeenCalledWith(
+      'ai-request-1',
+      expect.any(Number),
+      expect.objectContaining({ message: expect.stringContaining('truncated') }),
+    );
   });
 
   it('passes the drill-ladder focus into the prompt for the given rung', async () => {

@@ -341,7 +341,9 @@ export class InterviewChainLlmService {
           responseSchema: INTERVIEW_ASSESS_SCHEMA,
           temperature: 0,
           seed: ASSESS_SEED,
-          maxOutputTokens: 500,
+          // Four criterion evidence strings plus the thread/gap fields can exceed a small
+          // completion cap. Keep the schema strict, but leave enough room to finish the JSON.
+          maxOutputTokens: 900,
           model: process.env.INTERVIEW_ASSESS_MODEL || 'gpt-4o-mini',
         },
       );
@@ -371,8 +373,22 @@ export class InterviewChainLlmService {
 
       return output;
     } catch (err) {
-      await this.tracing.markFailed(aiRequestId, startedAt, err);
-      throw err;
+      await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
+      // A broken assessment must never discard the candidate's answer or block the interview.
+      // The platform will persist an honest unscored turn and the final report will exclude it
+      // from the numeric aggregate.
+      return {
+        aiRequestId,
+        score: null,
+        criterionScores: [],
+        scoreSource: 'unscored',
+        recognizedConcepts: [],
+        depthSignal: 'shallow',
+        claimStatus: 'ok',
+        currentThread: input.currentThread,
+        gapsRevealed: [],
+        note: 'Assessment unavailable; this answer was stored without a numeric score.',
+      };
     }
   }
 
@@ -425,7 +441,7 @@ export class InterviewChainLlmService {
           provider: 'openai',
           jsonMode: true,
           responseSchema: INTERVIEW_ASK_SCHEMA,
-          maxOutputTokens: 400,
+          maxOutputTokens: 500,
           model,
         },
       );
@@ -451,8 +467,17 @@ export class InterviewChainLlmService {
 
       return output;
     } catch (err) {
-      await this.tracing.markFailed(aiRequestId, startedAt, err);
-      throw err;
+      await this.tracing.markFailed(aiRequestId, startedAt, err).catch(() => undefined);
+      // Keep the interview moving with a code-owned question. The caller marks the turn
+      // low-confidence, while the candidate still gets a valid next turn.
+      return {
+        aiRequestId,
+        aiMessage:
+          input.language === 'vi'
+            ? 'Cảm ơn bạn. Mình hỏi tiếp một câu cụ thể nhé.'
+            : 'Thank you. Let us continue with one specific question.',
+        question: fallbackSeedQuestion(input.currentTopic, input.language),
+      };
     }
   }
 }
@@ -493,6 +518,16 @@ function coerceAskOutput(
     question: stringValue(raw.question),
   };
   return sanitizeAskOutput(output, language);
+}
+
+function fallbackSeedQuestion(currentTopic: unknown, language: 'vi' | 'en'): string {
+  if (currentTopic && typeof currentTopic === 'object' && !Array.isArray(currentTopic)) {
+    const seed = (currentTopic as Record<string, unknown>).seed_question;
+    if (typeof seed === 'string' && seed.trim()) return seed.trim();
+  }
+  return language === 'vi'
+    ? 'Bạn có thể chia sẻ một ví dụ cụ thể về phần này không?'
+    : 'Could you share one concrete example about this?';
 }
 
 function clampScore(value: unknown): number | null {
