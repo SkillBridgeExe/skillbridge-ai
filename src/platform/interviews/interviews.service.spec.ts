@@ -1800,6 +1800,155 @@ describe('InterviewsService', () => {
     expect(interviewAi.answer).not.toHaveBeenCalled();
   });
 
+  it('keeps an incomplete REST answer on the current topic instead of jumping to database', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { answer: jest.fn() };
+    const chain = {
+      assess: jest.fn(async () => ({
+        aiRequestId: 'ai-assess-adaptive-grounding',
+        score: null,
+        criterionScores: [],
+        scoreSource: 'unscored',
+        recognizedConcepts: ['REST API'],
+        depthSignal: 'deep',
+        claimStatus: 'partial',
+        currentThread: 'database selection',
+        gapsRevealed: [],
+        note: 'The answer needs a more specific diagnostic sequence.',
+      })),
+      ask: jest.fn(async () => ({
+        aiRequestId: 'ai-ask-adaptive-grounding',
+        aiMessage: 'Let us move to database choices.',
+        question: 'Why would you choose PostgreSQL over another database?',
+      })),
+    };
+    const insight = {
+      talking_point: 'skill',
+      relevance: 60,
+      clarity: 'adequate',
+      off_topic: false,
+      confidence_tone: 'calibrated',
+      evidence_quality: 'thin',
+      note: 'Relevant but incomplete.',
+      has_specific_example: false,
+      star_present: { situation: false, task: false, action: true, result: false },
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
+      { createClientSecret: jest.fn() } as never,
+      undefined,
+      undefined,
+      chain as never,
+      { judge: jest.fn(async () => insight) } as never,
+      {} as never,
+    );
+    const session = {
+      id: 'session-adaptive-grounding',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'en',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      expiresAt: new Date('2099-06-12T00:00:00.000Z'),
+      agenda: {
+        turn_budget: 10,
+        uncovered: [],
+        topics: [
+          {
+            id: 'topic-rest-api',
+            phase: 'JD_REQUIREMENT',
+            skill_canonical: 'rest_api',
+            display_name: 'REST API',
+            seniority_target: 'junior',
+            drill_budget: 3,
+            what_to_probe: 'REST API incident diagnosis',
+            seed_question: 'How do you diagnose a REST API failure?',
+          },
+          {
+            id: 'topic-database',
+            phase: 'JD_REQUIREMENT',
+            skill_canonical: 'database_design',
+            display_name: 'Database Design',
+            seniority_target: 'junior',
+            drill_budget: 2,
+            what_to_probe: 'schema trade-offs',
+            seed_question: 'How did you design a database schema?',
+          },
+        ],
+      },
+      interviewState: {
+        current_phase: 'JD_REQUIREMENT',
+        current_topic_id: 'topic-rest-api',
+        drill_depth: 0,
+        current_thread: 'REST API incident diagnosis',
+        running_notes: [],
+        covered_topic_ids: [],
+        uncovered_topic_ids: [],
+        turns_used: 1,
+        evasive_streak: 0,
+      },
+    };
+    const currentTurn = {
+      id: 'turn-adaptive-grounding',
+      sessionId: session.id,
+      turnOrder: 2,
+      phase: 'JD_REQUIREMENT',
+      topicPhase: 'JD_REQUIREMENT',
+      skillCanonical: 'rest_api',
+      currentThread: 'REST API incident diagnosis',
+      modality: 'AUDIO',
+      interviewerQuestion: 'When a REST API fails, how do you diagnose and fix it?',
+      userAnswerText: null,
+      createdAt: new Date('2026-06-12T00:00:02.000Z'),
+      askedAt: new Date('2026-06-12T00:00:02.000Z'),
+    };
+    sessions.findOne.mockResolvedValue(session);
+    turns.find.mockResolvedValue([]);
+    turns.findOne
+      .mockResolvedValueOnce(currentTurn as unknown as InterviewTurnEntity)
+      .mockResolvedValueOnce(currentTurn as unknown as InterviewTurnEntity);
+    turns.save.mockImplementation(async (value) => ({
+      ...value,
+      id: value.id ?? 'turn-next-adaptive-grounding',
+      askedAt: new Date('2026-06-12T00:02:00.000Z'),
+      createdAt: new Date('2026-06-12T00:02:00.000Z'),
+    }));
+    sessions.save.mockImplementation(async (value) => value);
+
+    const response = await service.answer(userId, {
+      sessionId: session.id,
+      userAnswer: 'I inspect the logs, find the failing endpoint, and fix the backend issue.',
+      modality: 'AUDIO',
+      durationSeconds: 42,
+    });
+
+    expect(response.turnDecision).toBe('continue_topic');
+    expect(response.nextTurn).toMatchObject({
+      currentThread: 'REST API incident diagnosis',
+      interviewerQuestion: expect.stringContaining('REST API incident diagnosis'),
+      interviewerMessage: 'Thank you. I will stay with that point and ask one deeper question.',
+    });
+    expect(response.nextTurn?.interviewerQuestion).not.toContain('PostgreSQL');
+    expect(chain.ask).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({
+        decision: 'drill',
+        currentTopic: expect.objectContaining({ id: 'topic-rest-api' }),
+        currentThread: 'REST API incident diagnosis',
+      }),
+    );
+    expect(response.turnTrace?.reasons).toContain('thread_grounding_fallback');
+  });
+
   it('does not finish just because the soft turn budget is reached while time remains', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -2178,7 +2327,7 @@ describe('InterviewsService', () => {
       durationSeconds: 30,
     });
 
-    expect(response.turnTrace?.reasons).toContain('generic_follow_up_risk');
+    expect(response.turnTrace?.reasons).toContain('generic_follow_up_replaced');
   });
 
   it('labels the turn trace low-confidence when the chain gives no question and the seed question is used', async () => {

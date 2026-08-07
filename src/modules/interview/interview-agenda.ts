@@ -344,9 +344,9 @@ export function drillLadderRung(
 /**
  * Anti-template guard (I-REAL-2): a drill/push follow-up must reuse at least one content term
  * from the candidate's answer / current thread / topic terms — a question with zero overlap is
- * template-shaped ("tell me about your strengths") and gets flagged in the turn trace. Same
- * tokenizer and honest ASCII limits as filterRecognizedConcepts; overlap is a narrowing signal,
- * not proof of quality.
+ * template-shaped ("tell me about your strengths"). The runtime records the risk and replaces
+ * the question with a code-owned, topic-grounded fallback. Same tokenizer and honest ASCII
+ * limits as filterRecognizedConcepts; overlap is a narrowing signal, not proof of quality.
  */
 export function isGroundedFollowUp(question: string, contextTexts: string[]): boolean {
   const contextTokens = new Set(contextTexts.flatMap(tokenizeConcept));
@@ -354,6 +354,56 @@ export function isGroundedFollowUp(question: string, contextTexts: string[]): bo
   return tokenizeConcept(question).some(
     (token) => token.length >= 4 && !GAP_FILLER.has(token) && contextTokens.has(token),
   );
+}
+
+export interface GroundInterviewThreadInput {
+  proposed_thread: string;
+  previous_thread: string;
+  answer: string;
+  question: string;
+  topic: string;
+}
+
+export interface GroundInterviewThreadResult {
+  thread: string;
+  accepted: boolean;
+}
+
+/**
+ * Keep the model from moving the conversation to an unrelated sub-topic. The proposed thread is
+ * accepted only when it shares a substantive term with the turn being assessed. A stale or
+ * hallucinated thread falls back to the previous grounded thread, then the current topic.
+ */
+export function groundInterviewThread(
+  input: GroundInterviewThreadInput,
+): GroundInterviewThreadResult {
+  const context = [input.answer, input.question, input.topic];
+  const proposed = input.proposed_thread.trim();
+  if (proposed && isGroundedFollowUp(proposed, context)) {
+    return { thread: proposed, accepted: true };
+  }
+
+  const previous = input.previous_thread.trim();
+  if (previous && isGroundedFollowUp(previous, context)) {
+    return { thread: previous, accepted: false };
+  }
+
+  return { thread: input.topic.trim(), accepted: false };
+}
+
+/**
+ * A topic transition is not a reward for a model label alone. Wrong/partial/off-topic answers
+ * get one fair, topic-local challenge while the topic still has an allocated follow-up slot.
+ */
+export function shouldChallengeBeforeAdvance(input: {
+  claim_status: 'ok' | 'partial' | 'wrong';
+  off_topic: boolean;
+  drill_depth: number;
+  drill_budget: number;
+}): boolean {
+  const answerNeedsChallenge = input.off_topic || input.claim_status !== 'ok';
+  const followUpAvailable = input.drill_depth < input.drill_budget - 1;
+  return answerNeedsChallenge && followUpAvailable;
 }
 
 // ---------------------------------------------------------------------------
