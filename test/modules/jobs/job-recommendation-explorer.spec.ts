@@ -51,15 +51,21 @@ function recommendation(id: string, over: Partial<JobRecommendation> = {}): JobR
 }
 
 describe('Job Explorer deterministic sorting', () => {
-  it('keeps recommendation rank as the default order', () => {
+  it('sorts recommended jobs by recommendation score, then skill score, then rank', () => {
     const rows = [
-      recommendation('rank-2', { rank: 2, match_score: 99 }),
-      recommendation('rank-1', { rank: 1, match_score: 40 }),
+      recommendation('lower-score', { rank: 1, recommendation_score: 45, match_score: 80 }),
+      recommendation('top-score', { rank: 3, recommendation_score: 80, match_score: 80 }),
+      recommendation('same-score-lower-skill', {
+        rank: 1,
+        recommendation_score: 80,
+        match_score: 70,
+      }),
     ];
 
     expect(sortJobRecommendations(rows, 'RECOMMENDED').map((row) => row.job_id)).toEqual([
-      'rank-1',
-      'rank-2',
+      'top-score',
+      'same-score-lower-skill',
+      'lower-score',
     ]);
   });
 
