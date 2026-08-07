@@ -1417,20 +1417,26 @@ describe('InterviewsService', () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
     const interviewAi = { answer: jest.fn() };
+    const events: string[] = [];
     const chain = {
-      assess: jest.fn(async () => ({
-        aiRequestId: 'ai-assess-1',
-        score: 76,
-        recognizedConcepts: ['React Query'],
-        depthSignal: 'adequate',
-        claimStatus: 'partial',
-        currentThread: 'React Query cache invalidation',
-        gapsRevealed: [
-          'Shallow on React Query cache invalidation triggers',
-          'No mention of Kafka partitioning',
-        ],
-        note: 'Mentioned cache invalidation.',
-      })),
+      assess: jest.fn(async () => {
+        events.push('assess');
+        return {
+          aiRequestId: 'ai-assess-1',
+          score: 76,
+          criterionScores: [],
+          scoreSource: 'legacy_llm',
+          recognizedConcepts: ['React Query'],
+          depthSignal: 'adequate',
+          claimStatus: 'partial',
+          currentThread: 'React Query cache invalidation',
+          gapsRevealed: [
+            'Shallow on React Query cache invalidation triggers',
+            'No mention of Kafka partitioning',
+          ],
+          note: 'Mentioned cache invalidation.',
+        };
+      }),
       ask: jest.fn(async () => ({
         aiRequestId: 'ai-ask-1',
         aiMessage: 'Cảm ơn bạn, mình hỏi tiếp nhé.',
@@ -1530,12 +1536,15 @@ describe('InterviewsService', () => {
     turns.findOne
       .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity)
       .mockResolvedValueOnce(pendingTurn as unknown as InterviewTurnEntity);
-    turns.save.mockImplementation(async (value) => ({
-      ...value,
-      id: value.id ?? 'turn-2',
-      askedAt: new Date('2026-06-12T00:01:00.000Z'),
-      createdAt: new Date('2026-06-12T00:01:00.000Z'),
-    }));
+    turns.save.mockImplementation(async (value) => {
+      if (value.userAnswerText) events.push('save-answer');
+      return {
+        ...value,
+        id: value.id ?? 'turn-2',
+        askedAt: new Date('2026-06-12T00:01:00.000Z'),
+        createdAt: new Date('2026-06-12T00:01:00.000Z'),
+      };
+    });
 
     const response = await service.answer(userId, {
       sessionId: 'session-1',
@@ -1546,6 +1555,8 @@ describe('InterviewsService', () => {
     });
 
     expect(interviewAi.answer).not.toHaveBeenCalled();
+    expect(events.indexOf('save-answer')).toBeGreaterThanOrEqual(0);
+    expect(events.indexOf('save-answer')).toBeLessThan(events.indexOf('assess'));
     expect(chain.assess).toHaveBeenCalledWith(
       userId,
       expect.objectContaining({
