@@ -146,6 +146,18 @@ describe('aggregateInterviewScore', () => {
     expect(out.role_family).toBe('ic_eng');
   });
 
+  it('labels the final basis when calibrated and legacy answers are mixed', () => {
+    const out = aggregateInterviewScore({
+      answers: [
+        ans({ score: 80, score_source: 'criterion_rubric' }),
+        ans({ topic_phase: 'SCENARIO', score: 60, score_source: 'legacy_llm' }),
+      ],
+      role: 'backend_developer',
+      seniority: 'mid',
+    });
+    expect(out.score_basis).toBe('mixed');
+  });
+
   it('weights differ by role family: a manager weights communication far higher than an IC', () => {
     const answers: AnswerScore[] = [
       ans({ topic_phase: 'SKILL_PROBE', score: 40, depth_signal: 'deep' }),

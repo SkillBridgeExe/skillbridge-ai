@@ -336,7 +336,13 @@ export interface AnswerInterviewResponseDto {
     | 'adaptive_follow_up'
     | 'closing_prompt'
     | 'finish';
-  finishReason?: 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
+  finishReason?:
+    | 'TIME_LIMIT'
+    | 'USER_REQUEST'
+    | 'SAFETY_CAP'
+    | 'AGENDA_COMPLETE'
+    | 'QUALITY_GUARD'
+    | null;
   nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
   /**
    * Wave I-REAL: WHY the engine picked this turn action — compact reason slugs, never the prompt

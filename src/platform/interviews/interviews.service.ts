@@ -62,8 +62,10 @@ import {
 import { AnswerInsight } from '../../modules/interview/answer-insight';
 import { AnswerInsightService } from '../../modules/interview/answer-insight.service';
 import {
+  calibrateInterviewAnswerScores,
+  CalibratedAnswerScores,
+  CalibratedAnswerScore,
   explainInterviewScore,
-  reconcileAnswerScore,
   reconcileDepthSignal,
   Dimension,
   InterviewScore,
@@ -73,6 +75,12 @@ import {
   AnswerGapContext,
   deriveInterviewGaps,
 } from '../../modules/interview/interview-gap-derive';
+import {
+  buildInterviewOpening,
+  InterviewIdentity,
+  isRepeatedInterviewQuestion,
+  resolveInterviewIdentity,
+} from '../../modules/interview/interview-context';
 import { groundInterviewGaps } from '../../modules/interview/interview-gap';
 import { buildUnifiedPlan, UnifiedDevelopmentPlan } from '../../modules/gap-report/unified-plan';
 import { GapItem } from '../../modules/gap-engine/gap-item';
@@ -174,6 +182,9 @@ export function formatGapFocusForPrompt(focusAreas: InterviewFocusArea[]): strin
 
 interface InterviewContextSnapshot {
   contextMode: InterviewContextMode;
+  identity?: InterviewIdentity;
+  /** Masked, bounded CV/JD grounding kept for subsequent turns and realtime reconnects. */
+  interviewContext?: string;
   cv: { id: string; title: string | null; targetRole: string | null } | null;
   jobDescription: { id: string; title: string | null; sourceType: string | null } | null;
   cvMatch: {
@@ -189,6 +200,7 @@ interface InterviewContextSnapshot {
 
 interface InterviewContext {
   contextMode: InterviewContextMode;
+  identity: InterviewIdentity;
   cv: CvEntity | null;
   match: CvMatchEntity | null;
   jd: JobDescriptionEntity | null;
@@ -220,6 +232,16 @@ interface FinalizedTurnAnalysis {
   depthSignal: DepthSignal | null;
   signals: AnswerSignals;
   insight: AnswerInsight;
+  scoreAssessments: CalibratedAnswerScores;
+  scoreAssessment: CalibratedAnswerScore | null;
+}
+
+function averageCalibratedScores(scores: CalibratedAnswerScores): number | null {
+  const values = Object.values(scores)
+    .map((assessment) => assessment.score)
+    .filter((score): score is number => typeof score === 'number' && Number.isFinite(score));
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, score) => sum + score, 0) / values.length);
 }
 
 type InterviewDifficultyLevel = 'intern' | 'fresher' | 'junior' | 'mid' | 'senior' | 'lead';
@@ -230,7 +252,13 @@ type InterviewTurnDecision =
   | 'adaptive_follow_up'
   | 'closing_prompt'
   | 'finish';
-type InterviewFinishReason = 'TIME_LIMIT' | 'USER_REQUEST' | 'SAFETY_CAP' | null;
+type InterviewFinishReason =
+  | 'TIME_LIMIT'
+  | 'USER_REQUEST'
+  | 'SAFETY_CAP'
+  | 'AGENDA_COMPLETE'
+  | 'QUALITY_GUARD'
+  | null;
 type InterviewNextQuestionKind = 'opening' | 'follow_up' | 'transition' | 'closing' | null;
 
 interface InterviewDifficultyProfile {
@@ -363,7 +391,9 @@ export class InterviewsService {
       let firstMessage = '';
       let firstQuestion = '';
       let phase: StartInterviewResponseDto['phase'] = null;
-      firstMessage = this.openingInterviewerMessage(language);
+      // The identity line is code-owned: the model may phrase the question, but it must not
+      // invent a candidate name or employer in the first impression.
+      firstMessage = buildInterviewOpening(context.identity, language);
       firstQuestion = firstTopic.seed_question;
       let openerAiRequestId: string | null = null;
       if (this.interviewChain) {
@@ -383,11 +413,11 @@ export class InterviewsService {
             runningNotes: [],
             prevTopicOutcome: '',
             topicPhase: firstTopic.phase,
+            interviewContext: context.promptContext,
           });
           if (opener.question) {
             firstQuestion = opener.question;
             openerAiRequestId = opener.aiRequestId;
-            if (opener.aiMessage) firstMessage = opener.aiMessage;
           }
         } catch (err) {
           this.logger.warn(
@@ -505,8 +535,11 @@ export class InterviewsService {
       });
     }
 
-    const targetDimension = this.primaryDimension(topic.phase);
+    const targetDimensions = topicDimensions(topic.phase);
+    const targetDimension = targetDimensions[0] ?? 'communication';
+    const rubricDimensions = targetDimensions.length > 0 ? targetDimensions : [targetDimension];
     const recentQa = this.questionHistory(answerContext.historyTurns, current, userAnswer);
+    const interviewContext = this.interviewContextForSession(session);
     const signals = analyzeAnswerSignals({
       answer: userAnswer,
       question: current.interviewerQuestion,
@@ -519,10 +552,12 @@ export class InterviewsService {
       language: this.language(session.language),
       seniorityTarget: topic.seniority_target,
       currentTopic: this.topicForPrompt(topic),
+      targetDimensions: rubricDimensions,
       targetDimension,
       currentThread: state.current_thread || topic.what_to_probe,
       drillDepth: state.drill_depth,
       recentQa,
+      interviewContext,
     });
     const insightPromise = this.answerInsight!.judge(
       {
@@ -544,12 +579,27 @@ export class InterviewsService {
       depth_signal: assessment.depthSignal,
       is_too_short: signals.flags.is_too_short,
     });
-    const scoreGuard = reconcileAnswerScore({
-      score: assessment.score,
-      depth_signal: depthGuard.depth_signal,
-      off_topic: insight.off_topic,
+    const scoreAssessments = calibrateInterviewAnswerScores({
+      dimensions: rubricDimensions,
+      criteria: assessment.criterionScores ?? [],
+      legacyScore:
+        assessment.scoreSource === 'criterion_rubric' || assessment.scoreSource === 'unscored'
+          ? null
+          : assessment.score,
+      depthSignal: depthGuard.depth_signal,
+      offTopic: insight.off_topic,
+      claimStatus: assessment.claimStatus,
     });
-    const guardReasons = [...depthGuard.reasons, ...scoreGuard.reasons];
+    const scoreAssessment = scoreAssessments[targetDimension] ?? null;
+    const perQuestionScore = averageCalibratedScores(scoreAssessments);
+    const guardReasons = [
+      ...depthGuard.reasons,
+      ...new Set(
+        Object.values(scoreAssessments).flatMap((item) =>
+          item.reasons.filter((reason) => reason !== 'legacy_score_fallback'),
+        ),
+      ),
+    ];
 
     const nextState = this.advanceStateBeforeDecision(state, assessment);
     const secondsRemaining = this.secondsRemaining(session);
@@ -624,139 +674,214 @@ export class InterviewsService {
         turnTrace = { ...turnTrace, action: 'wrap', reasons: ['time_low_closing_question'] };
       } else {
         const exhaustedTopics = rawAction === 'advance' && !nextTopic;
-        action = rawAction === 'wrap' || exhaustedTopics ? 'drill' : rawAction;
-        askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
-        updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
-        turnDecision =
-          action === 'advance'
-            ? 'advance_topic'
-            : exhaustedTopics
-              ? 'adaptive_follow_up'
-              : 'continue_topic';
-        nextQuestionKind = action === 'advance' ? 'transition' : 'follow_up';
-        if (action !== rawAction) {
-          // decision was overridden to keep the interview coherent — trace must say so.
-          turnTrace = {
-            ...turnTrace,
-            action: 'drill',
-            reasons: [
-              ...turnTrace.reasons,
-              exhaustedTopics ? 'topics_exhausted_adaptive_follow_up' : 'wrap_deferred_follow_up',
-            ],
-          };
-        }
-      }
-
-      // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
-      // derived from the follow-up count on this topic (first follow-up = application, then
-      // tradeoff; early-career gets reflection in between).
-      // I-OWN: a collective answer ("we…" with never an "I") overrides the depth rung — a real
-      // interviewer stops climbing and asks whose call it actually was. Asked at most ONCE per
-      // session (see InterviewState.ownership_probed): repeating it every turn would badger the
-      // plural-speaking candidate and stall the ladder. SCENARIO is exempt: the incident chain
-      // owns its own follow-up shape.
-      const collectiveAnswer =
-        signals.ownership.collective_answer &&
-        askTopic.phase !== 'SCENARIO' &&
-        !updatedState.ownership_probed;
-      const ladderRung =
-        action === 'drill' || action === 'push_harder'
-          ? drillLadderRung(state.drill_depth, askTopic.seniority_target, { collectiveAnswer })
-          : null;
-      if (ladderRung) {
-        turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
-      }
-      if (ladderRung === 'decision_ownership') {
-        updatedState = { ...updatedState, ownership_probed: true };
-        turnTrace = {
-          ...turnTrace,
-          reasons: [...turnTrace.reasons, 'demand_individual_contribution'],
-        };
-      }
-
-      // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
-      // a drill with nothing concrete to anchor on demands one real example instead.
-      // SCENARIO is exempt — the incident chain owns the follow-up shape there.
-      if ((action === 'drill' || action === 'push_harder') && askTopic.phase !== 'SCENARIO') {
-        drillAnchor = pickDrillAnchor({
-          answer: userAnswer,
-          recognized_concepts: recognized,
-          jd_terms: this.topicTerms(askTopic),
-          probed_anchors: updatedState.probed_anchors ?? [],
-        }).anchor;
-        if (drillAnchor) {
+        if (rawAction === 'wrap') {
+          // `wrap` is a terminal decision. The old implementation converted it into another
+          // drill, which made the candidate answer one more question even after the engine had
+          // explicitly decided to close. A real interviewer closes instead of silently moving
+          // the goalposts.
+          action = 'wrap';
+          askTopic = topic;
           updatedState = {
-            ...updatedState,
-            probed_anchors: [...(updatedState.probed_anchors ?? []), drillAnchor],
+            ...nextState,
+            current_phase: 'WRAP',
+            current_thread: 'interview wrap-up',
           };
+          turnDecision = 'finish';
+          finishReason = 'SAFETY_CAP';
+          nextQuestionKind = null;
           turnTrace = {
             ...turnTrace,
-            reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
+            action: 'wrap',
+            reasons: [...turnTrace.reasons, 'wrap_requested_terminal'],
           };
-        } else if (ladderRung !== 'decision_ownership' && signals.flags.no_concrete_example) {
-          demandExample = true;
-          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'demand_concrete_example'] };
+        } else if (exhaustedTopics) {
+          // `advance` with no next topic means the deterministic agenda is complete. Do not
+          // manufacture an adaptive follow-up on the last topic; that was the source of the
+          // repeated-question loop reported in production smoke tests.
+          action = 'advance';
+          askTopic = topic;
+          updatedState = {
+            ...nextState,
+            current_phase: 'WRAP',
+            current_thread: 'agenda complete',
+            covered_topic_ids: [...new Set([...nextState.covered_topic_ids, topic.id])],
+          };
+          turnDecision = 'finish';
+          finishReason = 'AGENDA_COMPLETE';
+          nextQuestionKind = null;
+          turnTrace = {
+            ...turnTrace,
+            action: 'wrap',
+            reasons: [...turnTrace.reasons, 'agenda_complete_terminal'],
+          };
+        } else {
+          action = rawAction;
+          askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
+          updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
+          turnDecision = action === 'advance' ? 'advance_topic' : 'continue_topic';
+          nextQuestionKind = action === 'advance' ? 'transition' : 'follow_up';
         }
-        // I-OWN: they described the work on a how/why rung but never measured it — the follow-up
-        // asks for the number. One demand per question: ownership and example-demand both win.
-        // Two things must be true before it is a FAIR ask, and the instruction asserts both:
-        //  - the answer actually described work — a too-short answer owes detail, not a metric
-        //    (the same is_too_short the I-CONSIST depth guard already trusts);
-        //  - the topic is technical — a STAR failure story on BEHAVIORAL has no before/after
-        //    number to give, so demanding one is a category error, not a probe.
-        if (
-          !demandExample &&
-          ladderRung &&
-          METRIC_DEMAND_RUNGS.has(ladderRung) &&
-          askTopic.phase !== 'BEHAVIORAL'
-        ) {
-          demandMetric = !signals.is_quantified && !signals.flags.is_too_short;
-          if (demandMetric) {
+      }
+
+      if (turnDecision !== 'finish') {
+        // I-REAL-2: which ladder rung the next drill/push question must target — code-owned,
+        // derived from the follow-up count on this topic (first follow-up = application, then
+        // tradeoff; early-career gets reflection in between).
+        // I-OWN: a collective answer ("we…" with never an "I") overrides the depth rung — a real
+        // interviewer stops climbing and asks whose call it actually was. Asked at most ONCE per
+        // session (see InterviewState.ownership_probed): repeating it every turn would badger the
+        // plural-speaking candidate and stall the ladder. SCENARIO is exempt: the incident chain
+        // owns its own follow-up shape.
+        const collectiveAnswer =
+          signals.ownership.collective_answer &&
+          askTopic.phase !== 'SCENARIO' &&
+          !updatedState.ownership_probed;
+        const ladderRung =
+          action === 'drill' || action === 'push_harder'
+            ? drillLadderRung(state.drill_depth, askTopic.seniority_target, { collectiveAnswer })
+            : null;
+        if (ladderRung) {
+          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, `ladder_${ladderRung}`] };
+        }
+        if (ladderRung === 'decision_ownership') {
+          updatedState = { ...updatedState, ownership_probed: true };
+          turnTrace = {
+            ...turnTrace,
+            reasons: [...turnTrace.reasons, 'demand_individual_contribution'],
+          };
+        }
+
+        // I-INTEL: anchor the drill/push on a concept from THIS answer (never re-drill one);
+        // a drill with nothing concrete to anchor on demands one real example instead.
+        // SCENARIO is exempt — the incident chain owns the follow-up shape there.
+        if ((action === 'drill' || action === 'push_harder') && askTopic.phase !== 'SCENARIO') {
+          drillAnchor = pickDrillAnchor({
+            answer: userAnswer,
+            recognized_concepts: recognized,
+            jd_terms: this.topicTerms(askTopic),
+            probed_anchors: updatedState.probed_anchors ?? [],
+          }).anchor;
+          if (drillAnchor) {
+            updatedState = {
+              ...updatedState,
+              probed_anchors: [...(updatedState.probed_anchors ?? []), drillAnchor],
+            };
             turnTrace = {
               ...turnTrace,
-              reasons: [...turnTrace.reasons, 'demand_measurable_outcome'],
+              reasons: [...turnTrace.reasons, anchorTraceSlug(drillAnchor)],
+            };
+          } else if (ladderRung !== 'decision_ownership' && signals.flags.no_concrete_example) {
+            demandExample = true;
+            turnTrace = {
+              ...turnTrace,
+              reasons: [...turnTrace.reasons, 'demand_concrete_example'],
             };
           }
+          // I-OWN: they described the work on a how/why rung but never measured it — the follow-up
+          // asks for the number. One demand per question: ownership and example-demand both win.
+          // Two things must be true before it is a FAIR ask, and the instruction asserts both:
+          //  - the answer actually described work — a too-short answer owes detail, not a metric
+          //    (the same is_too_short the I-CONSIST depth guard already trusts);
+          //  - the topic is technical — a STAR failure story on BEHAVIORAL has no before/after
+          //    number to give, so demanding one is a category error, not a probe.
+          if (
+            !demandExample &&
+            ladderRung &&
+            METRIC_DEMAND_RUNGS.has(ladderRung) &&
+            askTopic.phase !== 'BEHAVIORAL'
+          ) {
+            demandMetric = !signals.is_quantified && !signals.flags.is_too_short;
+            if (demandMetric) {
+              turnTrace = {
+                ...turnTrace,
+                reasons: [...turnTrace.reasons, 'demand_measurable_outcome'],
+              };
+            }
+          }
         }
-      }
 
-      nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
-      ask = await this.interviewChain!.ask(userId, {
-        sessionId: session.id,
-        turnOrder: nextTurnOrder,
-        decision: action,
-        language: this.language(session.language),
-        seniorityTarget: askTopic.seniority_target,
-        currentTopic: this.topicForPrompt(askTopic),
-        currentThread: updatedState.current_thread,
-        recentQa,
-        runningNotes: updatedState.running_notes,
-        prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
-        ladderRung,
-        topicPhase: askTopic.phase,
-        drillAnchor,
-        demandExample,
-        demandMetric,
-      });
-      if (!ask.question) {
-        // the chain gave no question → the seed question is asked instead (see nextQuestion
-        // below). Label it honestly: low-confidence fallback, never a silent degrade.
-        turnTrace = {
-          ...turnTrace,
-          confidence: 'low',
-          reasons: [...turnTrace.reasons, 'fallback_seed_question'],
-        };
-      } else if (action === 'drill' || action === 'push_harder') {
-        // I-REAL-2 anti-template guard: a follow-up that shares no content term with the
-        // candidate's answer/thread/topic is template-shaped — flag it (observability only).
-        const grounded = isGroundedFollowUp(ask.question, [
-          userAnswer,
-          updatedState.current_thread,
-          askTopic.display_name,
-          ...this.topicTerms(askTopic),
-        ]);
-        if (!grounded) {
-          turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'generic_follow_up_risk'] };
+        nextTurnOrder = await this.nextTurnOrder(session.id, current.turnOrder);
+        const previousQuestions = recentQa.map((item) => item.question);
+        ask = await this.interviewChain!.ask(userId, {
+          sessionId: session.id,
+          turnOrder: nextTurnOrder,
+          decision: action,
+          language: this.language(session.language),
+          seniorityTarget: askTopic.seniority_target,
+          currentTopic: this.topicForPrompt(askTopic),
+          currentThread: updatedState.current_thread,
+          recentQa,
+          runningNotes: updatedState.running_notes,
+          prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
+          ladderRung,
+          topicPhase: askTopic.phase,
+          drillAnchor,
+          demandExample,
+          demandMetric,
+          interviewContext,
+          avoidQuestions: previousQuestions,
+        });
+        if (ask.question && isRepeatedInterviewQuestion(ask.question, previousQuestions)) {
+          // A repetition is a quality failure, not a reason to expose the candidate to another
+          // identical turn. Give the model one grounded retry with the offending wording included
+          // in the avoid-list, then use a code-owned fallback if it still ignores the guard.
+          turnTrace = {
+            ...turnTrace,
+            confidence: 'low',
+            reasons: [...turnTrace.reasons, 'question_repetition_retry'],
+          };
+          let retry: Awaited<ReturnType<InterviewChainLlmService['ask']>> | null = null;
+          try {
+            retry = await this.interviewChain!.ask(userId, {
+              sessionId: session.id,
+              turnOrder: nextTurnOrder,
+              decision: action,
+              language: this.language(session.language),
+              seniorityTarget: askTopic.seniority_target,
+              currentTopic: this.topicForPrompt(askTopic),
+              currentThread: updatedState.current_thread,
+              recentQa,
+              runningNotes: updatedState.running_notes,
+              prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
+              ladderRung,
+              topicPhase: askTopic.phase,
+              drillAnchor,
+              demandExample,
+              demandMetric,
+              interviewContext,
+              avoidQuestions: [...previousQuestions, ask.question],
+            });
+          } catch (error) {
+            this.logger.warn(
+              `Question repetition retry failed for session ${session.id}; using deterministic fallback: ${(error as Error).message}`,
+            );
+          }
+          if (retry?.question && !isRepeatedInterviewQuestion(retry.question, previousQuestions)) {
+            ask = retry;
+          } else {
+            ask = { ...(retry ?? ask), question: '' };
+          }
+        }
+        if (!ask.question) {
+          // the chain gave no question → the seed question is asked instead (see nextQuestion
+          // below). Label it honestly: low-confidence fallback, never a silent degrade.
+          turnTrace = {
+            ...turnTrace,
+            confidence: 'low',
+            reasons: [...turnTrace.reasons, 'fallback_seed_question'],
+          };
+        } else if (action === 'drill' || action === 'push_harder') {
+          // I-REAL-2 anti-template guard: a follow-up that shares no content term with the
+          // candidate's answer/thread/topic is template-shaped — flag it (observability only).
+          const grounded = isGroundedFollowUp(ask.question, [
+            userAnswer,
+            updatedState.current_thread,
+            askTopic.display_name,
+            ...this.topicTerms(askTopic),
+          ]);
+          if (!grounded) {
+            turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'generic_follow_up_risk'] };
+          }
         }
       }
     }
@@ -765,12 +890,16 @@ export class InterviewsService {
       turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, ...guardReasons] };
     }
 
-    current.turnTrace = turnTrace;
+    current.turnTrace = {
+      ...turnTrace,
+      score_assessment: scoreAssessment,
+      score_assessments: scoreAssessments,
+    } as InterviewTurnTrace;
     current.userAnswerText = userAnswer;
     current.userAnswerTranscript = this.trimOrNull(dto.userTranscript)?.normalize('NFC') ?? null;
     current.modality = dto.modality ?? current.modality;
     current.aiRequestId = assessment.aiRequestId;
-    current.perQuestionScore = this.score(scoreGuard.score);
+    current.perQuestionScore = this.score(perQuestionScore);
     current.strengths = recognized;
     // Grounded like `recognized` above: a gap can't be required to appear in the answer
     // (it names what's missing), so anchor it to the topic universe instead — the asked
@@ -795,27 +924,67 @@ export class InterviewsService {
 
     let nextTurn: InterviewTurnEntity | null = null;
     if (turnDecision !== 'finish') {
-      const nextQuestion = ask.question || askTopic.seed_question;
-      const tracking = this.questionBankTrackingForTopic(askTopic, nextQuestion);
-      nextTurn = await this.turns.save(
-        this.turns.create({
-          sessionId: session.id,
-          turnOrder: nextTurnOrder ?? current.turnOrder + 1,
-          phase: askTopic.phase,
-          topicPhase: askTopic.phase,
-          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          aiRequestId: ask.aiRequestId,
-          interviewerMessage: ask.aiMessage,
-          interviewerQuestion: nextQuestion,
-          currentThread: updatedState.current_thread,
-          skillCanonical: askTopic.skill_canonical,
-          questionBankItemId: tracking.questionBankItemId,
-          questionBankKey: tracking.questionBankKey,
-          // `nextQuestionKind` already carries the only distinction the budget needs — a fresh
-          // question (opening/transition) vs a drill into one already asked (follow_up/closing).
-          timeBudgetSeconds: answerTimeBudgetSeconds(nextQuestionKind),
-        }),
+      const previousQuestions = recentQa.map((item) => item.question);
+      const nextQuestion = this.uniqueNextQuestion(
+        ask.question || askTopic.seed_question,
+        askTopic,
+        this.language(session.language),
+        previousQuestions,
       );
+      if (!nextQuestion) {
+        // Never persist a repeated question as a fallback. A graceful, explicit finish is safer
+        // than pretending the interview progressed while asking the same thing again.
+        turnDecision = 'finish';
+        finishReason = 'QUALITY_GUARD';
+        nextQuestionKind = null;
+        turnTrace = {
+          ...turnTrace,
+          action: 'wrap',
+          confidence: 'low',
+          reasons: [...turnTrace.reasons, 'question_repetition_unrecoverable'],
+        };
+        current.turnTrace = {
+          ...turnTrace,
+          score_assessment: scoreAssessment,
+          score_assessments: scoreAssessments,
+        } as InterviewTurnTrace;
+        await this.turns.save(current);
+      } else {
+        if (nextQuestion !== ask.question) {
+          turnTrace = {
+            ...turnTrace,
+            confidence: 'low',
+            reasons: [...turnTrace.reasons, 'unique_question_fallback'],
+          };
+          current.turnTrace = {
+            ...turnTrace,
+            score_assessment: scoreAssessment,
+            score_assessments: scoreAssessments,
+          } as InterviewTurnTrace;
+          await this.turns.save(current);
+        }
+        ask = { ...ask, question: nextQuestion };
+        const tracking = this.questionBankTrackingForTopic(askTopic, nextQuestion);
+        nextTurn = await this.turns.save(
+          this.turns.create({
+            sessionId: session.id,
+            turnOrder: nextTurnOrder ?? current.turnOrder + 1,
+            phase: askTopic.phase,
+            topicPhase: askTopic.phase,
+            modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+            aiRequestId: ask.aiRequestId,
+            interviewerMessage: ask.aiMessage,
+            interviewerQuestion: nextQuestion,
+            currentThread: updatedState.current_thread,
+            skillCanonical: askTopic.skill_canonical,
+            questionBankItemId: tracking.questionBankItemId,
+            questionBankKey: tracking.questionBankKey,
+            // `nextQuestionKind` already carries the only distinction the budget needs — a fresh
+            // question (opening/transition) vs a drill into one already asked (follow_up/closing).
+            timeBudgetSeconds: answerTimeBudgetSeconds(nextQuestionKind),
+          }),
+        );
+      }
     }
 
     session.interviewState = updatedState;
@@ -870,11 +1039,30 @@ export class InterviewsService {
     // quotes (masked inside the module) — score and explanations come from ONE pass.
     const { score, explanations } = explainInterviewScore({
       answers: analyses
-        .filter((item) => item.score !== null && item.depthSignal !== null)
+        .filter(
+          (item) =>
+            item.depthSignal !== null &&
+            (item.score !== null ||
+              Object.values(item.scoreAssessments).some((assessment) => assessment.score !== null)),
+        )
         .map((item) => ({
           topic_phase: item.topicPhase,
-          score: item.score as number,
+          score:
+            item.score ??
+            (Object.values(item.scoreAssessments).find((assessment) => assessment.score !== null)
+              ?.score as number),
           depth_signal: item.depthSignal as DepthSignal,
+          score_source: item.scoreAssessment?.source,
+          dimension_scores: Object.fromEntries(
+            Object.entries(item.scoreAssessments)
+              .filter(([, assessment]) => assessment.score !== null)
+              .map(([dimension, assessment]) => [dimension, assessment.score]),
+          ) as Partial<Record<Dimension, number>>,
+          dimension_score_sources: Object.fromEntries(
+            Object.entries(item.scoreAssessments)
+              .filter(([, assessment]) => assessment.score !== null)
+              .map(([dimension, assessment]) => [dimension, assessment.source]),
+          ) as Partial<Record<Dimension, 'criterion_rubric' | 'legacy_llm' | 'unscored'>>,
           evidence_excerpt: item.turn.userAnswerText ?? undefined,
           linked_question_id: item.turn.id,
         })),
@@ -919,11 +1107,25 @@ export class InterviewsService {
     session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
     // additive: score_explanations rides inside the finalScore jsonb; existing consumers of
     // overall/dimensions/role_family are untouched.
-    session.finalScore = { ...score, score_explanations: explanations };
+    session.finalScore = {
+      ...score,
+      // A zero-dimension aggregate means the rubric did not have enough valid criteria to score
+      // this session. Keep the internal aggregate shape for compatibility, but do not expose 0 as
+      // a real candidate score to clients.
+      overall: score.score_basis === 'unscored' ? null : score.overall,
+      score_explanations: explanations,
+      score_basis: score.score_basis ?? 'unscored',
+      scoring_note:
+        score.score_basis === 'criterion_rubric'
+          ? 'Overall score is derived from per-answer criterion rubrics and code-owned dimension weights.'
+          : score.score_basis === 'mixed'
+            ? 'Overall score combines calibrated criterion rubrics with explicitly marked legacy fallback answers.'
+            : 'Overall score contains legacy fallback answers and should be treated as low-confidence.',
+    };
     session.gapItems = interviewGaps;
     session.devPlan = plan;
     session.coaching = coaching;
-    session.overallScore = this.score(score.overall);
+    session.overallScore = score.score_basis === 'unscored' ? null : this.score(score.overall);
     session.semanticScore = this.score(this.dimensionScore(score, 'technical_depth'));
     session.llmScore = this.score(this.dimensionScore(score, 'evidence_credibility'));
     session.communicationScore = this.score(this.dimensionScore(score, 'communication'));
@@ -1384,6 +1586,36 @@ export class InterviewsService {
     };
   }
 
+  private uniqueNextQuestion(
+    candidate: string,
+    topic: AgendaTopic,
+    language: Language,
+    previousQuestions: string[],
+  ): string | null {
+    const role = topic.display_name;
+    const fallbackQuestions =
+      language === 'vi'
+        ? [
+            topic.seed_question,
+            `Bạn hãy nêu một quyết định cụ thể bạn đã đưa ra khi làm việc với ${role}.`,
+            `Trong phần ${role}, bạn đã kiểm tra kết quả bằng cách nào?`,
+            `Nếu làm lại phần ${role}, bạn sẽ thay đổi điều gì?`,
+          ]
+        : [
+            topic.seed_question,
+            `What is one concrete decision you made while working with ${role}?`,
+            `How did you verify the result in the ${role} work?`,
+            `What would you change if you did the ${role} work again?`,
+          ];
+    return (
+      [candidate, ...fallbackQuestions]
+        .map((question) => question.trim())
+        .find(
+          (question) => question && !isRepeatedInterviewQuestion(question, previousQuestions),
+        ) ?? null
+    );
+  }
+
   private prevTopicOutcome(
     topic: AgendaTopic,
     assessment: InterviewAssessOutput,
@@ -1483,6 +1715,15 @@ export class InterviewsService {
     session.semanticScore = this.score(parsed.semantic_score);
     session.llmScore = this.score(parsed.llm_score);
     session.communicationScore = this.score(parsed.communication_score);
+    session.finalScore = {
+      overall: parsed.overall_score,
+      overall_band: 'legacy',
+      dimensions: [],
+      role_family: session.targetRole,
+      scored_answers: answeredTurns.length,
+      score_basis: 'legacy_fallback',
+      scoring_note: 'This legacy interview path uses an explicit model score fallback.',
+    };
     session.aiFeedback = parsed.ai_feedback;
     const saved = await this.sessions.save(session);
 
@@ -1516,6 +1757,21 @@ export class InterviewsService {
     let insight = this.maybeInsight(turn.insight);
     let score = this.numberOrNull(turn.perQuestionScore);
     let depthSignal = this.maybeDepthSignal(turn.depthSignal);
+    const rubricDimensions = topicDimensions(topicPhase);
+    const targetDimensions =
+      rubricDimensions.length > 0 ? rubricDimensions : ['communication' as Dimension];
+    const targetDimension = targetDimensions[0];
+    let scoreAssessments =
+      this.scoreAssessmentsFromInsight(turn.insight) ??
+      this.scoreAssessmentsFromInsight(turn.turnTrace) ??
+      {};
+    let scoreAssessment =
+      this.scoreAssessmentFromInsight(turn.insight) ??
+      this.scoreAssessmentFromInsight(turn.turnTrace);
+    if (Object.keys(scoreAssessments).length === 0 && scoreAssessment) {
+      scoreAssessments = { [targetDimension]: scoreAssessment };
+    }
+    if (score === null) score = averageCalibratedScores(scoreAssessments);
 
     if (!signals || !insight || score === null || !depthSignal) {
       const assessment = await this.interviewChain!.assess(userId, {
@@ -1528,7 +1784,8 @@ export class InterviewsService {
           display_name: displayName,
           skill_canonical: skillCanonical,
         },
-        targetDimension: this.primaryDimension(topicPhase),
+        targetDimensions,
+        targetDimension,
         currentThread: turn.currentThread ?? displayName,
         drillDepth: 0,
         recentQa: [
@@ -1538,6 +1795,7 @@ export class InterviewsService {
             answer: maskPii(turn.userAnswerText ?? ''),
           },
         ],
+        interviewContext: this.interviewContextForSession(session),
       });
       signals = analyzeAnswerSignals({
         answer: turn.userAnswerText ?? '',
@@ -1549,7 +1807,7 @@ export class InterviewsService {
         {
           answer: turn.userAnswerText ?? '',
           question: turn.interviewerQuestion,
-          target_dimension: this.primaryDimension(topicPhase),
+          target_dimension: targetDimension,
           language: this.language(session.language),
           signals,
         },
@@ -1560,23 +1818,59 @@ export class InterviewsService {
         depth_signal: assessment.depthSignal,
         is_too_short: signals.flags.is_too_short,
       }).depth_signal;
-      score = reconcileAnswerScore({
-        score: assessment.score,
-        depth_signal: depthSignal,
-        off_topic: insight.off_topic,
-      }).score;
+      scoreAssessments = calibrateInterviewAnswerScores({
+        dimensions: targetDimensions,
+        criteria: assessment.criterionScores ?? [],
+        legacyScore:
+          assessment.scoreSource === 'criterion_rubric' || assessment.scoreSource === 'unscored'
+            ? null
+            : assessment.score,
+        depthSignal,
+        offTopic: insight.off_topic,
+        claimStatus: assessment.claimStatus,
+      });
+      scoreAssessment = scoreAssessments[targetDimension] ?? null;
+      score = averageCalibratedScores(scoreAssessments);
       turn.aiRequestId = turn.aiRequestId ?? assessment.aiRequestId;
       turn.perQuestionScore = this.score(score);
       turn.depthSignal = depthSignal;
       turn.signals = signals;
       turn.insight = insight;
+      turn.turnTrace = {
+        ...(turn.turnTrace && typeof turn.turnTrace === 'object' ? turn.turnTrace : {}),
+        score_assessment: scoreAssessment,
+        score_assessments: scoreAssessments,
+      } as unknown as InterviewTurnTrace;
       turn.topicPhase = topicPhase;
       turn.skillCanonical = skillCanonical;
       turn.currentThread = assessment.currentThread || turn.currentThread || displayName;
       await this.turns.save(turn);
     }
 
-    return { turn, topicPhase, skillCanonical, displayName, score, depthSignal, signals, insight };
+    if (!scoreAssessment && score !== null && depthSignal && insight) {
+      scoreAssessment =
+        calibrateInterviewAnswerScores({
+          dimensions: targetDimensions,
+          criteria: [],
+          legacyScore: score,
+          depthSignal,
+          offTopic: insight.off_topic,
+        })[targetDimension] ?? null;
+      scoreAssessments = scoreAssessment ? { [targetDimension]: scoreAssessment } : {};
+    }
+
+    return {
+      turn,
+      topicPhase,
+      skillCanonical,
+      displayName,
+      score,
+      depthSignal,
+      signals,
+      insight,
+      scoreAssessments,
+      scoreAssessment,
+    };
   }
 
   private resolveTurnTopicPhase(turn: InterviewTurnEntity): AgendaInterviewPhase {
@@ -1608,6 +1902,60 @@ export class InterviewsService {
     if (!value || typeof value !== 'object') return null;
     const candidate = value as Partial<AnswerInsight>;
     return candidate.evidence_quality && candidate.star_present ? (value as AnswerInsight) : null;
+  }
+
+  private scoreAssessmentFromInsight(value: unknown): CalibratedAnswerScore | null {
+    if (!value || typeof value !== 'object') return null;
+    const candidate = (value as Record<string, unknown>).score_assessment;
+    return this.parseCalibratedAnswerScore(candidate);
+  }
+
+  private scoreAssessmentsFromInsight(value: unknown): CalibratedAnswerScores | null {
+    if (!value || typeof value !== 'object') return null;
+    const candidate = (value as Record<string, unknown>).score_assessments;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null;
+    const dimensions: Dimension[] = [
+      'technical_depth',
+      'problem_solving',
+      'communication',
+      'evidence_credibility',
+      'role_fit',
+    ];
+    const parsed = Object.fromEntries(
+      dimensions
+        .map(
+          (dimension) =>
+            [
+              dimension,
+              this.parseCalibratedAnswerScore((candidate as Record<string, unknown>)[dimension]),
+            ] as const,
+        )
+        .filter(([, assessment]) => assessment !== null),
+    ) as CalibratedAnswerScores;
+    return Object.keys(parsed).length > 0 ? parsed : null;
+  }
+
+  private parseCalibratedAnswerScore(value: unknown): CalibratedAnswerScore | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const assessment = value as Partial<CalibratedAnswerScore>;
+    const validSource =
+      assessment.source === 'criterion_rubric' ||
+      assessment.source === 'legacy_llm' ||
+      assessment.source === 'unscored';
+    const validCoverage =
+      assessment.criteriaCoverage === 'complete' ||
+      assessment.criteriaCoverage === 'partial' ||
+      assessment.criteriaCoverage === 'missing';
+    if (
+      !validSource ||
+      !validCoverage ||
+      !Array.isArray(assessment.criteria) ||
+      !Array.isArray(assessment.missingCriteria) ||
+      !Array.isArray(assessment.reasons)
+    ) {
+      return null;
+    }
+    return assessment as CalibratedAnswerScore;
   }
 
   private maybeDepthSignal(value: unknown): DepthSignal | null {
@@ -1728,8 +2076,21 @@ export class InterviewsService {
 
     const interviewDifficulty = this.resolveInterviewDifficulty(cv, jd, targetRole);
     const contextMode: InterviewContextMode = match ? 'CV_JD_MATCH' : cv ? 'CV_ONLY' : 'ROLE_ONLY';
+    const identity = resolveInterviewIdentity({
+      cv: cv
+        ? {
+            parsedJson: cv.parsedJson,
+            parsedText: cv.parsedText,
+            targetRole: cv.targetRole,
+            title: cv.title,
+          }
+        : null,
+      jd,
+      targetRole,
+    });
     const snapshot: InterviewContextSnapshot = {
       contextMode,
+      identity,
       cv: cv ? { id: cv.id, title: cv.title, targetRole: cv.targetRole } : null,
       jobDescription: jd ? { id: jd.id, title: jd.title, sourceType: jd.sourceType } : null,
       cvMatch: match
@@ -1757,23 +2118,28 @@ export class InterviewsService {
       }
     }
 
+    const promptContext = this.buildPromptContext(
+      cv,
+      jd,
+      match,
+      targetRole,
+      focusAreas,
+      interviewDifficulty,
+      contextMode,
+      identity,
+    );
+    snapshot.interviewContext = maskPii(promptContext);
+
     return {
       contextMode,
+      identity,
       cv,
       match,
       jd,
       focusAreas,
       targetRole,
       snapshot,
-      promptContext: this.buildPromptContext(
-        cv,
-        jd,
-        match,
-        targetRole,
-        focusAreas,
-        interviewDifficulty,
-        contextMode,
-      ),
+      promptContext,
     };
   }
 
@@ -1806,10 +2172,19 @@ export class InterviewsService {
     focusAreas: InterviewFocusArea[],
     interviewDifficulty: InterviewDifficultyProfile,
     contextMode: InterviewContextMode,
+    identity: InterviewIdentity,
   ): string {
     const gapFocus = formatGapFocusForPrompt(focusAreas);
+    const identityLines = [
+      `Candidate name: ${identity.candidateName ?? 'not available'}`,
+      `Interview role: ${identity.jobTitle}`,
+      identity.employerName
+        ? `Employer explicitly identified by the JD: ${identity.employerName}`
+        : 'Employer: not identified in the JD; do not invent one',
+    ].join('\n');
     if (contextMode === 'ROLE_ONLY') {
       return [
+        `Interview identity:\n${identityLines}`,
         `Target role: ${targetRole}`,
         'Interview context: role-only generic practice. No CV, resume, job description, JD, match report, or gap report was provided.',
         `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
@@ -1819,6 +2194,7 @@ export class InterviewsService {
 
     if (contextMode === 'CV_ONLY') {
       return [
+        `Interview identity:\n${identityLines}`,
         `Target role: ${targetRole}`,
         'Interview context: CV-only practice. A CV was provided, but no JD or CV/JD match report was provided.',
         `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
@@ -1830,6 +2206,7 @@ export class InterviewsService {
     }
 
     return [
+      `Interview identity:\n${identityLines}`,
       `Target role: ${targetRole}`,
       'Interview context: CV/JD match practice. Use the CV, JD, and match/gap context when available.',
       `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
@@ -1894,6 +2271,9 @@ export class InterviewsService {
 
   private compactRealtimeContext(session: InterviewSessionEntity): string {
     const snapshot = this.asContextSnapshot(session.contextSnapshot);
+    if (snapshot?.interviewContext) {
+      return snapshot.interviewContext;
+    }
     const contextMode = this.contextModeFromSession(session);
     if (contextMode === 'ROLE_ONLY') {
       return [
@@ -1945,6 +2325,27 @@ export class InterviewsService {
     ]
       .filter(Boolean)
       .join('\n\n');
+  }
+
+  /**
+   * New sessions persist a bounded context snapshot so every answer turn and realtime reconnect
+   * sees the same CV/JD facts. Legacy sessions fall back to a small identity/role block rather
+   * than pretending that a full CV/JD context exists.
+   */
+  private interviewContextForSession(session: InterviewSessionEntity): string {
+    const snapshot = this.asContextSnapshot(session.contextSnapshot);
+    if (snapshot?.interviewContext) return snapshot.interviewContext;
+
+    const identity = snapshot?.identity;
+    return [
+      `Candidate name: ${identity?.candidateName ?? 'not available'}`,
+      `Interview role: ${identity?.jobTitle ?? session.targetRole}`,
+      identity?.employerName
+        ? `Employer explicitly identified by the JD: ${identity.employerName}`
+        : 'Employer: not identified in the JD; do not invent one',
+      `Context mode: ${snapshot?.contextMode ?? this.contextModeFromSession(session)}`,
+      'Legacy session: only the compact context above is available; do not claim unseen CV/JD facts.',
+    ].join('\n');
   }
 
   private resolveInterviewDifficulty(
@@ -2560,12 +2961,6 @@ export class InterviewsService {
     question: string | null | undefined,
   ): string {
     return [this.trimOrNull(message), this.trimOrNull(question)].filter(Boolean).join('\n\n');
-  }
-
-  private openingInterviewerMessage(language: string): string {
-    return language === 'en'
-      ? 'Let us start with a broad question so I can understand your recent work context.'
-      : 'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.';
   }
 
   private limit(text: string, max: number): string {

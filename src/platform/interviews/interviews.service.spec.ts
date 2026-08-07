@@ -212,6 +212,7 @@ describe('InterviewsService', () => {
       userId,
       title: 'Frontend CV',
       parsedText: 'React, TypeScript, internship project.',
+      parsedJson: { contact: { name: 'Nguyen An' } },
       targetRole: 'frontend_developer',
       deletedAt: null,
     });
@@ -227,7 +228,7 @@ describe('InterviewsService', () => {
       id: jdId,
       userId,
       title: 'Frontend Intern',
-      rawText: 'React, TypeScript, testing, teamwork.',
+      rawText: 'Company: FPT Software\nReact, TypeScript, testing, teamwork.',
     });
     sessions.save.mockImplementation(async (value) => ({
       ...value,
@@ -338,10 +339,15 @@ describe('InterviewsService', () => {
       realtime: { enabled: true, clientSecret: 'eph_secret' },
     });
     expect(response.expiresAt).toBeTruthy();
+    expect(response.firstMessage).toContain('Nguyen An');
+    expect(response.firstMessage).toContain('FPT Software');
     expect(realtime.createClientSecret).toHaveBeenCalledWith(
       userId,
       expect.objectContaining({ id: 'session-1' }),
-      expect.not.stringContaining('Candidate CV excerpt'),
+      expect.stringContaining('Candidate CV excerpt'),
+    );
+    expect((realtime.createClientSecret as jest.Mock).mock.calls[0][2]).toContain(
+      'Employer explicitly identified by the JD: FPT Software',
     );
   });
 
@@ -623,7 +629,9 @@ describe('InterviewsService', () => {
     expect(response.firstQuestion).toBe(
       'I saw your backend work — which recent API are you most proud of, and why?',
     );
-    expect(response.firstMessage).toBe('Welcome — I read through your background.');
+    expect(response.firstMessage).toBe(
+      "Hello there, I am SkillBridge's AI interviewer for the Backend Developer role, based on the job description you provided. We will go through your experience, the role requirements, and a few realistic scenarios; let us begin.",
+    );
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
         interviewerQuestion:
@@ -1030,7 +1038,7 @@ describe('InterviewsService', () => {
         phase: 'SCREENING',
         topicPhase: 'SCREENING',
         interviewerMessage:
-          'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
+          'Xin chào bạn, tôi là AI interviewer của SkillBridge cho vị trí Backend Developer, dựa trên JD bạn cung cấp. Mình sẽ hỏi lần lượt về kinh nghiệm, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.',
         interviewerQuestion:
           'To start, what have you been working on recently, and what drew you to this role?',
       }),
@@ -1055,7 +1063,7 @@ describe('InterviewsService', () => {
       status: 'IN_PROGRESS',
       totalQuestionsPlanned: 12,
       firstMessage:
-        'Chúng ta bắt đầu bằng một câu tổng quan để tôi hiểu bối cảnh làm việc gần đây của bạn.',
+        'Xin chào bạn, tôi là AI interviewer của SkillBridge cho vị trí Backend Developer, dựa trên JD bạn cung cấp. Mình sẽ hỏi lần lượt về kinh nghiệm, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.',
       firstQuestion:
         'To start, what have you been working on recently, and what drew you to this role?',
       phase: 'SCREENING',
@@ -1918,7 +1926,7 @@ describe('InterviewsService', () => {
     expect(response.session.status).toBe('IN_PROGRESS');
   });
 
-  it('does not advance into a wrap topic before the closing time window', async () => {
+  it('finishes when the last real topic is complete instead of looping before wrap', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:05:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
@@ -2038,26 +2046,16 @@ describe('InterviewsService', () => {
       durationSeconds: 40,
     });
 
-    expect(response.finished).toBe(false);
-    expect(response.nextTurn).toMatchObject({
-      topicPhase: 'SKILL_PROBE',
-      interviewerMessage: 'Thanks, I want to go a level deeper on state.',
-      interviewerQuestion: 'How do you decide between local state and server state?',
-    });
-    expect(response.nextQuestion).not.toContain('Before we wrap');
-    expect(response.turnDecision).toBe('adaptive_follow_up');
-    expect(response.nextQuestionKind).toBe('follow_up');
-    expect(response.finishReason).toBeNull();
-    expect(response.turnTrace).toMatchObject({ action: 'drill', topic_id: 'topic-react' });
-    expect(response.turnTrace?.reasons).toContain('topics_exhausted_adaptive_follow_up');
-    // I-REAL-2: the drill ladder rides into the ask call and the trace; the question reuses
-    // the candidate's own terms so no generic-template flag fires.
-    expect(chain.ask).toHaveBeenCalledWith(
-      userId,
-      expect.objectContaining({ ladderRung: 'application', topicPhase: 'SKILL_PROBE' }),
-    );
-    expect(response.turnTrace?.reasons).toContain('ladder_application');
-    expect(response.turnTrace?.reasons).not.toContain('generic_follow_up_risk');
+    expect(response.finished).toBe(true);
+    expect(response.nextTurn).toBeNull();
+    expect(response.nextQuestion).toBeNull();
+    expect(response.turnDecision).toBe('finish');
+    expect(response.nextQuestionKind).toBeNull();
+    expect(response.finishReason).toBe('AGENDA_COMPLETE');
+    expect(response.turnTrace).toMatchObject({ action: 'wrap', topic_id: 'topic-react' });
+    expect(response.turnTrace?.reasons).toContain('agenda_complete_terminal');
+    expect(chain.ask).not.toHaveBeenCalled();
+    expect(response.session.status).toBe('COMPLETED');
   });
 
   it('flags a generic template follow-up in the turn trace (anti-template guard)', async () => {
@@ -2235,6 +2233,16 @@ describe('InterviewsService', () => {
             seed_question: 'How do you manage state in React?',
           },
           {
+            id: 'topic-api',
+            phase: 'SKILL_PROBE',
+            skill_canonical: 'rest_api',
+            display_name: 'REST API',
+            seniority_target: 'junior',
+            drill_budget: 1,
+            what_to_probe: 'API design and debugging',
+            seed_question: 'Describe an API you built.',
+          },
+          {
             id: 'wrap-1',
             phase: 'WRAP',
             skill_canonical: null,
@@ -2292,9 +2300,7 @@ describe('InterviewsService', () => {
     });
 
     expect(response.finished).toBe(false);
-    expect(response.nextTurn).toMatchObject({
-      interviewerQuestion: 'How do you manage state in React?',
-    });
+    expect(response.nextTurn).toMatchObject({ interviewerQuestion: 'Describe an API you built.' });
     expect(response.turnTrace?.confidence).toBe('low');
     expect(response.turnTrace?.reasons).toContain('fallback_seed_question');
     // The answer reports a duration, so speech-delivery counts ARE computable here — and are
@@ -2556,7 +2562,7 @@ describe('InterviewsService', () => {
     );
   });
 
-  it('continues with an adaptive follow-up when topics are exhausted but the safety cap is not reached', async () => {
+  it('does not ask an extra follow-up after the final topic', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();
     const interviewAi = { answer: jest.fn() };
@@ -2664,20 +2670,14 @@ describe('InterviewsService', () => {
       durationSeconds: 45,
     });
 
-    expect(response.finished).toBe(false);
-    expect(chain.ask).toHaveBeenCalledWith(
-      userId,
-      expect.objectContaining({
-        decision: 'drill',
-        currentTopic: expect.objectContaining({ id: 'topic-monitoring' }),
-      }),
-    );
-    expect(response.nextTurn).toMatchObject({
-      turnOrder: 7,
-      interviewerQuestion: 'What signal would tell you the incident is getting worse?',
-      aiRequestId: 'ai-ask-exhausted-topic',
-    });
-    expect(response.session.status).toBe('IN_PROGRESS');
+    expect(response.finished).toBe(true);
+    expect(chain.ask).not.toHaveBeenCalled();
+    expect(response.nextTurn).toBeNull();
+    expect(response.nextQuestion).toBeNull();
+    expect(response.turnDecision).toBe('finish');
+    expect(response.finishReason).toBe('AGENDA_COMPLETE');
+    expect(response.turnTrace?.reasons).toContain('agenda_complete_terminal');
+    expect(response.session.status).toBe('COMPLETED');
   });
 
   it('limits answer history sent to the AI to the latest turns plus the current answer', async () => {
