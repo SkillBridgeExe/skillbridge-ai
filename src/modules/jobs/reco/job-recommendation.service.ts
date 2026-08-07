@@ -464,7 +464,14 @@ export function sortJobRecommendations(
       if (salaryA != null && salaryB == null) return -1;
       return (salaryB ?? 0) - (salaryA ?? 0) || a.rank - b.rank || a.job_id.localeCompare(b.job_id);
     }
-    return a.rank - b.rank || a.job_id.localeCompare(b.job_id);
+    // The default list is user-facing and displays recommendation_score. Keep the
+    // visible score and the ordering contract aligned; RRF rank remains a tie-breaker.
+    return (
+      b.recommendation_score - a.recommendation_score ||
+      b.match_score - a.match_score ||
+      a.rank - b.rank ||
+      a.job_id.localeCompare(b.job_id)
+    );
   });
 }
 
