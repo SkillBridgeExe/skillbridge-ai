@@ -14,6 +14,7 @@ import { LearningSessionEntity } from '../../database/entities/learning-session.
 import { LearningScheduleProfileEntity } from '../../database/entities/learning-schedule-profile.entity';
 import { LearningAvailabilitySlotEntity } from '../../database/entities/learning-availability-slot.entity';
 import type { ComposedRoadmap, ComposedRoadmapStep } from '../../modules/roadmap/roadmap-composer';
+import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
@@ -183,16 +184,20 @@ export class LearningRoadmapGenerationService {
       contentPlan = buildLearningContentPlan({
         track: learningTrack,
         ...(capacitySchedule ? { capacityMinutes: capacitySchedule.capacityMinutes } : {}),
-        candidates: selected.map((candidate) => ({
-          skillCanonical: candidate.skill_canonical,
-          displayName: candidate.display_name,
-          systemPriority: candidate.system_priority,
-          userRank: roadmap.draftConfig.selected_priorities?.find(
-            (item) => item.skill_canonical === candidate.skill_canonical,
-          )?.rank,
-          prerequisites: candidate.prerequisites,
-          lessonContent: stepBySkill.get(candidate.skill_canonical)?.lesson_content,
-        })),
+        candidates: selected.map((candidate) => {
+          const step = stepBySkill.get(candidate.skill_canonical);
+          return {
+            skillCanonical: candidate.skill_canonical,
+            displayName: candidate.display_name,
+            systemPriority: candidate.system_priority,
+            userRank: roadmap.draftConfig.selected_priorities?.find(
+              (item) => item.skill_canonical === candidate.skill_canonical,
+            )?.rank,
+            prerequisites: candidate.prerequisites,
+            lessonContent: step?.lesson_content,
+            sourceResourceIds: step?.resources.map((resource) => resource.id) ?? [],
+          };
+        }),
       });
     } catch (error) {
       if (error instanceof LearningPrerequisiteCycleError) {
@@ -201,26 +206,36 @@ export class LearningRoadmapGenerationService {
       throw error;
     }
     const lessonGroupsBySkill = groupIncludedLessons(contentPlan, sessionMinutes);
-    const schedulable = contentPlan.modules
-      .filter((module) => module.scheduledMinutes > 0)
-      .map((module) => {
-        const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
-        return {
-          skillCanonical: module.skillCanonical,
-          displayName: module.displayName,
-          estimatedMinutes:
-            lessonGroups.length > 0
-              ? lessonGroups.length * sessionMinutes
-              : module.scheduledMinutes,
-          systemPriority:
-            learningTrack === 'FAST_TRACK'
-              ? module.quickWinScore
-              : selected.find((item) => item.skill_canonical === module.skillCanonical)!
-                  .system_priority,
-          userRank: module.rank,
-          prerequisites: module.prerequisites,
-        };
-      });
+    if (contentPlan.modules.length !== selected.length) {
+      throw new ConflictException('Learning content plan must contain every selected skill.');
+    }
+    if (
+      contentPlan.modules.some(
+        (module, index) => module.rank !== index + 1 || module.lessons.length === 0,
+      )
+    ) {
+      throw new ConflictException(
+        'Learning content plan must have contiguous ranks and lesson content.',
+      );
+    }
+    const schedulable = contentPlan.modules.map((module) => {
+      const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
+      return {
+        skillCanonical: module.skillCanonical,
+        displayName: module.displayName,
+        estimatedMinutes:
+          lessonGroups.length > 0
+            ? lessonGroups.length * sessionMinutes
+            : Math.max(module.scheduledMinutes, sessionMinutes),
+        systemPriority:
+          learningTrack === 'FAST_TRACK'
+            ? module.quickWinScore
+            : selected.find((item) => item.skill_canonical === module.skillCanonical)!
+                .system_priority,
+        userRank: module.rank,
+        prerequisites: module.prerequisites,
+      };
+    });
 
     let scheduled;
     let sessionsWithLessons;
@@ -279,7 +294,12 @@ export class LearningRoadmapGenerationService {
           estimated_minutes: module.scheduledMinutes,
           feasibility: module.scopeStatus === 'DEFERRED' ? 'DEFERRED' : 'FEASIBLE',
           resources: (step?.resources ?? []) as Array<Record<string, unknown>>,
-          lesson_content: (step?.lesson_content as unknown as Record<string, unknown>) ?? null,
+          lesson_content:
+            (step?.lesson_content as unknown as Record<string, unknown>) ??
+            (getSkillBridgeLessonContent(
+              module.skillCanonical,
+              (step?.resources ?? []).map((resource) => resource.id),
+            ) as unknown as Record<string, unknown>),
           quick_win_score: module.quickWinScore,
           scope_status: module.scopeStatus,
           prerequisite_warnings: module.prerequisites,
@@ -349,6 +369,7 @@ export class LearningRoadmapGenerationService {
             quick_win_score: module.quick_win_score,
             scope_status: module.scope_status,
             lessons: module.lessons,
+            lesson_content: module.lesson_content,
           })),
         },
       },
@@ -404,9 +425,23 @@ export class LearningRoadmapGenerationService {
     const stepBySkill = new Map(
       prepared.composed.steps.map((step) => [step.skill_canonical, step]),
     );
-    for (const modulePreview of [...prepared.preview.modules]
-      .filter((module) => module.scope_status !== 'DEFERRED')
-      .sort((a, b) => a.rank - b.rank)) {
+    const selectedSkillCount = selectCurrentCandidates(locked, prepared.derived).length;
+    const persistedModules = [...prepared.preview.modules].sort((a, b) => a.rank - b.rank);
+    if (
+      persistedModules.length !== selectedSkillCount ||
+      persistedModules.some((module, index) => module.rank !== index + 1)
+    ) {
+      throw new ConflictException('Learning persistence would lose a selected module or rank.');
+    }
+    const sessionSkills = new Set(
+      prepared.preview.sessions.map((session) => session.skill_canonical),
+    );
+    if (persistedModules.some((module) => !sessionSkills.has(module.skill_canonical))) {
+      throw new ConflictException(
+        'Learning persistence requires at least one session per selected module.',
+      );
+    }
+    for (const modulePreview of persistedModules) {
       const candidate = candidateBySkill.get(modulePreview.skill_canonical);
       if (!candidate) throw new ConflictException('Roadmap candidates changed during generation.');
       const userPriority = locked.draftConfig.selected_priorities?.find(
@@ -443,6 +478,7 @@ export class LearningRoadmapGenerationService {
           durationMinutes: session.duration_minutes,
           requiredTasks: requiredTasks(
             step,
+            modulePreview.lesson_content as unknown as SkillBridgeLessonContent | null,
             session.lesson_ids,
             session.sequence,
             moduleSessions.length,
@@ -473,7 +509,10 @@ function selectCurrentCandidates(
   derived: DerivedLearningCandidates,
 ) {
   const priorities = roadmap.draftConfig.selected_priorities;
-  if (!priorities?.length) return derived.candidates;
+  if (priorities === undefined) return derived.candidates;
+  if (priorities.length === 0) {
+    throw new BadRequestException('Select at least one learning skill.');
+  }
   const bySkill = new Map(
     derived.candidates.map((candidate) => [candidate.skill_canonical, candidate]),
   );
@@ -562,6 +601,7 @@ function attachLessonsToSessions(
 
 function requiredTasks(
   step: ComposedRoadmapStep | undefined,
+  persistedLessonContent: SkillBridgeLessonContent | null,
   lessonIds: string[],
   sequence: number,
   totalSessions: number,
@@ -569,13 +609,15 @@ function requiredTasks(
   const tasks: Array<Record<string, unknown>> = [
     { type: 'study', sequence, total_sessions: totalSessions },
   ];
-  if (step) {
-    if (sequence === 1) tasks.push({ type: 'resources', items: step.resources });
-    if (step.lesson_content) {
-      const content = sliceLessonContent(step.lesson_content, lessonIds);
-      if (content.sections.length > 0 || content.exercises.length > 0) {
-        tasks.push({ type: 'lesson', content });
-      }
+  if (step && sequence === 1) {
+    tasks.push({ type: 'resources', items: step.resources });
+  }
+  const lessonSource = persistedLessonContent ?? step?.lesson_content;
+  if (lessonSource) {
+    const content =
+      lessonIds.length > 0 ? sliceLessonContent(lessonSource, lessonIds) : lessonSource;
+    if (content.sections.length > 0 || content.exercises.length > 0) {
+      tasks.push({ type: 'lesson', content });
     }
   }
   return tasks;

@@ -2500,7 +2500,7 @@ function generateFallbackBlueprint(skill: string): LessonBlueprint {
 }
 
 function buildLesson(
-  skill: SkillBridgeLessonSkill,
+  skill: string,
   blueprint: LessonBlueprint | undefined,
 ): Omit<SkillBridgeLessonContent, 'source_resource_ids'> {
   const actualBlueprint = blueprint || generateFallbackBlueprint(skill);
@@ -2638,8 +2638,7 @@ export function getSkillBridgeLessonContent(
   skillCanonical: string,
   sourceResourceIds: string[] = [],
 ): SkillBridgeLessonContent | undefined {
-  const lesson = LESSONS[skillCanonical];
-  if (!lesson) return undefined;
+  const lesson = LESSONS[skillCanonical] ?? buildLesson(skillCanonical, undefined);
   return {
     ...lesson,
     source_resource_ids: sourceResourceIds,

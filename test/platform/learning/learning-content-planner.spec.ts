@@ -117,6 +117,33 @@ describe('buildLearningContentPlan', () => {
     expect(result.modules[1].lessons[0].omissionReason).toBe('TIME_LIMIT');
   });
 
+  it('keeps a selected skill with no catalog lesson by creating a stable skeleton', () => {
+    const result = buildLearningContentPlan({
+      track: 'FOUNDATION',
+      candidates: [
+        {
+          skillCanonical: 'uncatalogued_skill',
+          displayName: 'Uncatalogued Skill',
+          systemPriority: 1,
+          userRank: 1,
+          prerequisites: [],
+        },
+      ],
+    });
+
+    expect(result.modules).toHaveLength(1);
+    expect(result.modules[0]).toEqual(
+      expect.objectContaining({
+        skillCanonical: 'uncatalogued_skill',
+        scopeStatus: 'FULL',
+        scheduledMinutes: expect.any(Number),
+      }),
+    );
+    expect(result.modules[0].lessons.length).toBeGreaterThanOrEqual(3);
+    expect(
+      result.modules[0].lessons.every((lesson) => lesson.id.startsWith('uncatalogued_skill:')),
+    ).toBe(true);
+  });
   it('uses goal-defined scope when no deadline capacity is supplied', () => {
     const candidates = [
       {

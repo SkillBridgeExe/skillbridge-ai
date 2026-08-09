@@ -127,6 +127,54 @@ describe('LearningContentEnhancer', () => {
     expect(result.modules[0].lessons[0].content_source).toBe('DETERMINISTIC_FALLBACK');
   });
 
+  it('falls back per module when one AI materialization fails', async () => {
+    const first = preview();
+    const second = JSON.parse(JSON.stringify(first));
+    second.modules[0].skill_canonical = 'react';
+    second.modules[0].lessons[0].id = 'react:section:types';
+    const input = {
+      ...first,
+      modules: [first.modules[0], second.modules[0]],
+    };
+    const complete = jest
+      .fn()
+      .mockResolvedValueOnce({
+        parsedJson: {
+          lessons: [
+            {
+              id: 'typescript:section:types',
+              title: 'Enhanced TypeScript',
+              summary: 'Enhanced summary',
+              key_points: ['Enhanced point'],
+            },
+          ],
+        },
+      })
+      .mockRejectedValueOnce(new Error('module timeout'));
+    const service = new LearningContentEnhancer(
+      { complete } as never,
+      {
+        get: jest.fn().mockReturnValue({ meta: { system: 'system' } }),
+        render: jest.fn().mockReturnValue('prompt'),
+      } as never,
+      {
+        get: jest.fn((key: string) =>
+          key === 'learning.contentAiEnabled'
+            ? true
+            : key === 'learning.contentAiModel'
+              ? 'gpt-4.1-mini'
+              : undefined,
+        ),
+      } as never,
+    );
+
+    const result = await service.enhance(input as never);
+
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(result.content_source).toBe('DETERMINISTIC_FALLBACK');
+    expect(result.modules[0].lessons[0].content_source).toBe('AI_ENHANCED');
+    expect(result.modules[1].lessons[0].content_source).toBe('DETERMINISTIC_FALLBACK');
+  });
   it('returns deterministic content without calling dependencies when AI enhancement is disabled', async () => {
     const llm = { complete: jest.fn() };
     const prompts = { get: jest.fn(), render: jest.fn() };

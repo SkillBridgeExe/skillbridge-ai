@@ -1,3 +1,4 @@
+import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import type {
   LessonExerciseContent,
   LessonSectionContent,
@@ -15,6 +16,7 @@ export interface LearningContentCandidate {
   userRank?: number;
   prerequisites: string[];
   lessonContent?: SkillBridgeLessonContent;
+  sourceResourceIds?: string[];
 }
 
 export interface PlannedLearningLesson {
@@ -82,7 +84,10 @@ export function buildLearningContentPlan(input: LearningContentPlanInput): Learn
   const candidateSkills = new Set(input.candidates.map((item) => item.skillCanonical));
 
   const modules = input.candidates.map((candidate) => {
-    const lessons = toLessons(candidate.lessonContent);
+    const lessons = toLessons(
+      candidate.lessonContent ??
+        getSkillBridgeLessonContent(candidate.skillCanonical, candidate.sourceResourceIds ?? []),
+    );
     const estimatedMinutes = sumMinutes(lessons);
     const rankScore =
       candidateCount <= 1
