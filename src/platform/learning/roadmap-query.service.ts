@@ -15,6 +15,7 @@ import {
   computeLearningProjection,
   type LearningProjection,
   todayInLearningTimezone,
+  learningCalendarWeekNumber,
 } from './learning-projection';
 import type { LearningRoadmapCadenceDraft } from '../../database/entities/learning-roadmap.entity';
 import { DEFAULT_LEARNING_SESSION_MINUTES, DEFAULT_LEARNING_TIMEZONE } from './learning-cadence';
@@ -50,6 +51,7 @@ export interface ActiveLearningRoadmapResponse {
       sequence: number;
       title: string;
       scheduled_start_at: string;
+      week_number: number;
       duration_minutes: number;
       required_tasks: Array<Record<string, unknown>>;
       status: LearningRuntimeSessionStatus;
@@ -179,6 +181,7 @@ export class LearningRoadmapQueryService {
               sequence: session.sequence,
               title: session.title,
               scheduled_start_at: session.scheduledStartAt.toISOString(),
+              week_number: learningCalendarWeekNumber(session.scheduledStartAt, cadence),
               duration_minutes: session.durationMinutes,
               required_tasks: session.requiredTasks,
               status: statuses.get(session.id) ?? 'AVAILABLE',

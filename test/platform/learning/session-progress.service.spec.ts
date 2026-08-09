@@ -394,6 +394,93 @@ describe('LearningSessionProgressService', () => {
     expect(repo.save).not.toHaveBeenCalled();
   });
 
+  it('scores V2 quiz questions from the persisted lesson task', async () => {
+    const repo = repoMock();
+    repo.findOne.mockResolvedValue(null);
+    const queryBuilder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getRawOne: jest.fn().mockResolvedValue({ skill_canonical: 'custom_skill' }),
+    };
+    const persistedLesson = {
+      skill_canonical: 'custom_skill',
+      title: 'Persisted custom lesson',
+      summary: 'Saved lesson',
+      license_type: 'skillbridge_original',
+      reuse_policy: 'full_reuse_allowed',
+      source_resource_ids: [],
+      learning_objectives: [{ id: 'objective', title: 'Objective', description: 'Do the thing.' }],
+      sections: [
+        {
+          id: 'section',
+          title: 'Section',
+          body: 'Persisted section',
+          objective_id: 'objective',
+          checklist: [],
+        },
+      ],
+      quiz_bank: [
+        {
+          id: 'persisted-question',
+          question: 'Which answer is persisted?',
+          options: ['Persisted answer', 'Catalog answer'],
+          correct_option_index: 0,
+          explanation: 'Persisted explanation',
+          kind: 'concept',
+          objective_id: 'objective',
+          section_id: 'section',
+        },
+      ],
+      pass_policy: { min_correct_per_objective: 1, min_accuracy: 0.7 },
+      quiz: [
+        {
+          id: 'persisted-question',
+          question: 'Which answer is persisted?',
+          options: ['Persisted answer', 'Catalog answer'],
+          correct_option_index: 0,
+          explanation: 'Persisted explanation',
+          kind: 'concept',
+          objective_id: 'objective',
+          section_id: 'section',
+        },
+      ],
+      exercises: [],
+    };
+    const sessions = {
+      findOne: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        requiredTasks: [{ type: 'lesson', content: persistedLesson }],
+      }),
+    };
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      { createQueryBuilder: jest.fn().mockReturnValue(queryBuilder) } as never,
+      sessions as never,
+    );
+
+    const result = await service.answerQuizQuestion(
+      'user-1',
+      '11111111-1111-4111-8111-111111111111',
+      {
+        skill_canonical: 'custom_skill',
+        question_id: 'persisted-question',
+        selected_option_index: 0,
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        question_id: 'persisted-question',
+        explanation: 'Persisted explanation',
+        correct_option_index: 0,
+      }),
+    );
+    expect(sessions.findOne).toHaveBeenCalledWith({
+      where: { id: '11111111-1111-4111-8111-111111111111' },
+    });
+  });
   it('validates that a persisted V2 session belongs to the user and requested skill', async () => {
     const repo = repoMock();
     repo.findOne.mockResolvedValue(null);

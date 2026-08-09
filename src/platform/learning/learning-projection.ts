@@ -56,6 +56,16 @@ export function computeLearningProjection(input: {
   };
 }
 
+export function learningCalendarWeekNumber(
+  scheduledStartAt: Date,
+  cadence: Pick<LearningRoadmapCadenceDraft, 'start_date' | 'timezone'>,
+): number {
+  const start = Date.parse(`${cadence.start_date}T00:00:00.000Z`);
+  const scheduledDate = dateInLearningTimezone(scheduledStartAt, cadence.timezone);
+  const scheduled = Date.parse(`${scheduledDate}T00:00:00.000Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(scheduled)) return 1;
+  return Math.max(1, Math.floor((scheduled - start) / 86_400_000 / 7) + 1);
+}
 export function todayInLearningTimezone(timezone: string, now = new Date()): string {
   return dateInLearningTimezone(now, timezone);
 }

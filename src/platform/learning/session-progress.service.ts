@@ -7,6 +7,7 @@ import { LearningRoadmapVersionEntity } from '../../database/entities/learning-r
 import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
 import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
+import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import {
   answerQuizQuestion as scoreQuizQuestion,
   computeObjectiveMastery,
@@ -27,6 +28,9 @@ export class LearningSessionProgressService {
     @InjectRepository(LearningSessionProgressEntity)
     private readonly progress: Repository<LearningSessionProgressEntity>,
     @Optional() @InjectDataSource() private readonly dataSource?: DataSource,
+    @Optional()
+    @InjectRepository(LearningSessionEntity)
+    private readonly sessions?: Repository<LearningSessionEntity>,
   ) {}
 
   async getProgress(
@@ -75,7 +79,7 @@ export class LearningSessionProgressService {
     dto: AnswerLearningQuizQuestionDto,
   ): Promise<LearningQuizAnswerResponseDto> {
     const isV2 = await this.assertOwnedV2Session(userId, sessionId, dto.skill_canonical);
-    const lesson = getSkillBridgeLessonContent(dto.skill_canonical);
+    const lesson = await this.resolveLesson(isV2, userId, sessionId, dto.skill_canonical);
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${dto.skill_canonical}' was not found.`);
     }
@@ -159,8 +163,8 @@ export class LearningSessionProgressService {
     sessionId: string,
     skillCanonical: string,
   ): Promise<LearningNextQuestionsResponseDto> {
-    await this.assertOwnedV2Session(userId, sessionId, skillCanonical);
-    const lesson = getSkillBridgeLessonContent(skillCanonical);
+    const isV2 = await this.assertOwnedV2Session(userId, sessionId, skillCanonical);
+    const lesson = await this.resolveLesson(isV2, userId, sessionId, skillCanonical);
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${skillCanonical}' was not found.`);
     }
@@ -208,6 +212,39 @@ export class LearningSessionProgressService {
     return this.toResponse(await this.progress.save(next));
   }
 
+  private async resolveLesson(
+    isV2: boolean,
+    _userId: string,
+    sessionId: string,
+    skillCanonical: string,
+  ): Promise<SkillBridgeLessonContent | undefined> {
+    if (!isV2) return getSkillBridgeLessonContent(skillCanonical);
+    if (!this.sessions) {
+      // Compatibility for isolated legacy tests; the application always injects this repository.
+      return getSkillBridgeLessonContent(skillCanonical);
+    }
+    const session = await this.sessions.findOne({ where: { id: sessionId } });
+    const task = session?.requiredTasks?.find((item) => item.type === 'lesson');
+    const content = task?.content;
+    if (!content || typeof content !== 'object' || Array.isArray(content)) {
+      throw new NotFoundException('Persisted lesson for session ' + sessionId + ' was not found.');
+    }
+    const lesson = content as unknown as SkillBridgeLessonContent;
+    if (
+      lesson.skill_canonical !== skillCanonical ||
+      !Array.isArray(lesson.quiz) ||
+      !Array.isArray(lesson.quiz_bank)
+    ) {
+      throw new BadRequestException(
+        'Persisted lesson for session ' +
+          sessionId +
+          ' does not match skill ' +
+          skillCanonical +
+          '.',
+      );
+    }
+    return lesson;
+  }
   private async assertOwnedV2Session(
     userId: string,
     sessionId: string,
