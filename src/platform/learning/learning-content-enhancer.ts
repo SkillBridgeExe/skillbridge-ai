@@ -3,10 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../../infrastructure/llm/llm.service';
 import { PromptsService } from '../../modules/prompts/prompts.service';
 import type { LearningRoadmapPreviewResponseDto } from './dto/roadmap.dto';
-import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
+import { isSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 
 const PROMPT_CODE = 'learning_content_enhance_v1';
 const TIMEOUT_MS = 8_000;
+const MODULE_CONCURRENCY = 3;
 
 interface EnhancedLesson {
   id: string;
@@ -37,6 +38,14 @@ const RESPONSE_SCHEMA: Record<string, unknown> = {
   },
 };
 
+type PreviewModule = LearningRoadmapPreviewResponseDto['modules'][number];
+type EnhancementSource = 'AI_ENHANCED' | 'DETERMINISTIC_FALLBACK';
+
+interface EnhancementResult {
+  module: PreviewModule;
+  source: EnhancementSource;
+}
+
 @Injectable()
 export class LearningContentEnhancer {
   private readonly logger = new Logger(LearningContentEnhancer.name);
@@ -55,66 +64,34 @@ export class LearningContentEnhancer {
     let hasEnhancedModule = false;
     let hasFallbackModule = false;
     const modules: LearningRoadmapPreviewResponseDto['modules'] = [];
-    for (const module of preview.modules) {
-      const included = module.lessons
-        .filter((lesson) => lesson.scope_status === 'INCLUDED')
-        .map((lesson) => ({
-          id: lesson.id,
-          title: lesson.title,
-          summary: lesson.summary,
-          key_points: lesson.key_points,
-        }));
-      if (included.length === 0) {
-        modules.push(
-          applyEnhancement({ ...preview, modules: [module] }, new Map(), 'DETERMINISTIC_FALLBACK')
-            .modules[0],
-        );
-        hasFallbackModule = true;
-        continue;
-      }
 
-      try {
-        const template = this.prompts.get(PROMPT_CODE);
-        const prompt = this.prompts.render(PROMPT_CODE, {
-          lessons: JSON.stringify(included),
-        });
-        const result = await this.llm.complete(
-          [
-            { role: 'system', content: template.meta.system ?? '' },
-            { role: 'user', content: prompt },
-          ],
-          {
-            jsonMode: true,
-            responseSchema: RESPONSE_SCHEMA,
-            temperature: 0,
-            maxOutputTokens: 2_500,
-            timeoutMs: TIMEOUT_MS,
-            maxRetries: 0,
-            model: this.config.get<string>('learning.contentAiModel') || undefined,
-          },
-        );
-        const enhanced = validateEnhancement(
-          result.parsedJson,
-          new Set(included.map((item) => item.id)),
-        );
-        const byId = new Map(enhanced.map((lesson) => [lesson.id, lesson]));
-        modules.push(
-          applyEnhancement({ ...preview, modules: [module] }, byId, 'AI_ENHANCED').modules[0],
-        );
-        hasEnhancedModule = true;
-      } catch (error) {
-        this.logger.warn(
-          'Learning content enhancement degraded for ' +
+    for (let start = 0; start < preview.modules.length; start += MODULE_CONCURRENCY) {
+      const batch = preview.modules.slice(start, start + MODULE_CONCURRENCY);
+      const settled = await Promise.allSettled(
+        batch.map((module) => this.enhanceModule(preview, module)),
+      );
+
+      settled.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          modules.push(result.value.module);
+          if (result.value.source === 'AI_ENHANCED') hasEnhancedModule = true;
+          else hasFallbackModule = true;
+          return;
+        }
+
+        const module = batch[index];
+        this.logger.error(
+          'Learning content enhancement failed unexpectedly for ' +
             module.skill_canonical +
             ': ' +
-            (error as Error).message,
+            (result.reason instanceof Error ? result.reason.message : String(result.reason)),
         );
         modules.push(
           applyEnhancement({ ...preview, modules: [module] }, new Map(), 'DETERMINISTIC_FALLBACK')
             .modules[0],
         );
         hasFallbackModule = true;
-      }
+      });
     }
 
     return {
@@ -127,8 +104,78 @@ export class LearningContentEnhancer {
       modules,
     };
   }
-}
 
+  private async enhanceModule(
+    preview: LearningRoadmapPreviewResponseDto,
+    module: PreviewModule,
+  ): Promise<EnhancementResult> {
+    const included = module.lessons
+      .filter((lesson) => lesson.scope_status === 'INCLUDED')
+      .map((lesson) => ({
+        id: lesson.id,
+        title: lesson.title,
+        summary: lesson.summary,
+        key_points: lesson.key_points,
+      }));
+
+    if (included.length === 0) {
+      return {
+        module: applyEnhancement(
+          { ...preview, modules: [module] },
+          new Map(),
+          'DETERMINISTIC_FALLBACK',
+        ).modules[0],
+        source: 'DETERMINISTIC_FALLBACK',
+      };
+    }
+
+    try {
+      const template = this.prompts.get(PROMPT_CODE);
+      const prompt = this.prompts.render(PROMPT_CODE, {
+        lessons: JSON.stringify(included),
+      });
+      const result = await this.llm.complete(
+        [
+          { role: 'system', content: template.meta.system ?? '' },
+          { role: 'user', content: prompt },
+        ],
+        {
+          jsonMode: true,
+          responseSchema: RESPONSE_SCHEMA,
+          temperature: 0,
+          maxOutputTokens: 2_500,
+          timeoutMs: TIMEOUT_MS,
+          maxRetries: 0,
+          model: this.config.get<string>('learning.contentAiModel') || undefined,
+        },
+      );
+      const enhanced = validateEnhancement(
+        result.parsedJson,
+        new Set(included.map((item) => item.id)),
+      );
+      const byId = new Map(enhanced.map((lesson) => [lesson.id, lesson]));
+      return {
+        module: applyEnhancement({ ...preview, modules: [module] }, byId, 'AI_ENHANCED').modules[0],
+        source: 'AI_ENHANCED',
+      };
+    } catch (error) {
+      this.logger.warn(
+        'Learning content enhancement degraded for ' +
+          module.skill_canonical +
+          ': ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+      return {
+        module: applyEnhancement(
+          { ...preview, modules: [module] },
+          new Map(),
+          'DETERMINISTIC_FALLBACK',
+        ).modules[0],
+        source: 'DETERMINISTIC_FALLBACK',
+      };
+    }
+  }
+}
 function validateEnhancement(value: unknown, expectedIds: Set<string>): EnhancedLesson[] {
   if (
     !value ||
@@ -175,8 +222,8 @@ function materializeLessonContent(
   skillCanonical: string,
   enhancedById: Map<string, EnhancedLesson>,
 ): Record<string, unknown> | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
-  const lesson = raw as unknown as SkillBridgeLessonContent;
+  if (!isSkillBridgeLessonContent(raw)) return raw;
+  const lesson = raw;
   return {
     ...lesson,
     sections: lesson.sections.map((section) => {

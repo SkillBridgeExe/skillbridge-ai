@@ -136,10 +136,10 @@ describe('buildLearningContentPlan', () => {
       expect.objectContaining({
         skillCanonical: 'uncatalogued_skill',
         scopeStatus: 'FULL',
-        scheduledMinutes: expect.any(Number),
       }),
     );
     expect(result.modules[0].lessons.length).toBeGreaterThanOrEqual(3);
+    expect(result.modules[0].scheduledMinutes).toBeGreaterThan(0);
     expect(
       result.modules[0].lessons.every((lesson) => lesson.id.startsWith('uncatalogued_skill:')),
     ).toBe(true);

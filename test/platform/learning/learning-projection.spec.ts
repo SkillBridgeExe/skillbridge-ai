@@ -1,4 +1,7 @@
-import { computeLearningProjection } from '../../../src/platform/learning/learning-projection';
+import {
+  computeLearningProjection,
+  learningCalendarWeekNumber,
+} from '../../../src/platform/learning/learning-projection';
 
 describe('learning projection', () => {
   it('reports PREP-style planned, missed and pace metrics from server progress', () => {
@@ -33,6 +36,14 @@ describe('learning projection', () => {
     });
   });
 
+  it('returns week one for an invalid scheduled date', () => {
+    expect(
+      learningCalendarWeekNumber(new Date('invalid'), {
+        start_date: '2026-08-03',
+        timezone: 'Asia/Ho_Chi_Minh',
+      }),
+    ).toBe(1);
+  });
   it('uses a neutral 100 percent pace before the first planned unit', () => {
     const result = computeLearningProjection({
       cadence: {

@@ -1,7 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { LearningSessionProgressEntity } from '../../../src/database/entities/learning-session-progress.entity';
 import { LearningSessionProgressService } from '../../../src/platform/learning/session-progress.service';
+import { getSkillBridgeLessonContent } from '../../../src/modules/roadmap/skillbridge-lesson-content';
 
 type RepoMock = Pick<Repository<LearningSessionProgressEntity>, 'create' | 'findOne' | 'save'> & {
   create: jest.Mock;
@@ -19,6 +20,23 @@ function repoMock(): RepoMock {
   } as RepoMock;
 }
 
+function v2DataSource(skillCanonical: string, requiredTasks: Array<Record<string, unknown>>) {
+  const queryBuilder = {
+    innerJoin: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getRawOne: jest.fn().mockResolvedValue({
+      skill_canonical: skillCanonical,
+      required_tasks: requiredTasks,
+    }),
+  };
+  return {
+    queryBuilder,
+    dataSource: { createQueryBuilder: jest.fn().mockReturnValue(queryBuilder) },
+  };
+}
 describe('LearningSessionProgressService', () => {
   it('returns empty progress when the user has not started a session', async () => {
     const repo = repoMock();
@@ -400,9 +418,10 @@ describe('LearningSessionProgressService', () => {
     const queryBuilder = {
       innerJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      getRawOne: jest.fn().mockResolvedValue({ skill_canonical: 'custom_skill' }),
+      getRawOne: jest.fn(),
     };
     const persistedLesson = {
       skill_canonical: 'custom_skill',
@@ -448,16 +467,15 @@ describe('LearningSessionProgressService', () => {
       ],
       exercises: [],
     };
-    const sessions = {
-      findOne: jest.fn().mockResolvedValue({
-        id: '11111111-1111-4111-8111-111111111111',
-        requiredTasks: [{ type: 'lesson', content: persistedLesson }],
-      }),
-    };
+
+    queryBuilder.getRawOne.mockResolvedValue({
+      skill_canonical: 'custom_skill',
+      required_tasks: [{ type: 'lesson', content: persistedLesson }],
+    });
+
     const service = new LearningSessionProgressService(
       repo as unknown as Repository<LearningSessionProgressEntity>,
       { createQueryBuilder: jest.fn().mockReturnValue(queryBuilder) } as never,
-      sessions as never,
     );
 
     const result = await service.answerQuizQuestion(
@@ -477,17 +495,88 @@ describe('LearningSessionProgressService', () => {
         correct_option_index: 0,
       }),
     );
-    expect(sessions.findOne).toHaveBeenCalledWith({
-      where: { id: '11111111-1111-4111-8111-111111111111' },
+    expect(queryBuilder.addSelect).toHaveBeenCalledWith('session.requiredTasks', 'required_tasks');
+  });
+  it('returns no quiz questions when a V2 session has no lesson task', async () => {
+    const repo = repoMock();
+    const { dataSource } = v2DataSource('custom_skill', [{ type: 'study' }]);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      dataSource as never,
+    );
+
+    await expect(
+      service.getNextQuestions('user-1', '11111111-1111-4111-8111-111111111111', 'custom_skill'),
+    ).resolves.toEqual({
+      weak_objectives: [],
+      next_recommended_questions: [],
     });
+  });
+
+  it('rejects malformed persisted V2 lesson content', async () => {
+    const repo = repoMock();
+    const malformed = {
+      ...getSkillBridgeLessonContent('custom_skill'),
+      sections: 'not-an-array',
+    };
+    const { dataSource } = v2DataSource('custom_skill', [{ type: 'lesson', content: malformed }]);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      dataSource as never,
+    );
+
+    await expect(
+      service.getNextQuestions('user-1', '11111111-1111-4111-8111-111111111111', 'custom_skill'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects persisted V2 lesson content with a skill mismatch or invalid quiz arrays', async () => {
+    const repo = repoMock();
+    const mismatch = {
+      ...getSkillBridgeLessonContent('custom_skill'),
+      skill_canonical: 'other_skill',
+    };
+    const { dataSource } = v2DataSource('custom_skill', [{ type: 'lesson', content: mismatch }]);
+    const service = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      dataSource as never,
+    );
+
+    await expect(
+      service.getNextQuestions('user-1', '11111111-1111-4111-8111-111111111111', 'custom_skill'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const invalidQuiz = {
+      ...getSkillBridgeLessonContent('custom_skill'),
+      quiz: 'not-an-array',
+    };
+    const invalidQuizSource = v2DataSource('custom_skill', [
+      { type: 'lesson', content: invalidQuiz },
+    ]);
+    const invalidQuizService = new LearningSessionProgressService(
+      repo as unknown as Repository<LearningSessionProgressEntity>,
+      invalidQuizSource.dataSource as never,
+    );
+
+    await expect(
+      invalidQuizService.getNextQuestions(
+        'user-1',
+        '11111111-1111-4111-8111-111111111111',
+        'custom_skill',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
   it('validates that a persisted V2 session belongs to the user and requested skill', async () => {
     const repo = repoMock();
     repo.findOne.mockResolvedValue(null);
-    const getRawOne = jest.fn().mockResolvedValue({ skill_canonical: 'react' });
+    const getRawOne = jest.fn().mockResolvedValue({
+      skill_canonical: 'react',
+      required_tasks: [{ type: 'lesson', content: getSkillBridgeLessonContent('react') }],
+    });
     const queryBuilder = {
       innerJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getRawOne,
@@ -522,6 +611,7 @@ describe('LearningSessionProgressService', () => {
     const queryBuilder = {
       innerJoin: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getRawOne: jest.fn().mockResolvedValue(null),

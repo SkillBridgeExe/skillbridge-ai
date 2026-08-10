@@ -1,5 +1,5 @@
 import {
-  getSkillBridgeLessonContent,
+  getSkillBridgeCatalogLessonContent,
   SKILLBRIDGE_LESSON_SKILLS,
 } from '../../modules/roadmap/skillbridge-lesson-content';
 import { computeObjectiveMastery } from './quiz-mastery';
@@ -48,7 +48,7 @@ export function masteredSkillCanonicals(rows: LearningProgressRowLike[]): Set<st
   for (const row of rows) {
     const skill = SESSION_ID_TO_SKILL.get(row.sessionId);
     if (!skill || mastered.has(skill)) continue;
-    const lesson = getSkillBridgeLessonContent(skill);
+    const lesson = getSkillBridgeCatalogLessonContent(skill);
     if (!lesson || lesson.learning_objectives.length === 0) continue;
     const attempts = row.quizAttempts;
     if (!attempts || typeof attempts !== 'object' || Array.isArray(attempts)) continue;

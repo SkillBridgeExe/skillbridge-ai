@@ -308,6 +308,7 @@ describe('LearningRoadmapDraftService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(roadmaps.save).not.toHaveBeenCalled();
+    expect(roadmaps.update).not.toHaveBeenCalled();
   });
   it('rejects selected priorities with non-contiguous ranks', async () => {
     const { service, roadmaps } = serviceSetup();
@@ -346,6 +347,7 @@ describe('LearningRoadmapDraftService', () => {
         ],
       }),
     ).rejects.toThrow('Selected skill ranks must be contiguous starting at 1.');
+    expect(roadmaps.update).not.toHaveBeenCalled();
   });
 
   it('rejects resource ids that were not proposed for the selected skill', async () => {

@@ -6,7 +6,7 @@ import { ChatConversationEntity } from '../../database/entities/chat-conversatio
 import { ChatMessageEntity } from '../../database/entities/chat-message.entity';
 import { ChatService } from '../../modules/learning-chat/learning-chat.service';
 import { buildChatFacts } from '../../modules/learning-chat/chat-grounding';
-import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
+import { getSkillBridgeCatalogLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 
 import { TracingService } from '../../modules/tracing/tracing.service';
 import { CvMatchesService } from '../cv-matches/cv-matches.service';
@@ -204,7 +204,7 @@ export class LearningChatPlatformService {
 
   private async buildLearningContext(userId: string, dto: LearningChatRequestDto) {
     if (!dto.session_id || !dto.skill_canonical) return null;
-    const lesson = getSkillBridgeLessonContent(dto.skill_canonical);
+    const lesson = getSkillBridgeCatalogLessonContent(dto.skill_canonical);
     if (!lesson) return null;
     const progress = await this.sessionProgress.getProgress(userId, dto.session_id);
     const attempts = progress.quiz_attempts as Record<string, unknown>;
