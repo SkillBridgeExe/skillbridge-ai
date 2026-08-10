@@ -40,12 +40,14 @@ import {
   DrillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
+  groundInterviewThread,
   InterviewAgenda,
   InterviewPhase as AgendaInterviewPhase,
   InterviewState,
   InterviewTurnTrace,
   isGroundedFollowUp,
   pickDrillAnchor,
+  shouldChallengeBeforeAdvance,
   TURN_BUDGET_BY_TIER,
   TurnAction,
 } from '../../modules/interview/interview-agenda';
@@ -614,7 +616,18 @@ export class InterviewsService {
       ),
     ];
 
-    const nextState = this.advanceStateBeforeDecision(state, assessment);
+    const groundedThread = groundInterviewThread({
+      proposed_thread: assessment.currentThread,
+      previous_thread: state.current_thread,
+      answer: userAnswer,
+      question: current.interviewerQuestion,
+      topic: [topic.display_name, topic.skill_canonical].filter(Boolean).join(' '),
+    });
+    const groundedAssessment: InterviewAssessOutput = {
+      ...assessment,
+      currentThread: groundedThread.thread,
+    };
+    const nextState = this.advanceStateBeforeDecision(state, groundedAssessment);
     const secondsRemaining = this.secondsRemaining(session);
     const hardCap = this.hardTurnCapForSession(session);
     let action: TurnAction;
@@ -672,7 +685,31 @@ export class InterviewsService {
       });
       const rawAction = decided.action;
       turnTrace = decided.trace;
-      const nextTopic = rawAction === 'advance' ? this.nextTopic(agenda, topic.id) : null;
+      const challengeBeforeAdvance =
+        rawAction === 'advance' &&
+        shouldChallengeBeforeAdvance({
+          claim_status: assessment.claimStatus,
+          off_topic: insight.off_topic,
+          drill_depth: state.drill_depth,
+          drill_budget: topic.drill_budget,
+        });
+      const effectiveAction: TurnAction = challengeBeforeAdvance ? 'drill' : rawAction;
+      if (challengeBeforeAdvance) {
+        turnTrace = {
+          ...turnTrace,
+          action: 'drill',
+          confidence: 'medium',
+          reasons: [...turnTrace.reasons, 'challenge_before_topic_advance'],
+        };
+      }
+      if (!groundedThread.accepted && assessment.currentThread.trim()) {
+        turnTrace = {
+          ...turnTrace,
+          confidence: 'low',
+          reasons: [...turnTrace.reasons, 'thread_grounding_fallback'],
+        };
+      }
+      const nextTopic = effectiveAction === 'advance' ? this.nextTopic(agenda, topic.id) : null;
 
       if (this.shouldAskClosingQuestion(secondsRemaining)) {
         action = 'wrap';
@@ -686,7 +723,7 @@ export class InterviewsService {
         nextQuestionKind = 'closing';
         turnTrace = { ...turnTrace, action: 'wrap', reasons: ['time_low_closing_question'] };
       } else {
-        const exhaustedTopics = rawAction === 'advance' && !nextTopic;
+        const exhaustedTopics = effectiveAction === 'advance' && !nextTopic;
         if (rawAction === 'wrap') {
           // `wrap` is a terminal decision. The old implementation converted it into another
           // drill, which made the candidate answer one more question even after the engine had
@@ -728,7 +765,7 @@ export class InterviewsService {
             reasons: [...turnTrace.reasons, 'agenda_complete_terminal'],
           };
         } else {
-          action = rawAction;
+          action = effectiveAction;
           askTopic = action === 'advance' && nextTopic ? nextTopic : topic;
           updatedState = this.applyTurnDecision(nextState, agenda, topic, askTopic, action);
           turnDecision = action === 'advance' ? 'advance_topic' : 'continue_topic';
@@ -825,7 +862,11 @@ export class InterviewsService {
           currentThread: updatedState.current_thread,
           recentQa,
           runningNotes: updatedState.running_notes,
-          prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
+          prevTopicOutcome: this.prevTopicOutcome(
+            topic,
+            groundedAssessment,
+            depthGuard.depth_signal,
+          ),
           ladderRung,
           topicPhase: askTopic.phase,
           drillAnchor,
@@ -855,7 +896,11 @@ export class InterviewsService {
               currentThread: updatedState.current_thread,
               recentQa,
               runningNotes: updatedState.running_notes,
-              prevTopicOutcome: this.prevTopicOutcome(topic, assessment, depthGuard.depth_signal),
+              prevTopicOutcome: this.prevTopicOutcome(
+                topic,
+                groundedAssessment,
+                depthGuard.depth_signal,
+              ),
               ladderRung,
               topicPhase: askTopic.phase,
               drillAnchor,
@@ -893,7 +938,25 @@ export class InterviewsService {
             ...this.topicTerms(askTopic),
           ]);
           if (!grounded) {
-            turnTrace = { ...turnTrace, reasons: [...turnTrace.reasons, 'generic_follow_up_risk'] };
+            turnTrace = {
+              ...turnTrace,
+              action: 'drill',
+              confidence: 'low',
+              reasons: [...turnTrace.reasons, 'generic_follow_up_replaced'],
+            };
+            ask = {
+              ...ask,
+              aiMessage:
+                this.language(session.language) === 'vi'
+                  ? 'Cảm ơn bạn. Mình sẽ hỏi sâu hơn đúng vào phần bạn vừa nói.'
+                  : 'Thank you. I will stay with that point and ask one deeper question.',
+              question: this.groundedFollowUpFallback(
+                this.language(session.language),
+                askTopic,
+                updatedState.current_thread,
+                ladderRung,
+              ),
+            };
           }
         }
       }
@@ -927,7 +990,7 @@ export class InterviewsService {
     current.depthSignal = depthGuard.depth_signal;
     current.signals = signals;
     current.insight = insight;
-    current.currentThread = assessment.currentThread || updatedState.current_thread;
+    current.currentThread = groundedAssessment.currentThread || updatedState.current_thread;
     current.skillCanonical = topic.skill_canonical;
     current.answeredAt = answeredAt;
     await this.turns.save(current);
@@ -1626,6 +1689,31 @@ export class InterviewsService {
     );
   }
 
+  private groundedFollowUpFallback(
+    language: Language,
+    topic: AgendaTopic,
+    thread: string,
+    rung: DrillLadderRung | null,
+  ): string {
+    const label = (thread.trim() || topic.display_name).replace(/\s+/g, ' ').slice(0, 120);
+    if (language === 'vi') {
+      if (rung === 'tradeoff') {
+        return `Với "${label}", bạn đã chọn cách đó thay vì phương án nào, và trade-off là gì?`;
+      }
+      if (rung === 'edge_failure') {
+        return `Với "${label}", cách xử lý đó có thể thất bại trong trường hợp nào và bạn theo dõi điều gì?`;
+      }
+      return `Quay lại "${label}", bạn sẽ kiểm tra điều gì trước, theo thứ tự nào, và vì sao?`;
+    }
+    if (rung === 'tradeoff') {
+      return `For "${label}", what alternative did you reject, and what trade-off made you choose this approach?`;
+    }
+    if (rung === 'edge_failure') {
+      return `For "${label}", where could this approach fail, and what would you monitor?`;
+    }
+    return `Returning to "${label}", what would you check first, in what order, and why?`;
+  }
+
   private prevTopicOutcome(
     topic: AgendaTopic,
     assessment: InterviewAssessOutput,
@@ -1853,7 +1941,13 @@ export class InterviewsService {
       } as unknown as InterviewTurnTrace;
       turn.topicPhase = topicPhase;
       turn.skillCanonical = skillCanonical;
-      turn.currentThread = assessment.currentThread || turn.currentThread || displayName;
+      turn.currentThread = groundInterviewThread({
+        proposed_thread: assessment.currentThread,
+        previous_thread: turn.currentThread ?? '',
+        answer: turn.userAnswerText ?? '',
+        question: turn.interviewerQuestion,
+        topic: [displayName, skillCanonical].filter(Boolean).join(' '),
+      }).thread;
       await this.turns.save(turn);
     }
 

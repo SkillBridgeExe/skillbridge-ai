@@ -6,8 +6,10 @@ import {
   drillLadderRung,
   filterGroundedGaps,
   filterRecognizedConcepts,
+  groundInterviewThread,
   isGroundedFollowUp,
   pickDrillAnchor,
+  shouldChallengeBeforeAdvance,
   TURN_BUDGET_BY_TIER,
 } from '../../../src/modules/interview/interview-agenda';
 
@@ -243,6 +245,72 @@ describe('isGroundedFollowUp', () => {
   it('is honest about empty inputs: no question or no context → not grounded', () => {
     expect(isGroundedFollowUp('', context)).toBe(false);
     expect(isGroundedFollowUp('How did you build the cache?', [])).toBe(false);
+  });
+});
+
+describe('adaptive interview guards', () => {
+  it('rejects a proposed thread that is unrelated to the current REST API answer', () => {
+    expect(
+      groundInterviewThread({
+        proposed_thread: 'database selection',
+        previous_thread: 'REST API incident diagnosis',
+        answer:
+          'I would inspect the logs, identify the failing endpoint, and fix the backend issue.',
+        question: 'When a REST API fails, how do you diagnose and fix the incident?',
+        topic: 'Backend API troubleshooting',
+      }),
+    ).toEqual({ thread: 'REST API incident diagnosis', accepted: false });
+  });
+
+  it('accepts a proposed thread anchored in the current answer and question', () => {
+    expect(
+      groundInterviewThread({
+        proposed_thread: 'REST API log diagnosis',
+        previous_thread: 'Backend API troubleshooting',
+        answer:
+          'I would inspect the logs, identify the failing endpoint, and fix the backend issue.',
+        question: 'When a REST API fails, how do you diagnose and fix the incident?',
+        topic: 'Backend API troubleshooting',
+      }),
+    ).toEqual({ thread: 'REST API log diagnosis', accepted: true });
+  });
+
+  it('requires a challenge before advancing after a wrong, partial, or off-topic answer', () => {
+    expect(
+      shouldChallengeBeforeAdvance({
+        claim_status: 'wrong',
+        off_topic: false,
+        drill_depth: 0,
+        drill_budget: 3,
+      }),
+    ).toBe(true);
+    expect(
+      shouldChallengeBeforeAdvance({
+        claim_status: 'partial',
+        off_topic: false,
+        drill_depth: 0,
+        drill_budget: 3,
+      }),
+    ).toBe(true);
+    expect(
+      shouldChallengeBeforeAdvance({
+        claim_status: 'ok',
+        off_topic: true,
+        drill_depth: 0,
+        drill_budget: 3,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not keep drilling when the topic has no budget left', () => {
+    expect(
+      shouldChallengeBeforeAdvance({
+        claim_status: 'wrong',
+        off_topic: false,
+        drill_depth: 2,
+        drill_budget: 3,
+      }),
+    ).toBe(false);
   });
 });
 
