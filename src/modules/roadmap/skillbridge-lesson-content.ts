@@ -2500,7 +2500,7 @@ function generateFallbackBlueprint(skill: string): LessonBlueprint {
 }
 
 function buildLesson(
-  skill: SkillBridgeLessonSkill,
+  skill: string,
   blueprint: LessonBlueprint | undefined,
 ): Omit<SkillBridgeLessonContent, 'source_resource_ids'> {
   const actualBlueprint = blueprint || generateFallbackBlueprint(skill);
@@ -2634,7 +2634,7 @@ for (const skill of SKILLBRIDGE_LESSON_SKILLS) {
   LESSONS[skill] = buildLesson(skill, LESSON_BLUEPRINTS[skill as keyof typeof LESSON_BLUEPRINTS]);
 }
 
-export function getSkillBridgeLessonContent(
+export function getSkillBridgeCatalogLessonContent(
   skillCanonical: string,
   sourceResourceIds: string[] = [],
 ): SkillBridgeLessonContent | undefined {
@@ -2644,4 +2644,35 @@ export function getSkillBridgeLessonContent(
     ...lesson,
     source_resource_ids: sourceResourceIds,
   };
+}
+
+export function getSkillBridgeLessonContent(
+  skillCanonical: string,
+  sourceResourceIds: string[] = [],
+): SkillBridgeLessonContent {
+  const lesson = LESSONS[skillCanonical] ?? buildLesson(skillCanonical, undefined);
+  return {
+    ...lesson,
+    source_resource_ids: sourceResourceIds,
+  };
+}
+
+export function isSkillBridgeLessonContent(
+  value: unknown,
+): value is SkillBridgeLessonContent & Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const content = value as Record<string, unknown>;
+  const passPolicy = content.pass_policy;
+  return (
+    typeof content.skill_canonical === 'string' &&
+    Array.isArray(content.source_resource_ids) &&
+    Array.isArray(content.learning_objectives) &&
+    Array.isArray(content.sections) &&
+    Array.isArray(content.quiz_bank) &&
+    Array.isArray(content.quiz) &&
+    Array.isArray(content.exercises) &&
+    typeof passPolicy === 'object' &&
+    passPolicy !== null &&
+    !Array.isArray(passPolicy)
+  );
 }

@@ -144,6 +144,7 @@ describe('LearningRoadmapQueryService', () => {
       'session-1',
       'session-2',
     ]);
+    expect(result.modules[0].sessions.map((session) => session.week_number)).toEqual([2, 1]);
     expect(result.modules[0].sessions.map((session) => session.status)).toEqual([
       'COMPLETED',
       'AVAILABLE',

@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +16,10 @@ import { LearningSessionEntity } from '../../database/entities/learning-session.
 import { LearningScheduleProfileEntity } from '../../database/entities/learning-schedule-profile.entity';
 import { LearningAvailabilitySlotEntity } from '../../database/entities/learning-availability-slot.entity';
 import type { ComposedRoadmap, ComposedRoadmapStep } from '../../modules/roadmap/roadmap-composer';
+import {
+  getSkillBridgeLessonContent,
+  isSkillBridgeLessonContent,
+} from '../../modules/roadmap/skillbridge-lesson-content';
 import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import { RoadmapComposerService } from '../../modules/roadmap/roadmap-composer.service';
 import { EntitlementsService } from '../billing/entitlements.service';
@@ -53,6 +59,12 @@ interface PreparedRoadmap {
 
 @Injectable()
 export class LearningRoadmapGenerationService {
+  private readonly logger = new Logger(LearningRoadmapGenerationService.name);
+
+  private failInvariant(message: string, context: Record<string, unknown>): never {
+    this.logger.error(message + ' ' + JSON.stringify(context));
+    throw new InternalServerErrorException('Learning roadmap generation failed.');
+  }
   constructor(
     @InjectRepository(LearningRoadmapEntity)
     private readonly roadmaps: Repository<LearningRoadmapEntity>,
@@ -183,16 +195,20 @@ export class LearningRoadmapGenerationService {
       contentPlan = buildLearningContentPlan({
         track: learningTrack,
         ...(capacitySchedule ? { capacityMinutes: capacitySchedule.capacityMinutes } : {}),
-        candidates: selected.map((candidate) => ({
-          skillCanonical: candidate.skill_canonical,
-          displayName: candidate.display_name,
-          systemPriority: candidate.system_priority,
-          userRank: roadmap.draftConfig.selected_priorities?.find(
-            (item) => item.skill_canonical === candidate.skill_canonical,
-          )?.rank,
-          prerequisites: candidate.prerequisites,
-          lessonContent: stepBySkill.get(candidate.skill_canonical)?.lesson_content,
-        })),
+        candidates: selected.map((candidate) => {
+          const step = stepBySkill.get(candidate.skill_canonical);
+          return {
+            skillCanonical: candidate.skill_canonical,
+            displayName: candidate.display_name,
+            systemPriority: candidate.system_priority,
+            userRank: roadmap.draftConfig.selected_priorities?.find(
+              (item) => item.skill_canonical === candidate.skill_canonical,
+            )?.rank,
+            prerequisites: candidate.prerequisites,
+            lessonContent: step?.lesson_content,
+            sourceResourceIds: step?.resources.map((resource) => resource.id) ?? [],
+          };
+        }),
       });
     } catch (error) {
       if (error instanceof LearningPrerequisiteCycleError) {
@@ -201,26 +217,44 @@ export class LearningRoadmapGenerationService {
       throw error;
     }
     const lessonGroupsBySkill = groupIncludedLessons(contentPlan, sessionMinutes);
-    const schedulable = contentPlan.modules
-      .filter((module) => module.scheduledMinutes > 0)
-      .map((module) => {
-        const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
-        return {
-          skillCanonical: module.skillCanonical,
-          displayName: module.displayName,
-          estimatedMinutes:
-            lessonGroups.length > 0
-              ? lessonGroups.length * sessionMinutes
-              : module.scheduledMinutes,
-          systemPriority:
-            learningTrack === 'FAST_TRACK'
-              ? module.quickWinScore
-              : selected.find((item) => item.skill_canonical === module.skillCanonical)!
-                  .system_priority,
-          userRank: module.rank,
-          prerequisites: module.prerequisites,
-        };
+    if (contentPlan.modules.length !== selected.length) {
+      this.failInvariant('Learning planner lost a selected skill.', {
+        roadmapId: roadmap.id,
+        selectedSkills: selected.length,
+        plannedModules: contentPlan.modules.length,
       });
+    }
+    if (
+      contentPlan.modules.some(
+        (module, index) => module.rank !== index + 1 || module.lessons.length === 0,
+      )
+    ) {
+      this.failInvariant('Learning planner produced invalid module content.', {
+        roadmapId: roadmap.id,
+        ranks: contentPlan.modules.map((module) => module.rank),
+        modulesWithoutLessons: contentPlan.modules
+          .filter((module) => module.lessons.length === 0)
+          .map((module) => module.skillCanonical),
+      });
+    }
+    const schedulable = contentPlan.modules.map((module) => {
+      const lessonGroups = lessonGroupsBySkill.get(module.skillCanonical) ?? [];
+      return {
+        skillCanonical: module.skillCanonical,
+        displayName: module.displayName,
+        estimatedMinutes:
+          lessonGroups.length > 0
+            ? lessonGroups.length * sessionMinutes
+            : Math.max(module.scheduledMinutes, sessionMinutes),
+        systemPriority:
+          learningTrack === 'FAST_TRACK'
+            ? module.quickWinScore
+            : selected.find((item) => item.skill_canonical === module.skillCanonical)!
+                .system_priority,
+        userRank: module.rank,
+        prerequisites: module.prerequisites,
+      };
+    });
 
     let scheduled;
     let sessionsWithLessons;
@@ -241,6 +275,17 @@ export class LearningRoadmapGenerationService {
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
+    const scheduledMinutesBySkill = new Map<string, number>();
+    for (const session of sessionsWithLessons) {
+      scheduledMinutesBySkill.set(
+        session.skillCanonical,
+        (scheduledMinutesBySkill.get(session.skillCanonical) ?? 0) + session.durationMinutes,
+      );
+    }
+    const totalScheduledMinutes = sessionsWithLessons.reduce(
+      (total, session) => total + session.durationMinutes,
+      0,
+    );
     const candidateBySkill = new Map(
       selected.map((candidate) => [candidate.skill_canonical, candidate]),
     );
@@ -252,7 +297,7 @@ export class LearningRoadmapGenerationService {
       learning_track: learningTrack,
       content_source: 'DETERMINISTIC',
       capacity_minutes: capacitySchedule?.capacityMinutes ?? scheduled.scheduledMinutes,
-      scheduled_minutes: contentPlan.scheduledMinutes,
+      scheduled_minutes: totalScheduledMinutes,
       coverage_percentage: contentPlan.coveragePercentage,
       cadence: cadence ?? {
         timezone,
@@ -276,10 +321,15 @@ export class LearningRoadmapGenerationService {
           skill_canonical: module.skillCanonical,
           display_name: candidate.display_name,
           rank: module.rank,
-          estimated_minutes: module.scheduledMinutes,
+          estimated_minutes: scheduledMinutesBySkill.get(module.skillCanonical) ?? 0,
           feasibility: module.scopeStatus === 'DEFERRED' ? 'DEFERRED' : 'FEASIBLE',
           resources: (step?.resources ?? []) as Array<Record<string, unknown>>,
-          lesson_content: (step?.lesson_content as unknown as Record<string, unknown>) ?? null,
+          lesson_content: isSkillBridgeLessonContent(step?.lesson_content)
+            ? (step.lesson_content as unknown as Record<string, unknown>)
+            : (getSkillBridgeLessonContent(
+                module.skillCanonical,
+                (step?.resources ?? []).map((resource) => resource.id),
+              ) as unknown as Record<string, unknown>),
           quick_win_score: module.quickWinScore,
           scope_status: module.scopeStatus,
           prerequisite_warnings: module.prerequisites,
@@ -308,7 +358,10 @@ export class LearningRoadmapGenerationService {
         .filter((module) => module.scopeStatus !== 'FULL')
         .map((module) => ({
           skill_canonical: module.skillCanonical,
-          remaining_minutes: module.estimatedMinutes - module.scheduledMinutes,
+          remaining_minutes: Math.max(
+            0,
+            module.estimatedMinutes - (scheduledMinutesBySkill.get(module.skillCanonical) ?? 0),
+          ),
         })),
     };
     return { roadmap, derived, composed, contentPlan, preview };
@@ -349,6 +402,7 @@ export class LearningRoadmapGenerationService {
             quick_win_score: module.quick_win_score,
             scope_status: module.scope_status,
             lessons: module.lessons,
+            lesson_content: module.lesson_content,
           })),
         },
       },
@@ -404,11 +458,37 @@ export class LearningRoadmapGenerationService {
     const stepBySkill = new Map(
       prepared.composed.steps.map((step) => [step.skill_canonical, step]),
     );
-    for (const modulePreview of [...prepared.preview.modules]
-      .filter((module) => module.scope_status !== 'DEFERRED')
-      .sort((a, b) => a.rank - b.rank)) {
+    const selectedSkillCount = selectCurrentCandidates(locked, prepared.derived).length;
+    const persistedModules = [...prepared.preview.modules].sort((a, b) => a.rank - b.rank);
+    if (
+      persistedModules.length !== selectedSkillCount ||
+      persistedModules.some((module, index) => module.rank !== index + 1)
+    ) {
+      this.failInvariant('Learning persistence lost a selected module or rank.', {
+        roadmapId: locked.id,
+        selectedSkillCount,
+        persistedModuleCount: persistedModules.length,
+      });
+    }
+    const sessionSkills = new Set(
+      prepared.preview.sessions.map((session) => session.skill_canonical),
+    );
+    if (persistedModules.some((module) => !sessionSkills.has(module.skill_canonical))) {
+      this.failInvariant('Learning persistence lost a module session.', {
+        roadmapId: locked.id,
+        missingModules: persistedModules
+          .filter((module) => !sessionSkills.has(module.skill_canonical))
+          .map((module) => module.skill_canonical),
+      });
+    }
+    for (const modulePreview of persistedModules) {
       const candidate = candidateBySkill.get(modulePreview.skill_canonical);
-      if (!candidate) throw new ConflictException('Roadmap candidates changed during generation.');
+      if (!candidate) {
+        this.failInvariant('Learning persistence lost a roadmap candidate.', {
+          roadmapId: locked.id,
+          skillCanonical: modulePreview.skill_canonical,
+        });
+      }
       const userPriority = locked.draftConfig.selected_priorities?.find(
         (item) => item.skill_canonical === modulePreview.skill_canonical,
       )?.rank;
@@ -443,6 +523,9 @@ export class LearningRoadmapGenerationService {
           durationMinutes: session.duration_minutes,
           requiredTasks: requiredTasks(
             step,
+            isSkillBridgeLessonContent(modulePreview.lesson_content)
+              ? modulePreview.lesson_content
+              : null,
             session.lesson_ids,
             session.sequence,
             moduleSessions.length,
@@ -473,7 +556,10 @@ function selectCurrentCandidates(
   derived: DerivedLearningCandidates,
 ) {
   const priorities = roadmap.draftConfig.selected_priorities;
-  if (!priorities?.length) return derived.candidates;
+  if (priorities === undefined) return derived.candidates;
+  if (priorities.length === 0) {
+    throw new BadRequestException('Select at least one learning skill.');
+  }
   const bySkill = new Map(
     derived.candidates.map((candidate) => [candidate.skill_canonical, candidate]),
   );
@@ -562,6 +648,7 @@ function attachLessonsToSessions(
 
 function requiredTasks(
   step: ComposedRoadmapStep | undefined,
+  persistedLessonContent: SkillBridgeLessonContent | null,
   lessonIds: string[],
   sequence: number,
   totalSessions: number,
@@ -569,18 +656,21 @@ function requiredTasks(
   const tasks: Array<Record<string, unknown>> = [
     { type: 'study', sequence, total_sessions: totalSessions },
   ];
-  if (step) {
-    if (sequence === 1) tasks.push({ type: 'resources', items: step.resources });
-    if (step.lesson_content) {
-      const content = sliceLessonContent(step.lesson_content, lessonIds);
-      if (content.sections.length > 0 || content.exercises.length > 0) {
-        tasks.push({ type: 'lesson', content });
-      }
+  if (step && sequence === 1) {
+    tasks.push({ type: 'resources', items: step.resources });
+  }
+
+  const lessonSource =
+    persistedLessonContent ??
+    (isSkillBridgeLessonContent(step?.lesson_content) ? step.lesson_content : null);
+  if (lessonSource && lessonIds.length > 0) {
+    const content = sliceLessonContent(lessonSource, lessonIds);
+    if (content.sections.length > 0 || content.exercises.length > 0) {
+      tasks.push({ type: 'lesson', content });
     }
   }
   return tasks;
 }
-
 function sliceLessonContent(
   content: SkillBridgeLessonContent,
   lessonIds: string[],

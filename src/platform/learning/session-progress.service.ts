@@ -6,7 +6,11 @@ import { LearningRoadmapEntity } from '../../database/entities/learning-roadmap.
 import { LearningRoadmapVersionEntity } from '../../database/entities/learning-roadmap-version.entity';
 import { LearningSessionEntity } from '../../database/entities/learning-session.entity';
 import { LearningSessionProgressEntity } from '../../database/entities/learning-session-progress.entity';
-import { getSkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
+import {
+  getSkillBridgeCatalogLessonContent,
+  isSkillBridgeLessonContent,
+} from '../../modules/roadmap/skillbridge-lesson-content';
+import type { SkillBridgeLessonContent } from '../../modules/roadmap/skillbridge-lesson-content';
 import {
   answerQuizQuestion as scoreQuizQuestion,
   computeObjectiveMastery,
@@ -49,14 +53,14 @@ export class LearningSessionProgressService {
         'Session completion must use the dedicated completion endpoint.',
       );
     }
-    const isV2 = await this.assertOwnedV2Session(userId, sessionId);
+    const owned = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     const next =
       existing ??
       this.progress.create({
         userId,
         sessionId,
-        ...(isV2 ? { learningSessionId: sessionId } : {}),
+        ...(owned ? { learningSessionId: sessionId } : {}),
       });
 
     const checkedChecklistItems = normalizeChecklistItems(dto.checked_checklist_items);
@@ -74,8 +78,8 @@ export class LearningSessionProgressService {
     sessionId: string,
     dto: AnswerLearningQuizQuestionDto,
   ): Promise<LearningQuizAnswerResponseDto> {
-    const isV2 = await this.assertOwnedV2Session(userId, sessionId, dto.skill_canonical);
-    const lesson = getSkillBridgeLessonContent(dto.skill_canonical);
+    const owned = await this.assertOwnedV2Session(userId, sessionId, dto.skill_canonical);
+    const lesson = await this.resolveLesson(owned, sessionId, dto.skill_canonical);
     if (!lesson) {
       throw new NotFoundException(`Learning lesson '${dto.skill_canonical}' was not found.`);
     }
@@ -115,7 +119,7 @@ export class LearningSessionProgressService {
       this.progress.create({
         userId,
         sessionId,
-        ...(isV2 ? { learningSessionId: sessionId } : {}),
+        ...(owned ? { learningSessionId: sessionId } : {}),
         checkedChecklistItems: {},
         exerciseProofs: {},
         quizAttempts,
@@ -159,12 +163,14 @@ export class LearningSessionProgressService {
     sessionId: string,
     skillCanonical: string,
   ): Promise<LearningNextQuestionsResponseDto> {
-    await this.assertOwnedV2Session(userId, sessionId, skillCanonical);
-    const lesson = getSkillBridgeLessonContent(skillCanonical);
+    const owned = await this.assertOwnedV2Session(userId, sessionId, skillCanonical);
+    const lesson = await this.resolveLesson(owned, sessionId, skillCanonical);
     if (!lesson) {
-      throw new NotFoundException(`Learning lesson '${skillCanonical}' was not found.`);
+      if (!owned) {
+        throw new NotFoundException('Learning lesson ' + skillCanonical + ' was not found.');
+      }
+      return { weak_objectives: [], next_recommended_questions: [] };
     }
-
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     return buildAdaptiveNextQuestions(
       lesson.quiz_bank,
@@ -183,14 +189,14 @@ export class LearningSessionProgressService {
         'Session completion must use the dedicated completion endpoint.',
       );
     }
-    const isV2 = await this.assertOwnedV2Session(userId, sessionId);
+    const owned = await this.assertOwnedV2Session(userId, sessionId);
     const existing = await this.progress.findOne({ where: { userId, sessionId } });
     const next =
       existing ??
       this.progress.create({
         userId,
         sessionId,
-        ...(isV2 ? { learningSessionId: sessionId } : {}),
+        ...(owned ? { learningSessionId: sessionId } : {}),
         checkedChecklistItems: {},
         exerciseProofs: {},
         quizAttempts: {},
@@ -208,12 +214,48 @@ export class LearningSessionProgressService {
     return this.toResponse(await this.progress.save(next));
   }
 
+  private resolveLesson(
+    owned: OwnedV2Session | null,
+    sessionId: string,
+    skillCanonical: string,
+  ): SkillBridgeLessonContent | undefined {
+    if (!owned) return getSkillBridgeCatalogLessonContent(skillCanonical);
+
+    const task = owned.requiredTasks.find((item) => item.type === 'lesson');
+    if (!task) return undefined;
+
+    const content = task.content;
+    if (!content || typeof content !== 'object' || Array.isArray(content)) {
+      throw new NotFoundException('Persisted lesson for session ' + sessionId + ' was not found.');
+    }
+
+    const rawLesson = content as Record<string, unknown>;
+    if (
+      typeof rawLesson.skill_canonical !== 'string' ||
+      rawLesson.skill_canonical !== skillCanonical ||
+      !Array.isArray(rawLesson.quiz) ||
+      !Array.isArray(rawLesson.quiz_bank)
+    ) {
+      throw new BadRequestException(
+        'Persisted lesson for session ' +
+          sessionId +
+          ' does not match skill ' +
+          skillCanonical +
+          '.',
+      );
+    }
+    if (!isSkillBridgeLessonContent(content)) {
+      throw new NotFoundException('Persisted lesson for session ' + sessionId + ' is malformed.');
+    }
+    return content;
+  }
+
   private async assertOwnedV2Session(
     userId: string,
     sessionId: string,
     skillCanonical?: string,
-  ): Promise<boolean> {
-    if (!UUID_PATTERN.test(sessionId)) return false;
+  ): Promise<OwnedV2Session | null> {
+    if (!UUID_PATTERN.test(sessionId)) return null;
     if (!this.dataSource) {
       throw new Error('Learning V2 session validation requires a DataSource.');
     }
@@ -223,16 +265,24 @@ export class LearningSessionProgressService {
       .innerJoin(LearningRoadmapVersionEntity, 'version', 'version.id = module.versionId')
       .innerJoin(LearningRoadmapEntity, 'roadmap', 'roadmap.id = version.roadmapId')
       .select('module.skillCanonical', 'skill_canonical')
+      .addSelect('session.requiredTasks', 'required_tasks')
       .where('session.id = :sessionId', { sessionId })
       .andWhere('roadmap.userId = :userId', { userId });
     if (skillCanonical) {
       query.andWhere('module.skillCanonical = :skillCanonical', { skillCanonical });
     }
-    const owned = await query.getRawOne<{ skill_canonical: string }>();
-    if (!owned) throw new NotFoundException(`Learning session '${sessionId}' was not found.`);
-    return true;
+    const owned = await query.getRawOne<{
+      skill_canonical: string;
+      required_tasks: unknown;
+    }>();
+    if (!owned) {
+      throw new NotFoundException("Learning session '" + sessionId + "' was not found.");
+    }
+    return {
+      skillCanonical: owned.skill_canonical,
+      requiredTasks: normalizeRequiredTasks(owned.required_tasks),
+    };
   }
-
   private emptyResponse(sessionId: string): LearningSessionProgressResponseDto {
     return {
       session_id: sessionId,
@@ -254,6 +304,10 @@ export class LearningSessionProgressService {
   }
 }
 
+interface OwnedV2Session {
+  skillCanonical: string;
+  requiredTasks: Array<Record<string, unknown>>;
+}
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function legacyRoadmapSessionId(skillCanonical: string): string {
@@ -265,6 +319,23 @@ function legacyRoadmapSessionId(skillCanonical: string): string {
   return `roadmap-${slug}`;
 }
 
+function normalizeRequiredTasks(value: unknown): Array<Record<string, unknown>> {
+  const parsed =
+    typeof value === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(value) as unknown;
+          } catch {
+            return null;
+          }
+        })()
+      : value;
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+  );
+}
 function normalizeChecklistItems(value: unknown): Record<string, string[]> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const normalized: Record<string, string[]> = {};

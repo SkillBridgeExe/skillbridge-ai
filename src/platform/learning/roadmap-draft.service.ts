@@ -299,6 +299,15 @@ export class LearningRoadmapDraftService {
 
   private assertSelectedCandidates(config: LearningRoadmapDraftConfig): void {
     if (!config.selected_priorities) return;
+    if (config.selected_priorities.length === 0) {
+      throw new BadRequestException('Select at least one learning skill.');
+    }
+    const ranks = [...config.selected_priorities]
+      .map((item) => item.rank)
+      .sort((left, right) => left - right);
+    if (ranks.some((rank, index) => rank !== index + 1)) {
+      throw new BadRequestException('Selected skill ranks must be contiguous starting at 1.');
+    }
     const candidates = new Set(config.candidate_skills.map((item) => item.skill_canonical));
     const selected = new Set<string>();
     for (const item of config.selected_priorities) {

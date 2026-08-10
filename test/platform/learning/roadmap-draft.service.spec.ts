@@ -280,6 +280,76 @@ describe('LearningRoadmapDraftService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('rejects an explicitly empty selected priority list', async () => {
+    const { service, roadmaps } = serviceSetup();
+    roadmaps.findOne.mockResolvedValue({
+      id: 'roadmap-1',
+      userId: 'user-1',
+      status: 'DRAFT',
+      revision: 2,
+      draftConfig: {
+        language_pref: 'en',
+        candidate_skills: [
+          {
+            skill_canonical: 'react',
+            display_name: 'React',
+            system_priority: 1,
+            rationale: 'Gap',
+            prerequisites: [],
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.updateDraft('user-1', 'roadmap-1', {
+        expected_revision: 2,
+        selected_priorities: [],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(roadmaps.save).not.toHaveBeenCalled();
+    expect(roadmaps.update).not.toHaveBeenCalled();
+  });
+  it('rejects selected priorities with non-contiguous ranks', async () => {
+    const { service, roadmaps } = serviceSetup();
+    roadmaps.findOne.mockResolvedValue({
+      id: 'roadmap-1',
+      userId: 'user-1',
+      status: 'DRAFT',
+      revision: 2,
+      draftConfig: {
+        language_pref: 'en',
+        candidate_skills: [
+          {
+            skill_canonical: 'react',
+            display_name: 'React',
+            system_priority: 1,
+            rationale: 'Gap',
+            prerequisites: [],
+          },
+          {
+            skill_canonical: 'typescript',
+            display_name: 'TypeScript',
+            system_priority: 1,
+            rationale: 'Gap',
+            prerequisites: [],
+          },
+        ],
+      },
+    });
+
+    await expect(
+      service.updateDraft('user-1', 'roadmap-1', {
+        expected_revision: 2,
+        selected_priorities: [
+          { skill_canonical: 'react', rank: 1 },
+          { skill_canonical: 'typescript', rank: 3 },
+        ],
+      }),
+    ).rejects.toThrow('Selected skill ranks must be contiguous starting at 1.');
+    expect(roadmaps.update).not.toHaveBeenCalled();
+  });
+
   it('rejects resource ids that were not proposed for the selected skill', async () => {
     const { service, roadmaps } = serviceSetup();
     roadmaps.findOne.mockResolvedValue({

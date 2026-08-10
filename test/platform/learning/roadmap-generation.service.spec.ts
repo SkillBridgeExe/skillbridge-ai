@@ -345,6 +345,41 @@ describe('LearningRoadmapGenerationService', () => {
     expect(result.content_source).toBe('AI_ENHANCED');
   });
 
+  it('persists the same materialized lesson content returned for generation', async () => {
+    const { service, enhancer, manager } = setup();
+    enhancer.enhance.mockImplementation(
+      async (value: {
+        modules: Array<{ lesson_content: Record<string, unknown> | null }>;
+        [key: string]: unknown;
+      }) => ({
+        ...value,
+        content_source: 'AI_ENHANCED',
+        modules: value.modules.map((module) => ({
+          ...module,
+          lesson_content: module.lesson_content
+            ? { ...module.lesson_content, summary: 'AI materialized summary' }
+            : module.lesson_content,
+        })),
+      }),
+    );
+
+    await service.generate('user-1', 'roadmap-1', 2);
+
+    const persistedSession = manager.save.mock.calls
+      .filter(([entity]) => entity === LearningSessionEntity)
+      .map(([, value]) => value)
+      .at(0);
+    expect(persistedSession.requiredTasks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'lesson',
+          content: expect.objectContaining({
+            summary: 'AI materialized summary',
+          }),
+        }),
+      ]),
+    );
+  });
   it('uses only the server-validated resource selection in preview and persisted tasks', async () => {
     const selectedDraft = draft();
     (
@@ -463,6 +498,16 @@ describe('LearningRoadmapGenerationService', () => {
     ]);
   });
 
+  it('rejects an explicitly empty selected priority list', async () => {
+    const emptySelectionDraft = draft();
+    emptySelectionDraft.draftConfig.selected_priorities = [];
+    const { service, roadmaps } = setup();
+    roadmaps.findOne.mockResolvedValue(emptySelectionDraft);
+
+    await expect(service.preview('user-1', 'roadmap-1', 2)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
   it('refuses preview when the draft revision is stale or no schedule was saved', async () => {
     const { service, roadmaps } = setup();
     await expect(service.preview('user-1', 'roadmap-1', 1)).rejects.toBeInstanceOf(
@@ -493,6 +538,69 @@ describe('LearningRoadmapGenerationService', () => {
     );
   });
 
+  it('keeps all seven selected skills when some have no catalog lesson', async () => {
+    const sevenSkillDraft = draft();
+    sevenSkillDraft.draftConfig.cadence = {
+      timezone: 'Asia/Ho_Chi_Minh',
+      start_date: '2026-08-03',
+      study_days_per_week: 7,
+      session_minutes: 60,
+    };
+    delete sevenSkillDraft.draftConfig.schedule;
+    const skills = Array.from({ length: 7 }, (_, index) => 'skill_' + (index + 1));
+    sevenSkillDraft.draftConfig.candidate_skills = skills.map((skill, index) => ({
+      skill_canonical: skill,
+      display_name: 'Skill ' + (index + 1),
+      system_priority: 1 - index / 10,
+      rationale: 'Selected gap',
+      prerequisites: [],
+    }));
+    sevenSkillDraft.draftConfig.selected_priorities = skills.map((skill, index) => ({
+      skill_canonical: skill,
+      rank: index + 1,
+    }));
+    const { service, roadmaps, drafts, composer, manager } = setup();
+    roadmaps.findOne.mockResolvedValue(sevenSkillDraft);
+    manager.findOne.mockImplementation((entity) =>
+      Promise.resolve(entity === LearningRoadmapEntity ? sevenSkillDraft : null),
+    );
+    drafts.rederiveCurrentCandidates.mockResolvedValue({
+      targetRole: 'frontend_developer',
+      candidates: sevenSkillDraft.draftConfig.candidate_skills,
+      sourceGapSnapshot: { source: 'career_role', skills },
+    });
+    composer.compose.mockReturnValue({
+      budget_hours: 20,
+      ai_summary: 'Seven skills',
+      not_feasible_items: [],
+      steps: skills.map((skill, index) => ({
+        skill_canonical: skill,
+        display_name: 'Skill ' + (index + 1),
+        estimated_hours: 1,
+        priority: 1 - index / 10,
+        resources: [],
+        lesson_content:
+          index < 4
+            ? undefined
+            : { ...lessonContent, skill_canonical: skill, source_resource_ids: [] },
+      })),
+    });
+
+    const preview = await service.preview('user-1', 'roadmap-1', 2);
+    expect(preview.modules).toHaveLength(7);
+    expect(preview.modules.map((module) => module.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(preview.modules.every((module) => module.lessons.length > 0)).toBe(true);
+
+    await service.generate('user-1', 'roadmap-1', 2);
+    const persistedModules = manager.save.mock.calls.filter(
+      ([entity]) => entity === LearningModuleEntity,
+    );
+    const persistedSessions = manager.save.mock.calls.filter(
+      ([entity]) => entity === LearningSessionEntity,
+    );
+    expect(persistedModules).toHaveLength(7);
+    expect(persistedSessions.length).toBeGreaterThanOrEqual(7);
+  });
   it('persists an immutable version, modules and sessions in one transaction then charges once', async () => {
     const { service, entitlements, reservation, manager } = setup();
 
