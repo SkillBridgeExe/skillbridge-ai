@@ -145,6 +145,34 @@ describe('InterviewRealtimeService', () => {
     );
   });
 
+  it('adds recent question fingerprints to a new question directive', async () => {
+    const realtimeState = (
+      session.interviewState as {
+        realtimeV2: { questionFingerprints: string[] };
+      }
+    ).realtimeV2;
+    realtimeState.questionFingerprints = ['design an api'];
+    const pendingTurn = { ...currentTurn, answeredAt: null } as InterviewTurnEntity;
+    const { service, turns, directives } = createService();
+    (turns.findOne as jest.Mock).mockResolvedValue(pendingTurn);
+
+    await service.submitTurn('user-1', session.id, {
+      clientTurnId: 'client-avoid-repeat',
+      transcript: 'I use idempotency keys and persist the first response.',
+      modality: 'AUDIO',
+      intent: 'ANSWER',
+      answerSignal: 'COMPLETE',
+    });
+
+    expect(directives.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        questionGoal: expect.stringContaining(
+          'do not repeat these recent question fingerprints: design an api',
+        ),
+      }),
+    );
+  });
+
   it('does not reveal a session owned by another user', async () => {
     const { service, sessions } = createService();
     (sessions.findOne as jest.Mock).mockResolvedValue(null);

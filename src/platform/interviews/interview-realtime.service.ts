@@ -74,7 +74,11 @@ export class InterviewRealtimeService {
       nextTopicId: nextTopic?.id ?? null,
       nextQuestionThreadId: nextTopic ? crypto.randomUUID() : null,
     });
-    const questionGoal = this.questionGoal(result.action, currentTurn, nextTopic);
+    const questionGoal = this.withQuestionAvoidance(
+      this.questionGoal(result.action, currentTurn, nextTopic),
+      result.action,
+      state.questionFingerprints,
+    );
     const entity = this.directives.create({
       sessionId,
       turnId: currentTurn.id,
@@ -313,6 +317,24 @@ export class InterviewRealtimeService {
       return `clarify without adding a new requirement: ${current.interviewerQuestion}`;
     if (action === 'WRAP_UP') return 'close the interview briefly without asking another question';
     return current.currentThread ?? current.interviewerQuestion;
+  }
+
+  private withQuestionAvoidance(
+    goal: string,
+    action: InterviewDirectiveAction,
+    fingerprints: string[],
+  ): string {
+    if (
+      fingerprints.length === 0 ||
+      action === 'REPEAT' ||
+      action === 'CLARIFY' ||
+      action === 'GIVE_HINT' ||
+      action === 'WRAP_UP'
+    ) {
+      return goal;
+    }
+    const recent = fingerprints.slice(-5).join(' | ');
+    return `${goal}. Ask a meaningfully different question; do not repeat these recent question fingerprints: ${recent}`;
   }
 
   private createsQuestionTurn(action: string): boolean {
