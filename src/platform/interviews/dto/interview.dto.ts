@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -11,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -28,11 +30,30 @@ import {
   InterviewPhase as AgendaInterviewPhase,
   InterviewTurnTrace,
 } from '../../../modules/interview/interview-agenda';
+import {
+  CandidateIntent,
+  InterviewExperienceMode,
+  InterviewDirectiveAction,
+  RealtimeAnswerSignal,
+} from '../interview-turn-policy.service';
 
 const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
 const LANGUAGES = ['vi', 'en'] as const;
 const MODALITIES = ['TEXT', 'AUDIO'] as const;
+const EXPERIENCE_MODES: InterviewExperienceMode[] = ['MOCK', 'PRACTICE'];
+const CANDIDATE_INTENTS: CandidateIntent[] = [
+  'ANSWER',
+  'NO_ANSWER',
+  'REPEAT',
+  'CLARIFY',
+  'EASIER',
+  'HINT',
+  'FEEDBACK',
+  'SKIP',
+  'END',
+];
+const ANSWER_SIGNALS: RealtimeAnswerSignal[] = ['COMPLETE', 'PARTIAL', 'OFF_TOPIC', 'NO_ANSWER'];
 export const INTERVIEW_CONTEXT_MODES = ['ROLE_ONLY', 'CV_ONLY', 'CV_JD_MATCH'] as const;
 export type InterviewContextMode = (typeof INTERVIEW_CONTEXT_MODES)[number];
 
@@ -80,6 +101,11 @@ export class StartPlatformInterviewDto {
   @IsOptional()
   @IsIn(INTERVIEW_MODES)
   mode?: InterviewMode;
+
+  @ApiPropertyOptional({ enum: EXPERIENCE_MODES, default: 'MOCK' })
+  @IsOptional()
+  @IsIn(EXPERIENCE_MODES)
+  experienceMode?: InterviewExperienceMode;
 
   @ApiPropertyOptional({ enum: INTERVIEW_TYPES, default: 'TECHNICAL' })
   @IsOptional()
@@ -150,6 +176,103 @@ export class AnswerPlatformInterviewDto {
   @IsInt()
   @Min(1)
   transcriptSegments?: number;
+}
+
+export class RealtimeInterviewTurnDto {
+  @ApiProperty({ example: 'turn-client-1' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  clientTurnId!: string;
+
+  @ApiProperty({ example: 'I would use a cache-aside strategy.' })
+  @IsString()
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  transcript!: string;
+
+  @ApiProperty({ enum: MODALITIES })
+  @IsIn(MODALITIES)
+  modality!: 'TEXT' | 'AUDIO';
+
+  @ApiProperty({ enum: CANDIDATE_INTENTS })
+  @IsIn(CANDIDATE_INTENTS)
+  intent!: CandidateIntent;
+
+  @ApiProperty({ enum: ANSWER_SIGNALS })
+  @IsIn(ANSWER_SIGNALS)
+  answerSignal!: RealtimeAnswerSignal;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  speechEndedAt?: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationSeconds?: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  responseDelayMs?: number;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  transcriptSegments?: number;
+}
+
+export class CommitRealtimeAssistantMessageDto {
+  @ApiProperty({ example: 'resp_123' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  responseId!: string;
+
+  @ApiPropertyOptional({ example: 'Thanks for walking me through that.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  interviewerMessage?: string;
+
+  @ApiProperty({ example: 'How would you invalidate stale cache entries?' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  interviewerQuestion!: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  firstAudioAt?: string;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  interrupted?: boolean;
+}
+
+export interface RealtimeTurnDirectiveDto {
+  directiveId: string;
+  action: InterviewDirectiveAction;
+  topicId: string | null;
+  questionThreadId: string;
+  difficultyStep: number;
+  assistanceLevel: 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
+  scoreCap: number | null;
+  threadScore: number | null;
+  consumesAttempt: boolean;
+  questionGoal: string;
+  finished: boolean;
 }
 
 export class LiveInterviewTurnDto {
@@ -280,6 +403,13 @@ export interface InterviewTurnDto {
    * are server-set, so the report never has to trust the client-reported `durationSeconds`.
    */
   timeBudgetSeconds: number | null;
+  questionThreadId: string | null;
+  candidateIntent: CandidateIntent | null;
+  assistanceLevel: 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
+  scoreCap: number | null;
+  rawScore: number | null;
+  finalQuestionScore: number | null;
+  skipReason: string | null;
 }
 
 export interface InterviewSessionDto {
@@ -291,6 +421,8 @@ export interface InterviewSessionDto {
   targetRole: string;
   language: string;
   mode: InterviewMode;
+  experienceMode: InterviewExperienceMode;
+  engineVersion: 'V1' | 'V2';
   interviewType: InterviewType;
   voice: InterviewVoice;
   speechSpeed: number;

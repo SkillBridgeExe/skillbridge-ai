@@ -15,11 +15,14 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import {
   AnswerPlatformInterviewDto,
+  CommitRealtimeAssistantMessageDto,
   EndPlatformInterviewDto,
   InterviewListQueryDto,
+  RealtimeInterviewTurnDto,
   StartPlatformInterviewDto,
 } from './dto/interview.dto';
 import { InterviewGapReportService } from './interview-gap-report.service';
+import { InterviewRealtimeService } from './interview-realtime.service';
 import { InterviewsService } from './interviews.service';
 
 @ApiTags('Interviews')
@@ -31,6 +34,7 @@ export class InterviewsController {
   constructor(
     private readonly interviews: InterviewsService,
     private readonly interviewGapReport: InterviewGapReportService,
+    private readonly interviewRealtime: InterviewRealtimeService,
   ) {}
 
   @Post('start')
@@ -84,6 +88,30 @@ export class InterviewsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   realtimeToken(@CurrentUser() user: JwtUser, @Param('id') id: string) {
     return this.interviews.createRealtimeToken(user.userId, id);
+  }
+
+  @Post('sessions/:id/realtime-turn')
+  @ApiOperation({ summary: 'Resolve one low-latency Interview v2 candidate turn' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  realtimeTurn(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Body() body: RealtimeInterviewTurnDto,
+  ) {
+    return this.interviewRealtime.submitTurn(user.userId, id, body);
+  }
+
+  @Post('sessions/:id/realtime-directives/:directiveId/commit')
+  @ApiOperation({ summary: 'Commit the assistant transcript that was actually played' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiParam({ name: 'directiveId', format: 'uuid' })
+  commitRealtimeAssistant(
+    @CurrentUser() user: JwtUser,
+    @Param('id') id: string,
+    @Param('directiveId') directiveId: string,
+    @Body() body: CommitRealtimeAssistantMessageDto,
+  ) {
+    return this.interviewRealtime.commitAssistantMessage(user.userId, id, directiveId, body);
   }
 
   @Post('sessions/:id/question-audio')

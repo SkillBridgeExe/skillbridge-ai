@@ -1,5 +1,10 @@
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
-import { StartPlatformInterviewDto, InterviewListQueryDto } from './interview.dto';
+import {
+  CommitRealtimeAssistantMessageDto,
+  InterviewListQueryDto,
+  RealtimeInterviewTurnDto,
+  StartPlatformInterviewDto,
+} from './interview.dto';
 
 describe('InterviewListQueryDto', () => {
   const pipe = new ValidationPipe({
@@ -91,6 +96,18 @@ describe('StartPlatformInterviewDto voice settings', () => {
     });
   });
 
+  it('accepts the explicit v2 experience modes', async () => {
+    await expect(transform({ ...baseBody, experienceMode: 'PRACTICE' })).resolves.toMatchObject({
+      experienceMode: 'PRACTICE',
+    });
+  });
+
+  it('rejects an unknown experience mode', async () => {
+    await expect(transform({ ...baseBody, experienceMode: 'COACH' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it.each([
     ['unsupported voice', { voice: 'nova' }],
     ['too slow', { speechSpeed: '0.74' }],
@@ -99,5 +116,70 @@ describe('StartPlatformInterviewDto voice settings', () => {
     ['NaN speed', { speechSpeed: Number.NaN }],
   ])('rejects %s', async (_name, patch) => {
     await expect(transform({ ...baseBody, ...patch })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('Realtime interview v2 DTOs', () => {
+  const pipe = new ValidationPipe({ transform: true });
+
+  it('normalizes a realtime turn and accepts client timing metadata', async () => {
+    const result = await pipe.transform(
+      {
+        clientTurnId: 'turn-client-1',
+        transcript: '  I do not know this answer yet.  ',
+        modality: 'AUDIO',
+        intent: 'NO_ANSWER',
+        answerSignal: 'NO_ANSWER',
+        speechEndedAt: '2026-08-10T10:00:00.000Z',
+        responseDelayMs: 420,
+      },
+      { type: 'body', metatype: RealtimeInterviewTurnDto, data: undefined },
+    );
+
+    expect(result).toMatchObject({
+      clientTurnId: 'turn-client-1',
+      transcript: 'I do not know this answer yet.',
+      modality: 'AUDIO',
+      intent: 'NO_ANSWER',
+      answerSignal: 'NO_ANSWER',
+      responseDelayMs: 420,
+    });
+  });
+
+  it('rejects malformed realtime turn enums and client ids', async () => {
+    await expect(
+      pipe.transform(
+        {
+          clientTurnId: '',
+          transcript: 'answer',
+          modality: 'VIDEO',
+          intent: 'MAYBE',
+          answerSignal: 'UNKNOWN',
+        },
+        { type: 'body', metatype: RealtimeInterviewTurnDto, data: undefined },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('validates the committed assistant message contract', async () => {
+    await expect(
+      pipe.transform(
+        {
+          responseId: 'resp_123',
+          interviewerMessage: 'Thank you.',
+          interviewerQuestion: 'How would you design this cache?',
+          firstAudioAt: '2026-08-10T10:00:01.100Z',
+          interrupted: false,
+        },
+        {
+          type: 'body',
+          metatype: CommitRealtimeAssistantMessageDto,
+          data: undefined,
+        },
+      ),
+    ).resolves.toMatchObject({
+      responseId: 'resp_123',
+      interrupted: false,
+    });
   });
 });

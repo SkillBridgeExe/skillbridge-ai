@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
+import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { JobDescriptionEntity } from '../../database/entities/job-description.entity';
@@ -13,6 +14,8 @@ import { CvMatchesModule } from '../cv-matches/cv-matches.module';
 import { InterviewsController } from './interviews.controller';
 import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { InterviewGapReportService } from './interview-gap-report.service';
+import { InterviewRealtimeService } from './interview-realtime.service';
+import { InterviewTurnPolicyService } from './interview-turn-policy.service';
 import { InterviewsService } from './interviews.service';
 import { OpenAiQuestionAudioService } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
@@ -22,6 +25,7 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
     TypeOrmModule.forFeature([
       InterviewSessionEntity,
       InterviewTurnEntity,
+      InterviewRealtimeDirectiveEntity,
       CvEntity,
       CvMatchEntity,
       JobDescriptionEntity,
@@ -39,6 +43,8 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
     OpenAiQuestionAudioService,
     InterviewGapReportService,
     InterviewChainLlmService,
+    InterviewRealtimeService,
+    InterviewTurnPolicyService,
   ],
   exports: [InterviewGapReportService],
 })

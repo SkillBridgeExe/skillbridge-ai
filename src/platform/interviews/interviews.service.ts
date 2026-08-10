@@ -109,6 +109,7 @@ import {
 import { OpenAiQuestionAudioService, QuestionAudioResult } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 import { InterviewAssessOutput, InterviewChainLlmService } from './interview-chain-llm.service';
+import { applyScoreCap, collapseQuestionThreads } from './interview-thread-scoring';
 import { resolveInterviewVoice } from './interview-voice';
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
@@ -318,8 +319,13 @@ export class InterviewsService {
       const maxDurationSeconds = this.maxDurationSecondsForPlan(entitlements.planCode);
       const startedAt = new Date();
       const expiresAt = this.addSeconds(startedAt, maxDurationSeconds);
+      const engineVersion =
+        dto.experienceMode && this.config?.get<boolean>('features.interviewRealtimeV2')
+          ? 'V2'
+          : 'V1';
+      const experienceMode = dto.experienceMode ?? 'MOCK';
       const language = dto.language ?? 'vi';
-      const mode = dto.mode ?? 'HYBRID';
+      const mode = dto.mode ?? (engineVersion === 'V2' ? 'VOICE' : 'HYBRID');
       const interviewType = dto.interviewType ?? 'TECHNICAL';
       const questionBankItems = await this.loadQuestionBankItems(
         context.targetRole,
@@ -350,7 +356,25 @@ export class InterviewsService {
         agendaCriteria,
         context.contextMode,
       );
-      const interviewState = this.initialInterviewState(agenda);
+      const questionThreadId = randomUUID();
+      const interviewState = {
+        ...this.initialInterviewState(agenda),
+        ...(engineVersion === 'V2'
+          ? {
+              realtimeV2: {
+                topicId: agenda.topics[0]?.id ?? '',
+                questionThreadId,
+                difficultyStep: 0,
+                noAnswerCount: 0,
+                probeCount: 0,
+                assistanceLevel: 'NONE',
+                scoreCap: null,
+                topicHistory: [agenda.topics[0]?.id].filter(Boolean),
+                questionFingerprints: [],
+              },
+            }
+          : {}),
+      };
       const firstTopic = agenda.topics[0];
       if (!firstTopic) {
         throw new BadRequestException({
@@ -367,6 +391,8 @@ export class InterviewsService {
         targetRole: context.targetRole,
         language,
         mode,
+        experienceMode,
+        engineVersion,
         interviewType,
         voice: resolveInterviewVoice(dto.voice, this.config?.get<string>('llm.openai.ttsVoice')),
         speechSpeed: dto.speechSpeed ?? DEFAULT_INTERVIEW_SPEECH_SPEED,
@@ -398,7 +424,7 @@ export class InterviewsService {
       firstMessage = buildInterviewOpening(context.identity, language);
       firstQuestion = firstTopic.seed_question;
       let openerAiRequestId: string | null = null;
-      if (this.interviewChain) {
+      if (this.interviewChain && engineVersion === 'V1') {
         // I-REAL-2: personalize the opener — ground the first question in the candidate's
         // CV/JD topic instead of asking the raw seed. Best-effort: start must NEVER fail
         // because the chain is down; any error falls back to the seed question.
@@ -436,6 +462,7 @@ export class InterviewsService {
         aiRequestId: openerAiRequestId,
         interviewerMessage: firstMessage,
         interviewerQuestion: firstQuestion,
+        questionThreadId: engineVersion === 'V2' ? questionThreadId : null,
         currentThread: firstTopic.what_to_probe,
         skillCanonical: firstTopic.skill_canonical,
         questionBankItemId: firstTopic.question_bank_item_id ?? null,
@@ -1085,6 +1112,17 @@ export class InterviewsService {
   async end(userId: string, dto: EndPlatformInterviewDto): Promise<InterviewDetailResponseDto> {
     const session = await this.findOwnedSession(userId, dto.sessionId);
     let turns = await this.getTurns(session.id);
+    const alreadyFinalized =
+      session.status === 'CANCELLED' ||
+      (session.status === 'COMPLETED' &&
+        ((session.finalScore !== null && session.finalScore !== undefined) ||
+          (session.overallScore !== null && session.overallScore !== undefined)));
+    if (alreadyFinalized) {
+      return {
+        ...this.toSessionDto(session),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
+    }
     if (session.mode === 'VOICE' && Array.isArray(dto.liveTurns)) {
       turns = await this.syncReviewedLiveTurns(session, dto.liveTurns, turns);
     }
@@ -1111,34 +1149,7 @@ export class InterviewsService {
     // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
     // quotes (masked inside the module) — score and explanations come from ONE pass.
     const { score, explanations } = explainInterviewScore({
-      answers: analyses
-        .filter(
-          (item) =>
-            item.depthSignal !== null &&
-            (item.score !== null ||
-              Object.values(item.scoreAssessments).some((assessment) => assessment.score !== null)),
-        )
-        .map((item) => ({
-          topic_phase: item.topicPhase,
-          score:
-            item.score ??
-            (Object.values(item.scoreAssessments).find((assessment) => assessment.score !== null)
-              ?.score as number),
-          depth_signal: item.depthSignal as DepthSignal,
-          score_source: item.scoreAssessment?.source,
-          dimension_scores: Object.fromEntries(
-            Object.entries(item.scoreAssessments)
-              .filter(([, assessment]) => assessment.score !== null)
-              .map(([dimension, assessment]) => [dimension, assessment.score]),
-          ) as Partial<Record<Dimension, number>>,
-          dimension_score_sources: Object.fromEntries(
-            Object.entries(item.scoreAssessments)
-              .filter(([, assessment]) => assessment.score !== null)
-              .map(([dimension, assessment]) => [dimension, assessment.source]),
-          ) as Partial<Record<Dimension, 'criterion_rubric' | 'legacy_llm' | 'unscored'>>,
-          evidence_excerpt: item.turn.userAnswerText ?? undefined,
-          linked_question_id: item.turn.id,
-        })),
+      answers: this.scoringAnswers(analyses),
       role: session.targetRole,
       seniority: difficulty.level,
     });
@@ -1841,6 +1852,88 @@ export class InterviewsService {
       out.push(await this.ensureTurnAnalysis(userId, session, turn));
     }
     return out;
+  }
+
+  private scoringAnswers(analyses: FinalizedTurnAnalysis[]): Array<{
+    topic_phase: AgendaInterviewPhase;
+    score: number;
+    depth_signal: DepthSignal;
+    score_source: 'criterion_rubric' | 'legacy_llm' | 'unscored' | undefined;
+    dimension_scores: Partial<Record<Dimension, number>>;
+    dimension_score_sources: Partial<
+      Record<Dimension, 'criterion_rubric' | 'legacy_llm' | 'unscored'>
+    >;
+    evidence_excerpt: string | undefined;
+    linked_question_id: string;
+  }> {
+    const groups = collapseQuestionThreads(
+      analyses.map((analysis) => ({
+        id: analysis.turn.id,
+        threadId: analysis.turn.questionThreadId ?? null,
+        order: analysis.turn.turnOrder,
+        scoreCap: analysis.turn.scoreCap ?? null,
+        analysis,
+      })),
+    );
+
+    return groups.flatMap((group) => {
+      const representative = group.representative.analysis;
+      if (!representative.depthSignal) return [];
+
+      const rawScores = group.items
+        .map((item) => item.analysis.score)
+        .filter((score): score is number => typeof score === 'number' && Number.isFinite(score));
+      const dimensions = new Set<Dimension>();
+      for (const item of group.items) {
+        for (const dimension of Object.keys(item.analysis.scoreAssessments) as Dimension[]) {
+          dimensions.add(dimension);
+        }
+      }
+
+      const dimensionScores: Partial<Record<Dimension, number>> = {};
+      const dimensionSources: Partial<
+        Record<Dimension, 'criterion_rubric' | 'legacy_llm' | 'unscored'>
+      > = {};
+      for (const dimension of dimensions) {
+        const assessments = group.items
+          .map((item) => item.analysis.scoreAssessments[dimension])
+          .filter((assessment): assessment is CalibratedAnswerScore => Boolean(assessment));
+        const values = assessments
+          .map((assessment) => assessment.score)
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+        if (values.length === 0) continue;
+        const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+        dimensionScores[dimension] = applyScoreCap(average, group.scoreCap) as number;
+        dimensionSources[dimension] =
+          assessments.find((assessment) => assessment.source === 'criterion_rubric')?.source ??
+          assessments[assessments.length - 1]?.source ??
+          'unscored';
+      }
+
+      const rawScore =
+        rawScores.length > 0
+          ? Math.round(rawScores.reduce((sum, value) => sum + value, 0) / rawScores.length)
+          : Object.values(dimensionScores)[0];
+      const cappedScore = applyScoreCap(rawScore ?? null, group.scoreCap);
+      if (cappedScore === null) return [];
+
+      const evidence = group.items
+        .map((item) => item.analysis.turn.userAnswerText?.trim())
+        .filter((value): value is string => Boolean(value))
+        .join('\n');
+      return [
+        {
+          topic_phase: representative.topicPhase,
+          score: cappedScore,
+          depth_signal: representative.depthSignal,
+          score_source: representative.scoreAssessment?.source,
+          dimension_scores: dimensionScores,
+          dimension_score_sources: dimensionSources,
+          evidence_excerpt: evidence || undefined,
+          linked_question_id: representative.turn.id,
+        },
+      ];
+    });
   }
 
   private async ensureTurnAnalysis(
@@ -2961,6 +3054,8 @@ export class InterviewsService {
       targetRole: session.targetRole,
       language: session.language,
       mode: session.mode,
+      experienceMode: session.experienceMode ?? 'MOCK',
+      engineVersion: session.engineVersion ?? 'V1',
       interviewType: session.interviewType,
       voice: resolveInterviewVoice(session.voice, this.config?.get<string>('llm.openai.ttsVoice')),
       speechSpeed: this.speechSpeed(session.speechSpeed),
@@ -3015,7 +3110,19 @@ export class InterviewsService {
       responseDelayMs: turn.responseDelayMs ?? null,
       transcriptSegments: turn.transcriptSegments ?? null,
       timeBudgetSeconds: turn.timeBudgetSeconds ?? null,
+      questionThreadId: turn.questionThreadId ?? null,
+      candidateIntent: turn.candidateIntent as InterviewTurnDto['candidateIntent'],
+      assistanceLevel: turn.assistanceLevel ?? 'NONE',
+      scoreCap: turn.scoreCap ?? null,
+      rawScore: this.numberOrNull(turn.perQuestionScore),
+      finalQuestionScore: this.cappedTurnScore(turn),
+      skipReason: turn.skipReason ?? null,
     };
+  }
+
+  private cappedTurnScore(turn: InterviewTurnEntity): number | null {
+    const raw = this.numberOrNull(turn.perQuestionScore);
+    return raw === null || turn.scoreCap === null ? raw : Math.min(raw, turn.scoreCap);
   }
 
   private score(value: number | null | undefined): string | null {

@@ -272,6 +272,61 @@ describe('OpenAiRealtimeTokenService', () => {
     );
   });
 
+  it('configures v2 with semantic VAD, interruption, and the backend turn tool', async () => {
+    mockClientSecretsCreate.mockResolvedValue({
+      value: 'ek_v2_secret',
+      expires_at: 1781500000,
+      session: { id: 'sess_realtime_v2' },
+    });
+    const v2Session = {
+      ...session,
+      engineVersion: 'V2',
+      experienceMode: 'PRACTICE',
+      realtimeSessionId: null,
+    } as InterviewSessionEntity;
+
+    const result = await serviceWithConfig({
+      'llm.openai.realtimeV2Model': undefined,
+    }).createClientSecret(userId, v2Session, 'V2 interview instructions');
+
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          model: 'gpt-realtime-2.1',
+          reasoning: { effort: 'low' },
+          tool_choice: 'auto',
+          tools: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'function',
+              name: 'decide_interview_turn',
+              parameters: expect.objectContaining({
+                additionalProperties: false,
+                required: ['transcript', 'intent', 'answer_signal'],
+                properties: expect.objectContaining({
+                  transcript: expect.objectContaining({ type: 'string' }),
+                  intent: expect.objectContaining({ type: 'string' }),
+                  answer_signal: expect.objectContaining({ type: 'string' }),
+                }),
+              }),
+            }),
+          ]),
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              turn_detection: expect.objectContaining({
+                type: 'semantic_vad',
+                eagerness: 'auto',
+                create_response: true,
+                interrupt_response: true,
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
+    expect(result.model).toBe('gpt-realtime-2.1');
+  });
+
   it('returns a disabled token response when OPENAI_API_KEY is missing', async () => {
     const result = await serviceWithConfig({ 'llm.openai.apiKey': '' }).createClientSecret(
       userId,

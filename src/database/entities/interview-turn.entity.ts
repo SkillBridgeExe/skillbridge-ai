@@ -12,8 +12,13 @@ import { InterviewPhase as AgendaInterviewPhase } from '../../modules/interview/
 export type InterviewTurnModality = 'TEXT' | 'AUDIO';
 export type InterviewTurnPhase = LegacyInterviewPhase | AgendaInterviewPhase;
 
+export type InterviewTurnAssistance = 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
+
 @Entity('interview_turns')
 @Index('idx_interview_turns_session_order_unique', ['sessionId', 'turnOrder'], { unique: true })
+@Index('idx_interview_turns_session_client_turn_unique', ['sessionId', 'clientTurnId'], {
+  unique: true,
+})
 export class InterviewTurnEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -70,6 +75,41 @@ export class InterviewTurnEntity {
   /** per-turn decision trace (I-CONSIST-2) — action, reasons (incl. guard slugs), confidence. */
   @Column({ type: 'jsonb', name: 'turn_trace', nullable: true })
   turnTrace!: unknown | null;
+
+  @Column({ type: 'varchar', name: 'client_turn_id', nullable: true })
+  clientTurnId!: string | null;
+
+  @Index({ unique: true })
+  @Column('uuid', { name: 'directive_id', nullable: true })
+  directiveId!: string | null;
+
+  @Index({ unique: true })
+  @Column('uuid', { name: 'source_directive_id', nullable: true })
+  sourceDirectiveId!: string | null;
+
+  @Column('uuid', { name: 'question_thread_id', nullable: true })
+  questionThreadId!: string | null;
+
+  @Column({ type: 'varchar', name: 'candidate_intent', nullable: true })
+  candidateIntent!: string | null;
+
+  @Column({ type: 'varchar', name: 'assistance_level', nullable: true })
+  assistanceLevel!: InterviewTurnAssistance | null;
+
+  @Column({ type: 'int', name: 'score_cap', nullable: true })
+  scoreCap!: number | null;
+
+  @Column({ type: 'varchar', name: 'skip_reason', nullable: true })
+  skipReason!: string | null;
+
+  @Column({ type: 'varchar', name: 'assistant_response_id', nullable: true })
+  assistantResponseId!: string | null;
+
+  @Column({ type: 'timestamptz', name: 'first_audio_at', nullable: true })
+  firstAudioAt!: Date | null;
+
+  @Column({ type: 'boolean', name: 'assistant_interrupted', default: false })
+  assistantInterrupted!: boolean;
 
   @Column({ type: 'text', name: 'current_thread', nullable: true })
   currentThread!: string | null;

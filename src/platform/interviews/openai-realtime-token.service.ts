@@ -33,7 +33,10 @@ export class OpenAiRealtimeTokenService {
     instructions: string,
   ): Promise<RealtimeClientSecretDto> {
     const apiKey = this.config.get<string>('llm.openai.apiKey');
-    const model = this.config.get<string>('llm.openai.realtimeModel') ?? 'gpt-realtime-2';
+    const isV2 = session.engineVersion === 'V2';
+    const model = isV2
+      ? (this.config.get<string>('llm.openai.realtimeV2Model') ?? 'gpt-realtime-2.1')
+      : (this.config.get<string>('llm.openai.realtimeModel') ?? 'gpt-realtime-2');
     if (!apiKey) {
       return {
         enabled: false,
@@ -56,9 +59,54 @@ export class OpenAiRealtimeTokenService {
       );
       const speed = this.speechSpeed(session.speechSpeed);
       const realtimeSession: ClientSecretCreateParams['session'] = {
+        ...(isV2
+          ? {
+              reasoning: { effort: 'low' as const },
+              tool_choice: 'auto' as const,
+              tools: [
+                {
+                  type: 'function' as const,
+                  name: 'decide_interview_turn',
+                  description:
+                    'Call exactly once after each candidate turn and before responding. Classify only; the backend owns topic, difficulty, assistance, and scoring.',
+                  parameters: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                      transcript: {
+                        type: 'string',
+                        description: 'Best-effort verbatim transcript of the candidate turn.',
+                      },
+                      intent: {
+                        type: 'string',
+                        enum: [
+                          'ANSWER',
+                          'NO_ANSWER',
+                          'REPEAT',
+                          'CLARIFY',
+                          'EASIER',
+                          'HINT',
+                          'FEEDBACK',
+                          'SKIP',
+                          'END',
+                        ],
+                      },
+                      answer_signal: {
+                        type: 'string',
+                        enum: ['COMPLETE', 'PARTIAL', 'OFF_TOPIC', 'NO_ANSWER'],
+                      },
+                    },
+                    required: ['transcript', 'intent', 'answer_signal'],
+                  },
+                },
+              ],
+            }
+          : {}),
         type: 'realtime',
         model,
-        instructions,
+        instructions: isV2
+          ? `${instructions}\n\nAfter every candidate turn, call decide_interview_turn before speaking. Wait for its function_call_output. Follow the returned questionGoal with at most one short bridge and one question. Never invent scoring, coaching, topic changes, or difficulty changes.`
+          : instructions,
         output_modalities: ['audio'],
         audio: {
           input: {
@@ -69,14 +117,21 @@ export class OpenAiRealtimeTokenService {
               model: transcriptionModel,
               language: transcriptionLanguage,
             },
-            turn_detection: {
-              type: 'server_vad',
-              create_response: false,
-              interrupt_response: false,
-              threshold: 0.65,
-              prefix_padding_ms: 500,
-              silence_duration_ms: 900,
-            },
+            turn_detection: isV2
+              ? {
+                  type: 'semantic_vad',
+                  eagerness: 'auto',
+                  create_response: true,
+                  interrupt_response: true,
+                }
+              : {
+                  type: 'server_vad',
+                  create_response: false,
+                  interrupt_response: false,
+                  threshold: 0.65,
+                  prefix_padding_ms: 500,
+                  silence_duration_ms: 900,
+                },
           },
           output: {
             voice,

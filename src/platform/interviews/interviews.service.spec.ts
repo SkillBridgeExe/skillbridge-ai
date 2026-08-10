@@ -2978,6 +2978,57 @@ describe('InterviewsService', () => {
     );
   });
 
+  it('returns an already completed session without scoring or saving again', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const interviewAi = { end: jest.fn() };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      interviewAi as never,
+      { reserveUsage: jest.fn(async () => usageReservation()) } as never,
+      { createClientSecret: jest.fn() } as never,
+    );
+    sessions.findOne.mockResolvedValue({
+      id: 'session-complete',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'COMPLETED',
+      finalScore: { overall: 82 },
+      overallScore: '82',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      endedAt: new Date('2026-06-12T00:10:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+    });
+    turns.find.mockResolvedValue([
+      {
+        id: 'turn-1',
+        sessionId: 'session-complete',
+        turnOrder: 1,
+        phase: 'SKILL_PROBE',
+        modality: 'AUDIO',
+        interviewerQuestion: 'How do you design idempotent APIs?',
+        userAnswerText: 'Use a stable request key and persist the response.',
+        answeredAt: new Date('2026-06-12T00:02:00.000Z'),
+        createdAt: new Date('2026-06-12T00:01:00.000Z'),
+        askedAt: new Date('2026-06-12T00:01:00.000Z'),
+      },
+    ]);
+
+    const response = await service.end(userId, { sessionId: 'session-complete' });
+
+    expect(response.status).toBe('COMPLETED');
+    expect(response.finalScore).toEqual({ overall: 82 });
+    expect(interviewAi.end).not.toHaveBeenCalled();
+    expect(sessions.save).not.toHaveBeenCalled();
+  });
+
   it('cancels an unanswered session without requesting final AI scoring', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-06-12T00:02:00.000Z'));
     const sessions = repo<InterviewSessionEntity>();
