@@ -1,19 +1,26 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import { BillingFeatureKey, BillingFeaturePeriod } from '../../common/constants/billing.constants';
+import {
+  BILLING_FEATURE_CATALOG,
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+} from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
+import { UsageEventEntity } from '../../database/entities/usage-event.entity';
+import { AdminFeatureUsagePeriod } from './dto/admin-billing.dto';
 import { AdminBillingService } from './admin-billing.service';
 
 type RepositoryMock<T extends object> = Pick<
   Repository<T>,
-  'create' | 'delete' | 'find' | 'findAndCount' | 'findOne' | 'save'
+  'create' | 'createQueryBuilder' | 'delete' | 'find' | 'findAndCount' | 'findOne' | 'save'
 > & {
   create: jest.Mock;
+  createQueryBuilder: jest.Mock;
   delete: jest.Mock;
   find: jest.Mock;
   findAndCount: jest.Mock;
@@ -25,6 +32,7 @@ type RepositoryMock<T extends object> = Pick<
 function createRepositoryMock<T extends object>(): RepositoryMock<T> {
   return {
     create: jest.fn((input) => input),
+    createQueryBuilder: jest.fn(),
     delete: jest.fn().mockResolvedValue({ affected: 1 }),
     find: jest.fn().mockResolvedValue([]),
     findAndCount: jest.fn(),
@@ -42,6 +50,16 @@ describe('AdminBillingService', () => {
     const subscriptions = createRepositoryMock<UserSubscriptionEntity>();
     const mentorBookings = createRepositoryMock<MentorBookingEntity>();
     const creditPackages = createRepositoryMock<BillingCreditPackageEntity>();
+    const usageEvents = createRepositoryMock<UsageEventEntity>();
+    const usageQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    usageEvents.createQueryBuilder = jest.fn().mockReturnValue(usageQueryBuilder);
     const manager = {
       getRepository: jest.fn((entity) => {
         if (entity === BillingPlanEntity) return plans;
@@ -64,6 +82,7 @@ describe('AdminBillingService', () => {
       mentorBookings as unknown as Repository<MentorBookingEntity>,
       dataSource,
       creditPackages as unknown as Repository<BillingCreditPackageEntity>,
+      usageEvents as unknown as Repository<UsageEventEntity>,
     );
     return {
       service,
@@ -73,6 +92,8 @@ describe('AdminBillingService', () => {
       subscriptions,
       mentorBookings,
       creditPackages,
+      usageEvents,
+      usageQueryBuilder,
       dataSource,
     };
   }
@@ -104,6 +125,107 @@ describe('AdminBillingService', () => {
         }),
       ]),
     );
+  });
+
+  it('uses one captured instant for the exact ICT current-month boundaries', async () => {
+    const { service, usageQueryBuilder } = setup();
+    const RealDate = Date;
+    const capturedNow = new RealDate('2026-08-31T16:59:59.999Z');
+    const rolloverNow = new RealDate('2026-08-31T17:00:00.000Z');
+    let zeroArgumentClockReads = 0;
+
+    class MonthBoundaryDate extends RealDate {
+      constructor(value?: number | string) {
+        if (value !== undefined) {
+          super(value);
+          return;
+        }
+
+        const instant = zeroArgumentClockReads++ === 0 ? capturedNow : rolloverNow;
+        super(instant.getTime());
+      }
+    }
+
+    global.Date = MonthBoundaryDate as DateConstructor;
+    try {
+      await service.listFeatureUsage({
+        period: AdminFeatureUsagePeriod.THIS_MONTH,
+      });
+    } finally {
+      global.Date = RealDate;
+    }
+
+    expect(zeroArgumentClockReads).toBe(1);
+    expect(usageQueryBuilder.where).toHaveBeenCalledWith('usage.used_at >= :periodStart', {
+      periodStart: new RealDate('2026-07-31T17:00:00.000Z'),
+    });
+    expect(usageQueryBuilder.andWhere).toHaveBeenCalledWith('usage.used_at < :periodEnd', {
+      periodEnd: capturedNow,
+    });
+  });
+
+  it('counts distinct users and returns the complete catalog while omitting unknown keys', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockResolvedValue([
+      { featureKey: BillingFeatureKey.CV_REVIEW, uniqueUserCount: '3' },
+      { featureKey: 'unknown_feature', uniqueUserCount: '99' },
+    ]);
+
+    const result = await service.listFeatureUsage({
+      period: AdminFeatureUsagePeriod.THIS_MONTH,
+    });
+
+    expect(usageQueryBuilder.select).toHaveBeenCalledWith('usage.feature_key', 'featureKey');
+    expect(usageQueryBuilder.addSelect).toHaveBeenCalledWith(
+      'COUNT(DISTINCT usage.user_id)',
+      'uniqueUserCount',
+    );
+    expect(usageQueryBuilder.where).toHaveBeenCalledWith(
+      'usage.used_at >= :periodStart',
+      expect.objectContaining({ periodStart: expect.any(Date) }),
+    );
+    expect(usageQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'usage.used_at < :periodEnd',
+      expect.objectContaining({ periodEnd: expect.any(Date) }),
+    );
+    expect(result).toEqual({
+      period: AdminFeatureUsagePeriod.THIS_MONTH,
+      items: BILLING_FEATURE_CATALOG.map(({ featureKey }) => ({
+        featureKey,
+        uniqueUserCount: featureKey === BillingFeatureKey.CV_REVIEW ? 3 : 0,
+      })),
+    });
+  });
+
+  it('counts distinct users across all history without a date filter', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockResolvedValue([
+      { featureKey: BillingFeatureKey.CV_JD_MATCH, uniqueUserCount: '12' },
+    ]);
+
+    const result = await service.listFeatureUsage({
+      period: AdminFeatureUsagePeriod.ALL_TIME,
+    });
+
+    expect(usageQueryBuilder.where).not.toHaveBeenCalled();
+    expect(usageQueryBuilder.andWhere).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        period: AdminFeatureUsagePeriod.ALL_TIME,
+        items: expect.arrayContaining([
+          { featureKey: BillingFeatureKey.CV_JD_MATCH, uniqueUserCount: 12 },
+        ]),
+      }),
+    );
+  });
+
+  it('bubbles usage query failures', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockRejectedValue(new Error('database unavailable'));
+
+    await expect(
+      service.listFeatureUsage({ period: AdminFeatureUsagePeriod.ALL_TIME }),
+    ).rejects.toThrow('database unavailable');
   });
 
   it('creates a plan and its feature limits', async () => {

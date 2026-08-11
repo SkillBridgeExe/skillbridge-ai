@@ -8,6 +8,8 @@ import {
 import {
   AdminBillingPlanFeatureInputDto,
   CreateAdminVoucherDto,
+  AdminFeatureUsagePeriod,
+  AdminFeatureUsageQueryDto,
   UpdateAdminPlanFeatureDto,
 } from './admin-billing.dto';
 
@@ -42,6 +44,31 @@ describe('UpdateAdminPlanFeatureDto', () => {
     const errors = await validate(dto);
 
     expect(errors).toEqual([expect.objectContaining({ property: 'limitValue' })]);
+  });
+});
+
+describe('AdminFeatureUsageQueryDto', () => {
+  it('defaults to the current month', async () => {
+    const dto = plainToInstance(AdminFeatureUsageQueryDto, {});
+
+    expect(dto.period).toBe(AdminFeatureUsagePeriod.THIS_MONTH);
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it('rejects an unsupported usage period', async () => {
+    const dto = plainToInstance(AdminFeatureUsageQueryDto, { period: 'LAST_WEEK' });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual([expect.objectContaining({ property: 'period' })]);
+  });
+
+  it('accepts all recorded history', async () => {
+    const dto = plainToInstance(AdminFeatureUsageQueryDto, {
+      period: AdminFeatureUsagePeriod.ALL_TIME,
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
   });
 });
 

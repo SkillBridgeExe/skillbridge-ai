@@ -18,6 +18,7 @@ import {
   AdminListVouchersQueryDto,
   CreateAdminVoucherDto,
   UpdateAdminVoucherDto,
+  AdminFeatureUsageQueryDto,
 } from './dto/admin-billing.dto';
 
 @ApiTags('Admin Billing')
@@ -41,6 +42,12 @@ export class AdminBillingController {
   @ApiOperation({ summary: 'Admin list supported billing feature keys and recommended limits' })
   listFeatures() {
     return this.billing.listFeatureCatalog();
+  }
+
+  @Get('feature-usage')
+  @ApiOperation({ summary: 'Admin count of unique users per billing feature' })
+  listFeatureUsage(@Query() query: AdminFeatureUsageQueryDto) {
+    return this.billing.listFeatureUsage(query);
   }
 
   @Post('plans')

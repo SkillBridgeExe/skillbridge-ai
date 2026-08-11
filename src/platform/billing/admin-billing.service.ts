@@ -13,7 +13,11 @@ import { PaymentOrderEntity } from '../../database/entities/payment-order.entity
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
 import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
+import { UsageEventEntity } from '../../database/entities/usage-event.entity';
 import {
+  AdminFeatureUsagePeriod,
+  AdminFeatureUsageQueryDto,
+  AdminFeatureUsageResponse,
   AdminListMentorBookingsQueryDto,
   AdminListOrdersQueryDto,
   AdminListPlansQueryDto,
@@ -44,6 +48,8 @@ export class AdminBillingService {
     private readonly dataSource: DataSource,
     @InjectRepository(BillingCreditPackageEntity)
     private readonly creditPackages: Repository<BillingCreditPackageEntity>,
+    @InjectRepository(UsageEventEntity)
+    private readonly usageEvents: Repository<UsageEventEntity>,
   ) {}
 
   async listPlans(query: AdminListPlansQueryDto = {}) {
@@ -88,6 +94,40 @@ export class AdminBillingService {
       allowedPeriods: [...feature.allowedPeriods],
       recommendedLimits: { ...feature.recommendedLimits },
     }));
+  }
+
+  async listFeatureUsage(query: AdminFeatureUsageQueryDto): Promise<AdminFeatureUsageResponse> {
+    const period = query.period ?? AdminFeatureUsagePeriod.THIS_MONTH;
+    const usageQuery = this.usageEvents
+      .createQueryBuilder('usage')
+      .select('usage.feature_key', 'featureKey')
+      .addSelect('COUNT(DISTINCT usage.user_id)', 'uniqueUserCount')
+      .groupBy('usage.feature_key');
+
+    if (period === AdminFeatureUsagePeriod.THIS_MONTH) {
+      const now = new Date();
+      usageQuery
+        .where('usage.used_at >= :periodStart', {
+          periodStart: startOfCurrentMonthIct(now),
+        })
+        .andWhere('usage.used_at < :periodEnd', { periodEnd: now });
+    }
+
+    const rows = await usageQuery.getRawMany<{
+      featureKey: string;
+      uniqueUserCount: string;
+    }>();
+    const counts = new Map(
+      rows.map((row) => [row.featureKey, Math.max(0, Number(row.uniqueUserCount) || 0)]),
+    );
+
+    return {
+      period,
+      items: BILLING_FEATURE_CATALOG.map((feature) => ({
+        featureKey: feature.featureKey,
+        uniqueUserCount: counts.get(feature.featureKey) ?? 0,
+      })),
+    };
   }
 
   async updatePlan(code: string, dto: UpdateAdminBillingPlanDto) {
@@ -467,4 +507,11 @@ function getCatalogFeature(featureKey: BillingFeatureKey) {
     throw new BadRequestException(`Unsupported featureKey: ${featureKey}`);
   }
   return feature;
+}
+
+export function startOfCurrentMonthIct(now = new Date()): Date {
+  const ict = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  ict.setUTCDate(1);
+  ict.setUTCHours(0, 0, 0, 0);
+  return new Date(ict.getTime() - 7 * 60 * 60 * 1000);
 }
