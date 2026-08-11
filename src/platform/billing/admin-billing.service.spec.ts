@@ -7,13 +7,16 @@ import { MentorBookingEntity } from '../../database/entities/mentor-booking.enti
 import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { UserSubscriptionEntity } from '../../database/entities/user-subscription.entity';
+import { UsageEventEntity } from '../../database/entities/usage-event.entity';
+import { AdminFeatureUsagePeriod } from './dto/admin-billing.dto';
 import { AdminBillingService } from './admin-billing.service';
 
 type RepositoryMock<T extends object> = Pick<
   Repository<T>,
-  'create' | 'delete' | 'find' | 'findAndCount' | 'findOne' | 'save'
+  'create' | 'createQueryBuilder' | 'delete' | 'find' | 'findAndCount' | 'findOne' | 'save'
 > & {
   create: jest.Mock;
+  createQueryBuilder: jest.Mock;
   delete: jest.Mock;
   find: jest.Mock;
   findAndCount: jest.Mock;
@@ -25,6 +28,7 @@ type RepositoryMock<T extends object> = Pick<
 function createRepositoryMock<T extends object>(): RepositoryMock<T> {
   return {
     create: jest.fn((input) => input),
+    createQueryBuilder: jest.fn(),
     delete: jest.fn().mockResolvedValue({ affected: 1 }),
     find: jest.fn().mockResolvedValue([]),
     findAndCount: jest.fn(),
@@ -42,6 +46,16 @@ describe('AdminBillingService', () => {
     const subscriptions = createRepositoryMock<UserSubscriptionEntity>();
     const mentorBookings = createRepositoryMock<MentorBookingEntity>();
     const creditPackages = createRepositoryMock<BillingCreditPackageEntity>();
+    const usageEvents = createRepositoryMock<UsageEventEntity>();
+    const usageQueryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    usageEvents.createQueryBuilder = jest.fn().mockReturnValue(usageQueryBuilder);
     const manager = {
       getRepository: jest.fn((entity) => {
         if (entity === BillingPlanEntity) return plans;
@@ -64,6 +78,7 @@ describe('AdminBillingService', () => {
       mentorBookings as unknown as Repository<MentorBookingEntity>,
       dataSource,
       creditPackages as unknown as Repository<BillingCreditPackageEntity>,
+      usageEvents as unknown as Repository<UsageEventEntity>,
     );
     return {
       service,
@@ -73,6 +88,8 @@ describe('AdminBillingService', () => {
       subscriptions,
       mentorBookings,
       creditPackages,
+      usageEvents,
+      usageQueryBuilder,
       dataSource,
     };
   }
@@ -104,6 +121,71 @@ describe('AdminBillingService', () => {
         }),
       ]),
     );
+  });
+
+  it('counts distinct users for the current month and returns zero-use catalog features', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockResolvedValue([
+      { featureKey: BillingFeatureKey.CV_REVIEW, uniqueUserCount: '3' },
+    ]);
+
+    const result = await service.listFeatureUsage({
+      period: AdminFeatureUsagePeriod.THIS_MONTH,
+    });
+
+    expect(usageQueryBuilder.select).toHaveBeenCalledWith('usage.feature_key', 'featureKey');
+    expect(usageQueryBuilder.addSelect).toHaveBeenCalledWith(
+      'COUNT(DISTINCT usage.user_id)',
+      'uniqueUserCount',
+    );
+    expect(usageQueryBuilder.where).toHaveBeenCalledWith(
+      'usage.used_at >= :periodStart',
+      expect.objectContaining({ periodStart: expect.any(Date) }),
+    );
+    expect(usageQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'usage.used_at < :periodEnd',
+      expect.objectContaining({ periodEnd: expect.any(Date) }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        period: AdminFeatureUsagePeriod.THIS_MONTH,
+        items: expect.arrayContaining([
+          { featureKey: BillingFeatureKey.CV_REVIEW, uniqueUserCount: 3 },
+          { featureKey: BillingFeatureKey.CV_UPLOAD, uniqueUserCount: 0 },
+        ]),
+      }),
+    );
+  });
+
+  it('counts distinct users across all history without a date filter', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockResolvedValue([
+      { featureKey: BillingFeatureKey.CV_JD_MATCH, uniqueUserCount: '12' },
+    ]);
+
+    const result = await service.listFeatureUsage({
+      period: AdminFeatureUsagePeriod.ALL_TIME,
+    });
+
+    expect(usageQueryBuilder.where).not.toHaveBeenCalled();
+    expect(usageQueryBuilder.andWhere).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({
+        period: AdminFeatureUsagePeriod.ALL_TIME,
+        items: expect.arrayContaining([
+          { featureKey: BillingFeatureKey.CV_JD_MATCH, uniqueUserCount: 12 },
+        ]),
+      }),
+    );
+  });
+
+  it('bubbles usage query failures', async () => {
+    const { service, usageQueryBuilder } = setup();
+    usageQueryBuilder.getRawMany.mockRejectedValue(new Error('database unavailable'));
+
+    await expect(
+      service.listFeatureUsage({ period: AdminFeatureUsagePeriod.ALL_TIME }),
+    ).rejects.toThrow('database unavailable');
   });
 
   it('creates a plan and its feature limits', async () => {
