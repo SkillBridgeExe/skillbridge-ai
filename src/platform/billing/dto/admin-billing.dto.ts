@@ -83,6 +83,29 @@ const MENTOR_BOOKING_REFUND_STATUSES: MentorBookingRefundStatus[] = [
 const VOUCHER_BENEFIT_TYPES: VoucherBenefitType[] = ['PERCENT_DISCOUNT', 'CREDIT_GRANT'];
 const CREDIT_TYPES: CreditType[] = ['CV_ANALYSIS', 'INTERVIEW_SESSION'];
 
+export enum AdminFeatureUsagePeriod {
+  THIS_MONTH = 'THIS_MONTH',
+  ALL_TIME = 'ALL_TIME',
+}
+
+export const ADMIN_FEATURE_USAGE_PERIODS = Object.values(AdminFeatureUsagePeriod);
+
+export class AdminFeatureUsageQueryDto {
+  @IsOptional()
+  @IsIn(ADMIN_FEATURE_USAGE_PERIODS)
+  period = AdminFeatureUsagePeriod.THIS_MONTH;
+}
+
+export interface AdminFeatureUsageItem {
+  featureKey: BillingFeatureKey;
+  uniqueUserCount: number;
+}
+
+export interface AdminFeatureUsageResponse {
+  period: AdminFeatureUsagePeriod;
+  items: AdminFeatureUsageItem[];
+}
+
 export class AdminBillingPlanFeatureInputDto {
   @IsIn(BILLING_FEATURE_KEYS)
   featureKey!: BillingFeatureKey;
