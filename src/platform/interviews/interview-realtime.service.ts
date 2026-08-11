@@ -9,6 +9,7 @@ import { IsNull, Repository } from 'typeorm';
 import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
+import { analyzeAnswerSignals } from '../../modules/interview/answer-analyzer';
 import {
   CommitRealtimeAssistantMessageDto,
   RealtimeInterviewTurnDto,
@@ -18,6 +19,7 @@ import {
   InterviewAssistanceLevel,
   InterviewDirectiveAction,
   InterviewTurnPolicyService,
+  RealtimeAnswerSignal,
   RealtimeTurnPolicyState,
 } from './interview-turn-policy.service';
 
@@ -51,7 +53,7 @@ export class InterviewRealtimeService {
     sessionId: string,
     dto: RealtimeInterviewTurnDto,
   ): Promise<RealtimeTurnDirectiveDto> {
-    const session = await this.ownedV2Session(userId, sessionId);
+    const session = await this.ownedSession(userId, sessionId);
     const existing = await this.directives.findOne({
       where: { sessionId, clientTurnId: dto.clientTurnId },
     });
@@ -66,18 +68,25 @@ export class InterviewRealtimeService {
     const topics = this.agendaTopics(session.agenda);
     const state = this.realtimeState(session, currentTurn, topics);
     const nextTopic = this.nextTopic(topics, state);
+    const answerSignal = this.effectiveAnswerSignal(
+      dto.intent,
+      dto.answerSignal,
+      dto.transcript,
+      session.language === 'en' ? 'en' : 'vi',
+    );
     const result = this.policy.decide({
       experienceMode: session.experienceMode ?? 'MOCK',
       intent: dto.intent,
-      answerSignal: dto.answerSignal,
+      answerSignal,
       state,
       nextTopicId: nextTopic?.id ?? null,
       nextQuestionThreadId: nextTopic ? crypto.randomUUID() : null,
     });
-    const questionGoal = this.withQuestionAvoidance(
-      this.questionGoal(result.action, currentTurn, nextTopic),
+    const fallbackQuestion = this.fallbackQuestion(
       result.action,
-      state.questionFingerprints,
+      currentTurn,
+      nextTopic,
+      session.language === 'en' ? 'en' : 'vi',
     );
     const entity = this.directives.create({
       sessionId,
@@ -86,7 +95,7 @@ export class InterviewRealtimeService {
       transcript: dto.transcript,
       modality: dto.modality,
       intent: dto.intent,
-      answerSignal: dto.answerSignal,
+      answerSignal,
       action: result.action,
       consumesAttempt: result.consumesAttempt,
       topicId: result.state.topicId,
@@ -96,7 +105,7 @@ export class InterviewRealtimeService {
       scoreCap: result.scoreCap,
       threadScore: result.threadScore,
       finished: result.finished,
-      questionGoal,
+      questionGoal: fallbackQuestion,
       reasons: result.reasons,
       speechEndedAt: dto.speechEndedAt ? new Date(dto.speechEndedAt) : null,
     });
@@ -147,7 +156,7 @@ export class InterviewRealtimeService {
     directiveId: string,
     dto: CommitRealtimeAssistantMessageDto,
   ): Promise<{ directive: RealtimeTurnDirectiveDto; turnId: string | null }> {
-    const session = await this.ownedV2Session(userId, sessionId);
+    const session = await this.ownedSession(userId, sessionId);
     const directive = await this.directives.findOne({ where: { id: directiveId, sessionId } });
     if (!directive) throw new NotFoundException('Interview directive not found');
     if (directive.committedAt) {
@@ -230,13 +239,11 @@ export class InterviewRealtimeService {
     return { directive: this.toDirectiveDto(directive), turnId };
   }
 
-  private async ownedV2Session(userId: string, sessionId: string): Promise<InterviewSessionEntity> {
+  private async ownedSession(userId: string, sessionId: string): Promise<InterviewSessionEntity> {
     const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
     if (!session) throw new NotFoundException('Interview session not found');
     if (session.status !== 'IN_PROGRESS')
       throw new ConflictException('Interview session has ended');
-    if (session.engineVersion !== 'V2')
-      throw new ConflictException('Realtime turn is only available for v2 sessions');
     return session;
   }
 
@@ -261,7 +268,7 @@ export class InterviewRealtimeService {
       session.interviewState && typeof session.interviewState === 'object'
         ? (session.interviewState as Record<string, unknown>)
         : {};
-    const value = root.realtimeV2;
+    const value = root.realtime;
     if (value && typeof value === 'object') return value as RealtimeInterviewState;
     return {
       topicId: topics[0]?.id ?? currentTurn?.skillCanonical ?? 'general',
@@ -282,7 +289,7 @@ export class InterviewRealtimeService {
   ): Record<string, unknown> {
     const root =
       rootValue && typeof rootValue === 'object' ? (rootValue as Record<string, unknown>) : {};
-    return { ...root, realtimeV2: state };
+    return { ...root, realtime: state };
   }
 
   private nextTopic(
@@ -297,46 +304,64 @@ export class InterviewRealtimeService {
     return history.includes(topicId) ? history : [...history, topicId];
   }
 
-  private questionGoal(
+  private effectiveAnswerSignal(
+    intent: string,
+    answerSignal: RealtimeAnswerSignal,
+    transcript: string,
+    language: 'vi' | 'en',
+  ): RealtimeAnswerSignal {
+    if (intent !== 'ANSWER' || answerSignal !== 'COMPLETE') return answerSignal;
+    const signals = analyzeAnswerSignals({ answer: transcript, language });
+    return signals.flags.is_too_short ? 'PARTIAL' : answerSignal;
+  }
+
+  private fallbackQuestion(
     action: InterviewDirectiveAction,
     current: InterviewTurnEntity,
     nextTopic: RealtimeAgendaTopic | null,
+    language: 'vi' | 'en',
   ): string {
-    if (action === 'ADVANCE_TOPIC')
-      return nextTopic?.what_to_probe ?? nextTopic?.seed_question ?? 'next competency';
-    if (action === 'REPEAT') return current.interviewerQuestion;
-    if (action === 'LOWER_DIFFICULTY')
-      return `${current.currentThread ?? current.interviewerQuestion}; ask one level easier`;
-    if (action === 'GIVE_HINT')
-      return `give a brief non-answer hint, then re-ask: ${current.interviewerQuestion}`;
-    if (action === 'GIVE_FEEDBACK')
-      return `give one concise improvement, then continue: ${current.currentThread ?? current.interviewerQuestion}`;
-    if (action === 'DECLINE_COACHING')
-      return `do not coach; ask an easier version of: ${current.interviewerQuestion}`;
-    if (action === 'CLARIFY')
-      return `clarify without adding a new requirement: ${current.interviewerQuestion}`;
-    if (action === 'WRAP_UP') return 'close the interview briefly without asking another question';
-    return current.currentThread ?? current.interviewerQuestion;
-  }
-
-  private withQuestionAvoidance(
-    goal: string,
-    action: InterviewDirectiveAction,
-    fingerprints: string[],
-  ): string {
-    if (
-      fingerprints.length === 0 ||
-      action === 'REPEAT' ||
-      action === 'CLARIFY' ||
-      action === 'GIVE_HINT' ||
-      action === 'WRAP_UP'
-    ) {
-      return goal;
+    if (action === 'ADVANCE_TOPIC') {
+      return (
+        nextTopic?.seed_question ??
+        (language === 'vi'
+          ? 'Bạn có thể chia sẻ một ví dụ khác liên quan đến năng lực tiếp theo không?'
+          : 'Could you share another example related to the next competency?')
+      );
     }
-    const recent = fingerprints.slice(-5).join(' | ');
-    return `${goal}. Ask a meaningfully different question; do not repeat these recent question fingerprints: ${recent}`;
+    if (action === 'REPEAT') return current.interviewerQuestion;
+    if (action === 'FOLLOW_UP') {
+      return language === 'vi'
+        ? 'Bạn có thể kể một ví dụ cụ thể hơn, gồm phần bạn trực tiếp làm, quyết định kỹ thuật và kết quả không?'
+        : 'Could you give a more specific example, including what you personally built, the technical decision, and the result?';
+    }
+    if (action === 'LOWER_DIFFICULTY' || action === 'DECLINE_COACHING') {
+      return language === 'vi'
+        ? `Mình đổi sang cách hỏi dễ hơn: ${current.interviewerQuestion}`
+        : `Let me ask an easier version: ${current.interviewerQuestion}`;
+    }
+    if (action === 'GIVE_HINT') {
+      return language === 'vi'
+        ? `Gợi ý ngắn: hãy bắt đầu từ phần bạn trực tiếp thực hiện. ${current.interviewerQuestion}`
+        : `A short hint: start with what you personally did. ${current.interviewerQuestion}`;
+    }
+    if (action === 'GIVE_FEEDBACK') {
+      return language === 'vi'
+        ? `Nhận xét nhanh: hãy làm rõ vai trò và kết quả của bạn. ${current.interviewerQuestion}`
+        : `Quick feedback: make your role and result clearer. ${current.interviewerQuestion}`;
+    }
+    if (action === 'CLARIFY') {
+      return language === 'vi'
+        ? `Nói cách khác, ${current.interviewerQuestion}`
+        : `In other words, ${current.interviewerQuestion}`;
+    }
+    if (action === 'WRAP_UP') {
+      return language === 'vi'
+        ? 'Cảm ơn bạn. Buổi phỏng vấn của chúng ta kết thúc tại đây.'
+        : 'Thank you. This concludes our interview.';
+    }
+    return current.interviewerQuestion;
   }
-
   private createsQuestionTurn(action: string): boolean {
     return action === 'FOLLOW_UP' || action === 'ADVANCE_TOPIC';
   }
@@ -352,7 +377,7 @@ export class InterviewRealtimeService {
       scoreCap: value.scoreCap,
       threadScore: value.threadScore,
       consumesAttempt: value.consumesAttempt,
-      questionGoal: value.questionGoal,
+      fallbackQuestion: value.questionGoal,
       finished: value.finished,
     };
   }

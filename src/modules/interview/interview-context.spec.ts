@@ -63,22 +63,37 @@ describe('interview context identity', () => {
     expect(identity.candidateName).toBe('Tran Minh Anh');
   });
 
-  it('builds a Vietnamese opening without undefined values or fabricated company claims', () => {
-    expect(
-      buildInterviewOpening(
-        {
-          candidateName: null,
-          employerName: null,
-          jobTitle: 'Junior Frontend Engineer',
-          employerSource: 'unknown',
-        },
-        'vi',
-      ),
-    ).toBe(
-      'Xin chào bạn, tôi là AI interviewer của SkillBridge cho vị trí Junior Frontend Engineer, dựa trên JD bạn cung cấp. Mình sẽ hỏi lần lượt về kinh nghiệm, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.',
+  it('builds a neutral Vietnamese opening for a role-only interview', () => {
+    const opening = buildInterviewOpening(
+      {
+        candidateName: null,
+        employerName: null,
+        jobTitle: 'Junior Frontend Engineer',
+        employerSource: 'unknown',
+      },
+      'vi',
+      'ROLE_ONLY',
     );
+
+    expect(opening).toContain('Junior Frontend Engineer');
+    expect(opening).not.toMatch(/\b(?:JD|CV)\b|job description/i);
   });
 
+  it('mentions only the CV in a CV-only opening', () => {
+    const opening = buildInterviewOpening(
+      {
+        candidateName: 'Minh',
+        employerName: null,
+        jobTitle: 'Frontend Developer',
+        employerSource: 'unknown',
+      },
+      'en',
+      'CV_ONLY',
+    );
+
+    expect(opening).toMatch(/CV/i);
+    expect(opening).not.toMatch(/\bJD\b|job description/i);
+  });
   it('names the candidate and employer when both are grounded', () => {
     expect(
       buildInterviewOpening(
@@ -89,6 +104,7 @@ describe('interview context identity', () => {
           employerSource: 'jd',
         },
         'vi',
+        'CV_JD_MATCH',
       ),
     ).toContain('Xin chào Nguyễn An, tôi là HR AI của FPT Software');
   });

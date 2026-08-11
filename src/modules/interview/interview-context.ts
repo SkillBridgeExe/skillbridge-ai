@@ -136,21 +136,36 @@ export function resolveInterviewIdentity(input: InterviewIdentityInput): Intervi
   };
 }
 
-export function buildInterviewOpening(identity: InterviewIdentity, language: 'vi' | 'en'): string {
+export function buildInterviewOpening(
+  identity: InterviewIdentity,
+  language: 'vi' | 'en',
+  contextMode: 'ROLE_ONLY' | 'CV_ONLY' | 'CV_JD_MATCH',
+): string {
   const candidate = identity.candidateName ?? (language === 'vi' ? 'bạn' : 'there');
   if (language === 'en') {
-    if (identity.employerName) {
+    if (contextMode === 'CV_JD_MATCH' && identity.employerName) {
       return `Hello ${candidate}, I am the HR AI interviewer for ${identity.employerName} for the ${identity.jobTitle} role. We will go through your experience, the role requirements, and a few realistic scenarios; let us begin.`;
     }
-    return `Hello ${candidate}, I am SkillBridge's AI interviewer for the ${identity.jobTitle} role, based on the job description you provided. We will go through your experience, the role requirements, and a few realistic scenarios; let us begin.`;
+    if (contextMode === 'CV_JD_MATCH') {
+      return `Hello ${candidate}, I am SkillBridge's AI interviewer for the ${identity.jobTitle} role, based on your CV and the job description. We will go through your experience, the role requirements, and a few realistic scenarios; let us begin.`;
+    }
+    if (contextMode === 'CV_ONLY') {
+      return `Hello ${candidate}, I am SkillBridge's AI interviewer for the ${identity.jobTitle} role, based on your CV. We will discuss your experience and a few realistic scenarios; let us begin.`;
+    }
+    return `Hello ${candidate}, I am SkillBridge's AI interviewer for the ${identity.jobTitle} role. We will discuss your experience and a few realistic scenarios; let us begin.`;
   }
 
-  if (identity.employerName) {
+  if (contextMode === 'CV_JD_MATCH' && identity.employerName) {
     return `Xin chào ${candidate}, tôi là HR AI của ${identity.employerName} cho vị trí ${identity.jobTitle}. Mình sẽ lần lượt trao đổi về kinh nghiệm của bạn, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.`;
   }
-  return `Xin chào ${candidate}, tôi là AI interviewer của SkillBridge cho vị trí ${identity.jobTitle}, dựa trên JD bạn cung cấp. Mình sẽ hỏi lần lượt về kinh nghiệm, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.`;
+  if (contextMode === 'CV_JD_MATCH') {
+    return `Xin chào ${candidate}, tôi là AI interviewer của SkillBridge cho vị trí ${identity.jobTitle}, dựa trên CV và JD của bạn. Mình sẽ lần lượt trao đổi về kinh nghiệm, yêu cầu của vị trí và một vài tình huống thực tế; chúng ta bắt đầu nhé.`;
+  }
+  if (contextMode === 'CV_ONLY') {
+    return `Xin chào ${candidate}, tôi là AI interviewer của SkillBridge cho vị trí ${identity.jobTitle}, dựa trên CV của bạn. Mình sẽ trao đổi về kinh nghiệm và một vài tình huống thực tế; chúng ta bắt đầu nhé.`;
+  }
+  return `Xin chào ${candidate}, tôi là AI interviewer của SkillBridge cho vị trí ${identity.jobTitle}. Mình sẽ trao đổi về kinh nghiệm và một vài tình huống thực tế; chúng ta bắt đầu nhé.`;
 }
-
 export function interviewQuestionTokens(question: string): string[] {
   const withoutMarks = question
     .normalize('NFKD')

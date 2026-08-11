@@ -96,7 +96,13 @@ describe('StartPlatformInterviewDto voice settings', () => {
     });
   });
 
-  it('accepts the explicit v2 experience modes', async () => {
+  it('rejects the removed hybrid interview mode', async () => {
+    await expect(transform({ ...baseBody, mode: 'HYBRID' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('accepts the explicit experience modes', async () => {
     await expect(transform({ ...baseBody, experienceMode: 'PRACTICE' })).resolves.toMatchObject({
       experienceMode: 'PRACTICE',
     });
@@ -119,7 +125,7 @@ describe('StartPlatformInterviewDto voice settings', () => {
   });
 });
 
-describe('Realtime interview v2 DTOs', () => {
+describe('Realtime interview DTOs', () => {
   const pipe = new ValidationPipe({ transform: true });
 
   it('normalizes a realtime turn and accepts client timing metadata', async () => {

@@ -17,7 +17,6 @@ import { InterviewGapReportService } from './interview-gap-report.service';
 import { InterviewRealtimeService } from './interview-realtime.service';
 import { InterviewTurnPolicyService } from './interview-turn-policy.service';
 import { InterviewsService } from './interviews.service';
-import { OpenAiQuestionAudioService } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 @Module({
@@ -40,7 +39,6 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
   providers: [
     InterviewsService,
     OpenAiRealtimeTokenService,
-    OpenAiQuestionAudioService,
     InterviewGapReportService,
     InterviewChainLlmService,
     InterviewRealtimeService,

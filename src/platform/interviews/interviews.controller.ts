@@ -1,20 +1,9 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Header,
-  Param,
-  Post,
-  Query,
-  StreamableFile,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import {
-  AnswerPlatformInterviewDto,
   CommitRealtimeAssistantMessageDto,
   EndPlatformInterviewDto,
   InterviewListQueryDto,
@@ -41,18 +30,10 @@ export class InterviewsController {
   @ApiOperation({
     summary: 'Start a CV/JD-backed mock interview session',
     description:
-      'Creates a persisted interview session, asks the first question, and returns an OpenAI Realtime client secret for voice/hybrid modes when configured.',
+      'Creates a persisted interview session, asks the first question, and returns an OpenAI Realtime client secret for voice mode when configured.',
   })
   start(@CurrentUser() user: JwtUser, @Body() body: StartPlatformInterviewDto) {
     return this.interviews.start(user.userId, body);
-  }
-
-  @Post('turn')
-  @ApiOperation({
-    summary: 'Submit one text/transcript answer and receive the next interview question',
-  })
-  turn(@CurrentUser() user: JwtUser, @Body() body: AnswerPlatformInterviewDto) {
-    return this.interviews.answer(user.userId, body);
   }
 
   @Post('end')
@@ -91,7 +72,7 @@ export class InterviewsController {
   }
 
   @Post('sessions/:id/realtime-turn')
-  @ApiOperation({ summary: 'Resolve one low-latency Interview v2 candidate turn' })
+  @ApiOperation({ summary: 'Resolve one low-latency realtime interview candidate turn' })
   @ApiParam({ name: 'id', format: 'uuid' })
   realtimeTurn(
     @CurrentUser() user: JwtUser,
@@ -112,17 +93,5 @@ export class InterviewsController {
     @Body() body: CommitRealtimeAssistantMessageDto,
   ) {
     return this.interviewRealtime.commitAssistantMessage(user.userId, id, directiveId, body);
-  }
-
-  @Post('sessions/:id/question-audio')
-  @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Create speech audio for the current server-owned question' })
-  @ApiParam({ name: 'id', format: 'uuid' })
-  async questionAudio(@CurrentUser() user: JwtUser, @Param('id') id: string) {
-    const audio = await this.interviews.createQuestionAudio(user.userId, id);
-    return new StreamableFile(audio.data, {
-      type: audio.contentType,
-      disposition: 'inline; filename="interview-question.mp3"',
-    });
   }
 }

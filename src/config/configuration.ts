@@ -28,12 +28,10 @@ export default () => ({
       apiKey: process.env.OPENAI_API_KEY ?? '',
       // gpt-5.4-mini = benchmark winner (94% within-band, lowest MAE) — see model-routing memo.
       modelDefault: process.env.OPENAI_MODEL_DEFAULT ?? 'gpt-5.4-mini',
-      realtimeModel: process.env.OPENAI_REALTIME_MODEL ?? 'gpt-realtime-2',
-      realtimeV2Model: process.env.OPENAI_REALTIME_V2_MODEL ?? 'gpt-realtime-2.1',
+      realtimeModel: process.env.OPENAI_REALTIME_MODEL ?? 'gpt-realtime-2.1',
       realtimeTranscriptionModel:
         process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL ?? 'gpt-4o-mini-transcribe',
-      ttsModel: process.env.OPENAI_TTS_MODEL ?? 'gpt-4o-mini-tts',
-      ttsVoice: process.env.OPENAI_TTS_VOICE ?? 'marin',
+      realtimeVoice: process.env.OPENAI_REALTIME_VOICE ?? 'marin',
       // 3-large @1024 dims (Matryoshka) — chosen for bilingual VI/EN short-phrase recall.
       modelEmbedding: process.env.OPENAI_MODEL_EMBEDDING ?? 'text-embedding-3-large',
     },
@@ -84,10 +82,6 @@ export default () => ({
     askModel: process.env.INTERVIEW_ASK_MODEL ?? 'gpt-4o-mini',
     answerInsightModel: process.env.ANSWER_INSIGHT_MODEL ?? '',
     coachingModel: process.env.INTERVIEW_COACHING_MODEL ?? '',
-  },
-
-  features: {
-    interviewRealtimeV2: process.env.INTERVIEW_REALTIME_V2_ENABLED === 'true',
   },
 
   database: {

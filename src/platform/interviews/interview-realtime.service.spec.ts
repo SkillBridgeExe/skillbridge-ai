@@ -13,7 +13,6 @@ describe('InterviewRealtimeService', () => {
     id: '11111111-1111-4111-8111-111111111111',
     userId: 'user-1',
     status: 'IN_PROGRESS',
-    engineVersion: 'V2',
     experienceMode: 'MOCK',
     agenda: {
       topics: [
@@ -22,7 +21,7 @@ describe('InterviewRealtimeService', () => {
       ],
     },
     interviewState: {
-      realtimeV2: {
+      realtime: {
         topicId: 'api',
         questionThreadId: '22222222-2222-4222-8222-222222222222',
         difficultyStep: 0,
@@ -145,34 +144,87 @@ describe('InterviewRealtimeService', () => {
     );
   });
 
-  it('adds recent question fingerprints to a new question directive', async () => {
+  it('returns the next seed question without internal focus or fingerprints', async () => {
     const realtimeState = (
       session.interviewState as {
-        realtimeV2: { questionFingerprints: string[] };
+        realtime: { questionFingerprints: string[] };
       }
-    ).realtimeV2;
+    ).realtime;
     realtimeState.questionFingerprints = ['design an api'];
     const pendingTurn = { ...currentTurn, answeredAt: null } as InterviewTurnEntity;
     const { service, turns, directives } = createService();
     (turns.findOne as jest.Mock).mockResolvedValue(pendingTurn);
 
-    await service.submitTurn('user-1', session.id, {
+    const result = await service.submitTurn('user-1', session.id, {
       clientTurnId: 'client-avoid-repeat',
-      transcript: 'I use idempotency keys and persist the first response.',
+      transcript:
+        'I designed a REST API with idempotency keys, persisted the first response, added retries, monitored latency, and validated the approach under production traffic.',
       modality: 'AUDIO',
       intent: 'ANSWER',
       answerSignal: 'COMPLETE',
     });
 
+    expect(result).toMatchObject({ fallbackQuestion: 'Design a cache.' });
+    expect(result).not.toHaveProperty('questionGoal');
     expect(directives.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        questionGoal: expect.stringContaining(
-          'do not repeat these recent question fingerprints: design an api',
-        ),
-      }),
+      expect.objectContaining({ questionGoal: 'Design a cache.' }),
     );
+    const created = (directives.create as jest.Mock).mock.calls[0][0] as {
+      questionGoal: string;
+    };
+    expect(created.questionGoal).not.toMatch(/trade-offs|fingerprints|do not repeat/i);
   });
 
+  it('downgrades a too-short COMPLETE answer and keeps one contextual follow-up in the same thread', async () => {
+    const viSession = {
+      ...session,
+      language: 'vi',
+      interviewState: {
+        realtime: {
+          topicId: 'api',
+          questionThreadId: currentTurn.questionThreadId,
+          difficultyStep: 0,
+          noAnswerCount: 0,
+          probeCount: 0,
+          assistanceLevel: 'NONE',
+          scoreCap: null,
+          topicHistory: ['api'],
+          questionFingerprints: [],
+        },
+      },
+    } as InterviewSessionEntity;
+    const { service, sessions, turns, directives } = createService();
+    (sessions.findOne as jest.Mock).mockResolvedValue(viSession);
+    (turns.findOne as jest.Mock).mockResolvedValue({
+      ...currentTurn,
+      interviewerQuestion:
+        'Hãy giới thiệu ngắn về dự án gần nhất liên quan đến vị trí Frontend Developer. Bạn phụ trách phần nào?',
+      currentThread: 'Role-only practice for React. No CV or job description was provided.',
+    });
+
+    const result = await service.submitTurn('user-1', session.id, {
+      clientTurnId: 'client-short-answer',
+      transcript: 'tôi phụ trách phần FE với 1 năm kinh nghiệm',
+      modality: 'AUDIO',
+      intent: 'ANSWER',
+      answerSignal: 'COMPLETE',
+    });
+
+    expect(result.action).toBe('FOLLOW_UP');
+    expect(result.questionThreadId).toBe(currentTurn.questionThreadId);
+    expect(directives.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        answerSignal: 'PARTIAL',
+        questionGoal: expect.stringMatching(/bạn|ví dụ|cụ thể/i),
+      }),
+    );
+    const created = (directives.create as jest.Mock).mock.calls[0][0] as {
+      questionGoal: string;
+    };
+    expect(created.questionGoal).not.toMatch(
+      /Role-only practice|No CV or job description|fingerprints|scoreCap|questionGoal/i,
+    );
+  });
   it('does not reveal a session owned by another user', async () => {
     const { service, sessions } = createService();
     (sessions.findOne as jest.Mock).mockResolvedValue(null);

@@ -37,7 +37,7 @@ describe('OpenAiRealtimeTokenService', () => {
   function serviceWithConfig(overrides: Record<string, string | undefined> = {}) {
     const values: Record<string, string | undefined> = {
       'llm.openai.apiKey': 'sk-test',
-      'llm.openai.realtimeModel': 'gpt-realtime-2',
+      'llm.openai.realtimeModel': 'gpt-realtime-2.1',
       ...overrides,
     };
     const config = {
@@ -70,8 +70,8 @@ describe('OpenAiRealtimeTokenService', () => {
       expect.objectContaining({
         session: expect.objectContaining({
           type: 'realtime',
-          model: 'gpt-realtime-2',
-          instructions: 'Interview instructions',
+          model: 'gpt-realtime-2.1',
+          instructions: expect.stringContaining('Interview instructions'),
           output_modalities: ['audio'],
           audio: expect.objectContaining({
             input: expect.objectContaining({
@@ -80,9 +80,10 @@ describe('OpenAiRealtimeTokenService', () => {
                 language: 'vi',
               }),
               turn_detection: expect.objectContaining({
-                type: 'server_vad',
-                create_response: false,
-                interrupt_response: false,
+                type: 'semantic_vad',
+                eagerness: 'auto',
+                create_response: true,
+                interrupt_response: true,
               }),
             }),
             output: expect.objectContaining({
@@ -112,7 +113,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
-      model: 'gpt-realtime-2',
+      model: 'gpt-realtime-2.1',
       clientSecret: 'ek_test_secret',
       expiresAt: '2026-06-15T05:06:40.000Z',
     });
@@ -220,7 +221,7 @@ describe('OpenAiRealtimeTokenService', () => {
       realtimeSessionId: null,
     } as unknown as InterviewSessionEntity;
 
-    await serviceWithConfig({ 'llm.openai.ttsVoice': 'cedar' }).createClientSecret(
+    await serviceWithConfig({ 'llm.openai.realtimeVoice': 'cedar' }).createClientSecret(
       userId,
       sessionWithoutVoice,
       'Interview instructions',
@@ -240,54 +241,21 @@ describe('OpenAiRealtimeTokenService', () => {
     );
   });
 
-  it('keeps guided hybrid voice capture from auto-responding or interrupting official audio', async () => {
+  it('configures realtime with semantic VAD, interruption, and the backend turn tool', async () => {
     mockClientSecretsCreate.mockResolvedValue({
-      value: 'ek_test_secret',
+      value: 'ek_realtime_secret',
       expires_at: 1781500000,
-      session: { id: 'sess_realtime_hybrid' },
+      session: { id: 'sess_realtime' },
     });
-    const hybridSession = {
+    const realtimeSession = {
       ...session,
-      mode: 'HYBRID',
-      realtimeSessionId: null,
-    } as InterviewSessionEntity;
-
-    await serviceWithConfig().createClientSecret(userId, hybridSession, 'Interview instructions');
-
-    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        session: expect.objectContaining({
-          audio: expect.objectContaining({
-            input: expect.objectContaining({
-              turn_detection: expect.objectContaining({
-                type: 'server_vad',
-                create_response: false,
-                interrupt_response: false,
-              }),
-            }),
-          }),
-        }),
-      }),
-      expect.any(Object),
-    );
-  });
-
-  it('configures v2 with semantic VAD, interruption, and the backend turn tool', async () => {
-    mockClientSecretsCreate.mockResolvedValue({
-      value: 'ek_v2_secret',
-      expires_at: 1781500000,
-      session: { id: 'sess_realtime_v2' },
-    });
-    const v2Session = {
-      ...session,
-      engineVersion: 'V2',
       experienceMode: 'PRACTICE',
       realtimeSessionId: null,
     } as InterviewSessionEntity;
 
     const result = await serviceWithConfig({
-      'llm.openai.realtimeV2Model': undefined,
-    }).createClientSecret(userId, v2Session, 'V2 interview instructions');
+      'llm.openai.realtimeModel': undefined,
+    }).createClientSecret(userId, realtimeSession, 'Realtime interview instructions');
 
     expect(mockClientSecretsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -339,7 +307,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(result).toMatchObject({
       enabled: false,
       provider: 'openai',
-      model: 'gpt-realtime-2',
+      model: 'gpt-realtime-2.1',
       clientSecret: null,
       reason: 'OPENAI_API_KEY is not set',
     });

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
 export type InterviewExperienceMode = 'MOCK' | 'PRACTICE';
-export type InterviewEngineVersion = 'V1' | 'V2';
 export type CandidateIntent =
   | 'ANSWER'
   | 'NO_ANSWER'

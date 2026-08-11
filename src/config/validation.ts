@@ -36,12 +36,9 @@ export const configValidationSchema = Joi.object({
   LLM_PROVIDER_DEFAULT: Joi.string().valid('openai').default('openai'),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL_DEFAULT: Joi.string().default('gpt-5.4-mini'),
-  OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2'),
-  OPENAI_REALTIME_V2_MODEL: Joi.string().default('gpt-realtime-2.1'),
-  INTERVIEW_REALTIME_V2_ENABLED: Joi.boolean().default(false),
+  OPENAI_REALTIME_MODEL: Joi.string().default('gpt-realtime-2.1'),
   OPENAI_REALTIME_TRANSCRIPTION_MODEL: Joi.string().default('gpt-4o-mini-transcribe'),
-  OPENAI_TTS_MODEL: Joi.string().default('gpt-4o-mini-tts'),
-  OPENAI_TTS_VOICE: Joi.string()
+  OPENAI_REALTIME_VOICE: Joi.string()
     .valid(...INTERVIEW_VOICES)
     .default('marin'),
   OPENAI_MODEL_EMBEDDING: Joi.string().default('text-embedding-3-large'),

@@ -6,8 +6,13 @@ export class InterviewExperienceV21786001000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE public.interview_sessions
-        ADD COLUMN IF NOT EXISTS experience_mode varchar NULL,
-        ADD COLUMN IF NOT EXISTS engine_version varchar NOT NULL DEFAULT 'V1';
+        ADD COLUMN IF NOT EXISTS experience_mode varchar NOT NULL DEFAULT 'MOCK';
+
+      ALTER TABLE public.interview_sessions
+        DROP CONSTRAINT IF EXISTS chk_interview_sessions_mode;
+      UPDATE public.interview_sessions SET mode = 'VOICE' WHERE mode = 'HYBRID';
+      ALTER TABLE public.interview_sessions
+        ADD CONSTRAINT chk_interview_sessions_mode CHECK (mode IN ('TEXT', 'VOICE'));
 
       ALTER TABLE public.interview_turns
         ADD COLUMN IF NOT EXISTS client_turn_id varchar NULL,
@@ -90,7 +95,11 @@ export class InterviewExperienceV21786001000000 implements MigrationInterface {
         DROP COLUMN IF EXISTS client_turn_id;
 
       ALTER TABLE public.interview_sessions
-        DROP COLUMN IF EXISTS engine_version,
+        DROP CONSTRAINT IF EXISTS chk_interview_sessions_mode;
+      ALTER TABLE public.interview_sessions
+        ADD CONSTRAINT chk_interview_sessions_mode CHECK (mode IN ('TEXT', 'VOICE', 'HYBRID'));
+
+      ALTER TABLE public.interview_sessions
         DROP COLUMN IF EXISTS experience_mode;
     `);
   }
