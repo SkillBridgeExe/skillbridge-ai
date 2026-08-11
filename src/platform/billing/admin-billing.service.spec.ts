@@ -1,6 +1,10 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import { BillingFeatureKey, BillingFeaturePeriod } from '../../common/constants/billing.constants';
+import {
+  BILLING_FEATURE_CATALOG,
+  BillingFeatureKey,
+  BillingFeaturePeriod,
+} from '../../common/constants/billing.constants';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
 import { MentorBookingEntity } from '../../database/entities/mentor-booking.entity';
@@ -123,10 +127,48 @@ describe('AdminBillingService', () => {
     );
   });
 
-  it('counts distinct users for the current month and returns zero-use catalog features', async () => {
+  it('uses one captured instant for the exact ICT current-month boundaries', async () => {
+    const { service, usageQueryBuilder } = setup();
+    const RealDate = Date;
+    const capturedNow = new RealDate('2026-08-31T16:59:59.999Z');
+    const rolloverNow = new RealDate('2026-08-31T17:00:00.000Z');
+    let zeroArgumentClockReads = 0;
+
+    class MonthBoundaryDate extends RealDate {
+      constructor(value?: number | string) {
+        if (value !== undefined) {
+          super(value);
+          return;
+        }
+
+        const instant = zeroArgumentClockReads++ === 0 ? capturedNow : rolloverNow;
+        super(instant.getTime());
+      }
+    }
+
+    global.Date = MonthBoundaryDate as DateConstructor;
+    try {
+      await service.listFeatureUsage({
+        period: AdminFeatureUsagePeriod.THIS_MONTH,
+      });
+    } finally {
+      global.Date = RealDate;
+    }
+
+    expect(zeroArgumentClockReads).toBe(1);
+    expect(usageQueryBuilder.where).toHaveBeenCalledWith('usage.used_at >= :periodStart', {
+      periodStart: new RealDate('2026-07-31T17:00:00.000Z'),
+    });
+    expect(usageQueryBuilder.andWhere).toHaveBeenCalledWith('usage.used_at < :periodEnd', {
+      periodEnd: capturedNow,
+    });
+  });
+
+  it('counts distinct users and returns the complete catalog while omitting unknown keys', async () => {
     const { service, usageQueryBuilder } = setup();
     usageQueryBuilder.getRawMany.mockResolvedValue([
       { featureKey: BillingFeatureKey.CV_REVIEW, uniqueUserCount: '3' },
+      { featureKey: 'unknown_feature', uniqueUserCount: '99' },
     ]);
 
     const result = await service.listFeatureUsage({
@@ -146,15 +188,13 @@ describe('AdminBillingService', () => {
       'usage.used_at < :periodEnd',
       expect.objectContaining({ periodEnd: expect.any(Date) }),
     );
-    expect(result).toEqual(
-      expect.objectContaining({
-        period: AdminFeatureUsagePeriod.THIS_MONTH,
-        items: expect.arrayContaining([
-          { featureKey: BillingFeatureKey.CV_REVIEW, uniqueUserCount: 3 },
-          { featureKey: BillingFeatureKey.CV_UPLOAD, uniqueUserCount: 0 },
-        ]),
-      }),
-    );
+    expect(result).toEqual({
+      period: AdminFeatureUsagePeriod.THIS_MONTH,
+      items: BILLING_FEATURE_CATALOG.map(({ featureKey }) => ({
+        featureKey,
+        uniqueUserCount: featureKey === BillingFeatureKey.CV_REVIEW ? 3 : 0,
+      })),
+    });
   });
 
   it('counts distinct users across all history without a date filter', async () => {

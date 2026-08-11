@@ -96,9 +96,7 @@ export class AdminBillingService {
     }));
   }
 
-  async listFeatureUsage(
-    query: AdminFeatureUsageQueryDto,
-  ): Promise<AdminFeatureUsageResponse> {
+  async listFeatureUsage(query: AdminFeatureUsageQueryDto): Promise<AdminFeatureUsageResponse> {
     const period = query.period ?? AdminFeatureUsagePeriod.THIS_MONTH;
     const usageQuery = this.usageEvents
       .createQueryBuilder('usage')
@@ -107,11 +105,12 @@ export class AdminBillingService {
       .groupBy('usage.feature_key');
 
     if (period === AdminFeatureUsagePeriod.THIS_MONTH) {
+      const now = new Date();
       usageQuery
         .where('usage.used_at >= :periodStart', {
-          periodStart: startOfCurrentMonthIct(),
+          periodStart: startOfCurrentMonthIct(now),
         })
-        .andWhere('usage.used_at < :periodEnd', { periodEnd: new Date() });
+        .andWhere('usage.used_at < :periodEnd', { periodEnd: now });
     }
 
     const rows = await usageQuery.getRawMany<{
