@@ -109,7 +109,9 @@ describe('BillingSettlementService', () => {
       'CV_ANALYSIS',
       2,
     );
-    expect(orders.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'PAID' }));
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'PAID', providerVerificationStatus: 'CONFIRMED_PAID' }),
+    );
   });
 
   it('settles a paid subscription inside a transaction after validating amount and payment link', async () => {

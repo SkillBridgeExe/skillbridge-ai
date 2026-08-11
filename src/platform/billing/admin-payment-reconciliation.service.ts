@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Raw, Repository } from 'typeorm';
 import {
   PaymentOrderEntity,
+  PaymentOrderProviderVerificationStatus,
   PaymentOrderStatus,
 } from '../../database/entities/payment-order.entity';
 import {
@@ -25,6 +26,12 @@ export type AdminPaymentReconciliationItem = {
   message?: string;
 };
 
+export type AdminPaymentVerificationItem = {
+  orderCode: number;
+  status: PaymentOrderProviderVerificationStatus | 'FAILED_RECONCILIATION';
+  message?: string;
+};
+
 export type AdminPaymentReconciliationResponse = {
   provider: string;
   window: {
@@ -39,9 +46,14 @@ export type AdminPaymentReconciliationResponse = {
   pending: number;
   failed: number;
   results: AdminPaymentReconciliationItem[];
+  paidChecked: number;
+  verifiedPaid: number;
+  unverifiedPaid: number;
+  verificationFailed: number;
+  paidVerificationResults: AdminPaymentVerificationItem[];
 };
 
-const RECONCILIATION_CONCURRENCY = 4;
+const RECONCILIATION_CONCURRENCY = 2;
 
 @Injectable()
 export class AdminPaymentReconciliationService {
@@ -57,10 +69,21 @@ export class AdminPaymentReconciliationService {
   ): Promise<AdminPaymentReconciliationResponse> {
     const window = resolveAdminRevenueWindow(query);
     const provider = this.providers.activeProviderCode();
-    const pendingOrders = await this.findPendingOrders(provider, window);
+    const [pendingOrders, paidOrders] = await Promise.all([
+      this.findPendingOrders(provider, window),
+      this.findPaidOrdersForVerification(provider, window),
+    ]);
     const results = await mapWithConcurrency(pendingOrders, RECONCILIATION_CONCURRENCY, (order) =>
       this.reconcileOne(order),
     );
+    const paidVerificationResults = await mapWithConcurrency(
+      paidOrders,
+      RECONCILIATION_CONCURRENCY,
+      (order) => this.verifyPaidOne(order),
+    );
+    const verifiedPaid = paidVerificationResults.filter(
+      (result) => result.status === 'CONFIRMED_PAID',
+    ).length;
 
     return {
       provider,
@@ -73,6 +96,13 @@ export class AdminPaymentReconciliationService {
       pending: results.filter((result) => result.status === 'PENDING').length,
       failed: results.filter((result) => result.status === 'FAILED_RECONCILIATION').length,
       results,
+      paidChecked: paidVerificationResults.length,
+      verifiedPaid,
+      unverifiedPaid: paidVerificationResults.length - verifiedPaid,
+      verificationFailed: paidVerificationResults.filter(
+        (result) => result.status === 'FAILED_RECONCILIATION',
+      ).length,
+      paidVerificationResults,
     };
   }
 
@@ -93,10 +123,45 @@ export class AdminPaymentReconciliationService {
       .getMany();
   }
 
+  private async findPaidOrdersForVerification(
+    provider: string,
+    window: ResolvedAdminRevenueWindow,
+  ): Promise<PaymentOrderEntity[]> {
+    return this.orders.find({
+      where: {
+        provider,
+        currency: 'VND',
+        status: 'PAID',
+        paidAt: Raw((alias) => `${alias} >= :paidFrom AND ${alias} < :paidTo`, {
+          paidFrom: window.from,
+          paidTo: window.to,
+        }),
+        providerVerificationStatus: Raw(
+          (alias) => `(${alias} IS NULL OR ${alias} = :verificationError)`,
+          { verificationError: 'ERROR' },
+        ),
+      },
+      order: { paidAt: 'ASC' },
+    });
+  }
+
   private async reconcileOne(order: PaymentOrderEntity): Promise<AdminPaymentReconciliationItem> {
     try {
       const result: PaymentOrderReconciliationResult =
         await this.reconciliation.reconcilePendingOrder(order);
+      return { orderCode: Number(order.orderCode), status: result.status };
+    } catch (error) {
+      return {
+        orderCode: Number(order.orderCode),
+        status: 'FAILED_RECONCILIATION',
+        message: safeErrorMessage(error),
+      };
+    }
+  }
+
+  private async verifyPaidOne(order: PaymentOrderEntity): Promise<AdminPaymentVerificationItem> {
+    try {
+      const result = await this.reconciliation.verifyPaidOrder(order);
       return { orderCode: Number(order.orderCode), status: result.status };
     } catch (error) {
       return {

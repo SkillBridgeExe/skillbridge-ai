@@ -26,13 +26,17 @@ function setup(ordersToReturn: PaymentOrderEntity[] = []) {
   };
   const orders = {
     createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
-  } as unknown as jest.Mocked<Pick<Repository<PaymentOrderEntity>, 'createQueryBuilder'>>;
+    find: jest.fn().mockResolvedValue([]),
+  } as unknown as jest.Mocked<Pick<Repository<PaymentOrderEntity>, 'createQueryBuilder' | 'find'>>;
   const providers = {
     activeProviderCode: jest.fn().mockReturnValue('PAYOS'),
   } as unknown as jest.Mocked<Pick<PaymentProviderRegistry, 'activeProviderCode'>>;
   const reconciliation = {
     reconcilePendingOrder: jest.fn(),
-  } as unknown as jest.Mocked<Pick<PaymentOrderReconciliationService, 'reconcilePendingOrder'>>;
+    verifyPaidOrder: jest.fn(),
+  } as unknown as jest.Mocked<
+    Pick<PaymentOrderReconciliationService, 'reconcilePendingOrder' | 'verifyPaidOrder'>
+  >;
   const service = new AdminPaymentReconciliationService(
     orders as unknown as Repository<PaymentOrderEntity>,
     providers as unknown as PaymentProviderRegistry,
@@ -117,7 +121,7 @@ describe('AdminPaymentReconciliationService', () => {
     );
   });
 
-  it('limits concurrent provider checks to four orders', async () => {
+  it('limits concurrent provider checks to two orders to stay below PayOS rate limits', async () => {
     const rows = Array.from({ length: 11 }, (_, index) => pendingOrder(index + 1));
     const { service, reconciliation } = setup(rows);
     let active = 0;
@@ -132,7 +136,43 @@ describe('AdminPaymentReconciliationService', () => {
 
     await service.reconcile({ period: 'THIS_YEAR' });
 
-    expect(maximum).toBeLessThanOrEqual(4);
+    expect(maximum).toBeLessThanOrEqual(2);
     expect(reconciliation.reconcilePendingOrder).toHaveBeenCalledTimes(11);
+  });
+
+  it('verifies legacy paid orders and reports local payments missing from PayOS', async () => {
+    const paid = {
+      ...pendingOrder(99),
+      status: 'PAID',
+      paidAt: new Date('2026-08-05T00:00:00.000Z'),
+    } as PaymentOrderEntity;
+    const { service, orders, reconciliation } = setup();
+    orders.find.mockResolvedValue([paid]);
+    reconciliation.verifyPaidOrder.mockResolvedValue({
+      status: 'NOT_FOUND',
+      attempted: true,
+    });
+
+    const result = await service.reconcile({ period: 'THIS_YEAR' });
+
+    expect(orders.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          provider: 'PAYOS',
+          currency: 'VND',
+          status: 'PAID',
+        }),
+      }),
+    );
+    expect(reconciliation.verifyPaidOrder).toHaveBeenCalledWith(paid);
+    expect(result).toEqual(
+      expect.objectContaining({
+        paidChecked: 1,
+        verifiedPaid: 0,
+        unverifiedPaid: 1,
+        verificationFailed: 0,
+        paidVerificationResults: [{ orderCode: 99, status: 'NOT_FOUND' }],
+      }),
+    );
   });
 });

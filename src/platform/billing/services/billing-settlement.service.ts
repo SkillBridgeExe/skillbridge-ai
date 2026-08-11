@@ -65,6 +65,8 @@ export class BillingSettlementService {
     this.assertPaymentMatchesOrder(order, payment);
     order.paidAt = order.paidAt ?? payment.paidAt ?? new Date();
     order.paymentLinkId = order.paymentLinkId ?? payment.paymentLinkId;
+    order.providerVerificationStatus = 'CONFIRMED_PAID';
+    order.providerVerifiedAt = new Date();
 
     if (order.purpose === 'SUBSCRIPTION') {
       await this.activateSubscription(order, subscriptions);

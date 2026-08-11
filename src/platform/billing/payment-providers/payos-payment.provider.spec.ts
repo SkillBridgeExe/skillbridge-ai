@@ -141,4 +141,31 @@ describe('PayosPaymentProvider', () => {
       }),
     );
   });
+
+  it('treats a PayOS missing payment code as an expired local order', async () => {
+    const provider = new PayosPaymentProvider(
+      new ConfigService({
+        PAYOS_CLIENT_ID: 'client-id',
+        PAYOS_API_KEY: 'api-key',
+        PAYOS_CHECKSUM_KEY: 'checksum-key',
+      }),
+    );
+    const get = jest.fn().mockRejectedValue({
+      name: 'APIError',
+      status: 200,
+      code: '101',
+      desc: 'Mã thanh toán không tồn tại',
+    });
+    Object.defineProperty(provider, 'client', { value: { paymentRequests: { get } } });
+
+    const result = await provider.getPaymentStatus({ orderCode: 123 });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'EXPIRED',
+        orderCode: 123,
+        currency: 'VND',
+      }),
+    );
+  });
 });
