@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -7,6 +8,7 @@ import {
   In,
   LessThanOrEqual,
   MoreThanOrEqual,
+  Raw,
   Repository,
 } from 'typeorm';
 import { AccountEntity } from '../../database/entities/account.entity';
@@ -31,6 +33,7 @@ import {
   ReplaceAdminUserRolesDto,
   UpdateAdminUserStatusDto,
 } from './dto/admin-users.dto';
+import { resolveAdminRevenueWindow } from './admin-revenue-window';
 
 type AdminUserListItem = {
   id: string;
@@ -93,6 +96,7 @@ export class AdminUsersService {
     private readonly subscriptions: Repository<UserSubscriptionEntity>,
     @InjectRepository(UsageEventEntity)
     private readonly usageEvents: Repository<UsageEventEntity>,
+    @Optional() private readonly config?: ConfigService,
   ) {}
 
   async listUsers(query: AdminListUsersQueryDto) {
@@ -126,7 +130,8 @@ export class AdminUsersService {
 
   async getSummary(query: AdminUserSummaryQueryDto) {
     const rangeDays = query.rangeDays ?? 30;
-    const from = this.daysAgo(rangeDays);
+    const revenueWindow = resolveAdminRevenueWindow({ ...query, rangeDays });
+    const from = revenueWindow.from;
     const users = await this.users.find({
       where: { createdAt: MoreThanOrEqual(from) as unknown as Date },
       order: { createdAt: 'ASC' },
@@ -146,7 +151,15 @@ export class AdminUsersService {
       this.matches.count({ where: { createdAt: MoreThanOrEqual(from) as unknown as Date } }),
       this.interviews.count({ where: { createdAt: MoreThanOrEqual(from) as unknown as Date } }),
       this.orders.find({
-        where: { status: 'PAID', paidAt: MoreThanOrEqual(from) as unknown as Date },
+        where: {
+          provider: this.activePaymentProvider(),
+          currency: 'VND',
+          status: 'PAID',
+          paidAt: Raw((alias) => `${alias} >= :paidFrom AND ${alias} < :paidTo`, {
+            paidFrom: revenueWindow.from,
+            paidTo: revenueWindow.to,
+          }),
+        },
         order: { paidAt: 'ASC' },
       }),
     ]);
@@ -161,6 +174,7 @@ export class AdminUsersService {
         suspendedUsers: statusCounts.SUSPENDED,
         newUsers: users.length,
         paidRevenueVnd,
+        paidOrderCount: paidOrders.length,
         cvCount,
         matchCount,
         interviewCount,
@@ -178,6 +192,12 @@ export class AdminUsersService {
         { label: 'Interviews', value: interviewCount },
       ],
       revenueTrend: this.sumOrdersByPaidDay(paidOrders),
+      window: {
+        period: revenueWindow.period,
+        from: revenueWindow.fromDate,
+        to: revenueWindow.toDate,
+        timezone: revenueWindow.timezone,
+      },
     };
   }
 
@@ -547,10 +567,8 @@ export class AdminUsersService {
     return date;
   }
 
-  private daysAgo(days: number): Date {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return date;
+  private activePaymentProvider(): string {
+    return (this.config?.get<string>('PAYMENT_PROVIDER') ?? 'PAYOS').trim().toUpperCase();
   }
 
   private dayKey(value: Date | null | undefined): string | null {

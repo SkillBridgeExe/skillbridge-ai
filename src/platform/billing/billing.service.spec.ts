@@ -14,6 +14,7 @@ import { PaymentProviderRegistry } from './payment-providers/payment-provider.re
 import { BillingService } from './billing.service';
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
+import { PaymentOrderReconciliationService } from './services/payment-order-reconciliation.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
 import { VoucherService } from './voucher.service';
 import { CreditBalanceService } from './credit-balance.service';
@@ -76,6 +77,12 @@ describe('BillingService reconcileOrder', () => {
     const credits = {
       list: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<CreditBalanceService>;
+    const reconciliation = new PaymentOrderReconciliationService(
+      orders as unknown as Repository<PaymentOrderEntity>,
+      providers,
+      settlement,
+      vouchers,
+    );
     const service = new BillingService(
       plans as unknown as Repository<BillingPlanEntity>,
       creditPackages as unknown as Repository<BillingCreditPackageEntity>,
@@ -84,9 +91,7 @@ describe('BillingService reconcileOrder', () => {
       entitlements,
       checkout,
       webhooks,
-      providers,
-      settlement,
-      vouchers,
+      reconciliation,
       credits,
     ) as BillingService;
     return {

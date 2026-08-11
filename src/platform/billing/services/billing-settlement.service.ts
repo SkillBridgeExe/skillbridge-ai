@@ -63,7 +63,7 @@ export class BillingSettlementService {
   ): Promise<void> {
     if (order.status === 'PAID') return;
     this.assertPaymentMatchesOrder(order, payment);
-    order.paidAt = order.paidAt ?? new Date();
+    order.paidAt = order.paidAt ?? payment.paidAt ?? new Date();
     order.paymentLinkId = order.paymentLinkId ?? payment.paymentLinkId;
 
     if (order.purpose === 'SUBSCRIPTION') {

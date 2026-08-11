@@ -37,6 +37,7 @@ import {
 import { UserSubscriptionStatus } from '../../../database/entities/user-subscription.entity';
 import { CreditType } from '../../../database/entities/billing-credit-package.entity';
 import { VoucherBenefitType } from '../../../database/entities/voucher.entity';
+import { ADMIN_REVENUE_PERIODS, type AdminRevenuePeriod } from '../../users/admin-revenue-window';
 
 const PLAN_CATEGORIES: BillingPlanCategory[] = ['SUBSCRIPTION', 'MENTOR_PACKAGE'];
 const UPDATABLE_PLAN_CATEGORIES: BillingPlanCategory[] = [
@@ -104,6 +105,32 @@ export interface AdminFeatureUsageItem {
 export interface AdminFeatureUsageResponse {
   period: AdminFeatureUsagePeriod;
   items: AdminFeatureUsageItem[];
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  return Number(value);
+}
+
+export class AdminReconcilePaymentOrdersDto {
+  @IsOptional()
+  @IsIn(ADMIN_REVENUE_PERIODS)
+  period?: AdminRevenuePeriod;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => toOptionalNumber(value))
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  rangeDays?: number;
 }
 
 export class AdminBillingPlanFeatureInputDto {

@@ -39,4 +39,14 @@ describe('Admin users DTOs', () => {
     await expect(validate(dto)).resolves.toEqual([]);
     expect(dto.rangeDays).toBe(90);
   });
+
+  it('accepts calendar summary periods and ICT custom date strings', async () => {
+    const dto = plainToInstance(AdminUserSummaryQueryDto, {
+      period: 'CUSTOM',
+      from: '2026-08-01',
+      to: '2026-08-11',
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
 });

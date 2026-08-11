@@ -72,6 +72,10 @@ export class PayosPaymentProvider implements PaymentProviderPort {
       status: toVerifiedStatus(webhook, data),
       amountVnd: data.amount ?? null,
       currency: data.currency ?? null,
+      paidAt:
+        toVerifiedStatus(webhook, data) === 'PAID'
+          ? parsePayosDate(data.transactionDateTime)
+          : null,
       raw: input,
     };
   }
@@ -79,14 +83,17 @@ export class PayosPaymentProvider implements PaymentProviderPort {
   async getPaymentStatus(input: PaymentStatusRequest): Promise<PaymentStatusSnapshot> {
     const link = await this.requireClient().paymentRequests.get(input.orderCode);
     const linkWithCurrency = link as typeof link & { currency?: string };
+    const status = toSnapshotStatus(link.status);
     return {
       provider: this.code,
       orderCode: link.orderCode,
       paymentLinkId: link.id ?? null,
       reference: link.transactions?.[0]?.reference ?? null,
-      status: toSnapshotStatus(link.status),
+      status,
       amountVnd: link.amount ?? null,
       currency: linkWithCurrency.currency ?? 'VND',
+      paidAt:
+        status === 'PAID' ? parsePayosDate(link.transactions?.[0]?.transactionDateTime) : null,
       raw: link,
     };
   }
@@ -135,4 +142,16 @@ function toSnapshotStatus(status: string): VerifiedPaymentStatus {
     default:
       return 'PENDING';
   }
+}
+
+function parsePayosDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.includes(' ') ? trimmed.replace(' ', 'T') : trimmed;
+  const withTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized)
+    ? normalized
+    : `${normalized}+07:00`;
+  const parsed = new Date(withTimezone);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

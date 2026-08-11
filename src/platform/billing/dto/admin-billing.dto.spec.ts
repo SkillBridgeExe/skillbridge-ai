@@ -10,6 +10,7 @@ import {
   CreateAdminVoucherDto,
   AdminFeatureUsagePeriod,
   AdminFeatureUsageQueryDto,
+  AdminReconcilePaymentOrdersDto,
   UpdateAdminPlanFeatureDto,
 } from './admin-billing.dto';
 
@@ -69,6 +70,35 @@ describe('AdminFeatureUsageQueryDto', () => {
     });
 
     await expect(validate(dto)).resolves.toEqual([]);
+  });
+});
+
+describe('AdminReconcilePaymentOrdersDto', () => {
+  it('accepts a calendar period and ICT custom dates', async () => {
+    const dto = plainToInstance(AdminReconcilePaymentOrdersDto, {
+      period: 'CUSTOM',
+      from: '2026-08-01',
+      to: '2026-08-11',
+    });
+
+    await expect(validate(dto)).resolves.toEqual([]);
+  });
+
+  it('rejects an unsupported period or malformed date format', async () => {
+    const dto = plainToInstance(AdminReconcilePaymentOrdersDto, {
+      period: 'LAST_WEEK',
+      from: '08/01/2026',
+      to: '2026-08-11',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'period' }),
+        expect.objectContaining({ property: 'from' }),
+      ]),
+    );
   });
 });
 

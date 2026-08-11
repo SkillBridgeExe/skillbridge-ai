@@ -131,6 +131,7 @@ describe('BillingSettlementService', () => {
     } as PaymentOrderEntity;
     orders.findOne.mockResolvedValue(order);
     subscriptions.findOne.mockResolvedValue(null);
+    const providerPaidAt = new Date('2026-08-11T05:34:56.000Z');
 
     await service.settlePaidPayment({
       provider: 'PAYOS',
@@ -140,6 +141,7 @@ describe('BillingSettlementService', () => {
       status: 'PAID',
       amountVnd: 99000,
       currency: 'VND',
+      paidAt: providerPaidAt,
       raw: {},
     });
 
@@ -157,7 +159,7 @@ describe('BillingSettlementService', () => {
       }),
     );
     expect(orders.save).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'PAID', paidAt: expect.any(Date) }),
+      expect.objectContaining({ status: 'PAID', paidAt: providerPaidAt }),
     );
     expect(voucherRedemptions.update).toHaveBeenCalledWith(
       { paymentOrderId: 'order-1' },
