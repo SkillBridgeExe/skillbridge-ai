@@ -7,10 +7,12 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
 import { RoleCode } from '../../../database/entities/role.entity';
+import { ADMIN_REVENUE_PERIODS, type AdminRevenuePeriod } from '../admin-revenue-window';
 
 export type AdminUserStatusFilter = 'ACTIVE' | 'UNVERIFIED' | 'SUSPENDED';
 export type AdminUserMutableStatus = 'ACTIVE' | 'SUSPENDED';
@@ -70,6 +72,18 @@ export class AdminUserSummaryQueryDto {
   @IsInt()
   @IsIn(ADMIN_USER_SUMMARY_RANGES)
   rangeDays = 30;
+
+  @IsOptional()
+  @IsIn(ADMIN_REVENUE_PERIODS)
+  period?: AdminRevenuePeriod;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to?: string;
 }
 
 export class UpdateAdminUserStatusDto {

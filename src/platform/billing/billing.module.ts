@@ -17,6 +17,7 @@ import { CreditUsageReservationEntity } from '../../database/entities/credit-usa
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminPaymentReconciliationService } from './admin-payment-reconciliation.service';
 import { BillingController, MeEntitlementsController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
@@ -26,6 +27,7 @@ import { PayosPaymentProvider } from './payment-providers/payos-payment.provider
 import { BillingCheckoutService } from './services/billing-checkout.service';
 import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
+import { PaymentOrderReconciliationService } from './services/payment-order-reconciliation.service';
 import { VoucherService } from './voucher.service';
 import { AdminVoucherService } from './admin-voucher.service';
 import { CheckoutOriginService } from './services/checkout-origin.service';
@@ -55,9 +57,11 @@ import { CreditAwareUsageService } from './credit-aware-usage.service';
   providers: [
     BillingService,
     AdminBillingService,
+    AdminPaymentReconciliationService,
     BillingCheckoutService,
     CheckoutOriginService,
     BillingSettlementService,
+    PaymentOrderReconciliationService,
     PaymentWebhookService,
     PayosPaymentProvider,
     {

@@ -79,4 +79,66 @@ describe('PayosPaymentProvider', () => {
       }),
     );
   });
+
+  it('maps the verified webhook transaction time to paidAt', async () => {
+    const provider = new PayosPaymentProvider(
+      new ConfigService({
+        PAYOS_CLIENT_ID: 'client-id',
+        PAYOS_API_KEY: 'api-key',
+        PAYOS_CHECKSUM_KEY: 'checksum-key',
+      }),
+    );
+    const verify = jest.fn().mockResolvedValue({
+      orderCode: 123,
+      paymentLinkId: 'plink-123',
+      reference: 'ref-123',
+      amount: 99000,
+      currency: 'VND',
+      code: '00',
+      transactionDateTime: '2026-08-11 12:34:56',
+    });
+    Object.defineProperty(provider, 'client', { value: { webhooks: { verify } } });
+
+    const result = await provider.verifyWebhook({ success: true, data: {} });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'PAID',
+        paidAt: new Date('2026-08-11T12:34:56+07:00'),
+      }),
+    );
+  });
+
+  it('maps the first successful PayOS transaction time from a paid status response', async () => {
+    const provider = new PayosPaymentProvider(
+      new ConfigService({
+        PAYOS_CLIENT_ID: 'client-id',
+        PAYOS_API_KEY: 'api-key',
+        PAYOS_CHECKSUM_KEY: 'checksum-key',
+      }),
+    );
+    const get = jest.fn().mockResolvedValue({
+      id: 'plink-123',
+      orderCode: 123,
+      amount: 99000,
+      status: 'PAID',
+      transactions: [
+        {
+          reference: 'ref-123',
+          amount: 99000,
+          transactionDateTime: '2026-08-11 12:34:56',
+        },
+      ],
+    });
+    Object.defineProperty(provider, 'client', { value: { paymentRequests: { get } } });
+
+    const result = await provider.getPaymentStatus({ orderCode: 123 });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: 'PAID',
+        paidAt: new Date('2026-08-11T12:34:56+07:00'),
+      }),
+    );
+  });
 });

@@ -34,6 +34,7 @@ export interface VerifiedPaymentWebhook {
   status: VerifiedPaymentStatus;
   amountVnd: number | null;
   currency: string | null;
+  paidAt?: Date | null;
   raw: unknown;
 }
 

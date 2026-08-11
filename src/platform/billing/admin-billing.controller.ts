@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminPaymentReconciliationService } from './admin-payment-reconciliation.service';
 import { AdminVoucherService } from './admin-voucher.service';
 import {
   AdminListMentorBookingsQueryDto,
@@ -19,6 +21,7 @@ import {
   CreateAdminVoucherDto,
   UpdateAdminVoucherDto,
   AdminFeatureUsageQueryDto,
+  AdminReconcilePaymentOrdersDto,
 } from './dto/admin-billing.dto';
 
 @ApiTags('Admin Billing')
@@ -30,6 +33,7 @@ export class AdminBillingController {
   constructor(
     private readonly billing: AdminBillingService,
     private readonly vouchers: AdminVoucherService,
+    private readonly reconciliation: AdminPaymentReconciliationService,
   ) {}
 
   @Get('plans')
@@ -100,6 +104,13 @@ export class AdminBillingController {
   @ApiOperation({ summary: 'Admin list payment orders' })
   listOrders(@Query() query: AdminListOrdersQueryDto) {
     return this.billing.listOrders(query);
+  }
+
+  @Post('orders/reconcile')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Admin reconcile pending payment orders with the active provider' })
+  reconcileOrders(@Body() dto: AdminReconcilePaymentOrdersDto) {
+    return this.reconciliation.reconcile(dto);
   }
 
   @Get('subscriptions')

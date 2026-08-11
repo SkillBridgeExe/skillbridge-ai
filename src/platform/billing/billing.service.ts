@@ -1,13 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { BillingPlanEntity } from '../../database/entities/billing-plan.entity';
 import { BillingCreditPackageEntity } from '../../database/entities/billing-credit-package.entity';
-import {
-  PaymentOrderEntity,
-  PaymentOrderStatus,
-} from '../../database/entities/payment-order.entity';
+import { PaymentOrderEntity } from '../../database/entities/payment-order.entity';
 import { PlanFeatureEntity } from '../../database/entities/plan-feature.entity';
 import { EntitlementsService } from './entitlements.service';
 import {
@@ -19,17 +16,13 @@ import {
   SubscriptionResponseDto,
 } from './dto/billing.dto';
 import { BillingPlanCode } from '../../common/constants/billing.constants';
-import { PaymentProviderRegistry } from './payment-providers/payment-provider.registry';
 import { BillingCheckoutService } from './services/billing-checkout.service';
-import { BillingSettlementService } from './services/billing-settlement.service';
 import { PaymentWebhookService } from './services/payment-webhook.service';
-import { VoucherService } from './voucher.service';
 import { CreditBalanceService } from './credit-balance.service';
+import { PaymentOrderReconciliationService } from './services/payment-order-reconciliation.service';
 
 @Injectable()
 export class BillingService {
-  private readonly logger = new Logger(BillingService.name);
-
   constructor(
     @InjectRepository(BillingPlanEntity) private readonly plans: Repository<BillingPlanEntity>,
     @InjectRepository(BillingCreditPackageEntity)
@@ -39,9 +32,7 @@ export class BillingService {
     private readonly entitlements: EntitlementsService,
     private readonly checkout: BillingCheckoutService,
     private readonly webhooks: PaymentWebhookService,
-    private readonly providers: PaymentProviderRegistry,
-    private readonly settlement: BillingSettlementService,
-    private readonly vouchers: VoucherService,
+    private readonly reconciliation: PaymentOrderReconciliationService,
     private readonly credits: CreditBalanceService,
   ) {}
 
@@ -124,32 +115,7 @@ export class BillingService {
     if (order.status !== 'PENDING') {
       return this.toOrderResponse(order);
     }
-    const claimed = await this.claimProviderCheck(order.id);
-    if (!claimed) {
-      return this.toOrderResponse(await this.findOrderForUser(userId, orderCode));
-    }
-    const provider = this.providers.get(order.provider);
-    let snapshot;
-    try {
-      snapshot = await provider.getPaymentStatus({ orderCode: Number(order.orderCode) });
-    } catch (error) {
-      this.logger.warn({
-        event: 'payment_reconcile_failed',
-        orderId: order.id,
-        orderCode: order.orderCode,
-        provider: order.provider,
-        errorName: error instanceof Error ? error.name : 'UnknownError',
-      });
-      throw error;
-    }
-    if (snapshot.status === 'PAID') {
-      await this.settlement.settlePaidPayment(snapshot);
-    } else if (isTerminalNonPaidStatus(snapshot.status)) {
-      order.status = snapshot.status;
-      order.paymentLinkId = order.paymentLinkId ?? snapshot.paymentLinkId;
-      await this.orders.save(order);
-      await this.vouchers.releaseByOrder(order.id);
-    }
+    await this.reconciliation.reconcilePendingOrder(order);
     const refreshed = await this.findOrderForUser(userId, orderCode);
     return this.toOrderResponse(refreshed);
   }
@@ -184,21 +150,6 @@ export class BillingService {
     return order;
   }
 
-  private async claimProviderCheck(orderId: string): Promise<boolean> {
-    const cooldownBoundary = new Date(Date.now() - 10_000);
-    const result = await this.orders
-      .createQueryBuilder()
-      .update(PaymentOrderEntity)
-      .set({ lastProviderCheckAt: () => 'CURRENT_TIMESTAMP' })
-      .where('id = :orderId', { orderId })
-      .andWhere('status = :status', { status: 'PENDING' })
-      .andWhere('(last_provider_check_at IS NULL OR last_provider_check_at <= :cooldownBoundary)', {
-        cooldownBoundary,
-      })
-      .execute();
-    return (result.affected ?? 0) === 1;
-  }
-
   private toOrderResponse(order: PaymentOrderEntity): OrderStatusResponseDto {
     return {
       orderId: order.id,
@@ -228,12 +179,6 @@ export class BillingService {
           : null,
     };
   }
-}
-
-function isTerminalNonPaidStatus(
-  status: string,
-): status is Exclude<PaymentOrderStatus, 'PENDING' | 'PAID'> {
-  return status === 'CANCELLED' || status === 'EXPIRED' || status === 'FAILED';
 }
 
 function isInternalPlan(plan: BillingPlanEntity): boolean {

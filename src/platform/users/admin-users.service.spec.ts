@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { AccountEntity } from '../../database/entities/account.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
@@ -100,6 +101,7 @@ function setup() {
   const orders = createRepositoryMock<PaymentOrderEntity>();
   const subscriptions = createRepositoryMock<UserSubscriptionEntity>();
   const usageEvents = createRepositoryMock<UsageEventEntity>();
+  const config = { get: jest.fn().mockReturnValue('PAYOS') } as unknown as ConfigService;
 
   roles.find.mockResolvedValue([userRole, adminRole, mentorRole]);
   roles.findOne.mockImplementation(async ({ where }: { where?: { code?: string } }) => {
@@ -124,6 +126,7 @@ function setup() {
     orders as unknown as Repository<PaymentOrderEntity>,
     subscriptions as unknown as Repository<UserSubscriptionEntity>,
     usageEvents as unknown as Repository<UsageEventEntity>,
+    config,
   );
 
   return {
@@ -142,6 +145,7 @@ function setup() {
     orders,
     subscriptions,
     usageEvents,
+    config,
   };
 }
 
@@ -282,7 +286,13 @@ describe('AdminUsersService', () => {
     matches.count.mockResolvedValue(3);
     interviews.count.mockResolvedValue(2);
     orders.find.mockResolvedValue([
-      { amountVnd: 100000, paidAt: new Date('2026-06-03T00:00:00.000Z') },
+      {
+        amountVnd: 100000,
+        status: 'PAID',
+        provider: 'PAYOS',
+        currency: 'VND',
+        paidAt: new Date('2026-06-03T00:00:00.000Z'),
+      },
     ]);
 
     const result = await service.getSummary({ rangeDays: 30 });
@@ -297,6 +307,49 @@ describe('AdminUsersService', () => {
       ]),
     );
     expect(result.revenueTrend[0]).toEqual(expect.objectContaining({ amountVnd: 100000 }));
+    expect(result.totals.paidOrderCount).toBe(1);
+    expect(result.window).toEqual(
+      expect.objectContaining({ period: 'ROLLING_DAYS', timezone: 'Asia/Ho_Chi_Minh' }),
+    );
+  });
+
+  it('filters revenue by provider, currency, status, and the resolved paid-time window', async () => {
+    const { service, orders } = setup();
+    orders.find.mockResolvedValue([
+      {
+        amountVnd: 250000,
+        status: 'PAID',
+        provider: 'PAYOS',
+        currency: 'VND',
+        paidAt: new Date('2026-08-05T02:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.getSummary({
+      period: 'CUSTOM',
+      from: '2026-08-01',
+      to: '2026-08-10',
+      rangeDays: 30,
+    });
+
+    expect(orders.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          provider: 'PAYOS',
+          currency: 'VND',
+          status: 'PAID',
+          paidAt: expect.any(Object),
+        }),
+      }),
+    );
+    expect(result.totals.paidRevenueVnd).toBe(250_000);
+    expect(result.totals.paidOrderCount).toBe(1);
+    expect(result.window).toEqual({
+      period: 'CUSTOM',
+      from: '2026-08-01',
+      to: '2026-08-10',
+      timezone: 'Asia/Ho_Chi_Minh',
+    });
   });
 
   it('returns user detail with profile, providers, usage, and recent activity', async () => {
