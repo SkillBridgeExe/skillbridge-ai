@@ -9,7 +9,7 @@ import { IsNull, Repository } from 'typeorm';
 import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
-import { analyzeAnswerSignals } from '../../modules/interview/answer-analyzer';
+import { analyzeAnswerSignals, type AnswerSignals } from '../../modules/interview/answer-analyzer';
 import {
   CommitRealtimeAssistantMessageDto,
   RealtimeInterviewTurnDto,
@@ -68,12 +68,12 @@ export class InterviewRealtimeService {
     const topics = this.agendaTopics(session.agenda);
     const state = this.realtimeState(session, currentTurn, topics);
     const nextTopic = this.nextTopic(topics, state);
-    const answerSignal = this.effectiveAnswerSignal(
-      dto.intent,
-      dto.answerSignal,
-      dto.transcript,
-      session.language === 'en' ? 'en' : 'vi',
-    );
+    const language = session.language === 'en' ? 'en' : 'vi';
+    const answerAnalysis = analyzeAnswerSignals({
+      answer: dto.transcript,
+      language,
+    });
+    const answerSignal = this.effectiveAnswerSignal(dto.intent, dto.answerSignal, answerAnalysis);
     const result = this.policy.decide({
       experienceMode: session.experienceMode ?? 'MOCK',
       intent: dto.intent,
@@ -86,7 +86,8 @@ export class InterviewRealtimeService {
       result.action,
       currentTurn,
       nextTopic,
-      session.language === 'en' ? 'en' : 'vi',
+      language,
+      answerAnalysis,
     );
     const entity = this.directives.create({
       sessionId,
@@ -307,19 +308,17 @@ export class InterviewRealtimeService {
   private effectiveAnswerSignal(
     intent: string,
     answerSignal: RealtimeAnswerSignal,
-    transcript: string,
-    language: 'vi' | 'en',
+    signals: AnswerSignals,
   ): RealtimeAnswerSignal {
     if (intent !== 'ANSWER' || answerSignal !== 'COMPLETE') return answerSignal;
-    const signals = analyzeAnswerSignals({ answer: transcript, language });
     return signals.flags.is_too_short ? 'PARTIAL' : answerSignal;
   }
-
   private fallbackQuestion(
     action: InterviewDirectiveAction,
     current: InterviewTurnEntity,
     nextTopic: RealtimeAgendaTopic | null,
     language: 'vi' | 'en',
+    signals: AnswerSignals,
   ): string {
     if (action === 'ADVANCE_TOPIC') {
       return (
@@ -331,14 +330,30 @@ export class InterviewRealtimeService {
     }
     if (action === 'REPEAT') return current.interviewerQuestion;
     if (action === 'FOLLOW_UP') {
+      if (signals.ownership.first_person === 0) {
+        return language === 'vi'
+          ? 'Trong ví dụ đó, phần nào bạn trực tiếp thiết kế hoặc triển khai?'
+          : 'In that example, which part did you personally design or implement?';
+      }
+      if (signals.flags.no_concrete_example || !signals.star.action || signals.word_count < 35) {
+        return language === 'vi'
+          ? 'Trong phần việc đó, quyết định kỹ thuật cụ thể nào do bạn trực tiếp đưa ra?'
+          : 'What specific technical decision did you personally make in that work?';
+      }
+      if (!signals.star.result || !signals.is_quantified) {
+        return language === 'vi'
+          ? 'Kết quả cụ thể của phần việc đó là gì?'
+          : 'What concrete result came from that work?';
+      }
       return language === 'vi'
-        ? 'Bạn có thể kể một ví dụ cụ thể hơn, gồm phần bạn trực tiếp làm, quyết định kỹ thuật và kết quả không?'
-        : 'Could you give a more specific example, including what you personally built, the technical decision, and the result?';
+        ? 'Trade-off khó nhất trong quyết định đó là gì?'
+        : 'What was the hardest trade-off in that decision?';
     }
     if (action === 'LOWER_DIFFICULTY' || action === 'DECLINE_COACHING') {
+      const skill = this.publicSkillLabel(current.skillCanonical, language);
       return language === 'vi'
-        ? `Mình đổi sang cách hỏi dễ hơn: ${current.interviewerQuestion}`
-        : `Let me ask an easier version: ${current.interviewerQuestion}`;
+        ? 'Với ' + skill + ', bạn sẽ bắt đầu xử lý một tình huống cơ bản như thế nào?'
+        : 'With ' + skill + ', how would you start handling a basic situation?';
     }
     if (action === 'GIVE_HINT') {
       return language === 'vi'
@@ -352,8 +367,8 @@ export class InterviewRealtimeService {
     }
     if (action === 'CLARIFY') {
       return language === 'vi'
-        ? `Nói cách khác, ${current.interviewerQuestion}`
-        : `In other words, ${current.interviewerQuestion}`;
+        ? 'Câu hỏi này muốn biết một quyết định cụ thể của bạn trong tình huống vừa nêu.'
+        : 'This question asks for one specific decision you made in the situation you described.';
     }
     if (action === 'WRAP_UP') {
       return language === 'vi'
@@ -361,6 +376,17 @@ export class InterviewRealtimeService {
         : 'Thank you. This concludes our interview.';
     }
     return current.interviewerQuestion;
+  }
+  private publicSkillLabel(
+    skillCanonical: string | null | undefined,
+    language: 'vi' | 'en',
+  ): string {
+    const value = skillCanonical
+      ?.trim()
+      .replace(/[_-]+/g, ' ')
+      .replace(/[^a-zA-Z0-9+#. ]+/g, '');
+    if (value) return value;
+    return language === 'vi' ? 'chủ đề này' : 'this topic';
   }
   private createsQuestionTurn(action: string): boolean {
     return action === 'FOLLOW_UP' || action === 'ADVANCE_TOPIC';

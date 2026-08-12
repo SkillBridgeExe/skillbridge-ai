@@ -224,6 +224,18 @@ describe('InterviewRealtimeService', () => {
     expect(created.questionGoal).not.toMatch(
       /Role-only practice|No CV or job description|fingerprints|scoreCap|questionGoal/i,
     );
+    const normalizedGoal = Array.from(created.questionGoal.normalize('NFD'))
+      .filter((character) => {
+        const code = character.charCodeAt(0);
+        return code < 768 || code > 879;
+      })
+      .join('')
+      .replaceAll(String.fromCharCode(273), 'd')
+      .replaceAll(String.fromCharCode(272), 'd')
+      .toLowerCase();
+    expect(normalizedGoal).toMatch(/quyet dinh ky thuat|technical decision/i);
+    expect(normalizedGoal).not.toMatch(/gom|va ket qua|including|and the result/i);
+    expect(created.questionGoal.split('?')).toHaveLength(2);
   });
   it('does not reveal a session owned by another user', async () => {
     const { service, sessions } = createService();

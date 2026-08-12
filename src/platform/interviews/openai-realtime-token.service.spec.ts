@@ -81,9 +81,9 @@ describe('OpenAiRealtimeTokenService', () => {
               }),
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
-                eagerness: 'auto',
+                eagerness: 'low',
                 create_response: true,
-                interrupt_response: true,
+                interrupt_response: false,
               }),
             }),
             output: expect.objectContaining({
@@ -152,6 +152,23 @@ describe('OpenAiRealtimeTokenService', () => {
       session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
     };
     expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              turn_detection: expect.objectContaining({
+                type: 'semantic_vad',
+                eagerness: 'auto',
+                create_response: true,
+                interrupt_response: false,
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('uses the configured realtime transcription model override', async () => {
@@ -282,9 +299,9 @@ describe('OpenAiRealtimeTokenService', () => {
             input: expect.objectContaining({
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
-                eagerness: 'auto',
+                eagerness: 'low',
                 create_response: true,
-                interrupt_response: true,
+                interrupt_response: false,
               }),
             }),
           }),

@@ -110,9 +110,9 @@ export class OpenAiRealtimeTokenService {
             },
             turn_detection: {
               type: 'semantic_vad',
-              eagerness: 'auto',
+              eagerness: transcriptionLanguage === 'vi' ? 'low' : 'auto',
               create_response: true,
-              interrupt_response: true,
+              interrupt_response: false,
             },
           },
           output: {

@@ -914,6 +914,120 @@ describe('InterviewsService', () => {
     });
   });
 
+  it('prioritizes unique skill-specific questions over role-wide scenarios', () => {
+    const service = new InterviewsService(
+      repo<InterviewSessionEntity>() as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const common = {
+      language: 'en' as const,
+      targetRole: 'frontend_developer',
+      interviewType: 'TECHNICAL' as const,
+      phase: 'SKILL_PROBE' as const,
+      seniority: null,
+      difficulty: 2,
+      expectedSignals: ['technical_decision'],
+      rubricDimensions: ['technical_depth'],
+      sourceKind: 'authored_from_taxonomy',
+      sourceUrl: null,
+      sourceBasis: 'SkillBridge authored.',
+      license: 'SkillBridge authored',
+      attribution: null,
+      reviewStatus: 'approved',
+      active: true,
+    };
+    const candidates = [
+      {
+        ...common,
+        id: 'role-wide-ssr',
+        questionKey: 'frontend-role-wide-ssr',
+        skillCanonical: null,
+        focusType: null,
+        questionText: 'Would you choose SSR or CSR for a product page?',
+        priority: 100,
+      },
+      {
+        ...common,
+        id: 'react-state-1',
+        questionKey: 'frontend-react-state-1',
+        skillCanonical: 'react',
+        focusType: 'depth_probe' as const,
+        questionText: 'How do you manage auth state and sessions in React?',
+        priority: 20,
+      },
+      {
+        ...common,
+        id: 'react-state-2',
+        questionKey: 'frontend-react-state-2',
+        skillCanonical: 'react',
+        focusType: 'depth_probe' as const,
+        questionText: 'How do you handle refresh tokens and API failures in React?',
+        priority: 10,
+      },
+    ];
+    const agenda = {
+      topics: [
+        {
+          id: 'react-ownership',
+          phase: 'SKILL_PROBE',
+          skill_canonical: 'react',
+          focus_type: 'strength_showcase',
+          seed_question: 'Fallback one',
+        },
+        {
+          id: 'react-depth',
+          phase: 'SKILL_PROBE',
+          skill_canonical: 'react',
+          focus_type: 'strength_showcase',
+          seed_question: 'Fallback two',
+        },
+      ],
+      uncovered: [],
+    };
+
+    const result = (
+      service as unknown as {
+        applyQuestionBankToAgenda: (
+          value: typeof agenda,
+          items: typeof candidates,
+          criteria: {
+            language: 'vi' | 'en';
+            targetRole: string;
+            interviewType: 'HR' | 'TECHNICAL' | 'MIXED';
+            seniority: string;
+          },
+          contextMode: 'ROLE_ONLY' | 'CV_ONLY' | 'CV_JD_MATCH',
+        ) => {
+          topics: Array<(typeof agenda.topics)[number] & { question_bank_key?: string }>;
+          uncovered: unknown[];
+        };
+      }
+    ).applyQuestionBankToAgenda(
+      agenda,
+      candidates,
+      {
+        language: 'en',
+        targetRole: 'frontend_developer',
+        interviewType: 'TECHNICAL',
+        seniority: 'junior',
+      },
+      'ROLE_ONLY',
+    );
+
+    expect(result.topics.map((topic) => topic.seed_question)).toEqual([
+      'How do you manage auth state and sessions in React?',
+      'How do you handle refresh tokens and API failures in React?',
+    ]);
+    expect(new Set(result.topics.map((topic) => topic.question_bank_key)).size).toBe(2);
+    expect(result.topics.map((topic) => topic.seed_question).join(' ')).not.toMatch(/SSR|CSR/);
+  });
+
   it('uses DB question bank metadata for live VOICE server-owned turns', async () => {
     const sessions = repo<InterviewSessionEntity>();
     const turns = repo<InterviewTurnEntity>();

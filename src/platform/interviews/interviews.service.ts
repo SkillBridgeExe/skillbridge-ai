@@ -800,20 +800,45 @@ export class InterviewsService {
     },
     contextMode: InterviewContextMode,
   ): InterviewAgenda {
+    const usedQuestionKeys = new Set<string>();
+    const usedFingerprints = new Set<string>();
+    const fingerprint = (question: string): string =>
+      Array.from(question.normalize('NFKD'))
+        .filter((character) => {
+          const code = character.charCodeAt(0);
+          return code < 768 || code > 879;
+        })
+        .join('')
+        .toLowerCase()
+        .replace(/[^a-z0-9+#.]+/g, ' ')
+        .trim();
+
     const enrich = (topic: AgendaTopic): AgendaTopic => {
-      const selected = selectInterviewQuestion(questionBankItems, {
+      const eligible = questionBankItems.filter((candidate) => {
+        if (usedQuestionKeys.has(candidate.questionKey)) return false;
+        if (usedFingerprints.has(fingerprint(candidate.questionText))) return false;
+        return !(
+          contextMode === 'ROLE_ONLY' && this.hasContextSpecificQuestion(candidate.questionText)
+        );
+      });
+      const skillSpecific = topic.skill_canonical
+        ? eligible.filter((candidate) => candidate.skillCanonical === topic.skill_canonical)
+        : eligible;
+      if (topic.skill_canonical && skillSpecific.length === 0) return topic;
+
+      const selected = selectInterviewQuestion(skillSpecific, {
         language: criteria.language,
         targetRole: criteria.targetRole,
         interviewType: criteria.interviewType,
         phase: topic.phase,
         skillCanonical: topic.skill_canonical,
-        focusType: topic.focus_type ?? null,
+        focusType: topic.skill_canonical ? null : (topic.focus_type ?? null),
         seniority: criteria.seniority,
       });
       if (!selected) return topic;
-      if (contextMode === 'ROLE_ONLY' && this.hasContextSpecificQuestion(selected.questionText)) {
-        return topic;
-      }
+
+      usedQuestionKeys.add(selected.questionKey);
+      usedFingerprints.add(fingerprint(selected.questionText));
       return {
         ...topic,
         seed_question: selected.questionText,
@@ -831,7 +856,6 @@ export class InterviewsService {
       uncovered: agenda.uncovered.map(enrich),
     };
   }
-
   private async ensureTurnAnalyses(
     userId: string,
     session: InterviewSessionEntity,
