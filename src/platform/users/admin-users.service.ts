@@ -155,6 +155,11 @@ export class AdminUsersService {
           provider: this.activePaymentProvider(),
           currency: 'VND',
           status: 'PAID',
+          providerVerificationStatus: Raw(
+            (alias) =>
+              `(${alias} IS NULL OR ${alias} IN (:providerVerifiedStatus, :providerVerificationError))`,
+            { providerVerifiedStatus: 'CONFIRMED_PAID', providerVerificationError: 'ERROR' },
+          ),
           paidAt: Raw((alias) => `${alias} >= :paidFrom AND ${alias} < :paidTo`, {
             paidFrom: revenueWindow.from,
             paidTo: revenueWindow.to,

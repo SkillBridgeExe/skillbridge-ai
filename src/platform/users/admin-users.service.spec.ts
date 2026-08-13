@@ -339,6 +339,7 @@ describe('AdminUsersService', () => {
           currency: 'VND',
           status: 'PAID',
           paidAt: expect.any(Object),
+          providerVerificationStatus: expect.any(Object),
         }),
       }),
     );

@@ -15,6 +15,12 @@ export type PaymentOrderPurpose =
   | 'MENTOR_DEPOSIT'
   | 'MENTOR_REMAINING';
 export type PaymentOrderStatus = 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
+export type PaymentOrderProviderVerificationStatus =
+  | 'CONFIRMED_PAID'
+  | 'NOT_PAID'
+  | 'NOT_FOUND'
+  | 'MISMATCH'
+  | 'ERROR';
 export type PaymentOrderTargetType = 'SUBSCRIPTION' | 'CREDIT_PACKAGE' | 'MENTOR_BOOKING';
 
 @Entity('payment_orders')
@@ -79,6 +85,12 @@ export class PaymentOrderEntity {
   @Index()
   @Column({ type: 'varchar' })
   status!: PaymentOrderStatus;
+
+  @Column({ type: 'varchar', name: 'provider_verification_status', nullable: true })
+  providerVerificationStatus!: PaymentOrderProviderVerificationStatus | null;
+
+  @Column({ type: 'timestamptz', name: 'provider_verified_at', nullable: true })
+  providerVerifiedAt!: Date | null;
 
   @Column({ type: 'varchar' })
   description!: string;

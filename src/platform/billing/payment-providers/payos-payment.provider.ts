@@ -81,7 +81,25 @@ export class PayosPaymentProvider implements PaymentProviderPort {
   }
 
   async getPaymentStatus(input: PaymentStatusRequest): Promise<PaymentStatusSnapshot> {
-    const link = await this.requireClient().paymentRequests.get(input.orderCode);
+    let link: Awaited<ReturnType<PayOS['paymentRequests']['get']>>;
+    try {
+      link = await this.requireClient().paymentRequests.get(input.orderCode);
+    } catch (error) {
+      if (isMissingPayosPayment(error)) {
+        return {
+          provider: this.code,
+          orderCode: input.orderCode,
+          paymentLinkId: null,
+          reference: null,
+          status: 'EXPIRED',
+          amountVnd: null,
+          currency: 'VND',
+          paidAt: null,
+          raw: error,
+        };
+      }
+      throw error;
+    }
     const linkWithCurrency = link as typeof link & { currency?: string };
     const status = toSnapshotStatus(link.status);
     return {
@@ -154,4 +172,9 @@ function parsePayosDate(value: string | null | undefined): Date | null {
     : `${normalized}+07:00`;
   const parsed = new Date(withTimezone);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isMissingPayosPayment(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: unknown }).code === '101';
 }

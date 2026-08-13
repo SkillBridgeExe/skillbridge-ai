@@ -24,8 +24,8 @@ invent a PayOS transaction that has no local order record.
 
 1. Make Admin revenue periods match PayOS calendar semantics using the
    `Asia/Ho_Chi_Minh` timezone.
-2. Allow an admin to reconcile local pending PayOS orders before refreshing the
-   revenue summary.
+2. Allow an admin to reconcile local pending PayOS orders and verify legacy
+   local `PAID` rows before refreshing the revenue summary.
 3. Record the provider transaction time when PayOS supplies it, so a payment
    is grouped by when it happened rather than when the webhook was processed.
 4. Return both completed revenue and completed-order count so the Admin page can
@@ -86,16 +86,19 @@ POST /api/admin/billing/orders/reconcile
 
 The endpoint receives the same calendar window contract. It:
 
-1. Finds local `PENDING` orders for the active provider whose order lifetime
-   intersects the requested window.
+1. Finds local `PENDING` orders and legacy local `PAID` orders for the active
+   provider inside the requested window.
 2. Calls the provider status API with bounded concurrency.
-3. Sends verified `PAID` snapshots through the existing transactional
+3. Sends verified `PAID` snapshots from pending orders through the existing transactional
    `BillingSettlementService`, preserving amount/currency/payment-link checks.
-4. Persists terminal non-paid statuses as the existing billing flow already
+4. Stores a provider-verification result for legacy `PAID` rows without
+   changing their payment status or granting entitlements again.
+5. Persists terminal non-paid statuses as the existing billing flow already
    does.
-5. Treats provider errors and rate limits as per-order failures so one bad order
+6. Treats provider errors and rate limits as per-order failures so one bad order
    does not hide the summary. The response reports attempted, settled,
-   terminal, failed, and still-pending counts.
+   terminal, failed, and still-pending counts plus verified/unverified legacy
+   paid rows.
 
 The reconciliation action is idempotent: an already `PAID` order is not settled
 again, and repeated clicks cannot grant a subscription or credit package twice.
@@ -129,8 +132,12 @@ window: {
 
 Revenue queries explicitly constrain `provider` to the active payment provider
 and `currency` to `VND`, then filter `status = 'PAID'` and the resolved paid
-timestamp window. The amount remains the final charged `amount_vnd`, which is
-the amount verified against PayOS after discounts.
+timestamp window. Legacy rows without a verification result remain visible;
+after an explicit sync, rows confirmed by PayOS remain in the synced revenue
+metric, while `NOT_FOUND`, `NOT_PAID`, and `MISMATCH` rows are excluded.
+Transient `ERROR` rows retain the previous local value and remain retryable.
+The amount remains the final charged `amount_vnd`, which is the amount verified
+against PayOS after discounts.
 
 ### 5. Admin UI
 
@@ -159,8 +166,12 @@ the audit surface for follow-up.
 - Invalid custom dates return the existing validation error envelope.
 - PayOS 401/403 and provider configuration errors fail the sync request with a
   clear Admin-visible message and do not alter local order status.
-- PayOS 429 or an individual network failure is recorded in the sync result and
-  leaves that order `PENDING` for a later retry.
+- PayOS business code 101 (“payment code not found”) is treated as an expired
+  local pending order or an unverified legacy paid row, without changing a
+  legacy row's `PAID` status.
+- PayOS 429 or an individual network failure is recorded in the sync result;
+  pending orders remain `PENDING`, while legacy paid rows are marked `ERROR`
+  and remain visible and retryable.
 - Settlement amount, currency, and payment-link mismatches continue to reject
   the order and are counted as failed reconciliation attempts.
 

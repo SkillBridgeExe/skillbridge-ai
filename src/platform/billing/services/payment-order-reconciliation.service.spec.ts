@@ -135,4 +135,52 @@ describe('PaymentOrderReconciliationService', () => {
     expect(provider.getPaymentStatus).not.toHaveBeenCalled();
     expect(result).toEqual({ status: 'PAID', attempted: false });
   });
+
+  it('verifies an existing paid order without settling its entitlements again', async () => {
+    const { service, provider, orders, settlement } = setup();
+    const paid = order({ status: 'PAID' });
+    provider.getPaymentStatus.mockResolvedValue({
+      provider: 'PAYOS',
+      orderCode: 123,
+      paymentLinkId: 'plink-1',
+      reference: 'ref-1',
+      status: 'PAID',
+      amountVnd: 99000,
+      currency: 'VND',
+      raw: {},
+    });
+
+    const result = await service.verifyPaidOrder(paid);
+
+    expect(result).toEqual({ status: 'CONFIRMED_PAID', attempted: true });
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({ providerVerificationStatus: 'CONFIRMED_PAID' }),
+    );
+    expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
+  });
+
+  it('records a missing PayOS payment link without changing the local paid order', async () => {
+    const { service, provider, orders, settlement } = setup();
+    provider.getPaymentStatus.mockResolvedValue({
+      provider: 'PAYOS',
+      orderCode: 123,
+      paymentLinkId: null,
+      reference: null,
+      status: 'EXPIRED',
+      amountVnd: null,
+      currency: 'VND',
+      raw: {},
+    });
+
+    const result = await service.verifyPaidOrder(order({ status: 'PAID' }));
+
+    expect(result).toEqual({ status: 'NOT_FOUND', attempted: true });
+    expect(orders.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'PAID',
+        providerVerificationStatus: 'NOT_FOUND',
+      }),
+    );
+    expect(settlement.settlePaidPayment).not.toHaveBeenCalled();
+  });
 });

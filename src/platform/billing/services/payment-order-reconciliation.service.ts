@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   PaymentOrderEntity,
+  PaymentOrderProviderVerificationStatus,
   PaymentOrderStatus,
 } from '../../../database/entities/payment-order.entity';
 import { PaymentProviderRegistry } from '../payment-providers/payment-provider.registry';
@@ -12,6 +13,11 @@ import { BillingSettlementService } from './billing-settlement.service';
 
 export type PaymentOrderReconciliationResult = {
   status: PaymentOrderStatus;
+  attempted: boolean;
+};
+
+export type PaymentOrderProviderVerificationResult = {
+  status: PaymentOrderProviderVerificationStatus;
   attempted: boolean;
 };
 
@@ -68,6 +74,43 @@ export class PaymentOrderReconciliationService {
     return { status: 'PENDING', attempted: true };
   }
 
+  async verifyPaidOrder(
+    order: PaymentOrderEntity,
+  ): Promise<PaymentOrderProviderVerificationResult> {
+    if (order.status !== 'PAID') {
+      return { status: 'NOT_PAID', attempted: false };
+    }
+    if (order.providerVerificationStatus === 'CONFIRMED_PAID') {
+      return { status: 'CONFIRMED_PAID', attempted: false };
+    }
+
+    const claimed = await this.claimProviderCheck(order.id);
+    if (!claimed) {
+      return {
+        status: order.providerVerificationStatus ?? 'ERROR',
+        attempted: false,
+      };
+    }
+
+    const verificationAt = new Date();
+    let snapshot: PaymentStatusSnapshot;
+    try {
+      const provider = this.providers.get(order.provider);
+      snapshot = await provider.getPaymentStatus({ orderCode: Number(order.orderCode) });
+    } catch (error) {
+      order.providerVerificationStatus = 'ERROR';
+      order.providerVerifiedAt = verificationAt;
+      await this.orders.save(order);
+      throw error;
+    }
+
+    const status = classifyPaidOrderVerification(order, snapshot);
+    order.providerVerificationStatus = status;
+    order.providerVerifiedAt = verificationAt;
+    await this.orders.save(order);
+    return { status, attempted: true };
+  }
+
   private async claimProviderCheck(orderId: string): Promise<boolean> {
     const cooldownBoundary = new Date(Date.now() - 10_000);
     const result = await this.orders
@@ -82,6 +125,23 @@ export class PaymentOrderReconciliationService {
       .execute();
     return (result.affected ?? 0) === 1;
   }
+}
+
+function classifyPaidOrderVerification(
+  order: PaymentOrderEntity,
+  snapshot: PaymentStatusSnapshot,
+): PaymentOrderProviderVerificationStatus {
+  if (snapshot.status === 'EXPIRED') return 'NOT_FOUND';
+  if (snapshot.status !== 'PAID') return 'NOT_PAID';
+  if (
+    snapshot.amountVnd !== order.amountVnd ||
+    snapshot.currency !== order.currency ||
+    !snapshot.paymentLinkId ||
+    (order.paymentLinkId !== null && order.paymentLinkId !== snapshot.paymentLinkId)
+  ) {
+    return 'MISMATCH';
+  }
+  return 'CONFIRMED_PAID';
 }
 
 export function isTerminalNonPaidStatus(
