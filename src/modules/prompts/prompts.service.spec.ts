@@ -61,9 +61,7 @@ describe('PromptsService cv_builder_chat_v1', () => {
     expect(rendered).toContain('user: xin chào');
     expect(rendered).toContain('Directive: ask for a number.');
     expect(rendered).toContain('Viết lại bullet này giúp mình.');
-    expect(rendered).toContain(
-      '{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}',
-    );
+    expect(rendered).toContain('{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}');
     expect(rendered).not.toMatch(/\{\{\s*\w+\s*\}\}/);
   });
 });
