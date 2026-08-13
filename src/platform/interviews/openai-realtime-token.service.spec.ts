@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+﻿import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
@@ -46,7 +46,7 @@ describe('OpenAiRealtimeTokenService', () => {
     return new OpenAiRealtimeTokenService(config);
   }
 
-  it('creates a realtime client secret using the safe transcription fallback', async () => {
+  it('creates a v3 realtime client secret with accurate transcription and confidence data', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -76,8 +76,9 @@ describe('OpenAiRealtimeTokenService', () => {
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
                 language: 'vi',
+                prompt: expect.any(String),
               }),
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
@@ -109,11 +110,19 @@ describe('OpenAiRealtimeTokenService', () => {
       };
     };
     expect(request.session).not.toHaveProperty('speed');
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session).toEqual(
+      expect.objectContaining({
+        tool_choice: 'none',
+        tools: [],
+        include: ['item.input_audio_transcription.logprobs'],
+      }),
+    );
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
       model: 'gpt-realtime-2.1',
+      protocolVersion: 'interview-realtime-v3',
+      transcriptionModel: 'gpt-4o-transcribe',
       clientSecret: 'ek_test_secret',
       expiresAt: '2026-06-15T05:06:40.000Z',
     });
@@ -151,7 +160,13 @@ describe('OpenAiRealtimeTokenService', () => {
     const request = mockClientSecretsCreate.mock.calls[0][0] as {
       session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
     };
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session).toEqual(
+      expect.objectContaining({
+        tool_choice: 'none',
+        tools: [],
+        include: ['item.input_audio_transcription.logprobs'],
+      }),
+    );
     expect(mockClientSecretsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         session: expect.objectContaining({
@@ -215,8 +230,9 @@ describe('OpenAiRealtimeTokenService', () => {
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: {
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
                 language: 'vi',
+                prompt: expect.any(String),
               },
             }),
           }),
@@ -258,7 +274,7 @@ describe('OpenAiRealtimeTokenService', () => {
     );
   });
 
-  it('configures realtime with semantic VAD, interruption, and the backend turn tool', async () => {
+  it('configures realtime with semantic VAD and no classification tool', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_realtime_secret',
       expires_at: 1781500000,
@@ -280,21 +296,7 @@ describe('OpenAiRealtimeTokenService', () => {
           model: 'gpt-realtime-2.1',
           reasoning: { effort: 'low' },
           tool_choice: 'none',
-          tools: expect.arrayContaining([
-            expect.objectContaining({
-              type: 'function',
-              name: 'decide_interview_turn',
-              parameters: expect.objectContaining({
-                additionalProperties: false,
-                required: ['transcript', 'intent', 'answer_signal'],
-                properties: expect.objectContaining({
-                  transcript: expect.objectContaining({ type: 'string' }),
-                  intent: expect.objectContaining({ type: 'string' }),
-                  answer_signal: expect.objectContaining({ type: 'string' }),
-                }),
-              }),
-            }),
-          ]),
+          tools: [],
           audio: expect.objectContaining({
             input: expect.objectContaining({
               turn_detection: expect.objectContaining({

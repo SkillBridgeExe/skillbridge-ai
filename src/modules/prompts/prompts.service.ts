@@ -38,7 +38,7 @@ const REQUIRED_TEMPLATES = [
   'interview_ask_v1',
   'interview_assess_v1',
   'interview_answer_v1',
-  'interview_realtime_v2',
+  'interview_realtime_v3',
   'interview_transcription_vi_v1',
   'interview_transcription_en_v1',
   'learning_chat_v1',

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Column,
   CreateDateColumn,
   Entity,
@@ -78,14 +78,6 @@ export class InterviewTurnEntity {
 
   @Column({ type: 'varchar', name: 'client_turn_id', nullable: true })
   clientTurnId!: string | null;
-
-  @Index({ unique: true })
-  @Column('uuid', { name: 'directive_id', nullable: true })
-  directiveId!: string | null;
-
-  @Index({ unique: true })
-  @Column('uuid', { name: 'source_directive_id', nullable: true })
-  sourceDirectiveId!: string | null;
 
   @Column('uuid', { name: 'question_thread_id', nullable: true })
   questionThreadId!: string | null;

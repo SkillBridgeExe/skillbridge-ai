@@ -29,7 +29,8 @@ function attachRealtimePrompts(service: InterviewsService) {
         'You are Alex, a realistic professional interviewer for SkillBridge.',
         vars.language_instruction,
         vars.difficulty_instruction,
-        'Live Realtime mode: the backend owns the interview agenda, topic, difficulty, assistance, and scoring.',
+        'Live Realtime mode: respond directly without tools or per-turn classification.',
+        vars.agenda_checkpoint,
         vars.context_block,
       ]
         .filter(Boolean)
@@ -101,7 +102,7 @@ describe('InterviewsService', () => {
 
     expect(result).toBe('rendered realtime voice instructions');
     expect(prompts.render).toHaveBeenCalledWith(
-      'interview_realtime_v2',
+      'interview_realtime_v3',
       expect.objectContaining({
         context: 'Compact interview context',
         interview_type: 'TECHNICAL',
@@ -111,6 +112,43 @@ describe('InterviewsService', () => {
         difficulty_instruction: expect.stringContaining('junior'),
       }),
     );
+  });
+
+  it('blocks correctly encoded legacy Vietnamese prompt leaks', () => {
+    const service = new InterviewsService(
+      repo<InterviewSessionEntity>() as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const hasUnsafeLiveTranscript = (
+      service as unknown as { hasUnsafeLiveTranscript: (text: string) => boolean }
+    ).hasUnsafeLiveTranscript.bind(service);
+
+    expect(hasUnsafeLiveTranscript('Cuộc phỏng vấn bằng tiếng Việt')).toBe(true);
+    expect(hasUnsafeLiveTranscript('Giữ nguyên dấu tiếng Việt')).toBe(true);
+  });
+
+  it('extracts years of experience from correctly encoded Vietnamese text', () => {
+    const service = new InterviewsService(
+      repo<InterviewSessionEntity>() as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const extractExperienceYears = (
+      service as unknown as { extractExperienceYears: (text: string) => number | null }
+    ).extractExperienceYears.bind(service);
+
+    expect(extractExperienceYears('Tôi có 3 năm kinh nghiệm backend.')).toBe(3);
   });
 
   it('limits the default history page to 10 sessions', async () => {
@@ -478,12 +516,15 @@ describe('InterviewsService', () => {
     });
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        interviewerQuestion: 'Hay gioi thieu du an backend gan nhat cua ban.',
-        questionBankItemId: 'bank-screening-vi',
-        questionBankKey: 'backend-common-screening-01',
+        interviewerQuestion:
+          'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
+        questionBankItemId: null,
+        questionBankKey: null,
       }),
     );
-    expect(response.firstQuestion).toBe('Hay gioi thieu du an backend gan nhat cua ban.');
+    expect(response.firstQuestion).toBe(
+      'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
+    );
   });
 
   it('uses authored seed questions as a role fallback when the DB question bank is empty', async () => {
@@ -541,7 +582,7 @@ describe('InterviewsService', () => {
     expect(agenda.topics.map((topic) => topic.phase)).not.toContain('JD_REQUIREMENT');
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        questionBankKey: expect.stringMatching(/^backend_developer\./),
+        questionBankKey: null,
       }),
     );
     expect(response.firstQuestion).toBeTruthy();
@@ -602,6 +643,38 @@ describe('InterviewsService', () => {
     expect(snapshot.contextMode).toBe('ROLE_ONLY');
     expect(allQuestions).not.toMatch(/\bCV\b|resume|job description|\bJD\b|gap/i);
     expect(response.firstQuestion).toBeTruthy();
+  });
+
+  it('keeps Vietnamese role-only fallback questions readable and free of mojibake', async () => {
+    const service = new InterviewsService(
+      repo<InterviewSessionEntity>() as never,
+      repo<InterviewTurnEntity>() as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const safeContextTemplateQuestion = (
+      service as unknown as {
+        safeContextTemplateQuestion: (
+          language: 'vi' | 'en',
+          targetRole: string,
+          displayName: string,
+          contextMode: 'ROLE_ONLY' | 'CV_ONLY' | 'CV_JD_MATCH',
+        ) => string;
+      }
+    ).safeContextTemplateQuestion.bind(service);
+
+    const question = safeContextTemplateQuestion(
+      'vi',
+      'backend_developer',
+      'REST API',
+      'ROLE_ONLY',
+    );
+    expect(question).toContain('Cho vai trò Backend Developer');
+    expect(question).not.toMatch(/[\u0080-\u009f]|\uFFFD|Ã|Â|Ä|Å|Æ|á(?:º|»)|â[\u0080-\u20ff]/u);
   });
 
   it('marks CV-only sessions explicitly and avoids JD/gap-specific fallback wording', async () => {
@@ -809,11 +882,11 @@ describe('InterviewsService', () => {
         turnOrder: 1,
         phase: 'SCREENING',
         interviewerQuestion:
-          'To start, what have you been working on recently, and what drew you to this role?',
+          'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
       }),
     );
     expect(response.firstQuestion).toBe(
-      'To start, what have you been working on recently, and what drew you to this role?',
+      'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
     );
     expect(realtime.createClientSecret).toHaveBeenCalled();
   });
@@ -885,16 +958,16 @@ describe('InterviewsService', () => {
         interviewerMessage:
           'Xin chào bạn, tôi là AI interviewer của SkillBridge cho vị trí Backend Developer. Mình sẽ trao đổi về kinh nghiệm và một vài tình huống thực tế; chúng ta bắt đầu nhé.',
         interviewerQuestion:
-          'To start, what have you been working on recently, and what drew you to this role?',
+          'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
       }),
     );
     expect(realtime.createClientSecret).toHaveBeenCalledWith(
       userId,
       expect.objectContaining({ id: 'session-live-1', mode: 'VOICE' }),
-      expect.stringContaining('the backend owns the interview agenda'),
+      expect.stringContaining('respond directly without tools or per-turn classification'),
     );
     const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
-    expect(instructions).toContain('topic, difficulty, assistance, and scoring');
+    expect(instructions).toContain('respond directly without tools or per-turn classification');
     expect(instructions).not.toContain('Guided Voice mode');
     expect(instructions).toContain('Candidate seniority level: junior');
     expect(instructions).toContain(
@@ -907,8 +980,7 @@ describe('InterviewsService', () => {
       totalQuestionsPlanned: 12,
       firstMessage:
         'Xin chào bạn, tôi là AI interviewer của SkillBridge cho vị trí Backend Developer. Mình sẽ trao đổi về kinh nghiệm và một vài tình huống thực tế; chúng ta bắt đầu nhé.',
-      firstQuestion:
-        'To start, what have you been working on recently, and what drew you to this role?',
+      firstQuestion: 'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
       phase: 'SCREENING',
       realtime: { enabled: true, clientSecret: 'live_secret' },
     });
@@ -1101,13 +1173,14 @@ describe('InterviewsService', () => {
     });
 
     const instructions = (realtime.createClientSecret as jest.Mock).mock.calls[0][2] as string;
-    expect(instructions).toContain('the backend owns the interview agenda');
+    expect(instructions).toContain('respond directly without tools or per-turn classification');
     expect(instructions).not.toContain('Curated question anchors');
     expect(turns.save).toHaveBeenCalledWith(
       expect.objectContaining({
-        interviewerQuestion: 'Hay mo dau bang du an backend gan nhat cua ung vien.',
-        questionBankItemId: 'bank-voice-1',
-        questionBankKey: 'backend-common-screening-01',
+        interviewerQuestion:
+          'Hãy kể ngắn về một dự án gần đây liên quan đến vị trí backend_developer.',
+        questionBankItemId: null,
+        questionBankKey: null,
       }),
     );
   });
@@ -1506,8 +1579,8 @@ describe('InterviewsService', () => {
           star_present: { situation: true, task: true, action: true, result: true },
         },
         modality: 'AUDIO',
-        interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
-        userAnswerText: 'Em dùng React Query và giảm stale cache.',
+        interviewerQuestion: 'Báº¡n hÃ£y giá»›i thiá»‡u dá»± Ã¡n React gáº§n nháº¥t.',
+        userAnswerText: 'Em dÃ¹ng React Query vÃ  giáº£m stale cache.',
         createdAt: new Date('2026-06-12T00:00:01.000Z'),
         askedAt: new Date('2026-06-12T00:00:01.000Z'),
       },
@@ -1974,5 +2047,122 @@ describe('answerTimeBudgetSeconds', () => {
   it('budgets nothing when no question is coming', () => {
     // a finished interview has no next question to time.
     expect(answerTimeBudgetSeconds(null)).toBeNull();
+  });
+});
+
+describe('InterviewsService CV-only agenda v3', () => {
+  it('builds a deterministic golden flow from canonical CV evidence without a model call', () => {
+    const service = Object.create(InterviewsService.prototype) as InterviewsService;
+    Object.assign(service, {
+      skillScanner: {
+        scan: (text: string) => {
+          const values: Array<{
+            canonical_name: string;
+            matched_text: string;
+            occurrences: number;
+          }> = [];
+          if (/jwt|oauth|rbac|auth|session/i.test(text)) {
+            values.push({ canonical_name: 'jwt', matched_text: 'JWT', occurrences: 3 });
+          }
+          if (/clean architecture|ef core|sql server|database/i.test(text)) {
+            values.push({ canonical_name: 'dotnet', matched_text: '.NET', occurrences: 2 });
+          }
+          if (/microservice|kafka/i.test(text)) {
+            values.push({
+              canonical_name: 'microservices',
+              matched_text: 'microservices',
+              occurrences: 1,
+            });
+          }
+          return values;
+        },
+      },
+    });
+
+    const agenda = (
+      service as unknown as {
+        buildCvOnlyAgenda: (
+          document: {
+            language: string;
+            contact: { name: null; email: null; phone: null; location: null; links: [] };
+            summary: string;
+            education: [];
+            experience: Array<{
+              org: string;
+              role: string;
+              start: null;
+              end: null;
+              location: null;
+              bullets: string[];
+            }>;
+            projects: Array<{
+              name: string;
+              role: string;
+              tech: string[];
+              bullets: string[];
+              link: null;
+            }>;
+            skills: { technical: string[]; soft: []; languages: []; tools: string[] };
+            certifications: [];
+            activities: [];
+          },
+          role: string,
+          language: 'vi',
+          seniority: string,
+          budget: number,
+        ) => { topics: Array<{ id: string; seed_question: string }> } | null;
+      }
+    ).buildCvOnlyAgenda(
+      {
+        language: 'en',
+        contact: { name: null, email: null, phone: null, location: null, links: [] },
+        summary: '.NET backend developer',
+        education: [],
+        experience: [
+          {
+            org: 'Technology Services Company',
+            role: 'Backend Developer',
+            start: null,
+            end: null,
+            location: null,
+            bullets: ['Built microservices and Kafka integrations.'],
+          },
+        ],
+        projects: [
+          {
+            name: 'Gender HealthCare',
+            role: 'Backend Developer',
+            tech: ['.NET', 'JWT', 'OAuth', 'RBAC', 'EF Core', 'SQL Server'],
+            bullets: [
+              'Implemented authentication APIs and session security.',
+              'Applied Clean Architecture for data access.',
+            ],
+            link: null,
+          },
+        ],
+        skills: {
+          technical: ['.NET', 'Clean Architecture', 'microservices'],
+          soft: [],
+          languages: [],
+          tools: ['SQL Server'],
+        },
+        certifications: [],
+        activities: [],
+      },
+      'backend_developer',
+      'vi',
+      'junior',
+      12,
+    );
+
+    expect(agenda?.topics.slice(0, 5).map((topic) => topic.id)).toEqual([
+      'cv-project-ownership',
+      'cv-auth-api-depth',
+      'cv-architecture-data',
+      'cv-microservices-experience',
+      'cv-scenario-tradeoff',
+    ]);
+    expect(agenda?.topics[0].seed_question).toContain('Gender HealthCare');
+    expect(JSON.stringify(agenda)).not.toMatch(/SSR|CSR|question_bank|fingerprint/i);
   });
 });

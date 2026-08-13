@@ -1,4 +1,4 @@
-import { PromptsService } from './prompts.service';
+﻿import { PromptsService } from './prompts.service';
 import { TemplateRenderer } from './template-renderer';
 
 describe('PromptsService interview voice templates', () => {
@@ -6,7 +6,7 @@ describe('PromptsService interview voice templates', () => {
     const service = new PromptsService(new TemplateRenderer());
 
     await service.onModuleInit();
-    expect(service.get('interview_realtime_v2').filename).toBe('interview_realtime_v2.md');
+    expect(service.get('interview_realtime_v3').filename).toBe('interview_realtime_v3.md');
     expect(service.get('interview_transcription_vi_v1').filename).toBe(
       'interview_transcription_vi_v1.md',
     );
@@ -24,7 +24,7 @@ describe('PromptsService mascot_character_cvbuilder_v1', () => {
 
     const template = service.get('mascot_character_cvbuilder_v1');
     expect(template.filename).toBe('mascot_character_cvbuilder_v1.md');
-    expect(template.body).not.toContain('chẩn đoán');
+    expect(template.body).not.toContain('cháº©n Ä‘oÃ¡n');
   });
 });
 
@@ -38,20 +38,22 @@ describe('PromptsService cv_builder_chat_v1', () => {
     const rendered = service.render('cv_builder_chat_v1', {
       language: 'vi',
       facts: '{"target_role":"Data Analyst"}',
-      focus: 'projects[0].description — gaps: result',
-      history: 'user: xin chào',
+      focus: 'projects[0].description â€” gaps: result',
+      history: 'user: xin chÃ o',
       context: 'Directive: ask for a number.',
-      question: 'Viết lại bullet này giúp mình.',
-      diagnosis: '{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}',
+      question: 'Viáº¿t láº¡i bullet nÃ y giÃºp mÃ¬nh.',
+      diagnosis: '{"prioritized_actions":["ThÃªm káº¿t quáº£ Ä‘o Ä‘Æ°á»£c vÃ o má»—i bullet"]}',
     });
 
     expect(rendered).toContain('vi');
     expect(rendered).toContain('{"target_role":"Data Analyst"}');
-    expect(rendered).toContain('projects[0].description — gaps: result');
-    expect(rendered).toContain('user: xin chào');
+    expect(rendered).toContain('projects[0].description â€” gaps: result');
+    expect(rendered).toContain('user: xin chÃ o');
     expect(rendered).toContain('Directive: ask for a number.');
-    expect(rendered).toContain('Viết lại bullet này giúp mình.');
-    expect(rendered).toContain('{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}');
+    expect(rendered).toContain('Viáº¿t láº¡i bullet nÃ y giÃºp mÃ¬nh.');
+    expect(rendered).toContain(
+      '{"prioritized_actions":["ThÃªm káº¿t quáº£ Ä‘o Ä‘Æ°á»£c vÃ o má»—i bullet"]}',
+    );
     expect(rendered).not.toMatch(/\{\{\s*\w+\s*\}\}/);
   });
 });
@@ -77,7 +79,7 @@ describe('PromptsService.render prompt-injection sanitizing (MEASURE M6)', () =>
   it('renders benign user text byte-identical inside the prompt', async () => {
     const service = await makeService();
     const jd =
-      'Tuyển Backend Developer. Bạn sẽ đóng vai trò quan trọng. Yêu cầu Node.js, hệ điều hành Linux.';
+      'Tuyá»ƒn Backend Developer. Báº¡n sáº½ Ä‘Ã³ng vai trÃ² quan trá»ng. YÃªu cáº§u Node.js, há»‡ Ä‘iá»u hÃ nh Linux.';
     const rendered = service.render('cv_jd_match_v2', {
       cv_text: 'Node.js developer.',
       jd_text: jd,

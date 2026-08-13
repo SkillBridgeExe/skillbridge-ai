@@ -5,39 +5,76 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
-import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
+import { EntityManager, IsNull, Repository } from 'typeorm';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
-import { analyzeAnswerSignals, type AnswerSignals } from '../../modules/interview/answer-analyzer';
-import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import {
-  CommitRealtimeAssistantMessageDto,
+  CandidateIntent,
+  RealtimeExchangeDisposition,
+  RealtimeExchangeResponseDto,
   RealtimeInterviewTurnDto,
-  RealtimeTurnDirectiveDto,
 } from './dto/interview.dto';
-import {
-  InterviewAssistanceLevel,
-  InterviewDirectiveAction,
-  InterviewTurnPolicyService,
-  RealtimeAnswerSignal,
-  RealtimeTurnPolicyState,
-} from './interview-turn-policy.service';
+import { InterviewChainLlmService } from './interview-chain-llm.service';
 
 interface RealtimeAgendaTopic {
   id: string;
+  phase?: string;
+  display_name?: string;
   what_to_probe?: string;
   seed_question?: string;
-  phase?: string;
-  skill_canonical?: string;
+  seniority_target?: string;
+  skill_canonical?: string | null;
   question_bank_item_id?: string;
   question_bank_key?: string;
 }
 
-interface RealtimeInterviewState extends RealtimeTurnPolicyState {
+interface PersistedExchange {
+  clientTurnId: string;
+  disposition: RealtimeExchangeDisposition;
+  answeredTurnId: string | null;
+  currentTurnId: string | null;
+  responseId: string | null;
+  transcript: string;
+  question: string | null;
+  finished: boolean;
+}
+
+interface RealtimeStateV3 {
+  protocolVersion: 'interview-realtime-v3';
+  currentTopicId: string | null;
   topicHistory: string[];
   questionFingerprints: string[];
+  probeCount: number;
+  noAnswerCount: number;
+  exchanges: PersistedExchange[];
 }
+
+const CONTROL_WITHOUT_ATTEMPT = new Set<CandidateIntent>([
+  'REPEAT',
+  'CLARIFY',
+  'EASIER',
+  'HINT',
+  'FEEDBACK',
+]);
+const INTERNAL_MARKERS = [
+  'you are english',
+  'question fingerprint',
+  'questiongoal',
+  'scorecap',
+  'fallback question',
+  'role-only practice',
+  'no cv or job description',
+  'decide_interview_turn',
+];
+const PHASE_ORDER = [
+  'SCREENING',
+  'SKILL_PROBE',
+  'JD_REQUIREMENT',
+  'SCENARIO',
+  'BEHAVIORAL',
+  'WRAP',
+];
 
 @Injectable()
 export class InterviewRealtimeService {
@@ -46,9 +83,7 @@ export class InterviewRealtimeService {
     private readonly sessions: Repository<InterviewSessionEntity>,
     @InjectRepository(InterviewTurnEntity)
     private readonly turns: Repository<InterviewTurnEntity>,
-    @InjectRepository(InterviewRealtimeDirectiveEntity)
-    private readonly directives: Repository<InterviewRealtimeDirectiveEntity>,
-    private readonly policy: InterviewTurnPolicyService,
+    private readonly chain: InterviewChainLlmService,
     private readonly skillScanner: SkillTextScannerService,
   ) {}
 
@@ -56,223 +91,423 @@ export class InterviewRealtimeService {
     userId: string,
     sessionId: string,
     dto: RealtimeInterviewTurnDto,
-  ): Promise<RealtimeTurnDirectiveDto> {
-    const session = await this.ownedSession(userId, sessionId);
-    const existing = await this.directives.findOne({
-      where: { sessionId, clientTurnId: dto.clientTurnId },
+  ): Promise<RealtimeExchangeResponseDto> {
+    this.validateContract(dto);
+    if (dto.kind === 'TEXT_FALLBACK') {
+      return this.submitTextFallback(userId, sessionId, dto);
+    }
+
+    try {
+      return await this.sessions.manager.transaction((manager) =>
+        this.commitExchange(manager, userId, sessionId, dto),
+      );
+    } catch (error) {
+      if (!this.isUniqueViolation(error)) throw error;
+      const duplicate = await this.findDuplicate(userId, sessionId, dto.clientTurnId);
+      if (duplicate) return duplicate;
+      throw error;
+    }
+  }
+
+  private async submitTextFallback(
+    userId: string,
+    sessionId: string,
+    dto: RealtimeInterviewTurnDto,
+  ): Promise<RealtimeExchangeResponseDto> {
+    const duplicate = await this.findDuplicate(userId, sessionId, dto.clientTurnId);
+    if (duplicate) return duplicate;
+
+    const session = await this.ownedSession(this.sessions.manager, userId, sessionId, false);
+    const current = await this.turns.findOne({
+      where: dto.questionTurnId
+        ? { id: dto.questionTurnId, sessionId }
+        : { sessionId, answeredAt: IsNull() },
+      order: { turnOrder: 'DESC' },
     });
-    if (existing) return this.toDirectiveDto(existing);
-    const pendingDirective = await this.directives.findOne({
-      where: { sessionId, committedAt: IsNull() },
-      order: { createdAt: 'DESC' },
-    });
-    if (pendingDirective) {
+    if (!current || current.answeredAt) {
       throw new ConflictException({
-        errorCode: 'INTERVIEW_TURN_BUSY',
-        message: 'The previous interview turn is still being committed.',
-        directiveId: pendingDirective.id,
+        errorCode: 'INTERVIEW_STALE_QUESTION',
+        message: 'The submitted question is no longer active.',
+        currentTurnId: await this.currentTurnId(sessionId),
       });
     }
 
-    const currentTurn = await this.turns.findOne({
+    const topics = this.agendaTopics(session.agenda);
+    const state = this.realtimeState(session, current, topics);
+    const nextTopic = this.selectNextTopic(topics, state, dto.text ?? '');
+    const language = session.language === 'en' ? 'en' : 'vi';
+    const ask = await this.chain.ask(userId, {
+      sessionId,
+      turnOrder: current.turnOrder + 1,
+      decision: state.probeCount < 1 ? 'drill' : 'advance',
+      language,
+      seniorityTarget: nextTopic?.seniority_target ?? 'mid',
+      currentTopic: nextTopic ?? this.topicForCurrent(topics, state, current),
+      currentThread: current.currentThread ?? current.interviewerQuestion,
+      recentQa: [{ question: current.interviewerQuestion, answer: dto.text ?? '' }],
+      runningNotes: [],
+      prevTopicOutcome: 'Answer stored for final scoring.',
+      topicPhase: nextTopic?.phase ?? current.topicPhase,
+      interviewContext: this.compactContext(session.contextSnapshot),
+      avoidQuestions: await this.recentQuestions(sessionId),
+    });
+
+    const assistantTranscript = [ask.aiMessage, ask.question].filter(Boolean).join(' ').trim();
+    return this.submitTurn(userId, sessionId, {
+      kind: 'REALTIME_EXCHANGE',
+      clientTurnId: dto.clientTurnId,
+      questionTurnId: current.id,
+      input: {
+        type: dto.intent && dto.intent !== 'ANSWER' ? 'CONTROL' : 'ANSWER',
+        modality: 'TEXT',
+        transcript: dto.text,
+        intent: dto.intent ?? 'ANSWER',
+        intentSource: 'TEXT',
+        segmentCount: 1,
+      },
+      assistant: {
+        responseId: `text-${dto.clientTurnId}`,
+        transcript: assistantTranscript,
+        interrupted: false,
+      },
+    });
+  }
+
+  private async commitExchange(
+    manager: EntityManager,
+    userId: string,
+    sessionId: string,
+    dto: RealtimeInterviewTurnDto,
+  ): Promise<RealtimeExchangeResponseDto> {
+    const session = await this.ownedSession(manager, userId, sessionId, true);
+    const sessionTurns = manager.getRepository(InterviewTurnEntity);
+    const topics = this.agendaTopics(session.agenda);
+    const current = await sessionTurns.findOne({
+      where: dto.questionTurnId
+        ? { id: dto.questionTurnId, sessionId }
+        : { sessionId, answeredAt: IsNull() },
+      order: { turnOrder: 'DESC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+    const state = this.realtimeState(session, current, topics);
+    const remembered = state.exchanges.find((entry) => entry.clientTurnId === dto.clientTurnId);
+    if (remembered) return this.fromPersisted(remembered, 'DUPLICATE');
+
+    const consumedDuplicate = await sessionTurns.findOne({
+      where: { sessionId, clientTurnId: dto.clientTurnId },
+    });
+    if (consumedDuplicate) {
+      return this.duplicateFromTurn(consumedDuplicate, current);
+    }
+    if (!current || current.answeredAt) {
+      throw new ConflictException({
+        errorCode: 'INTERVIEW_STALE_QUESTION',
+        message: 'The submitted question is no longer active.',
+        currentTurnId: current?.id ?? null,
+      });
+    }
+    if (dto.questionTurnId && current.id !== dto.questionTurnId) {
+      throw new ConflictException({
+        errorCode: 'INTERVIEW_STALE_QUESTION',
+        message: 'The submitted question is no longer active.',
+        currentTurnId: current.id,
+      });
+    }
+
+    const input = dto.input!;
+    const assistant = dto.assistant!;
+    this.assertPublicAssistant(assistant.transcript, session.language);
+    const intent = input.intent ?? 'ANSWER';
+
+    if (input.type === 'CAPTURE_RETRY') {
+      const response = this.response(
+        dto.clientTurnId,
+        'CAPTURE_RETRY',
+        null,
+        current.id,
+        assistant.responseId,
+        assistant.transcript,
+        current.interviewerQuestion,
+        false,
+      );
+      this.rememberExchange(session, state, response);
+      await manager.getRepository(InterviewSessionEntity).save(session);
+      return response;
+    }
+
+    if (input.type === 'CONTROL' && CONTROL_WITHOUT_ATTEMPT.has(intent)) {
+      this.applyControl(current, intent, assistant.transcript);
+      await sessionTurns.save(current);
+      const response = this.response(
+        dto.clientTurnId,
+        'CONTROL_APPLIED',
+        null,
+        current.id,
+        assistant.responseId,
+        assistant.transcript,
+        current.interviewerQuestion,
+        false,
+      );
+      this.rememberExchange(session, state, response);
+      await manager.getRepository(InterviewSessionEntity).save(session);
+      return response;
+    }
+
+    const transcript = (input.transcript ?? '').trim();
+    if (!transcript && intent !== 'SKIP' && intent !== 'NO_ANSWER') {
+      throw new BadRequestException({
+        errorCode: 'INTERVIEW_EMPTY_ANSWER',
+        message: 'A committed answer must include a transcript.',
+      });
+    }
+
+    const answeredAt = input.speechEndedAt ? new Date(input.speechEndedAt) : new Date();
+    current.userAnswerText = transcript;
+    current.userAnswerTranscript = input.modality === 'AUDIO' ? transcript : null;
+    current.modality = input.modality;
+    current.answeredAt = answeredAt;
+    current.durationSeconds = this.durationSeconds(input.speechStartedAt, input.speechEndedAt);
+    current.transcriptSegments = input.segmentCount ?? null;
+    current.clientTurnId = dto.clientTurnId;
+    current.candidateIntent = intent;
+    current.assistantResponseId = assistant.responseId;
+    current.firstAudioAt = assistant.firstAudioAt ? new Date(assistant.firstAudioAt) : null;
+    current.assistantInterrupted = assistant.interrupted;
+    this.applyConsumedAssistance(current, intent, state);
+    await sessionTurns.save(current);
+
+    const extractedQuestion = this.extractQuestion(assistant.transcript);
+    const nextTopic =
+      intent === 'END'
+        ? null
+        : this.selectNextTopic(
+            topics,
+            state,
+            `${transcript} ${extractedQuestion ?? assistant.transcript}`,
+          );
+    const question =
+      extractedQuestion ??
+      (intent === 'END' ? null : this.fallbackQuestion(nextTopic, session.language));
+    const finished = intent === 'END';
+    let next: InterviewTurnEntity | null = null;
+    if (!finished && question) {
+      const sameThread = intent === 'NO_ANSWER' && state.noAnswerCount === 0;
+      next = sessionTurns.create({
+        sessionId,
+        turnOrder: current.turnOrder + 1,
+        phase: (nextTopic?.phase as InterviewTurnEntity['phase'] | undefined) ?? current.phase,
+        topicPhase:
+          (nextTopic?.phase as InterviewTurnEntity['topicPhase'] | undefined) ?? current.topicPhase,
+        modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
+        interviewerMessage: this.extractBridge(assistant.transcript, question),
+        interviewerQuestion: question,
+        questionThreadId: sameThread ? current.questionThreadId : crypto.randomUUID(),
+        currentThread: nextTopic?.what_to_probe ?? question,
+        skillCanonical: nextTopic?.skill_canonical ?? current.skillCanonical,
+        questionBankItemId: null,
+        questionBankKey: null,
+        assistanceLevel: sameThread ? current.assistanceLevel : 'NONE',
+        scoreCap: sameThread ? current.scoreCap : null,
+        timeBudgetSeconds: 90,
+      });
+      next = await sessionTurns.save(next);
+      this.advanceState(state, nextTopic, question, sameThread);
+    }
+
+    const response = this.response(
+      dto.clientTurnId,
+      'COMMITTED',
+      current.id,
+      next?.id ?? null,
+      assistant.responseId,
+      assistant.transcript,
+      question,
+      finished,
+    );
+    this.rememberExchange(session, state, response);
+    await manager.getRepository(InterviewSessionEntity).save(session);
+    return response;
+  }
+
+  private validateContract(dto: RealtimeInterviewTurnDto): void {
+    if (dto.kind === 'REALTIME_EXCHANGE' && (!dto.input || !dto.assistant)) {
+      throw new BadRequestException({
+        errorCode: 'INTERVIEW_INVALID_EXCHANGE',
+        message: 'REALTIME_EXCHANGE requires input and assistant payloads.',
+      });
+    }
+    if (dto.kind === 'TEXT_FALLBACK' && !dto.text?.trim()) {
+      throw new BadRequestException({
+        errorCode: 'INTERVIEW_EMPTY_TEXT',
+        message: 'TEXT_FALLBACK requires text.',
+      });
+    }
+  }
+
+  private async ownedSession(
+    manager: EntityManager,
+    userId: string,
+    sessionId: string,
+    lock: boolean,
+  ): Promise<InterviewSessionEntity> {
+    const session = await manager.getRepository(InterviewSessionEntity).findOne({
+      where: { id: sessionId, userId },
+      ...(lock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+    });
+    if (!session) throw new NotFoundException('Interview session not found');
+    if (session.status !== 'IN_PROGRESS') {
+      throw new ConflictException({
+        errorCode: 'INTERVIEW_SESSION_ENDED',
+        message: 'Interview session has ended.',
+      });
+    }
+    return session;
+  }
+
+  private async findDuplicate(
+    userId: string,
+    sessionId: string,
+    clientTurnId: string,
+  ): Promise<RealtimeExchangeResponseDto | null> {
+    const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
+    if (!session) return null;
+    const state = this.realtimeState(session, null, this.agendaTopics(session.agenda));
+    const remembered = state.exchanges.find((entry) => entry.clientTurnId === clientTurnId);
+    if (remembered) return this.fromPersisted(remembered, 'DUPLICATE');
+    const answered = await this.turns.findOne({ where: { sessionId, clientTurnId } });
+    if (!answered) return null;
+    const current = await this.turns.findOne({
       where: { sessionId, answeredAt: IsNull() },
       order: { turnOrder: 'DESC' },
     });
-    if (!currentTurn) throw new BadRequestException('Interview session has no pending question');
+    return this.duplicateFromTurn(answered, current);
+  }
 
-    const topics = this.agendaTopics(session.agenda);
-    const state = this.realtimeState(session, currentTurn, topics);
-    const nextTopic = this.nextTopic(topics, state, dto.transcript);
-    const language = session.language === 'en' ? 'en' : 'vi';
-    const answerAnalysis = analyzeAnswerSignals({
-      answer: dto.transcript,
-      language,
-    });
-    const captureInvalid = this.isInvalidCapture(dto, currentTurn);
-    const answerSignal = this.effectiveAnswerSignal(dto.intent, dto.answerSignal, answerAnalysis);
-    const result = this.policy.decide({
-      captureInvalid,
-      experienceMode: session.experienceMode ?? 'MOCK',
-      intent: dto.intent,
-      answerSignal,
-      state,
-      nextTopicId: nextTopic?.id ?? null,
-      nextQuestionThreadId: nextTopic ? crypto.randomUUID() : null,
-    });
-    const fallbackQuestion = this.fallbackQuestion(
-      result.action,
-      currentTurn,
-      nextTopic,
-      language,
-      answerAnalysis,
+  private duplicateFromTurn(
+    answered: InterviewTurnEntity,
+    current: InterviewTurnEntity | null,
+  ): RealtimeExchangeResponseDto {
+    const transcript = [current?.interviewerMessage, current?.interviewerQuestion]
+      .filter(Boolean)
+      .join(' ');
+    return this.response(
+      answered.clientTurnId ?? '',
+      'DUPLICATE',
+      answered.id,
+      current?.id ?? null,
+      answered.assistantResponseId,
+      transcript,
+      current?.interviewerQuestion ?? null,
+      !current,
     );
-    const entity = this.directives.create({
-      sessionId,
-      turnId: currentTurn.id,
-      clientTurnId: dto.clientTurnId,
-      transcript: captureInvalid ? '' : dto.transcript,
-      modality: dto.modality,
-      intent: dto.intent,
-      answerSignal,
-      action: result.action,
-      consumesAttempt: result.consumesAttempt,
-      topicId: result.state.topicId,
-      questionThreadId: result.state.questionThreadId,
-      difficultyStep: result.state.difficultyStep,
-      assistanceLevel: result.assistanceLevel,
-      scoreCap: result.scoreCap,
-      threadScore: result.threadScore,
-      finished: result.finished,
-      questionGoal: fallbackQuestion,
-      reasons: result.reasons,
-      speechEndedAt: dto.speechEndedAt ? new Date(dto.speechEndedAt) : null,
-    });
-
-    let saved: InterviewRealtimeDirectiveEntity;
-    try {
-      saved = await this.directives.save(entity);
-    } catch (error) {
-      if (!this.isUniqueViolation(error)) throw error;
-      const duplicate = await this.directives.findOne({
-        where: { sessionId, clientTurnId: dto.clientTurnId },
-      });
-      if (!duplicate) throw error;
-      return this.toDirectiveDto(duplicate);
-    }
-
-    if (result.consumesAttempt) {
-      currentTurn.userAnswerText = dto.transcript;
-      currentTurn.userAnswerTranscript = dto.modality === 'AUDIO' ? dto.transcript : null;
-      currentTurn.modality = dto.modality;
-      currentTurn.answeredAt = dto.speechEndedAt ? new Date(dto.speechEndedAt) : new Date();
-      currentTurn.durationSeconds = dto.durationSeconds ?? null;
-      currentTurn.responseDelayMs = dto.responseDelayMs ?? null;
-      currentTurn.transcriptSegments = dto.transcriptSegments ?? null;
-      currentTurn.clientTurnId = dto.clientTurnId;
-      currentTurn.directiveId = saved.id;
-      currentTurn.candidateIntent = dto.intent;
-      currentTurn.assistanceLevel = result.assistanceLevel;
-      currentTurn.scoreCap = result.scoreCap;
-      currentTurn.skipReason = dto.intent === 'SKIP' ? result.reasons[0] : null;
-      currentTurn.perQuestionScore =
-        result.threadScore === null ? null : String(result.threadScore);
-      await this.turns.save(currentTurn);
-    }
-
-    session.interviewState = this.withRealtimeState(session.interviewState, {
-      ...result.state,
-      topicHistory: this.nextTopicHistory(state.topicHistory, result.state.topicId),
-      questionFingerprints: state.questionFingerprints,
-    });
-    await this.sessions.save(session);
-    return this.toDirectiveDto(saved);
   }
 
-  async commitAssistantMessage(
-    userId: string,
-    sessionId: string,
-    directiveId: string,
-    dto: CommitRealtimeAssistantMessageDto,
-  ): Promise<{ directive: RealtimeTurnDirectiveDto; turnId: string | null }> {
-    const session = await this.ownedSession(userId, sessionId);
-    const directive = await this.directives.findOne({ where: { id: directiveId, sessionId } });
-    if (!directive) throw new NotFoundException('Interview directive not found');
-    if (directive.committedAt) {
-      const persistedTurn = await this.turns.findOne({
-        where: { sourceDirectiveId: directive.id },
-      });
-      return {
-        directive: this.toDirectiveDto(directive),
-        turnId: persistedTurn?.id ?? directive.turnId,
-      };
-    }
-
-    directive.assistantResponseId = dto.responseId;
-    directive.assistantMessage = dto.interviewerMessage ?? null;
-    directive.assistantQuestion = dto.interviewerQuestion;
-    directive.firstAudioAt = dto.firstAudioAt ? new Date(dto.firstAudioAt) : null;
-    directive.assistantInterrupted = dto.interrupted ?? false;
-    directive.committedAt = new Date();
-
-    let turnId: string | null = directive.turnId;
-    const preservesConsumedAttempt =
-      directive.action === 'LOWER_DIFFICULTY' && directive.consumesAttempt;
-    if (
-      (this.createsQuestionTurn(directive.action) || preservesConsumedAttempt) &&
-      !directive.finished
-    ) {
-      const current = await this.turns.findOne({
-        where: { id: directive.turnId ?? undefined, sessionId },
-      });
-      const alreadyCreated = await this.turns.findOne({
-        where: { sourceDirectiveId: directive.id },
-      });
-      if (alreadyCreated) {
-        turnId = alreadyCreated.id;
-      } else if (current) {
-        const agendaTopic = this.agendaTopics(session.agenda).find(
-          (topic) => topic.id === directive.topicId,
-        );
-        const usesCuratedQuestion = directive.action === 'ADVANCE_TOPIC';
-        const next = this.turns.create({
-          sessionId,
-          turnOrder: current.turnOrder + 1,
-          phase: (agendaTopic?.phase as InterviewTurnEntity['phase'] | undefined) ?? current.phase,
-          topicPhase:
-            (agendaTopic?.phase as InterviewTurnEntity['topicPhase'] | undefined) ??
-            current.topicPhase,
-          modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
-          interviewerMessage: dto.interviewerMessage ?? null,
-          interviewerQuestion: dto.interviewerQuestion,
-          questionThreadId: directive.questionThreadId,
-          sourceDirectiveId: directive.id,
-          currentThread: agendaTopic?.what_to_probe ?? directive.questionGoal,
-          skillCanonical: agendaTopic?.skill_canonical ?? current.skillCanonical,
-          questionBankItemId: usesCuratedQuestion
-            ? (agendaTopic?.question_bank_item_id ?? null)
-            : null,
-          questionBankKey: usesCuratedQuestion ? (agendaTopic?.question_bank_key ?? null) : null,
-          timeBudgetSeconds: directive.action === 'FOLLOW_UP' ? 60 : 90,
-        });
-        turnId = (await this.turns.save(next)).id;
-      }
-    } else if (!directive.finished && directive.turnId) {
-      const current = await this.turns.findOne({ where: { id: directive.turnId, sessionId } });
-      if (current) {
-        current.interviewerMessage = dto.interviewerMessage ?? null;
-        current.interviewerQuestion = dto.interviewerQuestion;
-        current.questionThreadId = directive.questionThreadId;
-        current.assistanceLevel = directive.assistanceLevel as InterviewAssistanceLevel;
-        current.scoreCap = directive.scoreCap;
-        current.answeredAt = null;
-        current.userAnswerText = null;
-        current.userAnswerTranscript = null;
-        turnId = (await this.turns.save(current)).id;
-      }
-    }
-
-    const state = this.realtimeState(session, null, this.agendaTopics(session.agenda));
-    const fingerprint = this.fingerprint(dto.interviewerQuestion);
-    session.interviewState = this.withRealtimeState(session.interviewState, {
-      ...state,
-      questionFingerprints: fingerprint
-        ? [
-            ...state.questionFingerprints.filter((value) => value !== fingerprint),
-            fingerprint,
-          ].slice(-100)
-        : state.questionFingerprints,
-    });
-    await this.sessions.save(session);
-    await this.directives.save(directive);
-    return { directive: this.toDirectiveDto(directive), turnId };
+  private response(
+    clientTurnId: string,
+    disposition: RealtimeExchangeDisposition,
+    answeredTurnId: string | null,
+    currentTurnId: string | null,
+    responseId: string | null,
+    transcript: string,
+    question: string | null,
+    finished: boolean,
+  ): RealtimeExchangeResponseDto {
+    return {
+      clientTurnId,
+      disposition,
+      answeredTurnId,
+      currentTurnId,
+      assistant: transcript ? { responseId, transcript, question } : null,
+      finished,
+    };
   }
 
-  private async ownedSession(userId: string, sessionId: string): Promise<InterviewSessionEntity> {
-    const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
-    if (!session) throw new NotFoundException('Interview session not found');
-    if (session.status !== 'IN_PROGRESS')
-      throw new ConflictException('Interview session has ended');
-    return session;
+  private rememberExchange(
+    session: InterviewSessionEntity,
+    state: RealtimeStateV3,
+    response: RealtimeExchangeResponseDto,
+  ): void {
+    const persisted: PersistedExchange = {
+      clientTurnId: response.clientTurnId,
+      disposition: response.disposition,
+      answeredTurnId: response.answeredTurnId,
+      currentTurnId: response.currentTurnId,
+      responseId: response.assistant?.responseId ?? null,
+      transcript: response.assistant?.transcript ?? '',
+      question: response.assistant?.question ?? null,
+      finished: response.finished,
+    };
+    state.exchanges = [
+      ...state.exchanges.filter((entry) => entry.clientTurnId !== persisted.clientTurnId),
+      persisted,
+    ].slice(-50);
+    const root = this.stateRoot(session.interviewState);
+    session.interviewState = { ...root, realtime: state };
+  }
+
+  private fromPersisted(
+    value: PersistedExchange,
+    disposition: RealtimeExchangeDisposition,
+  ): RealtimeExchangeResponseDto {
+    return this.response(
+      value.clientTurnId,
+      disposition,
+      value.answeredTurnId,
+      value.currentTurnId,
+      value.responseId,
+      value.transcript,
+      value.question,
+      value.finished,
+    );
+  }
+
+  private realtimeState(
+    session: InterviewSessionEntity,
+    current: InterviewTurnEntity | null,
+    topics: RealtimeAgendaTopic[],
+  ): RealtimeStateV3 {
+    const root = this.stateRoot(session.interviewState);
+    const raw =
+      root.realtime && typeof root.realtime === 'object'
+        ? (root.realtime as Record<string, unknown>)
+        : {};
+    const exchanges = Array.isArray(raw.exchanges)
+      ? raw.exchanges.filter(this.isPersistedExchange)
+      : [];
+    return {
+      protocolVersion: 'interview-realtime-v3',
+      currentTopicId:
+        typeof raw.currentTopicId === 'string'
+          ? raw.currentTopicId
+          : typeof raw.topicId === 'string'
+            ? raw.topicId
+            : (topics.find((topic) => topic.skill_canonical === current?.skillCanonical)?.id ??
+              topics[0]?.id ??
+              null),
+      topicHistory: Array.isArray(raw.topicHistory)
+        ? raw.topicHistory.filter((value): value is string => typeof value === 'string')
+        : [],
+      questionFingerprints: Array.isArray(raw.questionFingerprints)
+        ? raw.questionFingerprints.filter((value): value is string => typeof value === 'string')
+        : [],
+      probeCount: typeof raw.probeCount === 'number' ? raw.probeCount : 0,
+      noAnswerCount: typeof raw.noAnswerCount === 'number' ? raw.noAnswerCount : 0,
+      exchanges,
+    };
+  }
+
+  private stateRoot(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private isPersistedExchange(value: unknown): value is PersistedExchange {
+    return Boolean(
+      value &&
+      typeof value === 'object' &&
+      typeof (value as PersistedExchange).clientTurnId === 'string',
+    );
   }
 
   private agendaTopics(value: unknown): RealtimeAgendaTopic[] {
@@ -287,233 +522,194 @@ export class InterviewRealtimeService {
     );
   }
 
-  private realtimeState(
-    session: InterviewSessionEntity,
-    currentTurn: InterviewTurnEntity | null,
+  private topicForCurrent(
     topics: RealtimeAgendaTopic[],
-  ): RealtimeInterviewState {
-    const root =
-      session.interviewState && typeof session.interviewState === 'object'
-        ? (session.interviewState as Record<string, unknown>)
-        : {};
-    const value = root.realtime;
-    if (value && typeof value === 'object') return value as RealtimeInterviewState;
-    return {
-      topicId: topics[0]?.id ?? currentTurn?.skillCanonical ?? 'general',
-      questionThreadId: currentTurn?.questionThreadId ?? crypto.randomUUID(),
-      difficultyStep: 0,
-      noAnswerCount: 0,
-      probeCount: 0,
-      assistanceLevel: 'NONE',
-      scoreCap: null,
-      topicHistory: [],
-      questionFingerprints: [],
-    };
+    state: RealtimeStateV3,
+    current: InterviewTurnEntity,
+  ): RealtimeAgendaTopic | null {
+    return (
+      topics.find((topic) => topic.id === state.currentTopicId) ??
+      topics.find((topic) => topic.skill_canonical === current.skillCanonical) ??
+      null
+    );
   }
 
-  private withRealtimeState(
-    rootValue: unknown,
-    state: RealtimeInterviewState,
-  ): Record<string, unknown> {
-    const root =
-      rootValue && typeof rootValue === 'object' ? (rootValue as Record<string, unknown>) : {};
-    return { ...root, realtime: state };
-  }
-
-  private nextTopic(
+  private selectNextTopic(
     topics: RealtimeAgendaTopic[],
-    state: RealtimeInterviewState,
-    transcript: string,
+    state: RealtimeStateV3,
+    context: string,
   ): RealtimeAgendaTopic | null {
     const remaining = topics.filter(
-      (topic) => topic.id !== state.topicId && !state.topicHistory.includes(topic.id),
+      (topic) => topic.id !== state.currentTopicId && !state.topicHistory.includes(topic.id),
     );
     if (remaining.length === 0) return null;
-
-    const phaseOrder = [
-      'SCREENING',
-      'SKILL_PROBE',
-      'JD_REQUIREMENT',
-      'SCENARIO',
-      'BEHAVIORAL',
-      'WRAP',
-    ];
-    const current = topics.find((topic) => topic.id === state.topicId);
-    const currentRank = Math.max(0, phaseOrder.indexOf(current?.phase ?? 'SCREENING'));
-    const hasSkillProbe = remaining.some(
-      (topic) => phaseOrder.indexOf(topic.phase ?? 'SKILL_PROBE') < phaseOrder.indexOf('SCENARIO'),
+    const nonScenario = remaining.filter(
+      (topic) => !['SCENARIO', 'BEHAVIORAL'].includes(topic.phase ?? ''),
     );
-    const candidates =
-      currentRank === 0 && hasSkillProbe
-        ? remaining.filter(
-            (topic) =>
-              phaseOrder.indexOf(topic.phase ?? 'SKILL_PROBE') < phaseOrder.indexOf('SCENARIO'),
-          )
-        : remaining;
-    const mentioned = new Set(
-      this.skillScanner.scan(transcript).map((skill) => skill.canonical_name),
-    );
-    const relevance = (topic: RealtimeAgendaTopic): number =>
-      topic.skill_canonical && mentioned.has(topic.skill_canonical) ? 1 : 0;
-    return [...candidates].sort((left, right) => {
-      const difference = relevance(right) - relevance(left);
-      return difference !== 0 ? difference : topics.indexOf(left) - topics.indexOf(right);
+    const pool = state.topicHistory.length < 2 && nonScenario.length > 0 ? nonScenario : remaining;
+    const mentioned = new Set(this.skillScanner.scan(context).map((skill) => skill.canonical_name));
+    return [...pool].sort((left, right) => {
+      const skillDifference =
+        Number(Boolean(right.skill_canonical && mentioned.has(right.skill_canonical))) -
+        Number(Boolean(left.skill_canonical && mentioned.has(left.skill_canonical)));
+      if (skillDifference !== 0) return skillDifference;
+      const phaseDifference = this.phaseRank(left.phase) - this.phaseRank(right.phase);
+      return phaseDifference !== 0 ? phaseDifference : topics.indexOf(left) - topics.indexOf(right);
     })[0];
   }
-  private nextTopicHistory(history: string[], topicId: string): string[] {
-    return history.includes(topicId) ? history : [...history, topicId];
+
+  private phaseRank(phase?: string): number {
+    const rank = PHASE_ORDER.indexOf(phase ?? 'SKILL_PROBE');
+    return rank < 0 ? PHASE_ORDER.length : rank;
   }
 
-  private effectiveAnswerSignal(
-    intent: string,
-    answerSignal: RealtimeAnswerSignal,
-    signals: AnswerSignals,
-  ): RealtimeAnswerSignal {
-    if (intent !== 'ANSWER' || answerSignal !== 'COMPLETE') return answerSignal;
-    return signals.flags.is_too_short ? 'PARTIAL' : answerSignal;
-  }
-  private fallbackQuestion(
-    action: InterviewDirectiveAction,
-    current: InterviewTurnEntity,
-    nextTopic: RealtimeAgendaTopic | null,
-    language: 'vi' | 'en',
-    signals: AnswerSignals,
-  ): string {
-    if (action === 'RETRY_CAPTURE') {
-      return language === 'vi'
-        ? 'Mình chưa nghe rõ phần vừa rồi. Bạn có thể nói lại ngắn gọn câu trả lời cho câu hỏi hiện tại không?'
-        : 'I could not clearly capture that. Could you briefly repeat your answer to the current question?';
-    }
-
-    if (action === 'ADVANCE_TOPIC') {
-      return (
-        nextTopic?.seed_question ??
-        (language === 'vi'
-          ? 'Bạn có thể chia sẻ một ví dụ khác liên quan đến năng lực tiếp theo không?'
-          : 'Could you share another example related to the next competency?')
-      );
-    }
-    if (action === 'REPEAT') return current.interviewerQuestion;
-    if (action === 'FOLLOW_UP') {
-      if (signals.ownership.first_person === 0) {
-        return language === 'vi'
-          ? 'Trong ví dụ đó, phần nào bạn trực tiếp thiết kế hoặc triển khai?'
-          : 'In that example, which part did you personally design or implement?';
+  private advanceState(
+    state: RealtimeStateV3,
+    topic: RealtimeAgendaTopic | null,
+    question: string,
+    sameThread: boolean,
+  ): void {
+    if (topic) {
+      if (state.currentTopicId && !state.topicHistory.includes(state.currentTopicId)) {
+        state.topicHistory.push(state.currentTopicId);
       }
-      if (signals.flags.no_concrete_example || !signals.star.action || signals.word_count < 35) {
-        return language === 'vi'
-          ? 'Trong phần việc đó, quyết định kỹ thuật cụ thể nào do bạn trực tiếp đưa ra?'
-          : 'What specific technical decision did you personally make in that work?';
-      }
-      if (!signals.star.result || !signals.is_quantified) {
-        return language === 'vi'
-          ? 'Kết quả cụ thể của phần việc đó là gì?'
-          : 'What concrete result came from that work?';
-      }
-      return language === 'vi'
-        ? 'Trade-off khó nhất trong quyết định đó là gì?'
-        : 'What was the hardest trade-off in that decision?';
+      state.currentTopicId = topic.id;
     }
-    if (action === 'LOWER_DIFFICULTY' || action === 'DECLINE_COACHING') {
-      if (current.phase === 'SCREENING' || current.topicPhase === 'SCREENING') {
-        return language === 'vi'
-          ? 'Trong dự án gần nhất, bạn đã trực tiếp triển khai một tính năng nào và tính năng đó hoạt động ra sao?'
-          : 'In your most recent project, which feature did you personally implement and how did it work?';
-      }
-
-      const skill = this.publicSkillLabel(current.skillCanonical, language);
-      return language === 'vi'
-        ? 'Với ' + skill + ', bạn sẽ bắt đầu xử lý một tình huống cơ bản như thế nào?'
-        : 'With ' + skill + ', how would you start handling a basic situation?';
+    state.probeCount = sameThread ? state.probeCount + 1 : 0;
+    state.noAnswerCount = sameThread ? state.noAnswerCount + 1 : 0;
+    const fingerprint = this.fingerprint(question);
+    if (fingerprint && !state.questionFingerprints.includes(fingerprint)) {
+      state.questionFingerprints.push(fingerprint);
+      state.questionFingerprints = state.questionFingerprints.slice(-100);
     }
-    if (action === 'GIVE_HINT') {
-      return language === 'vi'
-        ? `Gợi ý ngắn: hãy bắt đầu từ phần bạn trực tiếp thực hiện. ${current.interviewerQuestion}`
-        : `A short hint: start with what you personally did. ${current.interviewerQuestion}`;
-    }
-    if (action === 'GIVE_FEEDBACK') {
-      return language === 'vi'
-        ? `Nhận xét nhanh: hãy làm rõ vai trò và kết quả của bạn. ${current.interviewerQuestion}`
-        : `Quick feedback: make your role and result clearer. ${current.interviewerQuestion}`;
-    }
-    if (action === 'CLARIFY') {
-      return language === 'vi'
-        ? 'Câu hỏi này muốn biết một quyết định cụ thể của bạn trong tình huống vừa nêu.'
-        : 'This question asks for one specific decision you made in the situation you described.';
-    }
-    if (action === 'WRAP_UP') {
-      return language === 'vi'
-        ? 'Cảm ơn bạn. Buổi phỏng vấn của chúng ta kết thúc tại đây.'
-        : 'Thank you. This concludes our interview.';
-    }
-    return current.interviewerQuestion;
-  }
-  private publicSkillLabel(
-    skillCanonical: string | null | undefined,
-    language: 'vi' | 'en',
-  ): string {
-    const value = skillCanonical
-      ?.trim()
-      .replace(/[_-]+/g, ' ')
-      .replace(/[^a-zA-Z0-9+#. ]+/g, '');
-    if (value) return value;
-    return language === 'vi' ? 'chủ đề này' : 'this topic';
-  }
-  private isInvalidCapture(dto: RealtimeInterviewTurnDto, current: InterviewTurnEntity): boolean {
-    if (dto.modality !== 'AUDIO') return false;
-    const transcript = dto.transcript.trim().normalize('NFC');
-    if (!transcript) return true;
-    if (/[\u3400-\u9FFF\uF900-\uFAFF]/u.test(transcript)) return true;
-    if (/you are english|english interview|preserve technical terms/i.test(transcript)) {
-      return true;
-    }
-    if (this.fingerprint(transcript) === this.fingerprint(current.interviewerQuestion)) {
-      return true;
-    }
-    const explicitNoAnswer =
-      /\b(?:i do not know|i don't know|no idea|không biết|không rõ|chịu|bỏ qua)\b/iu.test(
-        transcript,
-      );
-    const tokens = transcript.match(/[\p{L}\p{N}+#.]+/gu) ?? [];
-    return (
-      (dto.answerSignal === 'NO_ANSWER' || dto.answerSignal === 'OFF_TOPIC') &&
-      tokens.length < 3 &&
-      !explicitNoAnswer
-    );
   }
 
-  private createsQuestionTurn(action: string): boolean {
-    return action === 'FOLLOW_UP' || action === 'ADVANCE_TOPIC';
+  private applyControl(
+    turn: InterviewTurnEntity,
+    intent: CandidateIntent,
+    assistantTranscript: string,
+  ): void {
+    const question = this.extractQuestion(assistantTranscript);
+    if (question) turn.interviewerQuestion = question;
+    turn.interviewerMessage = question ? this.extractBridge(assistantTranscript, question) : null;
+    turn.assistantResponseId = null;
+    if (intent === 'EASIER') {
+      turn.assistanceLevel = turn.assistanceLevel === 'HINT' ? 'HINT' : 'EASIER';
+      turn.scoreCap = this.lowerCap(turn.scoreCap, 75);
+    }
+    if (intent === 'HINT') {
+      turn.assistanceLevel = 'HINT';
+      turn.scoreCap = this.lowerCap(turn.scoreCap, 60);
+    }
   }
 
-  private toDirectiveDto(value: InterviewRealtimeDirectiveEntity): RealtimeTurnDirectiveDto {
-    return {
-      directiveId: value.id,
-      action: value.action as InterviewDirectiveAction,
-      topicId: value.topicId,
-      questionThreadId: value.questionThreadId,
-      difficultyStep: value.difficultyStep,
-      assistanceLevel: value.assistanceLevel as InterviewAssistanceLevel,
-      scoreCap: value.scoreCap,
-      threadScore: value.threadScore,
-      consumesAttempt: value.consumesAttempt,
-      fallbackQuestion: value.questionGoal,
-      finished: value.finished,
-    };
+  private applyConsumedAssistance(
+    turn: InterviewTurnEntity,
+    intent: CandidateIntent,
+    state: RealtimeStateV3,
+  ): void {
+    if (intent === 'SKIP') {
+      turn.assistanceLevel = 'SKIPPED';
+      turn.scoreCap = 0;
+      turn.skipReason = 'candidate_skip';
+    } else if (intent === 'NO_ANSWER') {
+      const cap = state.noAnswerCount === 0 ? 75 : 0;
+      turn.assistanceLevel = 'EASIER';
+      turn.scoreCap = this.lowerCap(turn.scoreCap, cap);
+    } else {
+      turn.assistanceLevel = turn.assistanceLevel ?? 'NONE';
+    }
+  }
+
+  private lowerCap(current: number | null, next: number): number {
+    return current === null ? next : Math.min(current, next);
+  }
+
+  private fallbackQuestion(topic: RealtimeAgendaTopic | null, language: string): string {
+    const seed = topic?.seed_question?.trim();
+    if (seed) return seed;
+    return language === 'en'
+      ? 'What technical decision from that work would you like to explain in more detail?'
+      : 'Bạn có thể chia sẻ thêm một quyết định kỹ thuật quan trọng trong phần việc đó không?';
+  }
+  private extractQuestion(transcript: string): string | null {
+    const normalized = transcript.replace(/\s+/g, ' ').trim();
+    const matches = normalized.match(/[^.!?？]+[?？]/g);
+    const question = matches?.at(-1)?.trim();
+    if (question) return question;
+    return null;
+  }
+
+  private extractBridge(transcript: string, question: string): string | null {
+    const bridge = transcript.slice(0, transcript.lastIndexOf(question)).trim();
+    return bridge || null;
+  }
+
+  private assertPublicAssistant(transcript: string, language: string): void {
+    const normalized = transcript.toLowerCase();
+    if (INTERNAL_MARKERS.some((marker) => normalized.includes(marker))) {
+      throw new BadRequestException({
+        errorCode: 'INTERVIEW_INTERNAL_OUTPUT_BLOCKED',
+        message: 'The assistant response contained internal instructions.',
+      });
+    }
+    if (
+      (language === 'vi' || language === 'en') &&
+      /[\u3400-\u9fff\uf900-\ufaff]/u.test(transcript)
+    ) {
+      throw new BadRequestException({
+        errorCode: 'INTERVIEW_LANGUAGE_OUTPUT_BLOCKED',
+        message: 'The assistant response did not match the session language.',
+      });
+    }
+  }
+
+  private durationSeconds(start?: string, end?: string): number | null {
+    if (!start || !end) return null;
+    const duration = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+    return Number.isFinite(duration) ? Math.max(0, duration) : null;
+  }
+
+  private fingerprint(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9+#. ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 220);
+  }
+
+  private compactContext(value: unknown): string {
+    if (!value) return '';
+    try {
+      return JSON.stringify(value).slice(0, 6000);
+    } catch {
+      return '';
+    }
+  }
+
+  private async recentQuestions(sessionId: string): Promise<string[]> {
+    const turns = await this.turns.find({
+      where: { sessionId },
+      order: { turnOrder: 'DESC' },
+      take: 10,
+    });
+    return turns.map((turn) => turn.interviewerQuestion);
+  }
+
+  private async currentTurnId(sessionId: string): Promise<string | null> {
+    const turn = await this.turns.findOne({
+      where: { sessionId, answeredAt: IsNull() },
+      order: { turnOrder: 'DESC' },
+    });
+    return turn?.id ?? null;
   }
 
   private isUniqueViolation(error: unknown): boolean {
-    return Boolean(
-      error && typeof error === 'object' && (error as { code?: unknown }).code === '23505',
-    );
-  }
-
-  private fingerprint(question: string): string {
-    return question
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9+#.]+/g, ' ')
-      .trim();
+    if (!error || typeof error !== 'object') return false;
+    const code = (error as { code?: unknown }).code;
+    return code === '23505' || code === 'SQLITE_CONSTRAINT';
   }
 }

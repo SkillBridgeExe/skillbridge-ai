@@ -1,364 +1,300 @@
-import { NotFoundException } from '@nestjs/common';
-import { ObjectLiteral, Repository } from 'typeorm';
-import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
+import { ConflictException } from '@nestjs/common';
+import { EntityManager, Repository } from 'typeorm';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
-import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
+import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { InterviewRealtimeService } from './interview-realtime.service';
-import { InterviewTurnPolicyService } from './interview-turn-policy.service';
 
-type RepoMock<T extends ObjectLiteral> = Pick<Repository<T>, 'findOne' | 'create' | 'save'>;
-
-describe('InterviewRealtimeService', () => {
-  const session = {
-    id: '11111111-1111-4111-8111-111111111111',
+function sessionFixture(overrides: Partial<InterviewSessionEntity> = {}): InterviewSessionEntity {
+  return {
+    id: 'session-1',
     userId: 'user-1',
     status: 'IN_PROGRESS',
+    language: 'vi',
+    mode: 'VOICE',
     experienceMode: 'MOCK',
+    interviewType: 'TECHNICAL',
+    targetRole: 'backend_developer',
     agenda: {
       topics: [
-        { id: 'api', what_to_probe: 'API trade-offs', seed_question: 'Design an API.' },
+        { id: 'screening-1', phase: 'SCREENING', seed_question: 'Giới thiệu dự án gần nhất.' },
         {
-          id: 'cache',
-          what_to_probe: 'Cache trade-offs',
-          seed_question: 'Design a cache.',
+          id: 'auth-1',
           phase: 'SKILL_PROBE',
-          skill_canonical: 'redis',
-          question_bank_key: 'backend-redis-01',
+          skill_canonical: 'jwt',
+          what_to_probe: 'JWT, OAuth và session',
+          seed_question: 'Bạn quản lý JWT và session như thế nào?',
         },
+        { id: 'scenario-1', phase: 'SCENARIO', seed_question: 'Bạn xử lý sự cố ra sao?' },
       ],
     },
     interviewState: {
       realtime: {
-        topicId: 'api',
-        questionThreadId: '22222222-2222-4222-8222-222222222222',
-        difficultyStep: 0,
-        noAnswerCount: 0,
-        probeCount: 0,
-        assistanceLevel: 'NONE',
-        scoreCap: null,
-        topicHistory: ['api'],
+        protocolVersion: 'interview-realtime-v3',
+        currentTopicId: 'screening-1',
+        topicHistory: [],
         questionFingerprints: [],
+        probeCount: 0,
+        noAnswerCount: 0,
+        exchanges: [],
       },
     },
-  } as unknown as InterviewSessionEntity;
-  const currentTurn = {
-    id: '33333333-3333-4333-8333-333333333333',
-    sessionId: session.id,
+    contextSnapshot: null,
+    ...overrides,
+  } as InterviewSessionEntity;
+}
+
+function turnFixture(overrides: Partial<InterviewTurnEntity> = {}): InterviewTurnEntity {
+  return {
+    id: 'question-1',
+    sessionId: 'session-1',
     turnOrder: 1,
-    interviewerQuestion: 'Design an API.',
-    currentThread: 'API trade-offs',
-    questionThreadId: '22222222-2222-4222-8222-222222222222',
+    phase: 'SCREENING',
+    topicPhase: 'SCREENING',
+    modality: 'AUDIO',
+    interviewerMessage: null,
+    interviewerQuestion: 'Hãy giới thiệu dự án gần nhất. Bạn phụ trách phần nào?',
+    userAnswerText: null,
+    userAnswerTranscript: null,
     answeredAt: null,
+    durationSeconds: null,
+    responseDelayMs: null,
+    transcriptSegments: null,
+    clientTurnId: null,
+    candidateIntent: null,
+    questionThreadId: 'thread-1',
+    assistanceLevel: 'NONE',
+    scoreCap: null,
+    skipReason: null,
+    assistantResponseId: null,
+    firstAudioAt: null,
+    assistantInterrupted: false,
+    currentThread: 'recent project ownership',
+    skillCanonical: null,
+    questionBankItemId: null,
+    questionBankKey: null,
+    timeBudgetSeconds: 90,
+    ...overrides,
   } as InterviewTurnEntity;
+}
 
-  function createService(existingDirective: InterviewRealtimeDirectiveEntity | null = null) {
-    const sessions = {
-      findOne: jest.fn().mockResolvedValue(session),
-      create: jest.fn(),
-      save: jest.fn(async (value) => value),
-    } as unknown as RepoMock<InterviewSessionEntity>;
-    const turns = {
-      findOne: jest.fn().mockResolvedValue(currentTurn),
-      create: jest.fn((value) => value),
-      save: jest.fn(async (value) => value),
-    } as unknown as RepoMock<InterviewTurnEntity>;
-    const directives = {
-      findOne: jest.fn().mockResolvedValue(existingDirective),
-      create: jest.fn((value) => ({ id: '44444444-4444-4444-8444-444444444444', ...value })),
-      save: jest.fn(async (value) => value),
-    } as unknown as RepoMock<InterviewRealtimeDirectiveEntity>;
-    const service = new InterviewRealtimeService(
-      sessions as Repository<InterviewSessionEntity>,
-      turns as Repository<InterviewTurnEntity>,
-      directives as Repository<InterviewRealtimeDirectiveEntity>,
-      new InterviewTurnPolicyService(),
-      {
-        scan: jest.fn(() => []),
-      } as unknown as SkillTextScannerService,
-    );
-    return { service, sessions, turns, directives };
-  }
+function createHarness(
+  options: {
+    session?: InterviewSessionEntity;
+    current?: InterviewTurnEntity | null;
+  } = {},
+) {
+  const session = options.session ?? sessionFixture();
+  let current = options.current === undefined ? turnFixture() : options.current;
+  const savedTurns: InterviewTurnEntity[] = [];
+  const sessions = {
+    findOne: jest.fn(async () => session),
+    save: jest.fn(async (value: InterviewSessionEntity) => value),
+  };
+  const turns = {
+    findOne: jest.fn(async (query: { where?: Record<string, unknown> }) => {
+      const where = query.where ?? {};
+      if ('clientTurnId' in where) return null;
+      if ('id' in where && current?.id !== where.id) return null;
+      return current;
+    }),
+    find: jest.fn(async () => (current ? [current] : [])),
+    create: jest.fn((value: Partial<InterviewTurnEntity>) => value as InterviewTurnEntity),
+    save: jest.fn(async (value: InterviewTurnEntity) => {
+      if (!value.id) value.id = `question-${value.turnOrder}`;
+      savedTurns.push(value);
+      if (!value.answeredAt) current = value;
+      return value;
+    }),
+  };
+  const manager = {
+    getRepository: jest.fn((entity: unknown) =>
+      entity === InterviewSessionEntity ? sessions : turns,
+    ),
+    transaction: jest.fn(async (work: (value: EntityManager) => unknown) =>
+      work(manager as unknown as EntityManager),
+    ),
+  } as unknown as EntityManager;
+  const sessionsRepository = {
+    ...sessions,
+    manager,
+  } as unknown as Repository<InterviewSessionEntity>;
+  const turnsRepository = turns as unknown as Repository<InterviewTurnEntity>;
+  const chain = { ask: jest.fn() } as unknown as InterviewChainLlmService;
+  const scanner = {
+    scan: jest.fn((value: string) =>
+      /jwt|auth|session/i.test(value) ? [{ canonical_name: 'jwt' }] : [],
+    ),
+  } as unknown as SkillTextScannerService;
+  const service = new InterviewRealtimeService(sessionsRepository, turnsRepository, chain, scanner);
+  return { service, session, turns, sessions, savedTurns, chain };
+}
 
-  it('returns the persisted directive for duplicate clientTurnId without saving twice', async () => {
-    const persisted = {
-      id: '44444444-4444-4444-8444-444444444444',
-      sessionId: session.id,
-      clientTurnId: 'client-1',
-      action: 'ADVANCE_TOPIC',
-      topicId: 'cache',
-      questionThreadId: '55555555-5555-4555-8555-555555555555',
-      difficultyStep: 0,
-      assistanceLevel: 'NONE',
-      scoreCap: null,
-      threadScore: null,
-      consumesAttempt: true,
-      questionGoal: 'Cache trade-offs',
-      finished: false,
-    } as InterviewRealtimeDirectiveEntity;
-    const { service, directives, turns } = createService(persisted);
+const exchange = {
+  kind: 'REALTIME_EXCHANGE' as const,
+  clientTurnId: 'client-1',
+  questionTurnId: 'question-1',
+  input: {
+    type: 'ANSWER' as const,
+    modality: 'AUDIO' as const,
+    transcript: 'Tôi phụ trách API auth, JWT và quản lý session.',
+    intent: 'ANSWER' as const,
+    intentSource: 'VOICE_LEXICAL' as const,
+    itemIds: ['item-1'],
+    speechStartedAt: '2026-08-13T10:00:00.000Z',
+    speechEndedAt: '2026-08-13T10:00:05.000Z',
+    segmentCount: 2,
+    meanLogprob: -0.25,
+  },
+  assistant: {
+    responseId: 'resp-1',
+    transcript: 'Bạn vừa nhắc đến JWT và session. Bạn xử lý refresh token như thế nào?',
+    firstAudioAt: '2026-08-13T10:00:05.800Z',
+    interrupted: false,
+  },
+};
 
-    const result = await service.submitTurn('user-1', session.id, {
-      clientTurnId: 'client-1',
-      transcript: 'Use REST with idempotency keys.',
-      modality: 'AUDIO',
-      intent: 'ANSWER',
-      answerSignal: 'COMPLETE',
+describe('InterviewRealtimeService v3 exchange', () => {
+  it('atomically answers the active turn and persists the actual next question', async () => {
+    const { service, turns, sessions, savedTurns } = createHarness();
+
+    const result = await service.submitTurn('user-1', 'session-1', exchange);
+
+    expect(result).toMatchObject({
+      disposition: 'COMMITTED',
+      answeredTurnId: 'question-1',
+      currentTurnId: 'question-2',
+      assistant: { responseId: 'resp-1', question: 'Bạn xử lý refresh token như thế nào?' },
     });
+    expect(turns.save).toHaveBeenCalledTimes(2);
+    expect(savedTurns[0]).toMatchObject({
+      clientTurnId: 'client-1',
+      userAnswerText: 'Tôi phụ trách API auth, JWT và quản lý session.',
+      assistantResponseId: 'resp-1',
+    });
+    expect(savedTurns[1]).toMatchObject({
+      skillCanonical: 'jwt',
+      questionBankItemId: null,
+      questionBankKey: null,
+    });
+    expect(sessions.save).toHaveBeenCalledTimes(1);
+  });
 
-    expect(result.directiveId).toBe(persisted.id);
-    expect(directives.save).not.toHaveBeenCalled();
+  it('returns a remembered exchange as DUPLICATE without creating another turn', async () => {
+    const session = sessionFixture({
+      interviewState: {
+        realtime: {
+          protocolVersion: 'interview-realtime-v3',
+          currentTopicId: 'auth-1',
+          topicHistory: ['screening-1'],
+          questionFingerprints: [],
+          probeCount: 0,
+          noAnswerCount: 0,
+          exchanges: [
+            {
+              clientTurnId: 'client-1',
+              disposition: 'COMMITTED',
+              answeredTurnId: 'question-1',
+              currentTurnId: 'question-2',
+              responseId: 'resp-1',
+              transcript: 'Câu trả lời đã lưu.',
+              question: 'Câu tiếp theo?',
+              finished: false,
+            },
+          ],
+        },
+      },
+    });
+    const { service, turns } = createHarness({ session });
+
+    const result = await service.submitTurn('user-1', 'session-1', exchange);
+
+    expect(result.disposition).toBe('DUPLICATE');
     expect(turns.save).not.toHaveBeenCalled();
   });
 
-  it('rejects unsafe CJK capture without consuming the pending question', async () => {
-    const { service, turns, directives } = createService();
+  it('does not consume an attempt for CAPTURE_RETRY', async () => {
+    const { service, turns } = createHarness();
 
-    const result = await service.submitTurn('user-1', session.id, {
-      clientTurnId: 'client-cjk',
-      transcript: '我們要覺得',
-      modality: 'AUDIO',
-      intent: 'ANSWER',
+    const result = await service.submitTurn('user-1', 'session-1', {
+      ...exchange,
+      clientTurnId: 'capture-1',
+      input: {
+        ...exchange.input,
+        type: 'CAPTURE_RETRY',
+        transcript: 'phần nguyên lý ánh sáng',
+      },
+      assistant: {
+        ...exchange.assistant,
+        responseId: 'resp-retry',
+        transcript: 'Mình chưa nghe rõ. Bạn có thể nói lại câu trả lời vừa rồi không?',
+      },
+    });
 
-      answerSignal: 'OFF_TOPIC',
+    expect(result).toMatchObject({ disposition: 'CAPTURE_RETRY', answeredTurnId: null });
+    expect(turns.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps the same turn for repeat and easier controls', async () => {
+    const { service, turns } = createHarness();
+
+    const result = await service.submitTurn('user-1', 'session-1', {
+      ...exchange,
+      clientTurnId: 'control-1',
+      input: {
+        ...exchange.input,
+        type: 'CONTROL',
+        intent: 'EASIER',
+        intentSource: 'BUTTON',
+        transcript: undefined,
+      },
+      assistant: {
+        ...exchange.assistant,
+        responseId: 'resp-control',
+        transcript: 'Bạn đã trực tiếp làm tính năng backend nào trong dự án gần nhất?',
+      },
     });
 
     expect(result).toMatchObject({
-      action: 'RETRY_CAPTURE',
-      consumesAttempt: false,
-      questionThreadId: currentTurn.questionThreadId,
+      disposition: 'CONTROL_APPLIED',
+      answeredTurnId: null,
+      currentTurnId: 'question-1',
     });
-    expect(turns.save).not.toHaveBeenCalled();
-    expect(directives.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'RETRY_CAPTURE',
-        consumesAttempt: false,
-      }),
-    );
+    expect(turns.save).toHaveBeenCalledTimes(1);
+    expect(turns.save.mock.calls[0][0]).toMatchObject({ assistanceLevel: 'EASIER', scoreCap: 75 });
   });
 
-  it('returns a structured busy error while the previous directive is waiting for commit', async () => {
-    const pending = {
-      id: '66666666-6666-4666-8666-666666666666',
-      sessionId: session.id,
-      clientTurnId: 'client-pending',
-      action: 'FOLLOW_UP',
-      topicId: 'api',
-      questionThreadId: currentTurn.questionThreadId,
-      difficultyStep: 0,
-      assistanceLevel: 'NONE',
-      scoreCap: null,
-      threadScore: null,
-      consumesAttempt: true,
-      questionGoal: 'Follow up on the API.',
-      finished: false,
-      committedAt: null,
-    } as InterviewRealtimeDirectiveEntity;
-    const { service, directives, turns } = createService();
-    (directives.findOne as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(pending);
+  it('keeps a pending fallback question when playback is interrupted before a question is complete', async () => {
+    const { service, savedTurns } = createHarness();
 
-    await expect(
-      service.submitTurn('user-1', session.id, {
-        clientTurnId: 'client-next',
-        transcript: 'A second answer arrived too early.',
-        modality: 'AUDIO',
-        intent: 'ANSWER',
-        answerSignal: 'COMPLETE',
-      }),
-    ).rejects.toMatchObject({
-      response: expect.objectContaining({ errorCode: 'INTERVIEW_TURN_BUSY' }),
-    });
-    expect(turns.findOne).not.toHaveBeenCalled();
-  });
-
-  it('preserves the first no-answer attempt and creates the easier question in the same thread', async () => {
-    const directive = {
-      id: '44444444-4444-4444-8444-444444444444',
-      sessionId: session.id,
-      turnId: currentTurn.id,
-      action: 'LOWER_DIFFICULTY',
-      consumesAttempt: true,
-      topicId: 'api',
-      questionThreadId: currentTurn.questionThreadId,
-      difficultyStep: -1,
-      assistanceLevel: 'EASIER',
-      scoreCap: 75,
-      threadScore: null,
-      questionGoal: 'API trade-offs; ask one level easier',
-      finished: false,
-      committedAt: null,
-    } as InterviewRealtimeDirectiveEntity;
-    const answeredTurn = {
-      ...currentTurn,
-      userAnswerText: 'I do not know.',
-      answeredAt: new Date('2026-08-10T10:00:00.000Z'),
-    } as InterviewTurnEntity;
-    const { service, turns } = createService(directive);
-    const turnFindOne = turns.findOne as jest.Mock;
-    turnFindOne.mockResolvedValueOnce(answeredTurn).mockResolvedValueOnce(null);
-
-    await service.commitAssistantMessage('user-1', session.id, directive.id, {
-      responseId: 'response-1',
-      interviewerMessage: 'Let us simplify it.',
-      interviewerQuestion: 'What is one benefit of an idempotency key?',
-    });
-
-    expect(answeredTurn.userAnswerText).toBe('I do not know.');
-    expect(answeredTurn.answeredAt).not.toBeNull();
-    expect(turns.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        turnOrder: 2,
-        questionThreadId: currentTurn.questionThreadId,
-        interviewerQuestion: 'What is one benefit of an idempotency key?',
-        sourceDirectiveId: directive.id,
-      }),
-    );
-  });
-
-  it('creates the next turn with agenda skill and question-bank metadata instead of topic id', async () => {
-    const directive = {
-      id: '44444444-4444-4444-8444-444444444444',
-      sessionId: session.id,
-      turnId: currentTurn.id,
-      action: 'ADVANCE_TOPIC',
-      consumesAttempt: true,
-      topicId: 'cache',
-      questionThreadId: '55555555-5555-4555-8555-555555555555',
-      difficultyStep: 0,
-      assistanceLevel: 'NONE',
-      scoreCap: null,
-      threadScore: null,
-      questionGoal: 'Design a cache.',
-      finished: false,
-      committedAt: null,
-    } as InterviewRealtimeDirectiveEntity;
-    const answeredTurn = {
-      ...currentTurn,
-      answeredAt: new Date('2026-08-10T10:00:00.000Z'),
-    } as InterviewTurnEntity;
-    const { service, turns } = createService(directive);
-    const turnFindOne = turns.findOne as jest.Mock;
-    turnFindOne.mockResolvedValueOnce(answeredTurn).mockResolvedValueOnce(null);
-
-    await service.commitAssistantMessage('user-1', session.id, directive.id, {
-      responseId: 'response-cache',
-      interviewerQuestion: 'How would you design the cache?',
-    });
-
-    expect(turns.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        topicPhase: 'SKILL_PROBE',
-        skillCanonical: 'redis',
-        questionBankKey: 'backend-redis-01',
-      }),
-    );
-  });
-
-  it('returns the next seed question without internal focus or fingerprints', async () => {
-    const realtimeState = (
-      session.interviewState as {
-        realtime: { questionFingerprints: string[] };
-      }
-    ).realtime;
-    realtimeState.questionFingerprints = ['design an api'];
-    const pendingTurn = { ...currentTurn, answeredAt: null } as InterviewTurnEntity;
-    const { service, turns, directives } = createService();
-    (turns.findOne as jest.Mock).mockResolvedValue(pendingTurn);
-
-    const result = await service.submitTurn('user-1', session.id, {
-      clientTurnId: 'client-avoid-repeat',
-      transcript:
-        'I designed a REST API with idempotency keys, persisted the first response, added retries, monitored latency, and validated the approach under production traffic.',
-      modality: 'AUDIO',
-      intent: 'ANSWER',
-      answerSignal: 'COMPLETE',
-    });
-
-    expect(result).toMatchObject({ fallbackQuestion: 'Design a cache.' });
-    expect(result).not.toHaveProperty('questionGoal');
-    expect(directives.create).toHaveBeenCalledWith(
-      expect.objectContaining({ questionGoal: 'Design a cache.' }),
-    );
-    const created = (directives.create as jest.Mock).mock.calls[0][0] as {
-      questionGoal: string;
-    };
-    expect(created.questionGoal).not.toMatch(/trade-offs|fingerprints|do not repeat/i);
-  });
-
-  it('downgrades a too-short COMPLETE answer and keeps one contextual follow-up in the same thread', async () => {
-    const viSession = {
-      ...session,
-      language: 'vi',
-      interviewState: {
-        realtime: {
-          topicId: 'api',
-          questionThreadId: currentTurn.questionThreadId,
-          difficultyStep: 0,
-          noAnswerCount: 0,
-          probeCount: 0,
-          assistanceLevel: 'NONE',
-          scoreCap: null,
-          topicHistory: ['api'],
-          questionFingerprints: [],
-        },
+    const result = await service.submitTurn('user-1', 'session-1', {
+      ...exchange,
+      assistant: {
+        ...exchange.assistant,
+        transcript: 'Cảm ơn bạn đã chia sẻ về phần API auth.',
+        interrupted: true,
       },
-    } as InterviewSessionEntity;
-    const { service, sessions, turns, directives } = createService();
-    (sessions.findOne as jest.Mock).mockResolvedValue(viSession);
-    (turns.findOne as jest.Mock).mockResolvedValue({
-      ...currentTurn,
-      interviewerQuestion:
-        'Hãy giới thiệu ngắn về dự án gần nhất liên quan đến vị trí Frontend Developer. Bạn phụ trách phần nào?',
-      currentThread: 'Role-only practice for React. No CV or job description was provided.',
     });
 
-    const result = await service.submitTurn('user-1', session.id, {
-      clientTurnId: 'client-short-answer',
-      transcript: 'tôi phụ trách phần FE với 1 năm kinh nghiệm',
-      modality: 'AUDIO',
-      intent: 'ANSWER',
-      answerSignal: 'COMPLETE',
+    expect(result).toMatchObject({
+      disposition: 'COMMITTED',
+      currentTurnId: 'question-2',
+      finished: false,
+      assistant: { question: 'Bạn quản lý JWT và session như thế nào?' },
     });
-
-    expect(result.action).toBe('FOLLOW_UP');
-    expect(result.questionThreadId).toBe(currentTurn.questionThreadId);
-    expect(directives.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        answerSignal: 'PARTIAL',
-        questionGoal: expect.stringMatching(/bạn|ví dụ|cụ thể/i),
-      }),
-    );
-    const created = (directives.create as jest.Mock).mock.calls[0][0] as {
-      questionGoal: string;
-    };
-    expect(created.questionGoal).not.toMatch(
-      /Role-only practice|No CV or job description|fingerprints|scoreCap|questionGoal/i,
-    );
-    const normalizedGoal = Array.from(created.questionGoal.normalize('NFD'))
-      .filter((character) => {
-        const code = character.charCodeAt(0);
-        return code < 768 || code > 879;
-      })
-      .join('')
-      .replaceAll(String.fromCharCode(273), 'd')
-      .replaceAll(String.fromCharCode(272), 'd')
-      .toLowerCase();
-    expect(normalizedGoal).toMatch(/quyet dinh ky thuat|technical decision/i);
-    expect(normalizedGoal).not.toMatch(/gom|va ket qua|including|and the result/i);
-    expect(created.questionGoal.split('?')).toHaveLength(2);
+    expect(savedTurns[1]).toMatchObject({
+      interviewerQuestion: 'Bạn quản lý JWT và session như thế nào?',
+      skillCanonical: 'jwt',
+    });
   });
-  it('does not reveal a session owned by another user', async () => {
-    const { service, sessions } = createService();
-    (sessions.findOne as jest.Mock).mockResolvedValue(null);
+  it('returns a structured stale-question error instead of no pending question text', async () => {
+    const { service } = createHarness({ current: null });
 
-    await expect(
-      service.submitTurn('other-user', session.id, {
-        clientTurnId: 'client-2',
-        transcript: 'answer',
-        modality: 'TEXT',
-        intent: 'ANSWER',
-        answerSignal: 'COMPLETE',
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    const promise = service.submitTurn('user-1', 'session-1', exchange);
+    await expect(promise).rejects.toBeInstanceOf(ConflictException);
+    await expect(promise).rejects.toMatchObject({
+      response: { errorCode: 'INTERVIEW_STALE_QUESTION' },
+    });
   });
 });

@@ -1,5 +1,6 @@
-import { Transform } from 'class-transformer';
+﻿import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
@@ -12,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
@@ -25,18 +27,23 @@ import {
 } from '../../../database/entities/interview-session.entity';
 import { InterviewTurnPhase } from '../../../database/entities/interview-turn.entity';
 import { InterviewPhase as AgendaInterviewPhase } from '../../../modules/interview/interview-agenda';
-import {
-  CandidateIntent,
-  InterviewExperienceMode,
-  InterviewDirectiveAction,
-  RealtimeAnswerSignal,
-} from '../interview-turn-policy.service';
+import { InterviewExperienceMode } from '../../../database/entities/interview-session.entity';
 
 const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
 const LANGUAGES = ['vi', 'en'] as const;
 const MODALITIES = ['TEXT', 'AUDIO'] as const;
 const EXPERIENCE_MODES: InterviewExperienceMode[] = ['MOCK', 'PRACTICE'];
+export type CandidateIntent =
+  | 'ANSWER'
+  | 'NO_ANSWER'
+  | 'REPEAT'
+  | 'CLARIFY'
+  | 'EASIER'
+  | 'HINT'
+  | 'FEEDBACK'
+  | 'SKIP'
+  | 'END';
 const CANDIDATE_INTENTS: CandidateIntent[] = [
   'ANSWER',
   'NO_ANSWER',
@@ -48,7 +55,9 @@ const CANDIDATE_INTENTS: CandidateIntent[] = [
   'SKIP',
   'END',
 ];
-const ANSWER_SIGNALS: RealtimeAnswerSignal[] = ['COMPLETE', 'PARTIAL', 'OFF_TOPIC', 'NO_ANSWER'];
+const REALTIME_KINDS = ['REALTIME_EXCHANGE', 'TEXT_FALLBACK'] as const;
+const REALTIME_INPUT_TYPES = ['ANSWER', 'CONTROL', 'CAPTURE_RETRY'] as const;
+const INTENT_SOURCES = ['VOICE_LEXICAL', 'BUTTON', 'TEXT'] as const;
 export const INTERVIEW_CONTEXT_MODES = ['ROLE_ONLY', 'CV_ONLY', 'CV_JD_MATCH'] as const;
 export type InterviewContextMode = (typeof INTERVIEW_CONTEXT_MODES)[number];
 
@@ -126,7 +135,88 @@ export class StartPlatformInterviewDto {
   speechSpeed?: number = DEFAULT_INTERVIEW_SPEECH_SPEED;
 }
 
+export class RealtimeExchangeInputDto {
+  @ApiProperty({ enum: REALTIME_INPUT_TYPES })
+  @IsIn(REALTIME_INPUT_TYPES)
+  type!: 'ANSWER' | 'CONTROL' | 'CAPTURE_RETRY';
+
+  @ApiProperty({ enum: MODALITIES })
+  @IsIn(MODALITIES)
+  modality!: 'TEXT' | 'AUDIO';
+
+  @ApiPropertyOptional({ maxLength: 8000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  transcript?: string;
+
+  @ApiPropertyOptional({ enum: CANDIDATE_INTENTS })
+  @IsOptional()
+  @IsIn(CANDIDATE_INTENTS)
+  intent?: CandidateIntent;
+
+  @ApiProperty({ enum: INTENT_SOURCES })
+  @IsIn(INTENT_SOURCES)
+  intentSource!: 'VOICE_LEXICAL' | 'BUTTON' | 'TEXT';
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  itemIds?: string[];
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  speechStartedAt?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  speechEndedAt?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  segmentCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  meanLogprob?: number;
+}
+
+export class RealtimeExchangeAssistantDto {
+  @ApiProperty({ example: 'resp_123' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  responseId!: string;
+
+  @ApiProperty({ maxLength: 8000 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  transcript!: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  firstAudioAt?: string;
+
+  @ApiProperty({ default: false })
+  @IsBoolean()
+  interrupted!: boolean;
+}
+
 export class RealtimeInterviewTurnDto {
+  @ApiProperty({ enum: REALTIME_KINDS })
+  @IsIn(REALTIME_KINDS)
+  kind!: 'REALTIME_EXCHANGE' | 'TEXT_FALLBACK';
+
   @ApiProperty({ example: 'turn-client-1' })
   @IsString()
   @MinLength(1)
@@ -134,95 +224,55 @@ export class RealtimeInterviewTurnDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   clientTurnId!: string;
 
-  @ApiProperty({ example: 'I would use a cache-aside strategy.' })
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  questionTurnId?: string | null;
+
+  @ApiPropertyOptional({ type: RealtimeExchangeInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RealtimeExchangeInputDto)
+  input?: RealtimeExchangeInputDto;
+
+  @ApiPropertyOptional({ type: RealtimeExchangeAssistantDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RealtimeExchangeAssistantDto)
+  assistant?: RealtimeExchangeAssistantDto;
+
+  @ApiPropertyOptional({ maxLength: 8000 })
+  @IsOptional()
   @IsString()
   @MaxLength(8000)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  transcript!: string;
+  text?: string;
 
-  @ApiProperty({ enum: MODALITIES })
-  @IsIn(MODALITIES)
-  modality!: 'TEXT' | 'AUDIO';
-
-  @ApiProperty({ enum: CANDIDATE_INTENTS })
+  @ApiPropertyOptional({ enum: CANDIDATE_INTENTS })
+  @IsOptional()
   @IsIn(CANDIDATE_INTENTS)
-  intent!: CandidateIntent;
-
-  @ApiProperty({ enum: ANSWER_SIGNALS })
-  @IsIn(ANSWER_SIGNALS)
-  answerSignal!: RealtimeAnswerSignal;
-
-  @ApiPropertyOptional({ format: 'date-time' })
-  @IsOptional()
-  @IsDateString()
-  speechEndedAt?: string;
-
-  @ApiPropertyOptional({ minimum: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  durationSeconds?: number;
-
-  @ApiPropertyOptional({ minimum: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  responseDelayMs?: number;
-
-  @ApiPropertyOptional({ minimum: 1 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  transcriptSegments?: number;
+  intent?: CandidateIntent;
 }
 
-export class CommitRealtimeAssistantMessageDto {
-  @ApiProperty({ example: 'resp_123' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  responseId!: string;
+export type RealtimeExchangeDisposition =
+  | 'COMMITTED'
+  | 'DUPLICATE'
+  | 'CAPTURE_RETRY'
+  | 'CONTROL_APPLIED'
+  | 'PENDING';
 
-  @ApiPropertyOptional({ example: 'Thanks for walking me through that.' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(4000)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  interviewerMessage?: string;
-
-  @ApiProperty({ example: 'How would you invalidate stale cache entries?' })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(4000)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  interviewerQuestion!: string;
-
-  @ApiPropertyOptional({ format: 'date-time' })
-  @IsOptional()
-  @IsDateString()
-  firstAudioAt?: string;
-
-  @ApiPropertyOptional({ default: false })
-  @IsOptional()
-  @IsBoolean()
-  interrupted?: boolean;
-}
-
-export interface RealtimeTurnDirectiveDto {
-  directiveId: string;
-  action: InterviewDirectiveAction;
-  topicId: string | null;
-  questionThreadId: string;
-  difficultyStep: number;
-  assistanceLevel: 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
-  scoreCap: number | null;
-  threadScore: number | null;
-  consumesAttempt: boolean;
-  fallbackQuestion: string;
+export interface RealtimeExchangeResponseDto {
+  clientTurnId: string;
+  disposition: RealtimeExchangeDisposition;
+  answeredTurnId: string | null;
+  currentTurnId: string | null;
+  assistant: {
+    responseId: string | null;
+    transcript: string;
+    question: string | null;
+  } | null;
   finished: boolean;
 }
-
 export class EndPlatformInterviewDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -266,6 +316,8 @@ export interface RealtimeClientSecretDto {
   enabled: boolean;
   provider: 'openai';
   model: string | null;
+  protocolVersion: 'interview-realtime-v3';
+  transcriptionModel: string;
   clientSecret: string | null;
   expiresAt: string | null;
   reason?: string;
@@ -359,6 +411,7 @@ export interface InterviewSessionDto {
 }
 
 export interface StartInterviewResponseDto extends InterviewSessionDto {
+  currentTurnId: string;
   firstMessage: string;
   firstQuestion: string;
   phase: InterviewTurnPhase | null;

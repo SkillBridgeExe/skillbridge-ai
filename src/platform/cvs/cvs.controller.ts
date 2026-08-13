@@ -112,6 +112,7 @@ export class CvsController {
     FileInterceptor('file', {
       storage: memoryStorage(),
       limits: { fileSize: MAX_CV_FILE_BYTES },
+      defParamCharset: 'utf8',
     }),
   )
   create(

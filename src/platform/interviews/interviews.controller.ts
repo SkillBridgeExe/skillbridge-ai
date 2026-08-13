@@ -1,10 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+﻿import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 import {
-  CommitRealtimeAssistantMessageDto,
   EndPlatformInterviewDto,
   InterviewListQueryDto,
   RealtimeInterviewTurnDto,
@@ -72,7 +71,7 @@ export class InterviewsController {
   }
 
   @Post('sessions/:id/realtime-turn')
-  @ApiOperation({ summary: 'Resolve one low-latency realtime interview candidate turn' })
+  @ApiOperation({ summary: 'Atomically commit one Realtime interview exchange' })
   @ApiParam({ name: 'id', format: 'uuid' })
   realtimeTurn(
     @CurrentUser() user: JwtUser,
@@ -80,18 +79,5 @@ export class InterviewsController {
     @Body() body: RealtimeInterviewTurnDto,
   ) {
     return this.interviewRealtime.submitTurn(user.userId, id, body);
-  }
-
-  @Post('sessions/:id/realtime-directives/:directiveId/commit')
-  @ApiOperation({ summary: 'Commit the assistant transcript that was actually played' })
-  @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiParam({ name: 'directiveId', format: 'uuid' })
-  commitRealtimeAssistant(
-    @CurrentUser() user: JwtUser,
-    @Param('id') id: string,
-    @Param('directiveId') directiveId: string,
-    @Body() body: CommitRealtimeAssistantMessageDto,
-  ) {
-    return this.interviewRealtime.commitAssistantMessage(user.userId, id, directiveId, body);
   }
 }

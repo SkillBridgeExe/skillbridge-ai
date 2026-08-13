@@ -13,6 +13,8 @@ import { BillingFeatureKey } from '../../common/constants/billing.constants';
 import { ERROR_CODES } from '../../common/constants/error-codes';
 import { maskPii } from '../../common/services/pii-mask';
 import { deriveCvSeniority } from '../../common/services/seniority';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
+import { CanonicalCvDocument } from '../../common/types/canonical-cv';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
 import {
@@ -93,7 +95,11 @@ import {
   StartInterviewResponseDto,
   StartPlatformInterviewDto,
 } from './dto/interview.dto';
-import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
+import {
+  DEFAULT_REALTIME_TRANSCRIPTION_MODEL,
+  INTERVIEW_REALTIME_PROTOCOL_VERSION,
+  OpenAiRealtimeTokenService,
+} from './openai-realtime-token.service';
 import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { applyScoreCap, collapseQuestionThreads } from './interview-thread-scoring';
 import { resolveInterviewVoice } from './interview-voice';
@@ -250,6 +256,8 @@ export class InterviewsService {
     private readonly prompts?: PromptsService,
     @Optional()
     private readonly creditAwareUsage?: CreditAwareUsageService,
+    @Optional()
+    private readonly skillScanner?: SkillTextScannerService,
   ) {}
 
   async start(userId: string, dto: StartPlatformInterviewDto): Promise<StartInterviewResponseDto> {
@@ -288,29 +296,41 @@ export class InterviewsService {
               agendaCriteria,
               context.contextMode,
             );
-      const agenda = this.applyQuestionBankToAgenda(
-        buildInterviewAgenda({
-          focusAreas,
-          seniority: context.snapshot.interviewDifficulty.level,
-          turnBudget: this.turnBudgetForPlan(entitlements.planCode),
-        }),
-        questionBankItems,
-        agendaCriteria,
-        context.contextMode,
-      );
+      const turnBudget = this.turnBudgetForPlan(entitlements.planCode);
+      const cvAgenda =
+        context.contextMode === 'CV_ONLY' && context.cv?.parsedJson
+          ? this.buildCvOnlyAgenda(
+              context.cv.parsedJson,
+              context.targetRole,
+              language,
+              context.snapshot.interviewDifficulty.level,
+              turnBudget,
+            )
+          : null;
+      const agenda =
+        cvAgenda ??
+        this.applyQuestionBankToAgenda(
+          buildInterviewAgenda({
+            focusAreas,
+            seniority: context.snapshot.interviewDifficulty.level,
+            turnBudget,
+          }),
+          questionBankItems,
+          agendaCriteria,
+          context.contextMode,
+        );
+      this.pinOpeningQuestion(agenda, context.contextMode, context.targetRole, language);
       const questionThreadId = randomUUID();
       const interviewState = {
         ...this.initialInterviewState(agenda),
         realtime: {
-          topicId: agenda.topics[0]?.id ?? '',
-          questionThreadId,
-          difficultyStep: 0,
+          protocolVersion: 'interview-realtime-v3',
+          currentTopicId: agenda.topics[0]?.id ?? null,
           noAnswerCount: 0,
           probeCount: 0,
-          assistanceLevel: 'NONE',
-          scoreCap: null,
-          topicHistory: [agenda.topics[0]?.id].filter(Boolean),
+          topicHistory: [],
           questionFingerprints: [],
+          exchanges: [],
         },
       };
       const firstTopic = agenda.topics[0];
@@ -410,6 +430,8 @@ export class InterviewsService {
           enabled: false,
           provider: 'openai',
           model: null,
+          protocolVersion: INTERVIEW_REALTIME_PROTOCOL_VERSION,
+          transcriptionModel: DEFAULT_REALTIME_TRANSCRIPTION_MODEL,
           clientSecret: null,
           expiresAt: null,
           reason: 'Realtime setup is temporarily unavailable',
@@ -418,6 +440,7 @@ export class InterviewsService {
 
       return {
         ...this.toSessionDto(session),
+        currentTurnId: firstTurn.id,
         firstMessage,
         firstQuestion,
         phase,
@@ -633,12 +656,228 @@ export class InterviewsService {
     const realtime = await this.createRealtimeIfNeeded(
       userId,
       session,
-      this.compactRealtimeContext(session),
+      await this.compactRealtimeContextWithHistory(session),
     );
     await this.sessions.save(session);
     return realtime;
   }
 
+  private buildCvOnlyAgenda(
+    document: CanonicalCvDocument,
+    targetRole: string,
+    language: 'vi' | 'en',
+    seniority: string,
+    turnBudget: number,
+  ): InterviewAgenda | null {
+    const evidenceScore = (bullets: string[], technologies: string[] = []): number =>
+      bullets.filter(Boolean).length * 2 + technologies.filter(Boolean).length;
+    const projects = [...document.projects].sort(
+      (left, right) =>
+        evidenceScore(right.bullets, right.tech) - evidenceScore(left.bullets, left.tech),
+    );
+    const experiences = [...document.experience].sort(
+      (left, right) => evidenceScore(right.bullets) - evidenceScore(left.bullets),
+    );
+    const primaryProject = projects[0] ?? null;
+    const primaryExperience = experiences[0] ?? null;
+    if (!primaryProject && !primaryExperience) return null;
+
+    const projectLabel = primaryProject?.name || primaryExperience?.org || targetRole;
+    const cvText = [
+      document.summary,
+      ...document.skills.technical,
+      ...document.skills.tools,
+      ...projects.flatMap((project) => [
+        project.name,
+        project.role ?? '',
+        ...project.tech,
+        ...project.bullets,
+      ]),
+      ...experiences.flatMap((experience) => [
+        experience.org,
+        experience.role ?? '',
+        ...experience.bullets,
+      ]),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const canonicalSkills =
+      this.skillScanner
+        ?.scan(cvText)
+        .sort((left, right) => right.occurrences - left.occurrences)
+        .map((skill) => skill.canonical_name) ?? [];
+    const canonicalFor = (text: string): string | null =>
+      this.skillScanner?.scan(text)[0]?.canonical_name ?? canonicalSkills[0] ?? null;
+    const topics: AgendaTopic[] = [];
+    const add = (topic: AgendaTopic): void => {
+      if (!topics.some((existing) => existing.id === topic.id)) topics.push(topic);
+    };
+
+    add({
+      id: 'cv-project-ownership',
+      phase: 'SCREENING',
+      skill_canonical: canonicalFor(primaryProject?.tech.join(' ') ?? ''),
+      display_name: projectLabel,
+      source: 'cv',
+      focus_type: 'evidence_probe',
+      priority: 100,
+      seniority_target: seniority,
+      drill_budget: 1,
+      what_to_probe: `candidate ownership in ${projectLabel}`,
+      seed_question:
+        language === 'vi'
+          ? `Trong dự án ${projectLabel}, phần nào bạn trực tiếp phụ trách?`
+          : `Which part of ${projectLabel} did you personally own?`,
+      cv_evidence_excerpt: this.limit(
+        [primaryProject?.role, ...(primaryProject?.bullets ?? primaryExperience?.bullets ?? [])]
+          .filter(Boolean)
+          .join(' '),
+        500,
+      ),
+    });
+
+    if (/\b(jwt|oauth|rbac|auth|authentication|authorization|session|api)\b/i.test(cvText)) {
+      add({
+        id: 'cv-auth-api-depth',
+        phase: 'SKILL_PROBE',
+        skill_canonical: canonicalFor('JWT OAuth RBAC authentication API session'),
+        display_name: 'Authentication and API ownership',
+        source: 'cv',
+        focus_type: 'depth_probe',
+        priority: 90,
+        seniority_target: seniority,
+        drill_budget: 2,
+        what_to_probe: 'one concrete authentication, authorization, API, or session decision',
+        seed_question:
+          language === 'vi'
+            ? `Trong ${projectLabel}, bạn đã xử lý xác thực hoặc session như thế nào?`
+            : `How did you handle authentication or session management in ${projectLabel}?`,
+      });
+    }
+
+    if (
+      /clean architecture|entity framework|ef\s*core|sql server|postgres|database/i.test(cvText)
+    ) {
+      add({
+        id: 'cv-architecture-data',
+        phase: 'SKILL_PROBE',
+        skill_canonical: canonicalFor('Clean Architecture EF Core SQL Server database'),
+        display_name: 'Architecture and data access',
+        source: 'cv',
+        focus_type: 'depth_probe',
+        priority: 80,
+        seniority_target: seniority,
+        drill_budget: 1,
+        what_to_probe: 'one architecture or data-access decision and its trade-off',
+        seed_question:
+          language === 'vi'
+            ? 'Bạn đã áp dụng Clean Architecture hoặc tổ chức lớp truy cập dữ liệu như thế nào?'
+            : 'How did you apply Clean Architecture or organize the data-access layer?',
+      });
+    }
+
+    const microservicesExperience = experiences.find((experience) =>
+      /microservice|distributed|kafka|rabbitmq|service/i.test(
+        `${experience.org} ${experience.role ?? ''} ${experience.bullets.join(' ')}`,
+      ),
+    );
+    if (microservicesExperience) {
+      add({
+        id: 'cv-microservices-experience',
+        phase: 'SKILL_PROBE',
+        skill_canonical: canonicalFor(microservicesExperience.bullets.join(' ')),
+        display_name: `${microservicesExperience.org} microservices experience`,
+        source: 'cv',
+        focus_type: 'evidence_probe',
+        priority: 70,
+        seniority_target: seniority,
+        drill_budget: 1,
+        what_to_probe: `concrete ownership at ${microservicesExperience.org}`,
+        seed_question:
+          language === 'vi'
+            ? `Tại ${microservicesExperience.org}, bạn trực tiếp phụ trách phần nào trong hệ thống dịch vụ?`
+            : `At ${microservicesExperience.org}, which part of the service system did you directly own?`,
+      });
+    }
+
+    for (const skill of canonicalSkills.slice(0, 3)) {
+      if (topics.some((topic) => topic.skill_canonical === skill)) continue;
+      add({
+        id: `cv-skill-${skill.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
+        phase: 'SKILL_PROBE',
+        skill_canonical: skill,
+        display_name: skill,
+        source: 'cv',
+        focus_type: 'depth_probe',
+        priority: 50,
+        seniority_target: seniority,
+        drill_budget: 1,
+        what_to_probe: `one real implementation decision involving ${skill}`,
+        seed_question:
+          language === 'vi'
+            ? `Bạn đã dùng ${skill} để giải quyết vấn đề cụ thể nào?`
+            : `What concrete problem did you solve with ${skill}?`,
+      });
+    }
+
+    add({
+      id: 'cv-scenario-tradeoff',
+      phase: 'SCENARIO',
+      skill_canonical: canonicalSkills[0] ?? null,
+      display_name: 'Scenario and trade-off',
+      source: 'cv',
+      focus_type: 'depth_probe',
+      priority: 20,
+      seniority_target: seniority,
+      drill_budget: 1,
+      what_to_probe: 'one realistic trade-off grounded in the candidate profile',
+      seed_question:
+        language === 'vi'
+          ? 'Nếu tính năng bạn vừa mô tả gặp tải tăng đột biến, bạn sẽ ưu tiên kiểm tra điều gì trước?'
+          : 'If the feature you described suddenly faced much higher load, what would you inspect first?',
+    });
+    add({
+      id: 'cv-behavioral',
+      phase: 'BEHAVIORAL',
+      skill_canonical: null,
+      display_name: 'Behavioral ownership',
+      source: 'cv',
+      focus_type: 'evidence_probe',
+      priority: 10,
+      seniority_target: seniority,
+      drill_budget: 1,
+      what_to_probe: 'ownership and collaboration in one difficult situation',
+      seed_question:
+        language === 'vi'
+          ? 'Hãy kể về một lần bạn phải phối hợp với người khác để xử lý một vấn đề khó.'
+          : 'Tell me about one time you collaborated with others to resolve a difficult problem.',
+    });
+
+    const selected = topics.slice(0, Math.max(4, Math.min(turnBudget, topics.length)));
+    return {
+      topics: selected,
+      turn_budget: selected.length,
+      uncovered: topics.slice(selected.length),
+    };
+  }
+
+  private pinOpeningQuestion(
+    agenda: InterviewAgenda,
+    contextMode: InterviewContextMode,
+    targetRole: string,
+    language: 'vi' | 'en',
+  ): void {
+    const first = agenda.topics[0];
+    if (!first || contextMode !== 'ROLE_ONLY') return;
+    first.seed_question =
+      language === 'vi'
+        ? `Hãy kể ngắn về một dự án gần đây liên quan đến vị trí ${targetRole}.`
+        : `Briefly describe a recent project related to the ${targetRole} role.`;
+    first.what_to_probe = 'one recent project before a single contextual ownership follow-up';
+    first.question_bank_item_id = undefined;
+    first.question_bank_key = undefined;
+    first.question_source = undefined;
+  }
   private initialInterviewState(agenda: InterviewAgenda): InterviewState {
     const first = agenda.topics[0];
     return {
@@ -1441,9 +1680,9 @@ export class InterviewsService {
       return [
         `Interview identity:\n${identityLines}`,
         `Target role: ${targetRole}`,
-        'Interview context: role-only generic practice. No CV, resume, job description, JD, match report, or gap report was provided.',
+        'Interview context: role-only practice based on the target role and live candidate answers.',
         `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
-        'Interview rule: ask one question at a time, use only role rubric and role-relevant project/practice examples, and do not mention CV, resume, JD, job description, match score, or gap evidence.',
+        'Interview rule: ask one question at a time and use only role-relevant examples the candidate shares live. Never imply that external candidate documents exist.',
       ].join('\n\n');
     }
 
@@ -1451,10 +1690,10 @@ export class InterviewsService {
       return [
         `Interview identity:\n${identityLines}`,
         `Target role: ${targetRole}`,
-        'Interview context: CV-only practice. A CV was provided, but no JD or CV/JD match report was provided.',
+        'Interview context: candidate-profile practice grounded only in the provided resume.',
         `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(interviewDifficulty)}`,
         cv?.parsedText ? `Candidate CV excerpt:\n${this.limit(cv.parsedText, 4000)}` : '',
-        'Interview rule: ask one question at a time, ground questions in CV skills/projects when available, and do not claim there is a JD, job requirement, match report, or gap report.',
+        'Interview rule: ask one question at a time and ground questions only in profile projects, skills, and experience.',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -1489,6 +1728,8 @@ export class InterviewsService {
         enabled: false,
         provider: 'openai',
         model: null,
+        protocolVersion: INTERVIEW_REALTIME_PROTOCOL_VERSION,
+        transcriptionModel: DEFAULT_REALTIME_TRANSCRIPTION_MODEL,
         clientSecret: null,
         expiresAt: null,
         reason: 'Text-only interview does not need a realtime token',
@@ -1511,10 +1752,14 @@ export class InterviewsService {
     if (!this.prompts) {
       throw new Error('PromptsService is required for realtime interview instructions');
     }
-    return this.prompts.render('interview_realtime_v2', {
+    return this.prompts.render('interview_realtime_v3', {
       context: context ?? '',
       context_block: context ? `Context:\n${context}` : '',
       difficulty_instruction: difficultyInstruction,
+      agenda_checkpoint: this.publicAgendaCheckpoint(
+        session.agenda,
+        session.language === 'en' ? 'en' : 'vi',
+      ),
       interview_type: session.interviewType,
       language: session.language,
       language_instruction: languageInstruction,
@@ -1522,6 +1767,82 @@ export class InterviewsService {
     });
   }
 
+  private async compactRealtimeContextWithHistory(
+    session: InterviewSessionEntity,
+  ): Promise<string> {
+    const base = this.compactRealtimeContext(session);
+    const turns =
+      (await this.turns.find({
+        where: { sessionId: session.id },
+        order: { turnOrder: 'DESC' },
+        take: 4,
+      })) ?? [];
+    const history = [...turns]
+      .reverse()
+      .map((turn) =>
+        [
+          `Alex: ${this.limit(turn.interviewerQuestion, 500)}`,
+          turn.userAnswerText ? `Candidate: ${this.limit(maskPii(turn.userAnswerText), 700)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+      .join('\n\n');
+    const state =
+      session.interviewState && typeof session.interviewState === 'object'
+        ? (session.interviewState as Record<string, unknown>)
+        : {};
+    const realtime =
+      state.realtime && typeof state.realtime === 'object'
+        ? (state.realtime as Record<string, unknown>)
+        : {};
+    const checkpoint = [
+      typeof realtime.currentTopicId === 'string'
+        ? `Current checkpoint: ${realtime.currentTopicId}`
+        : '',
+      Array.isArray(realtime.topicHistory)
+        ? `Completed checkpoints: ${realtime.topicHistory
+            .filter((value): value is string => typeof value === 'string')
+            .slice(-8)
+            .join(', ')}`
+        : '',
+      turns[0]?.interviewerQuestion
+        ? `Current question: ${this.limit(turns[0].interviewerQuestion, 500)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return [
+      base,
+      checkpoint ? `Reconnect checkpoint:\n${checkpoint}` : '',
+      history ? `Recent exchanges (oldest to newest):\n${history}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+  private publicAgendaCheckpoint(value: unknown, language: 'vi' | 'en'): string {
+    const agenda =
+      value && typeof value === 'object' ? (value as { topics?: unknown }).topics : null;
+    if (!Array.isArray(agenda)) return language === 'vi' ? '- Dự án gần đây' : '- Recent project';
+    return agenda
+      .filter(
+        (topic): topic is Record<string, unknown> => Boolean(topic) && typeof topic === 'object',
+      )
+      .slice(0, 8)
+      .map((topic, index) => {
+        const phase = typeof topic.phase === 'string' ? topic.phase : 'SKILL_PROBE';
+        const focus =
+          typeof topic.display_name === 'string'
+            ? topic.display_name
+            : typeof topic.skill_canonical === 'string'
+              ? topic.skill_canonical
+              : language === 'vi'
+                ? 'kinh nghiệm liên quan'
+                : 'relevant experience';
+        return `${index + 1}. ${phase}: ${focus}`;
+      })
+      .join('\n');
+  }
   private compactRealtimeContext(session: InterviewSessionEntity): string {
     const snapshot = this.asContextSnapshot(session.contextSnapshot);
     if (snapshot?.interviewContext) {
@@ -1531,11 +1852,11 @@ export class InterviewsService {
     if (contextMode === 'ROLE_ONLY') {
       return [
         `Target role: ${session.targetRole}`,
-        'Context mode: role-only generic practice. No CV, resume, job description, JD, match report, or gap report was provided.',
+        'Context mode: role-only practice grounded in the target role and live answers.',
         snapshot?.interviewDifficulty
           ? `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(snapshot.interviewDifficulty)}`
           : '',
-        'Use role rubric only. Do not mention CV, resume, JD, job description, match score, or gap evidence.',
+        'Use role rubric only. Never imply that external candidate documents exist.',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -1544,12 +1865,12 @@ export class InterviewsService {
     if (contextMode === 'CV_ONLY') {
       return [
         `Target role: ${session.targetRole}`,
-        'Context mode: CV-only practice. A CV was provided, but no JD or match report was provided.',
+        'Context mode: candidate-profile practice grounded in the provided resume.',
         snapshot?.cv?.title ? `CV title: ${snapshot.cv.title}` : '',
         snapshot?.interviewDifficulty
           ? `Interview difficulty profile:\n${this.formatInterviewDifficultyInstruction(snapshot.interviewDifficulty)}`
           : '',
-        'Do not read the CV context aloud. Use it only to choose relevant follow-up questions. Do not mention a JD or gap report.',
+        'Keep profile context silent and use it only to choose relevant follow-up questions.',
       ]
         .filter(Boolean)
         .join('\n\n');
