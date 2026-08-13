@@ -2,6 +2,8 @@
 import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
+import configuration from '../../config/configuration';
+import { configValidationSchema } from '../../config/validation';
 
 const mockClientSecretsCreate = jest.fn();
 
@@ -17,6 +19,22 @@ jest.mock('openai', () => ({
 }));
 
 describe('OpenAiRealtimeTokenService', () => {
+  it('uses gpt-4o-transcribe consistently as the application and validation default', () => {
+    const previous = process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+    delete process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+    try {
+      expect(configuration().llm.openai.realtimeTranscriptionModel).toBe('gpt-4o-transcribe');
+      expect(
+        configValidationSchema.validate({
+          NODE_ENV: 'test',
+          INTERNAL_AUTH_SECRET: '1234567890123456',
+        }).value.OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+      ).toBe('gpt-4o-transcribe');
+    } finally {
+      if (previous === undefined) delete process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+      else process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = previous;
+    }
+  });
   const userId = '11111111-1111-4111-8111-111111111111';
   const session = {
     id: 'interview-session-1',

@@ -261,12 +261,16 @@ export class InterviewRealtimeService {
       });
     }
 
-    const answeredAt = input.speechEndedAt ? new Date(input.speechEndedAt) : new Date();
+    const answeredAt = new Date();
     current.userAnswerText = transcript;
     current.userAnswerTranscript = input.modality === 'AUDIO' ? transcript : null;
     current.modality = input.modality;
     current.answeredAt = answeredAt;
-    current.durationSeconds = this.durationSeconds(input.speechStartedAt, input.speechEndedAt);
+    current.durationSeconds = this.durationSeconds(
+      input.speechStartedAt,
+      input.speechEndedAt,
+      session.maxDurationSeconds,
+    );
     current.transcriptSegments = input.segmentCount ?? null;
     current.clientTurnId = dto.clientTurnId;
     current.candidateIntent = intent;
@@ -664,10 +668,15 @@ export class InterviewRealtimeService {
     }
   }
 
-  private durationSeconds(start?: string, end?: string): number | null {
+  private durationSeconds(start?: string, end?: string, maximum?: number): number | null {
     if (!start || !end) return null;
-    const duration = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
-    return Number.isFinite(duration) ? Math.max(0, duration) : null;
+    const startMs = Date.parse(start);
+    const endMs = Date.parse(end);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return null;
+    const duration = Math.round((endMs - startMs) / 1000);
+    const upperBound =
+      typeof maximum === 'number' && Number.isFinite(maximum) && maximum > 0 ? maximum : duration;
+    return Math.min(duration, upperBound);
   }
 
   private fingerprint(value: string): string {

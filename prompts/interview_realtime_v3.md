@@ -1,4 +1,4 @@
-﻿---
+---
 title: Interview Realtime v3
 description: Single-loop system instructions for the realtime interview experience.
 ---

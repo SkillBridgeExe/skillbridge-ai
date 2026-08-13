@@ -129,15 +129,16 @@ export class PromptsService implements OnModuleInit {
   }
 
   private parseFrontmatter(raw: string): { body: string; meta: Record<string, string> } {
+    const normalizedRaw = raw.replace(/^\uFEFF/u, '').replace(/\r\n?/g, '\n');
     const meta: Record<string, string> = {};
-    if (!raw.startsWith('---\n')) {
-      return { body: raw, meta };
+    if (!normalizedRaw.startsWith('---\n')) {
+      return { body: normalizedRaw, meta };
     }
-    const end = raw.indexOf('\n---\n', 4);
+    const end = normalizedRaw.indexOf('\n---\n', 4);
     if (end === -1) {
-      return { body: raw, meta };
+      return { body: normalizedRaw, meta };
     }
-    const front = raw.slice(4, end);
+    const front = normalizedRaw.slice(4, end);
     for (const line of front.split('\n')) {
       const idx = line.indexOf(':');
       if (idx === -1) continue;
@@ -145,6 +146,6 @@ export class PromptsService implements OnModuleInit {
       const value = line.slice(idx + 1).trim();
       meta[key] = value;
     }
-    return { body: raw.slice(end + 5), meta };
+    return { body: normalizedRaw.slice(end + 5), meta };
   }
 }

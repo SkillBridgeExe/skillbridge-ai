@@ -225,7 +225,6 @@ interface InterviewDifficultyProfile {
 @Injectable()
 export class InterviewsService {
   private readonly logger = new Logger(InterviewsService.name);
-  private readonly activeFinalizations = new Map<string, InterviewFinalizationState>();
 
   constructor(
     @InjectRepository(InterviewSessionEntity)
@@ -463,7 +462,7 @@ export class InterviewsService {
   }
 
   async end(userId: string, dto: EndPlatformInterviewDto): Promise<InterviewDetailResponseDto> {
-    const session = await this.findOwnedSession(userId, dto.sessionId);
+    let session = await this.findOwnedSession(userId, dto.sessionId);
     const turns = await this.getTurns(session.id);
     const alreadyFinalized =
       session.status === 'CANCELLED' ||
@@ -471,27 +470,6 @@ export class InterviewsService {
         ((session.finalScore !== null && session.finalScore !== undefined) ||
           (session.overallScore !== null && session.overallScore !== undefined)));
     if (alreadyFinalized) {
-      return {
-        ...this.toSessionDto(session),
-        turns: turns.map((turn) => this.toTurnDto(turn)),
-      };
-    }
-    const inFlightFinalization = this.activeFinalizations.get(session.id);
-    if (inFlightFinalization) {
-      session.interviewState = this.withFinalizationState(
-        session.interviewState,
-        inFlightFinalization,
-      );
-      return {
-        ...this.toSessionDto(session),
-        turns: turns.map((turn) => this.toTurnDto(turn)),
-      };
-    }
-    const activeFinalization = this.finalizationState(session);
-    if (
-      activeFinalization?.status === 'PENDING' &&
-      Date.now() - Date.parse(activeFinalization.startedAt) < 120_000
-    ) {
       return {
         ...this.toSessionDto(session),
         turns: turns.map((turn) => this.toTurnDto(turn)),
@@ -513,16 +491,20 @@ export class InterviewsService {
 
     const finalizationAttemptId = crypto.randomUUID();
     const finalizationStartedAt = new Date().toISOString();
-    session.interviewState = this.withFinalizationState(session.interviewState, {
-      status: 'PENDING',
-      attemptId: finalizationAttemptId,
-      startedAt: finalizationStartedAt,
-    });
-    const finalizationClaim = this.finalizationState(session);
-    if (finalizationClaim) this.activeFinalizations.set(session.id, finalizationClaim);
+    const claim = await this.claimFinalization(
+      userId,
+      session.id,
+      finalizationAttemptId,
+      finalizationStartedAt,
+    );
+    session = claim.session;
+    if (!claim.claimed) {
+      return {
+        ...this.toSessionDto(session),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
+    }
     try {
-      await this.sessions.save(session);
-
       const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
       const difficulty = this.resolveSessionInterviewDifficulty(session);
       // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
@@ -600,23 +582,24 @@ export class InterviewsService {
         completedAt: new Date().toISOString(),
       });
 
-      const saved = await this.sessions.save(session);
+      const saved = await this.persistClaimedFinalization(session, finalizationAttemptId);
+      const responseSession = saved ?? (await this.findOwnedSession(userId, session.id));
 
       return {
-        ...this.toSessionDto(saved),
+        ...this.toSessionDto(responseSession),
         turns: turns.map((turn) => this.toTurnDto(turn)),
       };
     } catch (error) {
-      session.interviewState = this.withFinalizationState(session.interviewState, {
-        status: 'FAILED',
-        attemptId: finalizationAttemptId,
-        startedAt: finalizationStartedAt,
-        failedAt: new Date().toISOString(),
+      await this.markClaimedFinalizationFailed(
+        session.id,
+        finalizationAttemptId,
+        finalizationStartedAt,
+      ).catch((saveError) => {
+        this.logger.warn(
+          `Could not mark failed interview finalization ${session.id}: ${(saveError as Error).message}`,
+        );
       });
-      await this.sessions.save(session);
       throw error;
-    } finally {
-      this.activeFinalizations.delete(session.id);
     }
   }
 
@@ -669,24 +652,46 @@ export class InterviewsService {
     seniority: string,
     turnBudget: number,
   ): InterviewAgenda | null {
+    const documentRecord = document as unknown as Record<string, unknown>;
+    const skillsRecord =
+      documentRecord.skills && typeof documentRecord.skills === 'object'
+        ? (documentRecord.skills as Record<string, unknown>)
+        : {};
+    const stringArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
     const evidenceScore = (bullets: string[], technologies: string[] = []): number =>
       bullets.filter(Boolean).length * 2 + technologies.filter(Boolean).length;
-    const projects = [...document.projects].sort(
-      (left, right) =>
-        evidenceScore(right.bullets, right.tech) - evidenceScore(left.bullets, left.tech),
-    );
-    const experiences = [...document.experience].sort(
-      (left, right) => evidenceScore(right.bullets) - evidenceScore(left.bullets),
-    );
+    const projects = (Array.isArray(documentRecord.projects) ? documentRecord.projects : [])
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((project) => ({
+        ...project,
+        name: typeof project.name === 'string' ? project.name : '',
+        role: typeof project.role === 'string' ? project.role : null,
+        tech: stringArray(project.tech),
+        bullets: stringArray(project.bullets),
+      }))
+      .sort(
+        (left, right) =>
+          evidenceScore(right.bullets, right.tech) - evidenceScore(left.bullets, left.tech),
+      );
+    const experiences = (Array.isArray(documentRecord.experience) ? documentRecord.experience : [])
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((experience) => ({
+        ...experience,
+        org: typeof experience.org === 'string' ? experience.org : '',
+        role: typeof experience.role === 'string' ? experience.role : null,
+        bullets: stringArray(experience.bullets),
+      }))
+      .sort((left, right) => evidenceScore(right.bullets) - evidenceScore(left.bullets));
     const primaryProject = projects[0] ?? null;
     const primaryExperience = experiences[0] ?? null;
     if (!primaryProject && !primaryExperience) return null;
 
     const projectLabel = primaryProject?.name || primaryExperience?.org || targetRole;
     const cvText = [
-      document.summary,
-      ...document.skills.technical,
-      ...document.skills.tools,
+      typeof documentRecord.summary === 'string' ? documentRecord.summary : '',
+      ...stringArray(skillsRecord.technical),
+      ...stringArray(skillsRecord.tools),
       ...projects.flatMap((project) => [
         project.name,
         project.role ?? '',
@@ -2232,6 +2237,109 @@ export class InterviewsService {
     return LEGACY_TRANSCRIPTION_PROMPT_PATTERNS.some((pattern) => pattern.test(text));
   }
 
+  private sessionTransaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
+    const manager = (
+      this.sessions as Repository<InterviewSessionEntity> & { manager?: EntityManager }
+    ).manager;
+    if (manager) return manager.transaction(work);
+    const fallback = {
+      getRepository: () => this.sessions,
+    } as unknown as EntityManager;
+    return work(fallback);
+  }
+
+  private async claimFinalization(
+    userId: string,
+    sessionId: string,
+    attemptId: string,
+    startedAt: string,
+  ): Promise<{ session: InterviewSessionEntity; claimed: boolean }> {
+    return this.sessionTransaction(async (manager) => {
+      const sessions = manager.getRepository(InterviewSessionEntity);
+      const session = await sessions.findOne({
+        where: { id: sessionId, userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!session) throw new NotFoundException('Interview session not found');
+      const alreadyFinalized =
+        session.status === 'CANCELLED' ||
+        (session.status === 'COMPLETED' &&
+          ((session.finalScore !== null && session.finalScore !== undefined) ||
+            (session.overallScore !== null && session.overallScore !== undefined)));
+      if (alreadyFinalized) return { session, claimed: false };
+
+      const active = this.finalizationState(session);
+      if (
+        active?.status === 'PENDING' &&
+        Number.isFinite(Date.parse(active.startedAt)) &&
+        Date.now() - Date.parse(active.startedAt) < 120_000
+      ) {
+        return { session, claimed: false };
+      }
+
+      session.interviewState = this.withFinalizationState(session.interviewState, {
+        status: 'PENDING',
+        attemptId,
+        startedAt,
+      });
+      return { session: await sessions.save(session), claimed: true };
+    });
+  }
+
+  private async persistClaimedFinalization(
+    result: InterviewSessionEntity,
+    attemptId: string,
+  ): Promise<InterviewSessionEntity | null> {
+    return this.sessionTransaction(async (manager) => {
+      const sessions = manager.getRepository(InterviewSessionEntity);
+      const session = await sessions.findOne({
+        where: { id: result.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!session || this.finalizationState(session)?.attemptId !== attemptId) return null;
+
+      session.status = result.status;
+      session.endedAt = result.endedAt;
+      session.durationSeconds = result.durationSeconds;
+      session.finalScore = result.finalScore;
+      session.gapItems = result.gapItems;
+      session.devPlan = result.devPlan;
+      session.coaching = result.coaching;
+      session.overallScore = result.overallScore;
+      session.semanticScore = result.semanticScore;
+      session.llmScore = result.llmScore;
+      session.communicationScore = result.communicationScore;
+      session.aiFeedback = result.aiFeedback;
+      const finalization = this.finalizationState(result);
+      if (finalization) {
+        session.interviewState = this.withFinalizationState(session.interviewState, finalization);
+      }
+      return sessions.save(session);
+    });
+  }
+
+  private async markClaimedFinalizationFailed(
+    sessionId: string,
+    attemptId: string,
+    startedAt: string,
+  ): Promise<void> {
+    await this.sessionTransaction(async (manager) => {
+      const sessions = manager.getRepository(InterviewSessionEntity);
+      const session = await sessions.findOne({
+        where: { id: sessionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!session || this.finalizationState(session)?.attemptId !== attemptId) return;
+      session.interviewState = this.withFinalizationState(session.interviewState, {
+        status: 'FAILED',
+        attemptId,
+        startedAt,
+        failedAt: new Date().toISOString(),
+      });
+      await sessions.save(session);
+    });
+  }
+
   private finalizationState(session: InterviewSessionEntity): InterviewFinalizationState | null {
     const root =
       session.interviewState && typeof session.interviewState === 'object'
@@ -2260,18 +2368,19 @@ export class InterviewsService {
 
   private analysisStatus(session: InterviewSessionEntity): InterviewAnalysisStatus {
     if (session.status === 'CANCELLED') return 'NOT_REQUIRED';
-    if (session.status === 'COMPLETED') return 'READY';
-    if (session.status === 'FAILED') return 'FAILED';
     const root =
       session.interviewState && typeof session.interviewState === 'object'
         ? (session.interviewState as Record<string, unknown>)
         : {};
     const finalization = root.finalization;
-    if (!finalization || typeof finalization !== 'object') return 'NOT_STARTED';
-    const status = (finalization as { status?: unknown }).status;
-    if (status === 'PENDING') return 'PENDING';
-    if (status === 'FAILED') return 'FAILED';
-    if (status === 'READY') return 'READY';
+    if (finalization && typeof finalization === 'object') {
+      const status = (finalization as { status?: unknown }).status;
+      if (status === 'PENDING') return 'PENDING';
+      if (status === 'FAILED') return 'FAILED';
+      if (status === 'READY') return 'READY';
+    }
+    if (session.status === 'COMPLETED') return 'READY';
+    if (session.status === 'FAILED') return 'FAILED';
     return 'NOT_STARTED';
   }
 

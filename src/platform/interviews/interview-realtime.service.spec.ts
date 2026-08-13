@@ -156,6 +156,25 @@ const exchange = {
 };
 
 describe('InterviewRealtimeService v3 exchange', () => {
+  it('uses server time for answeredAt and bounds untrusted client speech duration', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-13T10:00:10.000Z'));
+    const { service, savedTurns } = createHarness({
+      session: sessionFixture({ maxDurationSeconds: 600 }),
+    });
+
+    await service.submitTurn('user-1', 'session-1', {
+      ...exchange,
+      input: {
+        ...exchange.input,
+        speechStartedAt: '2099-01-01T00:00:00.000Z',
+        speechEndedAt: '2099-01-01T03:00:00.000Z',
+      },
+    });
+
+    expect(savedTurns[0].answeredAt).toEqual(new Date('2026-08-13T10:00:10.000Z'));
+    expect(savedTurns[0].durationSeconds).toBe(600);
+    jest.useRealTimers();
+  });
   it('atomically answers the active turn and persists the actual next question', async () => {
     const { service, turns, sessions, savedTurns } = createHarness();
 

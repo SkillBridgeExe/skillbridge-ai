@@ -1579,8 +1579,8 @@ describe('InterviewsService', () => {
           star_present: { situation: true, task: true, action: true, result: true },
         },
         modality: 'AUDIO',
-        interviewerQuestion: 'Báº¡n hÃ£y giá»›i thiá»‡u dá»± Ã¡n React gáº§n nháº¥t.',
-        userAnswerText: 'Em dÃ¹ng React Query vÃ  giáº£m stale cache.',
+        interviewerQuestion: 'Bạn hãy giới thiệu dự án React gần nhất.',
+        userAnswerText: 'Em dùng React Query và giảm stale cache.',
         createdAt: new Date('2026-06-12T00:00:01.000Z'),
         askedAt: new Date('2026-06-12T00:00:01.000Z'),
       },
@@ -1651,6 +1651,134 @@ describe('InterviewsService', () => {
       ]),
     });
     expect(response.coaching).toEqual(coaching);
+  });
+
+  it('claims finalization atomically so concurrent End requests score only once', async () => {
+    const sessions = repo<InterviewSessionEntity>();
+    const turns = repo<InterviewTurnEntity>();
+    const session = {
+      id: 'session-concurrent',
+      userId,
+      targetRole: 'backend_developer',
+      language: 'vi',
+      mode: 'VOICE',
+      interviewType: 'TECHNICAL',
+      status: 'IN_PROGRESS',
+      startedAt: new Date('2026-06-12T00:00:00.000Z'),
+      createdAt: new Date('2026-06-12T00:00:00.000Z'),
+      contextSnapshot: {
+        interviewDifficulty: { level: 'mid', source: 'target role', note: 'test' },
+      },
+      interviewState: {},
+    } as unknown as InterviewSessionEntity;
+    sessions.findOne.mockImplementation(async () => session);
+    sessions.save.mockImplementation(async (value) => Object.assign(session, value));
+    let transactionTail: Promise<unknown> = Promise.resolve();
+    const manager = {} as { getRepository: jest.Mock; transaction: jest.Mock };
+    manager.getRepository = jest.fn(() => sessions);
+    manager.transaction = jest.fn((work: (value: unknown) => unknown): Promise<unknown> => {
+      const run: Promise<unknown> = transactionTail.then(() => work(manager));
+      transactionTail = run.then(
+        () => undefined,
+        () => undefined,
+      );
+      return run;
+    });
+    Object.assign(sessions, { manager });
+    turns.find.mockResolvedValue([
+      {
+        id: 'turn-concurrent',
+        sessionId: session.id,
+        turnOrder: 1,
+        phase: 'SKILL_PROBE',
+        topicPhase: 'SKILL_PROBE',
+        modality: 'AUDIO',
+        interviewerQuestion: 'How do you design an API?',
+        userAnswerText: 'I use idempotency keys and transactions.',
+        answeredAt: new Date('2026-06-12T00:01:00.000Z'),
+        askedAt: new Date('2026-06-12T00:00:10.000Z'),
+        createdAt: new Date('2026-06-12T00:00:10.000Z'),
+        perQuestionScore: '80.00',
+        depthSignal: 'deep',
+        signals: {
+          jd_term_hits: { hit: [], missed: [], coverage: 0 },
+          filler: { count: 0, terms: [] },
+          flags: { rambling_risk: false },
+        },
+        insight: {
+          talking_point: 'api',
+          relevance: 80,
+          clarity: 'clear',
+          off_topic: false,
+          confidence_tone: 'calibrated',
+          evidence_quality: 'adequate',
+          note: 'Concrete API answer.',
+          has_specific_example: true,
+          star_present: { situation: false, task: true, action: true, result: false },
+        },
+      },
+    ]);
+    let releaseCoaching: (() => void) | undefined;
+    const coachingPending = new Promise<void>((resolve) => {
+      releaseCoaching = resolve;
+    });
+    const coachingService = {
+      coach: jest.fn(async () => {
+        await coachingPending;
+        return { summary: 'Done', strengths: [], priorities: [] };
+      }),
+    };
+    const service = new InterviewsService(
+      sessions as never,
+      turns as never,
+      repo<CvEntity>() as never,
+      repo<CvMatchEntity>() as never,
+      repo<JobDescriptionEntity>() as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      {} as never,
+      { judge: jest.fn() } as never,
+      coachingService as never,
+    );
+
+    const first = service.end(userId, { sessionId: session.id });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const second = await service.end(userId, { sessionId: session.id });
+
+    expect(second.analysisStatus).toBe('PENDING');
+    expect(coachingService.coach).toHaveBeenCalledTimes(1);
+    releaseCoaching?.();
+    await first;
+  });
+
+  it('reports persisted finalization status before the coarse session status', () => {
+    const service = Object.create(InterviewsService.prototype) as InterviewsService;
+    const analysisStatus = (
+      service as unknown as {
+        analysisStatus: (session: InterviewSessionEntity) => string;
+      }
+    ).analysisStatus.bind(service);
+
+    expect(
+      analysisStatus({
+        status: 'COMPLETED',
+        interviewState: {
+          finalization: {
+            status: 'FAILED',
+            attemptId: 'attempt-1',
+            startedAt: '2026-08-13T00:00:00.000Z',
+          },
+        },
+      } as InterviewSessionEntity),
+    ).toBe('FAILED');
+    expect(
+      analysisStatus({
+        status: 'COMPLETED',
+        interviewState: {},
+      } as InterviewSessionEntity),
+    ).toBe('READY');
   });
 
   describe('stale session sweep on start', () => {
@@ -2051,6 +2179,34 @@ describe('answerTimeBudgetSeconds', () => {
 });
 
 describe('InterviewsService CV-only agenda v3', () => {
+  it('accepts partial legacy CV documents without crashing', () => {
+    const service = Object.create(InterviewsService.prototype) as InterviewsService;
+    Object.assign(service, { skillScanner: { scan: () => [] } });
+    const buildAgenda = (
+      service as unknown as {
+        buildCvOnlyAgenda: (
+          document: unknown,
+          role: string,
+          language: 'vi',
+          seniority: string,
+          budget: number,
+        ) => { topics: Array<{ id: string }> } | null;
+      }
+    ).buildCvOnlyAgenda.bind(service);
+
+    expect(() =>
+      buildAgenda(
+        {
+          summary: '.NET backend developer',
+          projects: [{ name: 'Legacy Project' }],
+        },
+        'backend_developer',
+        'vi',
+        'junior',
+        8,
+      ),
+    ).not.toThrow();
+  });
   it('builds a deterministic golden flow from canonical CV evidence without a model call', () => {
     const service = Object.create(InterviewsService.prototype) as InterviewsService;
     Object.assign(service, {

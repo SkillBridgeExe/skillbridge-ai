@@ -444,7 +444,7 @@ export class CvsService {
       : '';
     const titleWasGeneratedFromFileName =
       !existingTitle ||
-      mojibakeScore(existingTitle) > 0 ||
+      normalizedExistingTitle !== existingTitle ||
       (Boolean(existingOriginalFileName) &&
         normalizedExistingTitle === normalizedExistingOriginalFileName);
     const update: Partial<Pick<CvEntity, 'title' | 'originalFileName'>> = {};

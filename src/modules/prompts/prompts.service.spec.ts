@@ -2,6 +2,16 @@
 import { TemplateRenderer } from './template-renderer';
 
 describe('PromptsService interview voice templates', () => {
+  it('strips a BOM and CRLF before parsing frontmatter', () => {
+    const service = new PromptsService(new TemplateRenderer());
+    const parsed = (
+      service as unknown as {
+        parseFrontmatter: (raw: string) => { body: string; meta: Record<string, string> };
+      }
+    ).parseFrontmatter('\uFEFF---\r\ntitle: Interview\r\n---\r\nPrompt body');
+
+    expect(parsed).toEqual({ body: 'Prompt body', meta: { title: 'Interview' } });
+  });
   it('loads realtime and transcription prompt templates', async () => {
     const service = new PromptsService(new TemplateRenderer());
 
@@ -24,7 +34,7 @@ describe('PromptsService mascot_character_cvbuilder_v1', () => {
 
     const template = service.get('mascot_character_cvbuilder_v1');
     expect(template.filename).toBe('mascot_character_cvbuilder_v1.md');
-    expect(template.body).not.toContain('cháº©n Ä‘oÃ¡n');
+    expect(template.body).not.toContain('chẩn đoán');
   });
 });
 
@@ -39,20 +49,20 @@ describe('PromptsService cv_builder_chat_v1', () => {
       language: 'vi',
       facts: '{"target_role":"Data Analyst"}',
       focus: 'projects[0].description â€” gaps: result',
-      history: 'user: xin chÃ o',
+      history: 'user: xin chào',
       context: 'Directive: ask for a number.',
-      question: 'Viáº¿t láº¡i bullet nÃ y giÃºp mÃ¬nh.',
-      diagnosis: '{"prioritized_actions":["ThÃªm káº¿t quáº£ Ä‘o Ä‘Æ°á»£c vÃ o má»—i bullet"]}',
+      question: 'Viết lại bullet này giúp mình.',
+      diagnosis: '{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}',
     });
 
     expect(rendered).toContain('vi');
     expect(rendered).toContain('{"target_role":"Data Analyst"}');
     expect(rendered).toContain('projects[0].description â€” gaps: result');
-    expect(rendered).toContain('user: xin chÃ o');
+    expect(rendered).toContain('user: xin chào');
     expect(rendered).toContain('Directive: ask for a number.');
-    expect(rendered).toContain('Viáº¿t láº¡i bullet nÃ y giÃºp mÃ¬nh.');
+    expect(rendered).toContain('Viết lại bullet này giúp mình.');
     expect(rendered).toContain(
-      '{"prioritized_actions":["ThÃªm káº¿t quáº£ Ä‘o Ä‘Æ°á»£c vÃ o má»—i bullet"]}',
+      '{"prioritized_actions":["Thêm kết quả đo được vào mỗi bullet"]}',
     );
     expect(rendered).not.toMatch(/\{\{\s*\w+\s*\}\}/);
   });
@@ -79,7 +89,7 @@ describe('PromptsService.render prompt-injection sanitizing (MEASURE M6)', () =>
   it('renders benign user text byte-identical inside the prompt', async () => {
     const service = await makeService();
     const jd =
-      'Tuyá»ƒn Backend Developer. Báº¡n sáº½ Ä‘Ã³ng vai trÃ² quan trá»ng. YÃªu cáº§u Node.js, há»‡ Ä‘iá»u hÃ nh Linux.';
+      'Tuyển Backend Developer. Bạn sẽ đóng vai trò quan trọng. Yêu cầu Node.js, hệ điều hành Linux.';
     const rendered = service.render('cv_jd_match_v2', {
       cv_text: 'Node.js developer.',
       jd_text: jd,
