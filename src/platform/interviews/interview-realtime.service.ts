@@ -10,6 +10,7 @@ import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interv
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
 import { analyzeAnswerSignals, type AnswerSignals } from '../../modules/interview/answer-analyzer';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import {
   CommitRealtimeAssistantMessageDto,
   RealtimeInterviewTurnDto,
@@ -29,6 +30,8 @@ interface RealtimeAgendaTopic {
   seed_question?: string;
   phase?: string;
   skill_canonical?: string;
+  question_bank_item_id?: string;
+  question_bank_key?: string;
 }
 
 interface RealtimeInterviewState extends RealtimeTurnPolicyState {
@@ -46,6 +49,7 @@ export class InterviewRealtimeService {
     @InjectRepository(InterviewRealtimeDirectiveEntity)
     private readonly directives: Repository<InterviewRealtimeDirectiveEntity>,
     private readonly policy: InterviewTurnPolicyService,
+    private readonly skillScanner: SkillTextScannerService,
   ) {}
 
   async submitTurn(
@@ -58,6 +62,17 @@ export class InterviewRealtimeService {
       where: { sessionId, clientTurnId: dto.clientTurnId },
     });
     if (existing) return this.toDirectiveDto(existing);
+    const pendingDirective = await this.directives.findOne({
+      where: { sessionId, committedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+    if (pendingDirective) {
+      throw new ConflictException({
+        errorCode: 'INTERVIEW_TURN_BUSY',
+        message: 'The previous interview turn is still being committed.',
+        directiveId: pendingDirective.id,
+      });
+    }
 
     const currentTurn = await this.turns.findOne({
       where: { sessionId, answeredAt: IsNull() },
@@ -67,14 +82,16 @@ export class InterviewRealtimeService {
 
     const topics = this.agendaTopics(session.agenda);
     const state = this.realtimeState(session, currentTurn, topics);
-    const nextTopic = this.nextTopic(topics, state);
+    const nextTopic = this.nextTopic(topics, state, dto.transcript);
     const language = session.language === 'en' ? 'en' : 'vi';
     const answerAnalysis = analyzeAnswerSignals({
       answer: dto.transcript,
       language,
     });
+    const captureInvalid = this.isInvalidCapture(dto, currentTurn);
     const answerSignal = this.effectiveAnswerSignal(dto.intent, dto.answerSignal, answerAnalysis);
     const result = this.policy.decide({
+      captureInvalid,
       experienceMode: session.experienceMode ?? 'MOCK',
       intent: dto.intent,
       answerSignal,
@@ -93,7 +110,7 @@ export class InterviewRealtimeService {
       sessionId,
       turnId: currentTurn.id,
       clientTurnId: dto.clientTurnId,
-      transcript: dto.transcript,
+      transcript: captureInvalid ? '' : dto.transcript,
       modality: dto.modality,
       intent: dto.intent,
       answerSignal,
@@ -193,18 +210,28 @@ export class InterviewRealtimeService {
       if (alreadyCreated) {
         turnId = alreadyCreated.id;
       } else if (current) {
+        const agendaTopic = this.agendaTopics(session.agenda).find(
+          (topic) => topic.id === directive.topicId,
+        );
+        const usesCuratedQuestion = directive.action === 'ADVANCE_TOPIC';
         const next = this.turns.create({
           sessionId,
           turnOrder: current.turnOrder + 1,
-          phase: current.phase,
-          topicPhase: current.topicPhase,
+          phase: (agendaTopic?.phase as InterviewTurnEntity['phase'] | undefined) ?? current.phase,
+          topicPhase:
+            (agendaTopic?.phase as InterviewTurnEntity['topicPhase'] | undefined) ??
+            current.topicPhase,
           modality: session.mode === 'TEXT' ? 'TEXT' : 'AUDIO',
           interviewerMessage: dto.interviewerMessage ?? null,
           interviewerQuestion: dto.interviewerQuestion,
           questionThreadId: directive.questionThreadId,
           sourceDirectiveId: directive.id,
-          currentThread: directive.questionGoal,
-          skillCanonical: directive.topicId,
+          currentThread: agendaTopic?.what_to_probe ?? directive.questionGoal,
+          skillCanonical: agendaTopic?.skill_canonical ?? current.skillCanonical,
+          questionBankItemId: usesCuratedQuestion
+            ? (agendaTopic?.question_bank_item_id ?? null)
+            : null,
+          questionBankKey: usesCuratedQuestion ? (agendaTopic?.question_bank_key ?? null) : null,
           timeBudgetSeconds: directive.action === 'FOLLOW_UP' ? 60 : 90,
         });
         turnId = (await this.turns.save(next)).id;
@@ -296,11 +323,43 @@ export class InterviewRealtimeService {
   private nextTopic(
     topics: RealtimeAgendaTopic[],
     state: RealtimeInterviewState,
+    transcript: string,
   ): RealtimeAgendaTopic | null {
-    const index = topics.findIndex((topic) => topic.id === state.topicId);
-    return topics[index + 1] ?? null;
-  }
+    const remaining = topics.filter(
+      (topic) => topic.id !== state.topicId && !state.topicHistory.includes(topic.id),
+    );
+    if (remaining.length === 0) return null;
 
+    const phaseOrder = [
+      'SCREENING',
+      'SKILL_PROBE',
+      'JD_REQUIREMENT',
+      'SCENARIO',
+      'BEHAVIORAL',
+      'WRAP',
+    ];
+    const current = topics.find((topic) => topic.id === state.topicId);
+    const currentRank = Math.max(0, phaseOrder.indexOf(current?.phase ?? 'SCREENING'));
+    const hasSkillProbe = remaining.some(
+      (topic) => phaseOrder.indexOf(topic.phase ?? 'SKILL_PROBE') < phaseOrder.indexOf('SCENARIO'),
+    );
+    const candidates =
+      currentRank === 0 && hasSkillProbe
+        ? remaining.filter(
+            (topic) =>
+              phaseOrder.indexOf(topic.phase ?? 'SKILL_PROBE') < phaseOrder.indexOf('SCENARIO'),
+          )
+        : remaining;
+    const mentioned = new Set(
+      this.skillScanner.scan(transcript).map((skill) => skill.canonical_name),
+    );
+    const relevance = (topic: RealtimeAgendaTopic): number =>
+      topic.skill_canonical && mentioned.has(topic.skill_canonical) ? 1 : 0;
+    return [...candidates].sort((left, right) => {
+      const difference = relevance(right) - relevance(left);
+      return difference !== 0 ? difference : topics.indexOf(left) - topics.indexOf(right);
+    })[0];
+  }
   private nextTopicHistory(history: string[], topicId: string): string[] {
     return history.includes(topicId) ? history : [...history, topicId];
   }
@@ -320,6 +379,12 @@ export class InterviewRealtimeService {
     language: 'vi' | 'en',
     signals: AnswerSignals,
   ): string {
+    if (action === 'RETRY_CAPTURE') {
+      return language === 'vi'
+        ? 'Mình chưa nghe rõ phần vừa rồi. Bạn có thể nói lại ngắn gọn câu trả lời cho câu hỏi hiện tại không?'
+        : 'I could not clearly capture that. Could you briefly repeat your answer to the current question?';
+    }
+
     if (action === 'ADVANCE_TOPIC') {
       return (
         nextTopic?.seed_question ??
@@ -350,6 +415,12 @@ export class InterviewRealtimeService {
         : 'What was the hardest trade-off in that decision?';
     }
     if (action === 'LOWER_DIFFICULTY' || action === 'DECLINE_COACHING') {
+      if (current.phase === 'SCREENING' || current.topicPhase === 'SCREENING') {
+        return language === 'vi'
+          ? 'Trong dự án gần nhất, bạn đã trực tiếp triển khai một tính năng nào và tính năng đó hoạt động ra sao?'
+          : 'In your most recent project, which feature did you personally implement and how did it work?';
+      }
+
       const skill = this.publicSkillLabel(current.skillCanonical, language);
       return language === 'vi'
         ? 'Với ' + skill + ', bạn sẽ bắt đầu xử lý một tình huống cơ bản như thế nào?'
@@ -388,6 +459,29 @@ export class InterviewRealtimeService {
     if (value) return value;
     return language === 'vi' ? 'chủ đề này' : 'this topic';
   }
+  private isInvalidCapture(dto: RealtimeInterviewTurnDto, current: InterviewTurnEntity): boolean {
+    if (dto.modality !== 'AUDIO') return false;
+    const transcript = dto.transcript.trim().normalize('NFC');
+    if (!transcript) return true;
+    if (/[\u3400-\u9FFF\uF900-\uFAFF]/u.test(transcript)) return true;
+    if (/you are english|english interview|preserve technical terms/i.test(transcript)) {
+      return true;
+    }
+    if (this.fingerprint(transcript) === this.fingerprint(current.interviewerQuestion)) {
+      return true;
+    }
+    const explicitNoAnswer =
+      /\b(?:i do not know|i don't know|no idea|không biết|không rõ|chịu|bỏ qua)\b/iu.test(
+        transcript,
+      );
+    const tokens = transcript.match(/[\p{L}\p{N}+#.]+/gu) ?? [];
+    return (
+      (dto.answerSignal === 'NO_ANSWER' || dto.answerSignal === 'OFF_TOPIC') &&
+      tokens.length < 3 &&
+      !explicitNoAnswer
+    );
+  }
+
   private createsQuestionTurn(action: string): boolean {
     return action === 'FOLLOW_UP' || action === 'ADVANCE_TOPIC';
   }

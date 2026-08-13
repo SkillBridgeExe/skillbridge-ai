@@ -48,6 +48,17 @@ describe('InterviewTurnPolicyService', () => {
       },
     });
   });
+  it('retries an invalid audio capture without consuming or changing the thread', () => {
+    const state = initialState({ probeCount: 1 });
+    const result = policy.decide(input({ captureInvalid: true, state }));
+
+    expect(result).toMatchObject({
+      action: 'RETRY_CAPTURE',
+      consumesAttempt: false,
+      finished: false,
+      state,
+    });
+  });
 
   it('moves to a different topic after the second no-answer and scores the thread zero', () => {
     const result = policy.decide(

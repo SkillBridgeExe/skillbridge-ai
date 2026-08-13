@@ -21,7 +21,8 @@ export type InterviewDirectiveAction =
   | 'DECLINE_COACHING'
   | 'REPEAT'
   | 'CLARIFY'
-  | 'WRAP_UP';
+  | 'WRAP_UP'
+  | 'RETRY_CAPTURE';
 export type InterviewAssistanceLevel = 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
 
 export interface RealtimeTurnPolicyState {
@@ -40,6 +41,7 @@ export interface RealtimeTurnPolicyInput {
   answerSignal: RealtimeAnswerSignal;
   state: RealtimeTurnPolicyState;
   nextTopicId: string | null;
+  captureInvalid?: boolean;
   nextQuestionThreadId: string | null;
 }
 
@@ -67,6 +69,9 @@ export class InterviewTurnPolicyService {
     }
     if (intent === 'CLARIFY') {
       return this.result('CLARIFY', false, false, state, ['clarification_requested']);
+    }
+    if (input.captureInvalid) {
+      return this.result('RETRY_CAPTURE', false, false, state, ['invalid_audio_capture']);
     }
     if (intent === 'FEEDBACK') {
       const action = input.experienceMode === 'PRACTICE' ? 'GIVE_FEEDBACK' : 'DECLINE_COACHING';

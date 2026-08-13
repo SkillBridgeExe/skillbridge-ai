@@ -317,6 +317,13 @@ export interface InterviewTurnDto {
   skipReason: string | null;
 }
 
+export type InterviewAnalysisStatus =
+  | 'NOT_STARTED'
+  | 'PENDING'
+  | 'READY'
+  | 'FAILED'
+  | 'NOT_REQUIRED';
+
 export interface InterviewSessionDto {
   id: string;
   cvId: string | null;
@@ -331,6 +338,7 @@ export interface InterviewSessionDto {
   voice: InterviewVoice;
   speechSpeed: number;
   status: InterviewStatus;
+  analysisStatus: InterviewAnalysisStatus;
   totalQuestionsPlanned: number | null;
   maxDurationSeconds: number;
   expiresAt: string | null;

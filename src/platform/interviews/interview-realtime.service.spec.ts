@@ -3,6 +3,7 @@ import { ObjectLiteral, Repository } from 'typeorm';
 import { InterviewRealtimeDirectiveEntity } from '../../database/entities/interview-realtime-directive.entity';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { InterviewTurnEntity } from '../../database/entities/interview-turn.entity';
+import { SkillTextScannerService } from '../../common/services/skill-text-scanner.service';
 import { InterviewRealtimeService } from './interview-realtime.service';
 import { InterviewTurnPolicyService } from './interview-turn-policy.service';
 
@@ -17,7 +18,14 @@ describe('InterviewRealtimeService', () => {
     agenda: {
       topics: [
         { id: 'api', what_to_probe: 'API trade-offs', seed_question: 'Design an API.' },
-        { id: 'cache', what_to_probe: 'Cache trade-offs', seed_question: 'Design a cache.' },
+        {
+          id: 'cache',
+          what_to_probe: 'Cache trade-offs',
+          seed_question: 'Design a cache.',
+          phase: 'SKILL_PROBE',
+          skill_canonical: 'redis',
+          question_bank_key: 'backend-redis-01',
+        },
       ],
     },
     interviewState: {
@@ -65,6 +73,9 @@ describe('InterviewRealtimeService', () => {
       turns as Repository<InterviewTurnEntity>,
       directives as Repository<InterviewRealtimeDirectiveEntity>,
       new InterviewTurnPolicyService(),
+      {
+        scan: jest.fn(() => []),
+      } as unknown as SkillTextScannerService,
     );
     return { service, sessions, turns, directives };
   }
@@ -98,6 +109,66 @@ describe('InterviewRealtimeService', () => {
     expect(result.directiveId).toBe(persisted.id);
     expect(directives.save).not.toHaveBeenCalled();
     expect(turns.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsafe CJK capture without consuming the pending question', async () => {
+    const { service, turns, directives } = createService();
+
+    const result = await service.submitTurn('user-1', session.id, {
+      clientTurnId: 'client-cjk',
+      transcript: '我們要覺得',
+      modality: 'AUDIO',
+      intent: 'ANSWER',
+
+      answerSignal: 'OFF_TOPIC',
+    });
+
+    expect(result).toMatchObject({
+      action: 'RETRY_CAPTURE',
+      consumesAttempt: false,
+      questionThreadId: currentTurn.questionThreadId,
+    });
+    expect(turns.save).not.toHaveBeenCalled();
+    expect(directives.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'RETRY_CAPTURE',
+        consumesAttempt: false,
+      }),
+    );
+  });
+
+  it('returns a structured busy error while the previous directive is waiting for commit', async () => {
+    const pending = {
+      id: '66666666-6666-4666-8666-666666666666',
+      sessionId: session.id,
+      clientTurnId: 'client-pending',
+      action: 'FOLLOW_UP',
+      topicId: 'api',
+      questionThreadId: currentTurn.questionThreadId,
+      difficultyStep: 0,
+      assistanceLevel: 'NONE',
+      scoreCap: null,
+      threadScore: null,
+      consumesAttempt: true,
+      questionGoal: 'Follow up on the API.',
+      finished: false,
+      committedAt: null,
+    } as InterviewRealtimeDirectiveEntity;
+    const { service, directives, turns } = createService();
+    (directives.findOne as jest.Mock).mockResolvedValueOnce(null).mockResolvedValueOnce(pending);
+
+    await expect(
+      service.submitTurn('user-1', session.id, {
+        clientTurnId: 'client-next',
+        transcript: 'A second answer arrived too early.',
+        modality: 'AUDIO',
+        intent: 'ANSWER',
+        answerSignal: 'COMPLETE',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: 'INTERVIEW_TURN_BUSY' }),
+    });
+    expect(turns.findOne).not.toHaveBeenCalled();
   });
 
   it('preserves the first no-answer attempt and creates the easier question in the same thread', async () => {
@@ -140,6 +211,45 @@ describe('InterviewRealtimeService', () => {
         questionThreadId: currentTurn.questionThreadId,
         interviewerQuestion: 'What is one benefit of an idempotency key?',
         sourceDirectiveId: directive.id,
+      }),
+    );
+  });
+
+  it('creates the next turn with agenda skill and question-bank metadata instead of topic id', async () => {
+    const directive = {
+      id: '44444444-4444-4444-8444-444444444444',
+      sessionId: session.id,
+      turnId: currentTurn.id,
+      action: 'ADVANCE_TOPIC',
+      consumesAttempt: true,
+      topicId: 'cache',
+      questionThreadId: '55555555-5555-4555-8555-555555555555',
+      difficultyStep: 0,
+      assistanceLevel: 'NONE',
+      scoreCap: null,
+      threadScore: null,
+      questionGoal: 'Design a cache.',
+      finished: false,
+      committedAt: null,
+    } as InterviewRealtimeDirectiveEntity;
+    const answeredTurn = {
+      ...currentTurn,
+      answeredAt: new Date('2026-08-10T10:00:00.000Z'),
+    } as InterviewTurnEntity;
+    const { service, turns } = createService(directive);
+    const turnFindOne = turns.findOne as jest.Mock;
+    turnFindOne.mockResolvedValueOnce(answeredTurn).mockResolvedValueOnce(null);
+
+    await service.commitAssistantMessage('user-1', session.id, directive.id, {
+      responseId: 'response-cache',
+      interviewerQuestion: 'How would you design the cache?',
+    });
+
+    expect(turns.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicPhase: 'SKILL_PROBE',
+        skillCanonical: 'redis',
+        questionBankKey: 'backend-redis-01',
       }),
     );
   });

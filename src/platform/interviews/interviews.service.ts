@@ -85,6 +85,7 @@ import {
   EndPlatformInterviewDto,
   InterviewContextMode,
   InterviewDetailResponseDto,
+  InterviewAnalysisStatus,
   InterviewListQueryDto,
   InterviewSessionDto,
   InterviewTurnDto,
@@ -96,6 +97,14 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { applyScoreCap, collapseQuestionThreads } from './interview-thread-scoring';
 import { resolveInterviewVoice } from './interview-voice';
+
+interface InterviewFinalizationState {
+  status: 'PENDING' | 'READY' | 'FAILED';
+  attemptId: string;
+  startedAt: string;
+  completedAt?: string;
+  failedAt?: string;
+}
 
 const PRO_INTERVIEW_SECONDS = 10 * 60;
 const PREMIUM_INTERVIEW_SECONDS = 15 * 60;
@@ -210,6 +219,7 @@ interface InterviewDifficultyProfile {
 @Injectable()
 export class InterviewsService {
   private readonly logger = new Logger(InterviewsService.name);
+  private readonly activeFinalizations = new Map<string, InterviewFinalizationState>();
 
   constructor(
     @InjectRepository(InterviewSessionEntity)
@@ -443,6 +453,27 @@ export class InterviewsService {
         turns: turns.map((turn) => this.toTurnDto(turn)),
       };
     }
+    const inFlightFinalization = this.activeFinalizations.get(session.id);
+    if (inFlightFinalization) {
+      session.interviewState = this.withFinalizationState(
+        session.interviewState,
+        inFlightFinalization,
+      );
+      return {
+        ...this.toSessionDto(session),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
+    }
+    const activeFinalization = this.finalizationState(session);
+    if (
+      activeFinalization?.status === 'PENDING' &&
+      Date.now() - Date.parse(activeFinalization.startedAt) < 120_000
+    ) {
+      return {
+        ...this.toSessionDto(session),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
+    }
     const answeredTurns = turns.filter((turn) => this.hasValidStoredAnswer(turn));
     const endedAt = this.resolveEndedAt(session);
     if (answeredTurns.length === 0) {
@@ -457,82 +488,113 @@ export class InterviewsService {
       };
     }
 
-    const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
-    const difficulty = this.resolveSessionInterviewDifficulty(session);
-    // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
-    // quotes (masked inside the module) — score and explanations come from ONE pass.
-    const { score, explanations } = explainInterviewScore({
-      answers: this.scoringAnswers(analyses),
-      role: session.targetRole,
-      seniority: difficulty.level,
+    const finalizationAttemptId = crypto.randomUUID();
+    const finalizationStartedAt = new Date().toISOString();
+    session.interviewState = this.withFinalizationState(session.interviewState, {
+      status: 'PENDING',
+      attemptId: finalizationAttemptId,
+      startedAt: finalizationStartedAt,
     });
-    const contexts = analyses.map(
-      (item): AnswerGapContext => ({
-        topic_phase: item.topicPhase,
-        skill_canonical: item.skillCanonical,
-        display_name: item.displayName,
-        linked_question_id: item.turn.id,
-        answer_excerpt: item.turn.userAnswerText ?? '',
-        signals: item.signals,
-        insight: item.insight,
-      }),
-    );
-    const probedSkills = this.probedSkillSet(analyses);
-    const interviewGaps = groundInterviewGaps(
-      deriveInterviewGaps(contexts),
-      probedSkills.size > 0 ? probedSkills : null,
-    );
-    const matchGapItems = await this.loadMatchGapItems(userId, session);
-    const plan = buildUnifiedPlan({
-      matchId: session.cvMatchId ?? '',
-      sessionId: session.id,
-      gapItems: matchGapItems,
-      interviewItems: interviewGaps,
-    });
-    const coaching = await this.coachingService!.coach(
-      {
-        score,
-        gaps: interviewGaps,
-        plan,
-        language: this.language(session.language),
-      },
-      userId,
-    );
+    const finalizationClaim = this.finalizationState(session);
+    if (finalizationClaim) this.activeFinalizations.set(session.id, finalizationClaim);
+    try {
+      await this.sessions.save(session);
 
-    session.status = 'COMPLETED';
-    session.endedAt = endedAt;
-    session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
-    // additive: score_explanations rides inside the finalScore jsonb; existing consumers of
-    // overall/dimensions/role_family are untouched.
-    session.finalScore = {
-      ...score,
-      // A zero-dimension aggregate means the rubric did not have enough valid criteria to score
-      // this session. Keep the internal aggregate shape for compatibility, but do not expose 0 as
-      // a real candidate score to clients.
-      overall: score.score_basis === 'unscored' ? null : score.overall,
-      score_explanations: explanations,
-      score_basis: score.score_basis ?? 'unscored',
-      scoring_note:
-        score.score_basis === 'criterion_rubric'
-          ? 'Overall score is derived from per-answer criterion rubrics and code-owned dimension weights.'
-          : score.score_basis === 'mixed'
-            ? 'Overall score combines calibrated criterion rubrics with explicitly marked legacy fallback answers.'
-            : 'Overall score contains legacy fallback answers and should be treated as low-confidence.',
-    };
-    session.gapItems = interviewGaps;
-    session.devPlan = plan;
-    session.coaching = coaching;
-    session.overallScore = score.score_basis === 'unscored' ? null : this.score(score.overall);
-    session.semanticScore = this.score(this.dimensionScore(score, 'technical_depth'));
-    session.llmScore = this.score(this.dimensionScore(score, 'evidence_credibility'));
-    session.communicationScore = this.score(this.dimensionScore(score, 'communication'));
-    session.aiFeedback = this.compatAiFeedback(coaching, score, plan);
-    const saved = await this.sessions.save(session);
+      const analyses = await this.ensureTurnAnalyses(userId, session, answeredTurns);
+      const difficulty = this.resolveSessionInterviewDifficulty(session);
+      // Wave I-SCORE: same aggregation as before, plus per-dimension explanations with evidence
+      // quotes (masked inside the module) — score and explanations come from ONE pass.
+      const { score, explanations } = explainInterviewScore({
+        answers: this.scoringAnswers(analyses),
+        role: session.targetRole,
+        seniority: difficulty.level,
+      });
+      const contexts = analyses.map(
+        (item): AnswerGapContext => ({
+          topic_phase: item.topicPhase,
+          skill_canonical: item.skillCanonical,
+          display_name: item.displayName,
+          linked_question_id: item.turn.id,
+          answer_excerpt: item.turn.userAnswerText ?? '',
+          signals: item.signals,
+          insight: item.insight,
+        }),
+      );
+      const probedSkills = this.probedSkillSet(analyses);
+      const interviewGaps = groundInterviewGaps(
+        deriveInterviewGaps(contexts),
+        probedSkills.size > 0 ? probedSkills : null,
+      );
+      const matchGapItems = await this.loadMatchGapItems(userId, session);
+      const plan = buildUnifiedPlan({
+        matchId: session.cvMatchId ?? '',
+        sessionId: session.id,
+        gapItems: matchGapItems,
+        interviewItems: interviewGaps,
+      });
+      const coaching = await this.coachingService!.coach(
+        {
+          score,
+          gaps: interviewGaps,
+          plan,
+          language: this.language(session.language),
+        },
+        userId,
+      );
 
-    return {
-      ...this.toSessionDto(saved),
-      turns: turns.map((turn) => this.toTurnDto(turn)),
-    };
+      session.status = 'COMPLETED';
+      session.endedAt = endedAt;
+      session.durationSeconds = this.durationSeconds(session.startedAt, endedAt);
+      // additive: score_explanations rides inside the finalScore jsonb; existing consumers of
+      // overall/dimensions/role_family are untouched.
+      session.finalScore = {
+        ...score,
+        // A zero-dimension aggregate means the rubric did not have enough valid criteria to score
+        // this session. Keep the internal aggregate shape for compatibility, but do not expose 0 as
+        // a real candidate score to clients.
+        overall: score.score_basis === 'unscored' ? null : score.overall,
+        score_explanations: explanations,
+        score_basis: score.score_basis ?? 'unscored',
+        scoring_note:
+          score.score_basis === 'criterion_rubric'
+            ? 'Overall score is derived from per-answer criterion rubrics and code-owned dimension weights.'
+            : score.score_basis === 'mixed'
+              ? 'Overall score combines calibrated criterion rubrics with explicitly marked legacy fallback answers.'
+              : 'Overall score contains legacy fallback answers and should be treated as low-confidence.',
+      };
+      session.gapItems = interviewGaps;
+      session.devPlan = plan;
+      session.coaching = coaching;
+      session.overallScore = score.score_basis === 'unscored' ? null : this.score(score.overall);
+      session.semanticScore = this.score(this.dimensionScore(score, 'technical_depth'));
+      session.llmScore = this.score(this.dimensionScore(score, 'evidence_credibility'));
+      session.communicationScore = this.score(this.dimensionScore(score, 'communication'));
+      session.aiFeedback = this.compatAiFeedback(coaching, score, plan);
+      session.interviewState = this.withFinalizationState(session.interviewState, {
+        status: 'READY',
+        attemptId: finalizationAttemptId,
+        startedAt: finalizationStartedAt,
+        completedAt: new Date().toISOString(),
+      });
+
+      const saved = await this.sessions.save(session);
+
+      return {
+        ...this.toSessionDto(saved),
+        turns: turns.map((turn) => this.toTurnDto(turn)),
+      };
+    } catch (error) {
+      session.interviewState = this.withFinalizationState(session.interviewState, {
+        status: 'FAILED',
+        attemptId: finalizationAttemptId,
+        startedAt: finalizationStartedAt,
+        failedAt: new Date().toISOString(),
+      });
+      await this.sessions.save(session);
+      throw error;
+    } finally {
+      this.activeFinalizations.delete(session.id);
+    }
   }
 
   async list(
@@ -862,8 +924,11 @@ export class InterviewsService {
     turns: InterviewTurnEntity[],
   ): Promise<FinalizedTurnAnalysis[]> {
     const out: FinalizedTurnAnalysis[] = [];
-    for (const turn of turns) {
-      out.push(await this.ensureTurnAnalysis(userId, session, turn));
+    for (let index = 0; index < turns.length; index += 3) {
+      const batch = turns.slice(index, index + 3);
+      out.push(
+        ...(await Promise.all(batch.map((turn) => this.ensureTurnAnalysis(userId, session, turn)))),
+      );
     }
     return out;
   }
@@ -1846,6 +1911,49 @@ export class InterviewsService {
     return LEGACY_TRANSCRIPTION_PROMPT_PATTERNS.some((pattern) => pattern.test(text));
   }
 
+  private finalizationState(session: InterviewSessionEntity): InterviewFinalizationState | null {
+    const root =
+      session.interviewState && typeof session.interviewState === 'object'
+        ? (session.interviewState as Record<string, unknown>)
+        : {};
+    const value = root.finalization;
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Record<string, unknown>;
+    const status = candidate.status;
+    if (status !== 'PENDING' && status !== 'READY' && status !== 'FAILED') {
+      return null;
+    }
+    if (typeof candidate.attemptId !== 'string' || typeof candidate.startedAt !== 'string') {
+      return null;
+    }
+    return candidate as unknown as InterviewFinalizationState;
+  }
+
+  private withFinalizationState(
+    value: unknown,
+    finalization: InterviewFinalizationState,
+  ): Record<string, unknown> {
+    const root = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+    return { ...root, finalization };
+  }
+
+  private analysisStatus(session: InterviewSessionEntity): InterviewAnalysisStatus {
+    if (session.status === 'CANCELLED') return 'NOT_REQUIRED';
+    if (session.status === 'COMPLETED') return 'READY';
+    if (session.status === 'FAILED') return 'FAILED';
+    const root =
+      session.interviewState && typeof session.interviewState === 'object'
+        ? (session.interviewState as Record<string, unknown>)
+        : {};
+    const finalization = root.finalization;
+    if (!finalization || typeof finalization !== 'object') return 'NOT_STARTED';
+    const status = (finalization as { status?: unknown }).status;
+    if (status === 'PENDING') return 'PENDING';
+    if (status === 'FAILED') return 'FAILED';
+    if (status === 'READY') return 'READY';
+    return 'NOT_STARTED';
+  }
+
   private toSessionDto(session: InterviewSessionEntity): InterviewSessionDto {
     return {
       id: session.id,
@@ -1864,6 +1972,7 @@ export class InterviewsService {
       ),
       speechSpeed: this.speechSpeed(session.speechSpeed),
       status: session.status,
+      analysisStatus: this.analysisStatus(session),
       totalQuestionsPlanned: session.totalQuestionsPlanned,
       maxDurationSeconds: session.maxDurationSeconds,
       expiresAt: session.expiresAt ? session.expiresAt.toISOString() : null,

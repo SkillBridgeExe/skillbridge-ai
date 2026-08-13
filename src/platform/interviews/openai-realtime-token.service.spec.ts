@@ -82,7 +82,7 @@ describe('OpenAiRealtimeTokenService', () => {
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
                 eagerness: 'low',
-                create_response: true,
+                create_response: false,
                 interrupt_response: false,
               }),
             }),
@@ -160,7 +160,7 @@ describe('OpenAiRealtimeTokenService', () => {
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
                 eagerness: 'auto',
-                create_response: true,
+                create_response: false,
                 interrupt_response: false,
               }),
             }),
@@ -279,7 +279,7 @@ describe('OpenAiRealtimeTokenService', () => {
         session: expect.objectContaining({
           model: 'gpt-realtime-2.1',
           reasoning: { effort: 'low' },
-          tool_choice: 'auto',
+          tool_choice: 'none',
           tools: expect.arrayContaining([
             expect.objectContaining({
               type: 'function',
@@ -300,7 +300,7 @@ describe('OpenAiRealtimeTokenService', () => {
               turn_detection: expect.objectContaining({
                 type: 'semantic_vad',
                 eagerness: 'low',
-                create_response: true,
+                create_response: false,
                 interrupt_response: false,
               }),
             }),

@@ -1,5 +1,6 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonServicesModule } from '../../common/services/common-services.module';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
@@ -23,6 +24,7 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
   imports: [
     TypeOrmModule.forFeature([
       InterviewSessionEntity,
+      CommonServicesModule,
       InterviewTurnEntity,
       InterviewRealtimeDirectiveEntity,
       CvEntity,
