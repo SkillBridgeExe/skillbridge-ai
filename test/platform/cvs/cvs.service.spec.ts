@@ -324,6 +324,47 @@ describe('CvsService R1 completion behavior', () => {
         }),
       );
     });
+
+    it('repairs legacy mojibake CV metadata in list responses', async () => {
+      const { service, cvsRepo } = build();
+      cvsRepo.findAndCount.mockResolvedValue([
+        [
+          {
+            ...uploadedCv,
+            title: 'Nguyen Anh Tuan \u00e2\u0080\u0094 Backend .NET Developer.pdf',
+            originalFileName: 'Nguyen Anh Tuan \u00e2\u0080\u0094 Backend .NET Developer.pdf',
+          },
+          {
+            ...uploadedCv,
+            id: 'cv-uploaded-windows-1252',
+            title: 'Nguyen Anh Tuan â€” Backend .NET Developer.pdf',
+            originalFileName: 'Nguyen Anh Tuan â€” Backend .NET Developer.pdf',
+          },
+          {
+            ...uploadedCv,
+            id: 'cv-uploaded-vietnamese-name',
+            title: 'Nguyá»…n Anh Tuáº¥n Backend .NET Developer.pdf',
+            originalFileName: 'Nguyá»…n Anh Tuáº¥n Backend .NET Developer.pdf',
+          },
+        ],
+        3,
+      ]);
+
+      const result = await service.list('u1', { page: 1, limit: 20 });
+
+      expect(result.items[0]).toMatchObject({
+        title: 'Nguyen Anh Tuan — Backend .NET Developer.pdf',
+        originalFileName: 'Nguyen Anh Tuan — Backend .NET Developer.pdf',
+      });
+      expect(result.items[1]).toMatchObject({
+        title: 'Nguyen Anh Tuan — Backend .NET Developer.pdf',
+        originalFileName: 'Nguyen Anh Tuan — Backend .NET Developer.pdf',
+      });
+      expect(result.items[2]).toMatchObject({
+        title: 'Nguyễn Anh Tuấn Backend .NET Developer.pdf',
+        originalFileName: 'Nguyễn Anh Tuấn Backend .NET Developer.pdf',
+      });
+    });
   });
 
   it('persists targetRole on upload and records consent audit', async () => {
@@ -350,6 +391,28 @@ describe('CvsService R1 completion behavior', () => {
       }),
     );
     expect(consentAudits.save).toHaveBeenCalled();
+  });
+
+  it('normalizes a multipart mojibake filename before storage, extraction, and persistence', async () => {
+    const { service, cvsRepo, storage, extractor } = build();
+    const mojibakeFile = {
+      ...file,
+      originalname: 'Nguyen Anh Tuan \u00e2\u0080\u0094 Backend .NET Developer.pdf',
+    };
+
+    await service.create('u1', { consentAccepted: true }, mojibakeFile);
+
+    const expectedName = 'Nguyen Anh Tuan — Backend .NET Developer.pdf';
+    expect(storage.buildCvObjectKey).toHaveBeenCalledWith('u1', expect.any(String), expectedName);
+    expect(extractor.extract).toHaveBeenCalledWith(
+      expect.objectContaining({ originalname: expectedName }),
+    );
+    expect(cvsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expectedName,
+        originalFileName: expectedName,
+      }),
+    );
   });
 
   it('reuses the persisted targetRole when rerunning review', async () => {
@@ -987,6 +1050,81 @@ describe('CvsService R1 completion behavior', () => {
     expect(storage.upload).not.toHaveBeenCalled();
     expect(cvReview.review).not.toHaveBeenCalled();
     expect(analysisQuota.reserveAnalysis).not.toHaveBeenCalled();
+  });
+
+  it('repairs generated mojibake metadata when a cached duplicate is uploaded again', async () => {
+    const { service, cvsRepo, aiResults } = build();
+    const brokenName = 'Nguyen Anh Tuan \u00e2\u0080\u0094 Backend .NET Developer.pdf';
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'existing-cv',
+      userId: 'u1',
+      title: brokenName,
+      originalFileName: brokenName,
+      fileType: 'application/pdf',
+      fileSize: 1024,
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      isOcrOnly: false,
+      atsReadabilityScore: '80.00',
+      targetRole: 'backend_developer',
+      contentHash: 'existing-hash',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+    const correctName = 'Nguyen Anh Tuan — Backend .NET Developer.pdf';
+
+    const response = await service.create(
+      'u1',
+      { consentAccepted: true, title: correctName },
+      { ...file, originalname: correctName },
+    );
+
+    expect(cvsRepo.update).toHaveBeenCalledWith('existing-cv', {
+      title: correctName,
+      originalFileName: correctName,
+    });
+    expect(response).toMatchObject({ title: correctName, originalFileName: correctName });
+  });
+
+  it('refreshes a duplicate original filename without overwriting a custom title', async () => {
+    const { service, cvsRepo, aiResults } = build();
+    cvsRepo.findOne.mockResolvedValue({
+      id: 'existing-cv',
+      userId: 'u1',
+      title: 'CV Backend của tôi',
+      originalFileName: 'old-name.pdf',
+      fileType: 'application/pdf',
+      fileSize: 1024,
+      parsedText: 'parsed cv text',
+      parsedJson: parsedReview.document,
+      cvKind: 'UPLOADED',
+      language: 'vi',
+      isOcrOnly: false,
+      atsReadabilityScore: '80.00',
+      targetRole: 'backend_developer',
+      contentHash: 'existing-hash',
+      createdAt: now,
+      updatedAt: now,
+    });
+    aiResults.manager.query.mockResolvedValue([{ parsed_response: parsedReview }]);
+    const correctName = 'Nguyen Anh Tuan — Backend .NET Developer.pdf';
+
+    const response = await service.create(
+      'u1',
+      { consentAccepted: true, title: correctName },
+      { ...file, originalname: correctName },
+    );
+
+    expect(cvsRepo.update).toHaveBeenCalledWith('existing-cv', {
+      originalFileName: correctName,
+    });
+    expect(response).toMatchObject({
+      title: 'CV Backend của tôi',
+      originalFileName: correctName,
+    });
   });
 
   it('re-grades a duplicate file when re-uploaded under a NEW target role (role-aware dedup)', async () => {

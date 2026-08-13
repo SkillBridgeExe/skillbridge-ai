@@ -1,7 +1,8 @@
-import { Transform, Type } from 'class-transformer';
+﻿import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -11,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -24,15 +26,38 @@ import {
   InterviewVoice,
 } from '../../../database/entities/interview-session.entity';
 import { InterviewTurnPhase } from '../../../database/entities/interview-turn.entity';
-import {
-  InterviewPhase as AgendaInterviewPhase,
-  InterviewTurnTrace,
-} from '../../../modules/interview/interview-agenda';
+import { InterviewPhase as AgendaInterviewPhase } from '../../../modules/interview/interview-agenda';
+import { InterviewExperienceMode } from '../../../database/entities/interview-session.entity';
 
-const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE', 'HYBRID'];
+const INTERVIEW_MODES: InterviewMode[] = ['TEXT', 'VOICE'];
 const INTERVIEW_TYPES: InterviewType[] = ['HR', 'TECHNICAL', 'MIXED'];
 const LANGUAGES = ['vi', 'en'] as const;
 const MODALITIES = ['TEXT', 'AUDIO'] as const;
+const EXPERIENCE_MODES: InterviewExperienceMode[] = ['MOCK', 'PRACTICE'];
+export type CandidateIntent =
+  | 'ANSWER'
+  | 'NO_ANSWER'
+  | 'REPEAT'
+  | 'CLARIFY'
+  | 'EASIER'
+  | 'HINT'
+  | 'FEEDBACK'
+  | 'SKIP'
+  | 'END';
+const CANDIDATE_INTENTS: CandidateIntent[] = [
+  'ANSWER',
+  'NO_ANSWER',
+  'REPEAT',
+  'CLARIFY',
+  'EASIER',
+  'HINT',
+  'FEEDBACK',
+  'SKIP',
+  'END',
+];
+const REALTIME_KINDS = ['REALTIME_EXCHANGE', 'TEXT_FALLBACK'] as const;
+const REALTIME_INPUT_TYPES = ['ANSWER', 'CONTROL', 'CAPTURE_RETRY'] as const;
+const INTENT_SOURCES = ['VOICE_LEXICAL', 'BUTTON', 'TEXT'] as const;
 export const INTERVIEW_CONTEXT_MODES = ['ROLE_ONLY', 'CV_ONLY', 'CV_JD_MATCH'] as const;
 export type InterviewContextMode = (typeof INTERVIEW_CONTEXT_MODES)[number];
 
@@ -76,10 +101,15 @@ export class StartPlatformInterviewDto {
   @IsIn(LANGUAGES)
   language?: 'vi' | 'en';
 
-  @ApiPropertyOptional({ enum: INTERVIEW_MODES, default: 'HYBRID' })
+  @ApiPropertyOptional({ enum: INTERVIEW_MODES, default: 'VOICE' })
   @IsOptional()
   @IsIn(INTERVIEW_MODES)
   mode?: InterviewMode;
+
+  @ApiPropertyOptional({ enum: EXPERIENCE_MODES, default: 'MOCK' })
+  @IsOptional()
+  @IsIn(EXPERIENCE_MODES)
+  experienceMode?: InterviewExperienceMode;
 
   @ApiPropertyOptional({ enum: INTERVIEW_TYPES, default: 'TECHNICAL' })
   @IsOptional()
@@ -105,100 +135,148 @@ export class StartPlatformInterviewDto {
   speechSpeed?: number = DEFAULT_INTERVIEW_SPEECH_SPEED;
 }
 
-export class AnswerPlatformInterviewDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID()
-  sessionId!: string;
+export class RealtimeExchangeInputDto {
+  @ApiProperty({ enum: REALTIME_INPUT_TYPES })
+  @IsIn(REALTIME_INPUT_TYPES)
+  type!: 'ANSWER' | 'CONTROL' | 'CAPTURE_RETRY';
 
-  @ApiProperty({ example: 'Em dùng React Query để cache server state...' })
-  @IsString()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  userAnswer!: string;
-
-  @ApiPropertyOptional({
-    description: 'Transcript from voice mode. Omit for text answers.',
-  })
-  @IsOptional()
-  @IsString()
-  userTranscript?: string;
-
-  @ApiPropertyOptional({ enum: MODALITIES, default: 'TEXT' })
-  @IsOptional()
+  @ApiProperty({ enum: MODALITIES })
   @IsIn(MODALITIES)
-  modality?: 'TEXT' | 'AUDIO';
+  modality!: 'TEXT' | 'AUDIO';
 
-  @ApiPropertyOptional({ minimum: 0 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  durationSeconds?: number;
-
-  @ApiPropertyOptional({
-    minimum: 0,
-    description: 'P3: ms from mic-open to first speech, client-measured (voice mode).',
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  responseDelayMs?: number;
-
-  @ApiPropertyOptional({
-    minimum: 1,
-    description: 'P3: STT transcript segments in this answer (long-pause proxy, voice mode).',
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  transcriptSegments?: number;
-}
-
-export class LiveInterviewTurnDto {
-  @ApiProperty({ minimum: 1 })
-  @IsInt()
-  @Min(1)
-  turnOrder!: number;
-
-  @ApiProperty({ example: 'Bạn đã thiết kế API đó như thế nào?' })
-  @IsString()
-  @MaxLength(4000)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  interviewerQuestion!: string;
-
-  @ApiPropertyOptional({ example: 'Em tách controller, service và repository.' })
+  @ApiPropertyOptional({ maxLength: 8000 })
   @IsOptional()
   @IsString()
   @MaxLength(8000)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  userAnswerText?: string;
+  transcript?: string;
 
-  @ApiPropertyOptional({ example: 'Em tách controller, service và repository.' })
+  @ApiPropertyOptional({ enum: CANDIDATE_INTENTS })
+  @IsOptional()
+  @IsIn(CANDIDATE_INTENTS)
+  intent?: CandidateIntent;
+
+  @ApiProperty({ enum: INTENT_SOURCES })
+  @IsIn(INTENT_SOURCES)
+  intentSource!: 'VOICE_LEXICAL' | 'BUTTON' | 'TEXT';
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  itemIds?: string[];
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  speechStartedAt?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  speechEndedAt?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  segmentCount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  meanLogprob?: number;
+}
+
+export class RealtimeExchangeAssistantDto {
+  @ApiProperty({ example: 'resp_123' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  responseId!: string;
+
+  @ApiProperty({ maxLength: 8000 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(8000)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  transcript!: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  firstAudioAt?: string;
+
+  @ApiProperty({ default: false })
+  @IsBoolean()
+  interrupted!: boolean;
+}
+
+export class RealtimeInterviewTurnDto {
+  @ApiProperty({ enum: REALTIME_KINDS })
+  @IsIn(REALTIME_KINDS)
+  kind!: 'REALTIME_EXCHANGE' | 'TEXT_FALLBACK';
+
+  @ApiProperty({ example: 'turn-client-1' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  clientTurnId!: string;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  questionTurnId?: string | null;
+
+  @ApiPropertyOptional({ type: RealtimeExchangeInputDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RealtimeExchangeInputDto)
+  input?: RealtimeExchangeInputDto;
+
+  @ApiPropertyOptional({ type: RealtimeExchangeAssistantDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RealtimeExchangeAssistantDto)
+  assistant?: RealtimeExchangeAssistantDto;
+
+  @ApiPropertyOptional({ maxLength: 8000 })
   @IsOptional()
   @IsString()
   @MaxLength(8000)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  userAnswerTranscript?: string;
+  text?: string;
 
-  @ApiPropertyOptional({ minimum: 0 })
+  @ApiPropertyOptional({ enum: CANDIDATE_INTENTS })
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  durationSeconds?: number;
+  @IsIn(CANDIDATE_INTENTS)
+  intent?: CandidateIntent;
 }
 
+export type RealtimeExchangeDisposition =
+  | 'COMMITTED'
+  | 'DUPLICATE'
+  | 'CAPTURE_RETRY'
+  | 'CONTROL_APPLIED'
+  | 'PENDING';
+
+export interface RealtimeExchangeResponseDto {
+  clientTurnId: string;
+  disposition: RealtimeExchangeDisposition;
+  answeredTurnId: string | null;
+  currentTurnId: string | null;
+  assistant: {
+    responseId: string | null;
+    transcript: string;
+    question: string | null;
+  } | null;
+  finished: boolean;
+}
 export class EndPlatformInterviewDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   sessionId!: string;
-
-  @ApiPropertyOptional({
-    type: () => [LiveInterviewTurnDto],
-    description: 'Reviewed live realtime interview turns to persist before scoring.',
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => LiveInterviewTurnDto)
-  liveTurns?: LiveInterviewTurnDto[];
 }
 
 export class InterviewListQueryDto {
@@ -238,6 +316,8 @@ export interface RealtimeClientSecretDto {
   enabled: boolean;
   provider: 'openai';
   model: string | null;
+  protocolVersion: 'interview-realtime-v3';
+  transcriptionModel: string;
   clientSecret: string | null;
   expiresAt: string | null;
   reason?: string;
@@ -280,7 +360,21 @@ export interface InterviewTurnDto {
    * are server-set, so the report never has to trust the client-reported `durationSeconds`.
    */
   timeBudgetSeconds: number | null;
+  questionThreadId: string | null;
+  candidateIntent: CandidateIntent | null;
+  assistanceLevel: 'NONE' | 'EASIER' | 'HINT' | 'SKIPPED';
+  scoreCap: number | null;
+  rawScore: number | null;
+  finalQuestionScore: number | null;
+  skipReason: string | null;
 }
+
+export type InterviewAnalysisStatus =
+  | 'NOT_STARTED'
+  | 'PENDING'
+  | 'READY'
+  | 'FAILED'
+  | 'NOT_REQUIRED';
 
 export interface InterviewSessionDto {
   id: string;
@@ -291,10 +385,12 @@ export interface InterviewSessionDto {
   targetRole: string;
   language: string;
   mode: InterviewMode;
+  experienceMode: InterviewExperienceMode;
   interviewType: InterviewType;
   voice: InterviewVoice;
   speechSpeed: number;
   status: InterviewStatus;
+  analysisStatus: InterviewAnalysisStatus;
   totalQuestionsPlanned: number | null;
   maxDurationSeconds: number;
   expiresAt: string | null;
@@ -315,40 +411,13 @@ export interface InterviewSessionDto {
 }
 
 export interface StartInterviewResponseDto extends InterviewSessionDto {
+  currentTurnId: string;
   firstMessage: string;
   firstQuestion: string;
   phase: InterviewTurnPhase | null;
   realtime: RealtimeClientSecretDto;
   /** I-PACE: seconds budgeted for answering `firstQuestion` (this response carries no turn DTO). */
   answerBudgetSeconds: number | null;
-}
-
-export interface AnswerInterviewResponseDto {
-  session: InterviewSessionDto;
-  answeredTurn: InterviewTurnDto;
-  nextTurn: InterviewTurnDto | null;
-  aiMessage: string;
-  nextQuestion: string | null;
-  finished: boolean;
-  turnDecision?:
-    | 'continue_topic'
-    | 'advance_topic'
-    | 'adaptive_follow_up'
-    | 'closing_prompt'
-    | 'finish';
-  finishReason?:
-    | 'TIME_LIMIT'
-    | 'USER_REQUEST'
-    | 'SAFETY_CAP'
-    | 'AGENDA_COMPLETE'
-    | 'QUALITY_GUARD'
-    | null;
-  nextQuestionKind?: 'opening' | 'follow_up' | 'transition' | 'closing' | null;
-  /**
-   * Wave I-REAL: WHY the engine picked this turn action — compact reason slugs, never the prompt
-   * or model chain. Optional/additive: absent on legacy sessions (old agenda-less paths).
-   */
-  turnTrace?: InterviewTurnTrace | null;
 }
 
 export interface InterviewDetailResponseDto extends InterviewSessionDto {

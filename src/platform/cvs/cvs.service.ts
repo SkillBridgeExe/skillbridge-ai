@@ -99,6 +99,37 @@ const MAX_CV_FILE_BYTES = 5 * 1024 * 1024;
 const CV_PROCESSING_CONSENT_VERSION = 'cv-processing-v1';
 const CV_UPLOAD_CONSENT_SOURCE = 'cv_upload';
 const CV_REVIEW_PROMPT_CODE = 'cv_review_v1';
+const MOJIBAKE_MARKER =
+  /[\u0080-\u009f]|\uFFFD|Ã|Â|Ä|Å|Æ|á(?:º|»)|â(?:[\u0080-\u00bf]|[\u2010-\u2027]|\u20ac)/gu;
+const WINDOWS_1252_BYTE = new Map<number, number>([
+  [0x20ac, 0x80],
+  [0x201a, 0x82],
+  [0x0192, 0x83],
+  [0x201e, 0x84],
+  [0x2026, 0x85],
+  [0x2020, 0x86],
+  [0x2021, 0x87],
+  [0x02c6, 0x88],
+  [0x2030, 0x89],
+  [0x0160, 0x8a],
+  [0x2039, 0x8b],
+  [0x0152, 0x8c],
+  [0x017d, 0x8e],
+  [0x2018, 0x91],
+  [0x2019, 0x92],
+  [0x201c, 0x93],
+  [0x201d, 0x94],
+  [0x2022, 0x95],
+  [0x2013, 0x96],
+  [0x2014, 0x97],
+  [0x02dc, 0x98],
+  [0x2122, 0x99],
+  [0x0161, 0x9a],
+  [0x203a, 0x9b],
+  [0x0153, 0x9c],
+  [0x017e, 0x9e],
+  [0x0178, 0x9f],
+]);
 const SUPPORTED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -107,6 +138,41 @@ const SUPPORTED_MIME_TYPES = new Set([
   'image/jpg',
   'image/webp',
 ]);
+
+function mojibakeScore(value: string): number {
+  return value.match(MOJIBAKE_MARKER)?.length ?? 0;
+}
+
+function legacyHeaderBytes(value: string): Buffer | null {
+  const bytes: number[] = [];
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (codePoint <= 0xff) {
+      bytes.push(codePoint);
+      continue;
+    }
+    const windows1252Byte = WINDOWS_1252_BYTE.get(codePoint);
+    if (windows1252Byte === undefined) return null;
+    bytes.push(windows1252Byte);
+  }
+  return Buffer.from(bytes);
+}
+
+function normalizeCvMetadataText(value: string): string {
+  const normalized = value.trim().normalize('NFC');
+  const originalScore = mojibakeScore(normalized);
+  if (!originalScore) return normalized;
+  const legacyBytes = legacyHeaderBytes(normalized);
+  if (!legacyBytes) return normalized;
+  try {
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(legacyBytes).normalize('NFC');
+    return !decoded.includes('\uFFFD') && mojibakeScore(decoded) < originalScore
+      ? decoded
+      : normalized;
+  } catch {
+    return normalized;
+  }
+}
 
 export type CvReviewState = 'CACHED' | 'CREATED' | 'NONE';
 
@@ -187,7 +253,15 @@ export class CvsService {
     dto: CreateCvDto,
     file: Express.Multer.File,
   ): Promise<PreparedCvAnalysis> {
-    this.validateFile(file);
+    const normalizedOriginalFileName = normalizeCvMetadataText(file.originalname);
+    const normalizedFile =
+      normalizedOriginalFileName === file.originalname
+        ? file
+        : { ...file, originalname: normalizedOriginalFileName };
+    const requestedTitle = dto.title?.trim()
+      ? normalizeCvMetadataText(dto.title)
+      : normalizedOriginalFileName;
+    this.validateFile(normalizedFile);
     if (dto.consentAccepted !== true) {
       throw new BadRequestException({
         errorCode: ERROR_CODES.VALIDATION_ERROR,
@@ -200,7 +274,7 @@ export class CvsService {
     const requestedRole = this.normalizeTargetRole(dto.targetRole);
     this.assertSupportedTargetRole(requestedRole);
 
-    const generatedSource = await this.findGeneratedPdfSource(userId, file);
+    const generatedSource = await this.findGeneratedPdfSource(userId, normalizedFile);
     if (generatedSource) {
       const role = requestedRole ?? generatedSource.targetRole ?? null;
       this.assertSupportedTargetRole(role);
@@ -245,9 +319,14 @@ export class CvsService {
       }
     }
 
-    const contentHash = this.sha256(file.buffer);
+    const contentHash = this.sha256(normalizedFile.buffer);
     const duplicate = await this.findDuplicateContentHash(userId, contentHash);
     if (duplicate) {
+      await this.refreshDuplicateUploadMetadata(
+        duplicate,
+        normalizedOriginalFileName,
+        requestedTitle,
+      );
       // Role-aware dedup: the review is scored against the TARGET ROLE's rubric
       // (skills_relevance + skill breakdown), so reuse a prior analysis ONLY when one
       // exists for the requested role. Re-uploading the same file under a NEW role must
@@ -290,7 +369,7 @@ export class CvsService {
     }
 
     const cvId = uuidv4();
-    const objectKey = this.storage.buildCvObjectKey(userId, cvId, file.originalname);
+    const objectKey = this.storage.buildCvObjectKey(userId, cvId, normalizedOriginalFileName);
     const targetRole = requestedRole;
     let cvSaved = false;
     let uploadCommitted = false;
@@ -301,18 +380,18 @@ export class CvsService {
     try {
       await this.storage.upload({
         key: objectKey,
-        body: file.buffer,
-        contentType: file.mimetype,
+        body: normalizedFile.buffer,
+        contentType: normalizedFile.mimetype,
       });
-      const extracted = await this.extractor.extract(file);
+      const extracted = await this.extractor.extract(normalizedFile);
       let cv = await this.cvs.save(
         this.cvs.create({
           id: cvId,
           userId,
-          title: dto.title?.trim() || file.originalname,
-          originalFileName: file.originalname,
-          fileType: file.mimetype,
-          fileSize: file.size,
+          title: requestedTitle,
+          originalFileName: normalizedOriginalFileName,
+          fileType: normalizedFile.mimetype,
+          fileSize: normalizedFile.size,
           fileUrl: objectKey,
           contentHash,
           parsedText: extracted.text,
@@ -350,6 +429,36 @@ export class CvsService {
       }
       throw error;
     }
+  }
+
+  private async refreshDuplicateUploadMetadata(
+    duplicate: CvEntity,
+    originalFileName: string,
+    requestedTitle: string,
+  ): Promise<void> {
+    const existingTitle = duplicate.title?.trim() ?? '';
+    const existingOriginalFileName = duplicate.originalFileName?.trim() ?? '';
+    const normalizedExistingTitle = existingTitle ? normalizeCvMetadataText(existingTitle) : '';
+    const normalizedExistingOriginalFileName = existingOriginalFileName
+      ? normalizeCvMetadataText(existingOriginalFileName)
+      : '';
+    const titleWasGeneratedFromFileName =
+      !existingTitle ||
+      normalizedExistingTitle !== existingTitle ||
+      (Boolean(existingOriginalFileName) &&
+        normalizedExistingTitle === normalizedExistingOriginalFileName);
+    const update: Partial<Pick<CvEntity, 'title' | 'originalFileName'>> = {};
+
+    if (duplicate.originalFileName !== originalFileName) {
+      update.originalFileName = originalFileName;
+    }
+    if (titleWasGeneratedFromFileName && duplicate.title !== requestedTitle) {
+      update.title = requestedTitle;
+    }
+    if (!Object.keys(update).length) return;
+
+    await this.cvs.update(duplicate.id, update);
+    Object.assign(duplicate, update);
   }
 
   async list(
@@ -391,7 +500,14 @@ export class CvsService {
         message: 'Original CV file is no longer stored under the privacy retention policy',
       });
     }
-    return { cv, file: await this.storage.download(cv.fileUrl) };
+    return {
+      cv: {
+        ...cv,
+        title: cv.title ? normalizeCvMetadataText(cv.title) : null,
+        originalFileName: cv.originalFileName ? normalizeCvMetadataText(cv.originalFileName) : null,
+      },
+      file: await this.storage.download(cv.fileUrl),
+    };
   }
 
   async remove(userId: string, cvId: string): Promise<void> {
@@ -406,7 +522,7 @@ export class CvsService {
    * updated_at via save() so the library "last edited" stays accurate.
    */
   async rename(userId: string, cvId: string, title: string): Promise<RenameCvResponseDto> {
-    const trimmed = title.trim();
+    const trimmed = normalizeCvMetadataText(title);
     if (!trimmed) {
       // Contract: explicit TITLE_REQUIRED, not a generic validation message.
       throw new BadRequestException({
@@ -1536,8 +1652,8 @@ export class CvsService {
 
     return {
       id: cv.id,
-      title: cv.title,
-      originalFileName: cv.originalFileName,
+      title: cv.title ? normalizeCvMetadataText(cv.title) : null,
+      originalFileName: cv.originalFileName ? normalizeCvMetadataText(cv.originalFileName) : null,
       fileType: cv.fileType,
       fileSize: cv.fileSize,
       downloadUrl: `/api/cvs/${cv.id}/file`,
@@ -1559,8 +1675,8 @@ export class CvsService {
   private toListItem(cv: CvEntity): CvListItemDto {
     return {
       id: cv.id,
-      title: cv.title,
-      originalFileName: cv.originalFileName,
+      title: cv.title ? normalizeCvMetadataText(cv.title) : null,
+      originalFileName: cv.originalFileName ? normalizeCvMetadataText(cv.originalFileName) : null,
       fileType: cv.fileType,
       fileSize: cv.fileSize,
       cvKind: cv.cvKind,

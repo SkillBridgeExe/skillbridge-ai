@@ -95,6 +95,31 @@ describe('CvsService.rename', () => {
     expect(cv.cvKind).toBe('UPLOADED');
   });
 
+  it('keeps a valid custom title when refreshing duplicate upload metadata', async () => {
+    const cv = makeCv({
+      title: 'Åge CV',
+      originalFileName: 'old-resume.pdf',
+      cvKind: 'UPLOADED',
+    });
+    const cvsRepo = makeRepo(cv);
+    const service = setup(cvsRepo);
+
+    await (
+      service as unknown as {
+        refreshDuplicateUploadMetadata: (
+          duplicate: typeof cv,
+          originalFileName: string,
+          requestedTitle: string,
+        ) => Promise<void>;
+      }
+    ).refreshDuplicateUploadMetadata(cv, 'new-resume.pdf', 'new-resume.pdf');
+
+    expect(cv.title).toBe('Åge CV');
+    expect(cvsRepo.update).toHaveBeenCalledWith('cv-1', {
+      originalFileName: 'new-resume.pdf',
+    });
+  });
+
   it('rejects an empty-after-trim title with TITLE_REQUIRED before touching the DB', async () => {
     const cvsRepo = makeRepo(makeCv());
     const service = setup(cvsRepo);

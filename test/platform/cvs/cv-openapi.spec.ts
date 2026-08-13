@@ -1,6 +1,8 @@
-import { INestApplication } from '@nestjs/common';
+import { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { AuthGuard } from '@nestjs/passport';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import request from 'supertest';
 import { getMetadataArgsStorage } from 'typeorm';
 import { CvConsentAuditEntity } from '../../../src/database/entities/cv-consent-audit.entity';
 import { RoleRubricService } from '../../../src/common/services/role-rubric.service';
@@ -91,6 +93,46 @@ describe('CV OpenAPI docs', () => {
 
   it('marks CV endpoints public to bypass internal auth while keeping bearer docs', () => {
     expect(Reflect.getMetadata(IS_PUBLIC_KEY, CvsController)).toBe(true);
+  });
+
+  it('decodes a Unicode multipart filename as UTF-8 before calling the CV service', async () => {
+    const create = jest.fn().mockImplementation((_userId, _dto, file) => ({
+      originalFileName: file.originalname,
+    }));
+    const moduleRef = await Test.createTestingModule({
+      controllers: [CvsController],
+      providers: [{ provide: CvsService, useValue: { create } }],
+    })
+      .overrideGuard(AuthGuard('jwt'))
+      .useValue({
+        canActivate: (context: ExecutionContext) => {
+          context.switchToHttp().getRequest().user = { userId: 'u1' };
+          return true;
+        },
+      })
+      .compile();
+    const uploadApp = moduleRef.createNestApplication();
+    await uploadApp.init();
+    const fileName = 'Nguyen Anh Tuan — Backend .NET Developer.pdf';
+
+    try {
+      await request(uploadApp.getHttpServer())
+        .post('/api/cvs')
+        .field('consentAccepted', 'true')
+        .attach('file', Buffer.from('%PDF-1.4'), {
+          filename: fileName,
+          contentType: 'application/pdf',
+        })
+        .expect(201);
+
+      expect(create).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ consentAccepted: 'true' }),
+        expect.objectContaining({ originalname: fileName }),
+      );
+    } finally {
+      await uploadApp.close();
+    }
   });
 
   it('documents user-facing CV builder endpoints', () => {

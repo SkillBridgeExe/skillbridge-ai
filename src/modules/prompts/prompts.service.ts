@@ -38,9 +38,7 @@ const REQUIRED_TEMPLATES = [
   'interview_ask_v1',
   'interview_assess_v1',
   'interview_answer_v1',
-  'interview_realtime_voice_v1',
-  'interview_realtime_hybrid_v1',
-  'interview_tts_v1',
+  'interview_realtime_v3',
   'interview_transcription_vi_v1',
   'interview_transcription_en_v1',
   'learning_chat_v1',
@@ -131,15 +129,16 @@ export class PromptsService implements OnModuleInit {
   }
 
   private parseFrontmatter(raw: string): { body: string; meta: Record<string, string> } {
+    const normalizedRaw = raw.replace(/^\uFEFF/u, '').replace(/\r\n?/g, '\n');
     const meta: Record<string, string> = {};
-    if (!raw.startsWith('---\n')) {
-      return { body: raw, meta };
+    if (!normalizedRaw.startsWith('---\n')) {
+      return { body: normalizedRaw, meta };
     }
-    const end = raw.indexOf('\n---\n', 4);
+    const end = normalizedRaw.indexOf('\n---\n', 4);
     if (end === -1) {
-      return { body: raw, meta };
+      return { body: normalizedRaw, meta };
     }
-    const front = raw.slice(4, end);
+    const front = normalizedRaw.slice(4, end);
     for (const line of front.split('\n')) {
       const idx = line.indexOf(':');
       if (idx === -1) continue;
@@ -147,6 +146,6 @@ export class PromptsService implements OnModuleInit {
       const value = line.slice(idx + 1).trim();
       meta[key] = value;
     }
-    return { body: raw.slice(end + 5), meta };
+    return { body: normalizedRaw.slice(end + 5), meta };
   }
 }

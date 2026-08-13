@@ -7,7 +7,8 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type InterviewMode = 'TEXT' | 'VOICE' | 'HYBRID';
+export type InterviewMode = 'TEXT' | 'VOICE';
+export type InterviewExperienceMode = 'MOCK' | 'PRACTICE';
 export type InterviewStatus = 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 export type InterviewType = 'HR' | 'TECHNICAL' | 'MIXED';
 export const INTERVIEW_VOICES = [
@@ -55,6 +56,9 @@ export class InterviewSessionEntity {
 
   @Column({ type: 'varchar' })
   mode!: InterviewMode;
+
+  @Column({ type: 'varchar', name: 'experience_mode', nullable: true })
+  experienceMode!: InterviewExperienceMode | null;
 
   @Column({ type: 'varchar', name: 'interview_type' })
   interviewType!: InterviewType;

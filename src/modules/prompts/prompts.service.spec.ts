@@ -1,19 +1,22 @@
-import { PromptsService } from './prompts.service';
+﻿import { PromptsService } from './prompts.service';
 import { TemplateRenderer } from './template-renderer';
 
 describe('PromptsService interview voice templates', () => {
-  it('loads all realtime, TTS, and transcription prompt templates', async () => {
+  it('strips a BOM and CRLF before parsing frontmatter', () => {
+    const service = new PromptsService(new TemplateRenderer());
+    const parsed = (
+      service as unknown as {
+        parseFrontmatter: (raw: string) => { body: string; meta: Record<string, string> };
+      }
+    ).parseFrontmatter('\uFEFF---\r\ntitle: Interview\r\n---\r\nPrompt body');
+
+    expect(parsed).toEqual({ body: 'Prompt body', meta: { title: 'Interview' } });
+  });
+  it('loads realtime and transcription prompt templates', async () => {
     const service = new PromptsService(new TemplateRenderer());
 
     await service.onModuleInit();
-
-    expect(service.get('interview_realtime_voice_v1').filename).toBe(
-      'interview_realtime_voice_v1.md',
-    );
-    expect(service.get('interview_realtime_hybrid_v1').filename).toBe(
-      'interview_realtime_hybrid_v1.md',
-    );
-    expect(service.get('interview_tts_v1').filename).toBe('interview_tts_v1.md');
+    expect(service.get('interview_realtime_v3').filename).toBe('interview_realtime_v3.md');
     expect(service.get('interview_transcription_vi_v1').filename).toBe(
       'interview_transcription_vi_v1.md',
     );
@@ -21,13 +24,6 @@ describe('PromptsService interview voice templates', () => {
       'interview_transcription_en_v1.md',
     );
     expect(service.render('interview_transcription_vi_v1', {})).toContain('TypeScript');
-    expect(
-      service.render('interview_tts_v1', {
-        interview_type: 'TECHNICAL',
-        language_instruction: 'Speak Vietnamese.',
-        target_role: 'frontend_developer',
-      }),
-    ).toContain('PostgreSQL');
   });
 });
 
@@ -52,7 +48,7 @@ describe('PromptsService cv_builder_chat_v1', () => {
     const rendered = service.render('cv_builder_chat_v1', {
       language: 'vi',
       facts: '{"target_role":"Data Analyst"}',
-      focus: 'projects[0].description — gaps: result',
+      focus: 'projects[0].description â€” gaps: result',
       history: 'user: xin chào',
       context: 'Directive: ask for a number.',
       question: 'Viết lại bullet này giúp mình.',
@@ -61,7 +57,7 @@ describe('PromptsService cv_builder_chat_v1', () => {
 
     expect(rendered).toContain('vi');
     expect(rendered).toContain('{"target_role":"Data Analyst"}');
-    expect(rendered).toContain('projects[0].description — gaps: result');
+    expect(rendered).toContain('projects[0].description â€” gaps: result');
     expect(rendered).toContain('user: xin chào');
     expect(rendered).toContain('Directive: ask for a number.');
     expect(rendered).toContain('Viết lại bullet này giúp mình.');

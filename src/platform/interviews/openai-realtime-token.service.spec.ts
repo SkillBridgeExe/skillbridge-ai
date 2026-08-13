@@ -1,7 +1,9 @@
-import { ConfigService } from '@nestjs/config';
+﻿import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { InterviewSessionEntity } from '../../database/entities/interview-session.entity';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
+import configuration from '../../config/configuration';
+import { configValidationSchema } from '../../config/validation';
 
 const mockClientSecretsCreate = jest.fn();
 
@@ -17,6 +19,22 @@ jest.mock('openai', () => ({
 }));
 
 describe('OpenAiRealtimeTokenService', () => {
+  it('uses gpt-4o-transcribe consistently as the application and validation default', () => {
+    const previous = process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+    delete process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+    try {
+      expect(configuration().llm.openai.realtimeTranscriptionModel).toBe('gpt-4o-transcribe');
+      expect(
+        configValidationSchema.validate({
+          NODE_ENV: 'test',
+          INTERNAL_AUTH_SECRET: '1234567890123456',
+        }).value.OPENAI_REALTIME_TRANSCRIPTION_MODEL,
+      ).toBe('gpt-4o-transcribe');
+    } finally {
+      if (previous === undefined) delete process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL;
+      else process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = previous;
+    }
+  });
   const userId = '11111111-1111-4111-8111-111111111111';
   const session = {
     id: 'interview-session-1',
@@ -37,7 +55,7 @@ describe('OpenAiRealtimeTokenService', () => {
   function serviceWithConfig(overrides: Record<string, string | undefined> = {}) {
     const values: Record<string, string | undefined> = {
       'llm.openai.apiKey': 'sk-test',
-      'llm.openai.realtimeModel': 'gpt-realtime-2',
+      'llm.openai.realtimeModel': 'gpt-realtime-2.1',
       ...overrides,
     };
     const config = {
@@ -46,7 +64,7 @@ describe('OpenAiRealtimeTokenService', () => {
     return new OpenAiRealtimeTokenService(config);
   }
 
-  it('creates a realtime client secret using the safe transcription fallback', async () => {
+  it('creates a v3 realtime client secret with accurate transcription and confidence data', async () => {
     mockClientSecretsCreate.mockResolvedValue({
       value: 'ek_test_secret',
       expires_at: 1781500000,
@@ -70,17 +88,19 @@ describe('OpenAiRealtimeTokenService', () => {
       expect.objectContaining({
         session: expect.objectContaining({
           type: 'realtime',
-          model: 'gpt-realtime-2',
-          instructions: 'Interview instructions',
+          model: 'gpt-realtime-2.1',
+          instructions: expect.stringContaining('Interview instructions'),
           output_modalities: ['audio'],
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: expect.objectContaining({
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
                 language: 'vi',
+                prompt: expect.any(String),
               }),
               turn_detection: expect.objectContaining({
-                type: 'server_vad',
+                type: 'semantic_vad',
+                eagerness: 'low',
                 create_response: false,
                 interrupt_response: false,
               }),
@@ -108,11 +128,19 @@ describe('OpenAiRealtimeTokenService', () => {
       };
     };
     expect(request.session).not.toHaveProperty('speed');
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session).toEqual(
+      expect.objectContaining({
+        tool_choice: 'none',
+        tools: [],
+        include: ['item.input_audio_transcription.logprobs'],
+      }),
+    );
     expect(result).toEqual({
       enabled: true,
       provider: 'openai',
-      model: 'gpt-realtime-2',
+      model: 'gpt-realtime-2.1',
+      protocolVersion: 'interview-realtime-v3',
+      transcriptionModel: 'gpt-4o-transcribe',
       clientSecret: 'ek_test_secret',
       expiresAt: '2026-06-15T05:06:40.000Z',
     });
@@ -150,7 +178,30 @@ describe('OpenAiRealtimeTokenService', () => {
     const request = mockClientSecretsCreate.mock.calls[0][0] as {
       session: { audio?: { input?: { transcription?: Record<string, unknown> } } };
     };
-    expect(request.session.audio?.input?.transcription).not.toHaveProperty('prompt');
+    expect(request.session).toEqual(
+      expect.objectContaining({
+        tool_choice: 'none',
+        tools: [],
+        include: ['item.input_audio_transcription.logprobs'],
+      }),
+    );
+    expect(mockClientSecretsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({
+          audio: expect.objectContaining({
+            input: expect.objectContaining({
+              turn_detection: expect.objectContaining({
+                type: 'semantic_vad',
+                eagerness: 'auto',
+                create_response: false,
+                interrupt_response: false,
+              }),
+            }),
+          }),
+        }),
+      }),
+      expect.any(Object),
+    );
   });
 
   it('uses the configured realtime transcription model override', async () => {
@@ -197,8 +248,9 @@ describe('OpenAiRealtimeTokenService', () => {
           audio: expect.objectContaining({
             input: expect.objectContaining({
               transcription: {
-                model: 'gpt-4o-mini-transcribe',
+                model: 'gpt-4o-transcribe',
                 language: 'vi',
+                prompt: expect.any(String),
               },
             }),
           }),
@@ -220,7 +272,7 @@ describe('OpenAiRealtimeTokenService', () => {
       realtimeSessionId: null,
     } as unknown as InterviewSessionEntity;
 
-    await serviceWithConfig({ 'llm.openai.ttsVoice': 'cedar' }).createClientSecret(
+    await serviceWithConfig({ 'llm.openai.realtimeVoice': 'cedar' }).createClientSecret(
       userId,
       sessionWithoutVoice,
       'Interview instructions',
@@ -240,27 +292,34 @@ describe('OpenAiRealtimeTokenService', () => {
     );
   });
 
-  it('keeps guided hybrid voice capture from auto-responding or interrupting official audio', async () => {
+  it('configures realtime with semantic VAD and no classification tool', async () => {
     mockClientSecretsCreate.mockResolvedValue({
-      value: 'ek_test_secret',
+      value: 'ek_realtime_secret',
       expires_at: 1781500000,
-      session: { id: 'sess_realtime_hybrid' },
+      session: { id: 'sess_realtime' },
     });
-    const hybridSession = {
+    const realtimeSession = {
       ...session,
-      mode: 'HYBRID',
+      experienceMode: 'PRACTICE',
       realtimeSessionId: null,
     } as InterviewSessionEntity;
 
-    await serviceWithConfig().createClientSecret(userId, hybridSession, 'Interview instructions');
+    const result = await serviceWithConfig({
+      'llm.openai.realtimeModel': undefined,
+    }).createClientSecret(userId, realtimeSession, 'Realtime interview instructions');
 
     expect(mockClientSecretsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         session: expect.objectContaining({
+          model: 'gpt-realtime-2.1',
+          reasoning: { effort: 'low' },
+          tool_choice: 'none',
+          tools: [],
           audio: expect.objectContaining({
             input: expect.objectContaining({
               turn_detection: expect.objectContaining({
-                type: 'server_vad',
+                type: 'semantic_vad',
+                eagerness: 'low',
                 create_response: false,
                 interrupt_response: false,
               }),
@@ -270,6 +329,7 @@ describe('OpenAiRealtimeTokenService', () => {
       }),
       expect.any(Object),
     );
+    expect(result.model).toBe('gpt-realtime-2.1');
   });
 
   it('returns a disabled token response when OPENAI_API_KEY is missing', async () => {
@@ -284,7 +344,7 @@ describe('OpenAiRealtimeTokenService', () => {
     expect(result).toMatchObject({
       enabled: false,
       provider: 'openai',
-      model: 'gpt-realtime-2',
+      model: 'gpt-realtime-2.1',
       clientSecret: null,
       reason: 'OPENAI_API_KEY is not set',
     });

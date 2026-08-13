@@ -1,5 +1,6 @@
-import { forwardRef, Module } from '@nestjs/common';
+﻿import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommonServicesModule } from '../../common/services/common-services.module';
 import { AiResultEntity } from '../../database/entities/ai-result.entity';
 import { CvEntity } from '../../database/entities/cv.entity';
 import { CvMatchEntity } from '../../database/entities/cv-match.entity';
@@ -13,8 +14,8 @@ import { CvMatchesModule } from '../cv-matches/cv-matches.module';
 import { InterviewsController } from './interviews.controller';
 import { InterviewChainLlmService } from './interview-chain-llm.service';
 import { InterviewGapReportService } from './interview-gap-report.service';
+import { InterviewRealtimeService } from './interview-realtime.service';
 import { InterviewsService } from './interviews.service';
-import { OpenAiQuestionAudioService } from './openai-question-audio.service';
 import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
 
 @Module({
@@ -28,6 +29,7 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
       AiResultEntity,
       InterviewQuestionBankItemEntity,
     ]),
+    CommonServicesModule,
     InterviewModule,
     BillingModule,
     forwardRef(() => CvMatchesModule),
@@ -36,9 +38,9 @@ import { OpenAiRealtimeTokenService } from './openai-realtime-token.service';
   providers: [
     InterviewsService,
     OpenAiRealtimeTokenService,
-    OpenAiQuestionAudioService,
     InterviewGapReportService,
     InterviewChainLlmService,
+    InterviewRealtimeService,
   ],
   exports: [InterviewGapReportService],
 })
